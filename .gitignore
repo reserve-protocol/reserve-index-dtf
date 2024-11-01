@@ -1,0 +1,18 @@
+# shhhh
+.env
+.seed
+
+# Foundry
+cache/
+out/
+artifacts/
+broadcast/
+.gas-snapshot
+lcov.info
+
+# JS
+node_modules/
+package-lock.json
+
+# Yarn
+install-state.gz
