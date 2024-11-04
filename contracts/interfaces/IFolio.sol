@@ -9,25 +9,25 @@ interface IFolio {
     event TradeLaunched(uint256 indexed tradeId);
     event TradeSettled(uint256 indexed tradeId, uint256 toAmount);
 
-    struct TradeParams {
-        address sell;
-        address buy;
-        uint256 amount; // {qFU} 1e18 precision
-    }
-    struct Trade {
-        TradeParams params;
-        ITrade trader;
-    }
+    // struct TradeParams {
+    //     address sell;
+    //     address buy;
+    //     uint256 amount; // {qFU} 1e18 precision
+    // }
+    // struct Trade {
+    //     TradeParams params;
+    //     ITrade trader;
+    // }
     struct DemurrageRecipient {
         address recipient;
         uint256 bps;
     }
     function setDemurrageFee(uint256 _demurrageFee) external;
     function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external;
-    function approveTrade(TradeParams memory trade) external;
-    function launchTrade(uint256 _tradeId, TradePrices memory prices) external;
-    function forceSettleTrade(uint256 _tradeId) external;
-    function settleTrade(uint256 _tradeId) external;
+    // function approveTrade(TradeParams memory trade) external;
+    // function launchTrade(uint256 _tradeId, TradePrices memory prices) external;
+    // function forceSettleTrade(uint256 _tradeId) external;
+    // function settleTrade(uint256 _tradeId) external;
 
     function poke() external;
 

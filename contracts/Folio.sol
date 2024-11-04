@@ -6,7 +6,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { FolioDutchTrade, TradePrices } from "./FolioDutchTrade.sol";
+// import { FolioDutchTrade, TradePrices } from "./FolioDutchTrade.sol";
 
 contract Folio is IFolio, ERC20 {
     using Math for uint256;
@@ -20,7 +20,7 @@ contract Folio is IFolio, ERC20 {
     DemurrageRecipient[] public demurrageRecipients;
     uint40 public lastPoke;
     uint256 public pendingFeeShares;
-    Trade[] public trades;
+    // Trade[] public trades;
     address public dutchTradeImplementation;
     uint256 public dutchAuctionLength;
 
@@ -62,7 +62,7 @@ contract Folio is IFolio, ERC20 {
     }
 
     function assets() external view returns (address[] memory _assets) {
-        return basket.keys();
+        return basket.values();
     }
     // ( {tokAddress}, {tok/FU} )
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
@@ -70,7 +70,7 @@ contract Folio is IFolio, ERC20 {
     }
     // ( {tokAddress}, {tok} )
     function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        _assets = basket.keys();
+        _assets = basket.values();
         uint256 len = _assets.length;
         _amounts = new uint256[](len);
         for (uint256 i; i <= len; i++) {
@@ -82,7 +82,7 @@ contract Folio is IFolio, ERC20 {
         uint256 shares,
         Math.Rounding rounding
     ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
-        _assets = basket.keys();
+        _assets = basket.values();
         uint256 len = _assets.length;
         _amounts = new uint256[](len);
         for (uint256 i; i <= len; i++) {
@@ -148,50 +148,50 @@ contract Folio is IFolio, ERC20 {
         _poke();
     }
 
-    function approveTrade(TradeParams memory trade) external {
-        if (trade.amount == 0) {
-            revert("trade.amount cannot be 0");
-        }
-        if (trade.from == address(0) || trade.to == address(0)) {
-            revert("trade.from or trade.to cannot be 0");
-        }
-        if (trade.from == trade.to) {
-            revert("trade.from and trade.to cannot be the same");
-        }
-        if (!basket.contains(trade.from)) {
-            revert("trade.from is not in basket");
-        }
+    // function approveTrade(TradeParams memory trade) external {
+    //     if (trade.amount == 0) {
+    //         revert("trade.amount cannot be 0");
+    //     }
+    //     if (trade.from == address(0) || trade.to == address(0)) {
+    //         revert("trade.from or trade.to cannot be 0");
+    //     }
+    //     if (trade.from == trade.to) {
+    //         revert("trade.from and trade.to cannot be the same");
+    //     }
+    //     if (!basket.contains(trade.from)) {
+    //         revert("trade.from is not in basket");
+    //     }
 
-        trades.push(new Trade(trade, address(0)));
+    //     trades.push(new Trade(trade, address(0)));
 
-        emit TradeApproved(trades.length, trade.sell, trade.buy, trade.amount);
-    }
-    function launchTrade(uint256 _tradeId, TradePrices memory prices) external {
-        _poke();
-        FolioDutchTrade trader = FolioDutchTrade(address(dutchTradeImplementation).clone());
-        Trade storage trade = trades[_tradeId];
-        trades.trader = trader;
-        IERC20(address(trade.sell)).safeTransfer(address(trade), trade.amount);
-        trade.init(address(this), trade.sell, trade.buy, trade.amount, dutchAuctionLength, prices);
-        emit TradeLaunched(_tradeId);
-    }
-    function forceSettleTrade(uint256 _tradeId) external {
-        _poke();
-        Trade memory trade = trades[_tradeId];
-        trade.trader.settle();
-    }
-    function settleTrade(uint256 _tradeId) external {
-        _poke();
-        Trade memory trade = trades[_tradeId];
-        if (msg.sender != address(trade.trader)) {
-            revert("only trader can settle");
-        }
-        if (!basket.contains(trade.to)) {
-            basket.add(trade.to);
-        }
-        (uint256 soldAmount, uint256 boughtAmount) = trade.trader.settle();
-        emit TradeSettled(_tradeId, boughtAmount);
-    }
+    //     emit TradeApproved(trades.length, trade.sell, trade.buy, trade.amount);
+    // }
+    // function launchTrade(uint256 _tradeId, TradePrices memory prices) external {
+    //     _poke();
+    //     FolioDutchTrade trader = FolioDutchTrade(address(dutchTradeImplementation).clone());
+    //     Trade storage trade = trades[_tradeId];
+    //     trades.trader = trader;
+    //     IERC20(address(trade.sell)).safeTransfer(address(trade), trade.amount);
+    //     trade.init(address(this), trade.sell, trade.buy, trade.amount, dutchAuctionLength, prices);
+    //     emit TradeLaunched(_tradeId);
+    // }
+    // function forceSettleTrade(uint256 _tradeId) external {
+    //     _poke();
+    //     Trade memory trade = trades[_tradeId];
+    //     trade.trader.settle();
+    // }
+    // function settleTrade(uint256 _tradeId) external {
+    //     _poke();
+    //     Trade memory trade = trades[_tradeId];
+    //     if (msg.sender != address(trade.trader)) {
+    //         revert("only trader can settle");
+    //     }
+    //     if (!basket.contains(trade.to)) {
+    //         basket.add(trade.to);
+    //     }
+    //     (uint256 soldAmount, uint256 boughtAmount) = trade.trader.settle();
+    //     emit TradeSettled(_tradeId, boughtAmount);
+    // }
 
     /*
         Internal functions
@@ -238,10 +238,13 @@ contract Folio is IFolio, ERC20 {
         if (total != BPS_PRECISION) {
             revert("total != BPS_PRECISION");
         }
-        demurrageRecipients = _demurrageRecipients;
+        delete demurrageRecipients;
+        for (uint256 i; i <= len; i++) {
+            demurrageRecipients.push(_demurrageRecipients[i]);
+        }
     }
 
-    function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual override {
+    function _beforeTokenTransfer(address, address, uint256) internal virtual override {
         _poke();
     }
 
