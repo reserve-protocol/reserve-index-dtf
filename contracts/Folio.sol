@@ -41,7 +41,7 @@ contract Folio is IFolio, ERC20 {
         if (len != _amounts.length) {
             revert("length mismatch");
         }
-        for (uint256 i; i <= len; i++) {
+        for (uint256 i; i < len; i++) {
             if (_assets[i] == address(0)) {
                 revert("asset cannot be 0");
             }
@@ -73,7 +73,7 @@ contract Folio is IFolio, ERC20 {
         _assets = basket.values();
         uint256 len = _assets.length;
         _amounts = new uint256[](len);
-        for (uint256 i; i <= len; i++) {
+        for (uint256 i; i < len; i++) {
             _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
         }
     }
@@ -85,7 +85,7 @@ contract Folio is IFolio, ERC20 {
         _assets = basket.values();
         uint256 len = _assets.length;
         _amounts = new uint256[](len);
-        for (uint256 i; i <= len; i++) {
+        for (uint256 i; i < len; i++) {
             uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
             _amounts[i] = shares.mulDiv(assetBal + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
         }
@@ -101,7 +101,7 @@ contract Folio is IFolio, ERC20 {
         (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Down);
         _mint(receiver, shares);
         uint256 len = _assets.length;
-        for (uint256 i; i <= len; i++) {
+        for (uint256 i; i < len; i++) {
             IERC20(_assets[i]).transferFrom(receiver, address(this), _amounts[i]);
         }
     }
@@ -120,7 +120,7 @@ contract Folio is IFolio, ERC20 {
         }
         _burn(owner, shares);
         uint256 len = _assets.length;
-        for (uint256 i; i <= len; i++) {
+        for (uint256 i; i < len; i++) {
             IERC20(_assets[i]).transfer(receiver, _amounts[i]);
         }
     }
@@ -136,7 +136,7 @@ contract Folio is IFolio, ERC20 {
     function collectFees() public {
         _poke();
         uint256 len = demurrageRecipients.length;
-        for (uint256 i; i <= len; i++) {
+        for (uint256 i; i < len; i++) {
             uint256 bps = demurrageRecipients[i].bps;
             uint256 fee = (pendingFeeShares * bps) / BPS_PRECISION;
             _mint(demurrageRecipients[i].recipient, fee);
@@ -226,7 +226,7 @@ contract Folio is IFolio, ERC20 {
         // validate that amounts add up to 10000 BPS_PRECISION
         uint256 len = _demurrageRecipients.length;
         uint256 total;
-        for (uint256 i; i <= len; i++) {
+        for (uint256 i; i < len; i++) {
             if (_demurrageRecipients[i].recipient == address(0)) {
                 revert("recipient cannot be 0");
             }
@@ -239,7 +239,7 @@ contract Folio is IFolio, ERC20 {
             revert("total != BPS_PRECISION");
         }
         delete demurrageRecipients;
-        for (uint256 i; i <= len; i++) {
+        for (uint256 i; i < len; i++) {
             demurrageRecipients.push(_demurrageRecipients[i]);
         }
     }
