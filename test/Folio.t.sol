@@ -19,10 +19,10 @@ contract FolioTest is BaseTest {
         recipients[0] = IFolio.DemurrageRecipient(owner, 10000);
         // 1% demurrage fee
         vm.startPrank(owner);
-        USDC.approve(address(folio), type(uint256).max);
-        DAI.approve(address(folio), type(uint256).max);
-        MEME.approve(address(folio), type(uint256).max);
-        folio = new Folio("Test Folio", "TFOLIO", tokens, amounts, 100, recipients, address(0));
+        USDC.approve(address(folioFactory), type(uint256).max);
+        DAI.approve(address(folioFactory), type(uint256).max);
+        MEME.approve(address(folioFactory), type(uint256).max);
+        folio = Folio(folioFactory.createFolio("Test Folio", "TFOLIO", tokens, amounts, 100, recipients, address(0)));
         vm.stopPrank();
     }
 
@@ -56,7 +56,7 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folio), type(uint256).max);
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
-        folio.mint(1e6, address(this));
+        folio.mint(1e6, user1);
         assertEq(folio.balanceOf(user1), 1e6);
         assertEq(USDC.balanceOf(address(folio)), startingUSDCBalance + D6_TOKEN_10K);
         assertEq(DAI.balanceOf(address(folio)), startingDAIBalance + D18_TOKEN_10K);

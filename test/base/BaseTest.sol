@@ -12,7 +12,7 @@ import { MockERC20 } from "utils/MockERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 
 import { Folio } from "contracts/Folio.sol";
-
+import { FolioFactory } from "contracts/FolioFactory.sol";
 abstract contract BaseTest is Script, Test {
     uint256 constant D6_TOKEN_1 = 1e6;
     uint256 constant D6_TOKEN_10K = 1e10; // 1e4 = 10K tokens with 6 decimals
@@ -38,6 +38,7 @@ abstract contract BaseTest is Script, Test {
     IERC20 MEME;
 
     Folio folio;
+    FolioFactory folioFactory;
 
     function setUp() public {
         _testSetup();
@@ -57,6 +58,7 @@ abstract contract BaseTest is Script, Test {
     function _coreSetup() public {}
 
     function _testSetupBefore() public {
+        folioFactory = new FolioFactory();
         deployCoins();
         mintTokens();
     }

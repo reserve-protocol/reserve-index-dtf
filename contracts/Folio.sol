@@ -23,12 +23,11 @@ contract Folio is IFolio, ERC20 {
     // Trade[] public trades;
     address public dutchTradeImplementation;
     uint256 public dutchAuctionLength;
+    address public owner;
 
     constructor(
         string memory name,
         string memory symbol,
-        address[] memory _assets,
-        uint256[] memory _amounts,
         uint256 _demurrageFee,
         DemurrageRecipient[] memory _demurrageRecipients,
         address _dutchTradeImplementation
@@ -36,7 +35,21 @@ contract Folio is IFolio, ERC20 {
         _setDemurrageFee(_demurrageFee);
         _setDemurrageRecipients(_demurrageRecipients);
         dutchTradeImplementation = _dutchTradeImplementation;
+        owner = msg.sender;
+    }
 
+    modifier onlyOwner() {
+        if (msg.sender != owner) {
+            revert("only owner can call this function");
+        }
+        _;
+    }
+
+    function setOwner(address _owner) external onlyOwner {
+        owner = _owner;
+    }
+
+    function initialize(address[] memory _assets, uint256[] memory _amounts) external onlyOwner {
         uint256 len = _assets.length;
         if (len != _amounts.length) {
             revert("length mismatch");
@@ -102,7 +115,7 @@ contract Folio is IFolio, ERC20 {
         _mint(receiver, shares);
         uint256 len = _assets.length;
         for (uint256 i; i < len; i++) {
-            IERC20(_assets[i]).transferFrom(receiver, address(this), _amounts[i]);
+            IERC20(_assets[i]).transferFrom(msg.sender, address(this), _amounts[i]);
         }
     }
 
@@ -112,13 +125,13 @@ contract Folio is IFolio, ERC20 {
     function redeem(
         uint256 shares,
         address receiver,
-        address owner
+        address _owner
     ) external returns (address[] memory _assets, uint256[] memory _amounts) {
         (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Down);
-        if (msg.sender != owner) {
-            _spendAllowance(owner, msg.sender, shares);
+        if (msg.sender != _owner) {
+            _spendAllowance(_owner, msg.sender, shares);
         }
-        _burn(owner, shares);
+        _burn(_owner, shares);
         uint256 len = _assets.length;
         for (uint256 i; i < len; i++) {
             IERC20(_assets[i]).transfer(receiver, _amounts[i]);
