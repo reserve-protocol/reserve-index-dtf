@@ -2,10 +2,12 @@
 pragma solidity 0.8.25;
 
 import { IFolio } from "./interfaces/IFolio.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { Decimals } from "./Decimals.sol";
 // import { FolioDutchTrade, TradePrices } from "./FolioDutchTrade.sol";
 
 contract Folio is IFolio, ERC20 {
@@ -100,7 +102,12 @@ contract Folio is IFolio, ERC20 {
         _amounts = new uint256[](len);
         for (uint256 i; i < len; i++) {
             uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
-            _amounts[i] = shares.mulDiv(assetBal + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
+            int8 dec = int8(IERC20Metadata(_assets[i]).decimals());
+            _amounts[i] = Decimals.shiftl(
+                shares.mulDiv(assetBal + 1, totalSupply() + 10 ** _decimalsOffset(), rounding),
+                -dec,
+                rounding
+            );
         }
     }
 

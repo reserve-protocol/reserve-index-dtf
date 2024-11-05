@@ -56,10 +56,10 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folio), type(uint256).max);
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
-        folio.mint(1e6, user1);
-        assertEq(folio.balanceOf(user1), 1e6);
-        assertEq(USDC.balanceOf(address(folio)), startingUSDCBalance + D6_TOKEN_10K);
-        assertEq(DAI.balanceOf(address(folio)), startingDAIBalance + D18_TOKEN_10K);
-        assertEq(MEME.balanceOf(address(folio)), startingMEMEBalance + D27_TOKEN_10K);
+        folio.mint(1e24, user1);
+        assertEq(folio.balanceOf(user1), 1e24);
+        assertApproxEqAbs(USDC.balanceOf(address(folio)), startingUSDCBalance + D6_TOKEN_10K, 1);
+        assertApproxEqAbs(DAI.balanceOf(address(folio)), startingDAIBalance + D18_TOKEN_10K, 1);
+        assertApproxEqAbs(MEME.balanceOf(address(folio)), startingMEMEBalance + D27_TOKEN_10K, 1);
     }
 }
