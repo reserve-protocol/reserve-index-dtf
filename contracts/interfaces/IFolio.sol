@@ -42,13 +42,11 @@ interface IFolio {
         Math.Rounding rounding
     ) external view returns (address[] memory _assets, uint256[] memory _amounts);
 
-    function previewMint(uint256 shares) external view returns (address[] memory _assets, uint256[] memory _amounts);
     function mint(
         uint256 shares,
         address receiver
     ) external returns (address[] memory _assets, uint256[] memory _amounts);
 
-    function previewRedeem(uint256 shares) external view returns (address[] memory _assets, uint256[] memory _amounts);
     function redeem(
         uint256 shares,
         address receiver,

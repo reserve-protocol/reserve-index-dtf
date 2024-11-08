@@ -110,10 +110,6 @@ contract Folio is IFolio, ERC20 {
         }
     }
 
-    function previewMint(uint256 shares) external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return convertToAssets(shares, Math.Rounding.Down);
-    }
-
     function mint(
         uint256 shares,
         address receiver
@@ -124,10 +120,6 @@ contract Folio is IFolio, ERC20 {
         for (uint256 i; i < len; i++) {
             IERC20(_assets[i]).transferFrom(msg.sender, address(this), _amounts[i]);
         }
-    }
-
-    function previewRedeem(uint256 shares) external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return convertToAssets(shares, Math.Rounding.Down);
     }
 
     function redeem(

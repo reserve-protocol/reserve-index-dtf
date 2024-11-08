@@ -69,8 +69,32 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
         folio.mint(1e22, user1);
         assertEq(folio.balanceOf(user1), 1e22);
-        assertApproxEqAbs(USDC.balanceOf(address(folio)), startingUSDCBalance + D6_TOKEN_10K, 1e9);
-        assertApproxEqAbs(DAI.balanceOf(address(folio)), startingDAIBalance + D18_TOKEN_10K, 1e9);
+        assertApproxEqAbs(USDC.balanceOf(address(folio)), startingUSDCBalance + D6_TOKEN_10K, 1);
+        assertApproxEqAbs(DAI.balanceOf(address(folio)), startingDAIBalance + D18_TOKEN_10K, 1);
         assertApproxEqAbs(MEME.balanceOf(address(folio)), startingMEMEBalance + D27_TOKEN_10K, 1e9);
+    }
+
+    function test_redeem() public {
+        _deployTestFolio();
+        assertEq(folio.balanceOf(user1), 0);
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+        folio.mint(1e22, user1);
+        assertEq(folio.balanceOf(user1), 1e22);
+        uint256 startingUSDCBalanceFolio = USDC.balanceOf(address(folio));
+        uint256 startingDAIBalanceFolio = DAI.balanceOf(address(folio));
+        uint256 startingMEMEBalanceFolio = MEME.balanceOf(address(folio));
+        uint256 startingUSDCBalanceAlice = USDC.balanceOf(address(user1));
+        uint256 startingDAIBalanceAlice = DAI.balanceOf(address(user1));
+        uint256 startingMEMEBalanceAlice = MEME.balanceOf(address(user1));
+        folio.redeem(5e21, user1, user1);
+        assertApproxEqAbs(USDC.balanceOf(address(folio)), startingUSDCBalanceFolio - D6_TOKEN_10K / 2, 1);
+        assertApproxEqAbs(DAI.balanceOf(address(folio)), startingDAIBalanceFolio - D18_TOKEN_10K / 2, 1);
+        assertApproxEqAbs(MEME.balanceOf(address(folio)), startingMEMEBalanceFolio - D27_TOKEN_10K / 2, 1e9);
+        assertApproxEqAbs(USDC.balanceOf(user1), startingUSDCBalanceAlice + D6_TOKEN_10K / 2, 1);
+        assertApproxEqAbs(DAI.balanceOf(user1), startingDAIBalanceAlice + D18_TOKEN_10K / 2, 1);
+        assertApproxEqAbs(MEME.balanceOf(user1), startingMEMEBalanceAlice + D27_TOKEN_10K / 2, 1e9);
     }
 }
