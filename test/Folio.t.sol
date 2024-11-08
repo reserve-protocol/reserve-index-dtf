@@ -23,16 +23,7 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folioFactory), type(uint256).max);
         MEME.approve(address(folioFactory), type(uint256).max);
         folio = Folio(
-            folioFactory.createFolio(
-                "Test Folio",
-                "TFOLIO",
-                tokens,
-                amounts,
-                D18_TOKEN_10K,
-                100,
-                recipients,
-                address(0)
-            )
+            folioFactory.createFolio("Test Folio", "TFOLIO", tokens, amounts, D18_TOKEN_10K, 100, recipients)
         );
         vm.stopPrank();
     }
@@ -96,5 +87,20 @@ contract FolioTest is BaseTest {
         assertApproxEqAbs(USDC.balanceOf(user1), startingUSDCBalanceAlice + D6_TOKEN_10K / 2, 1);
         assertApproxEqAbs(DAI.balanceOf(user1), startingDAIBalanceAlice + D18_TOKEN_10K / 2, 1);
         assertApproxEqAbs(MEME.balanceOf(user1), startingMEMEBalanceAlice + D27_TOKEN_10K / 2, 1e9);
+    }
+
+    function test_daoFee() public {
+        _deployTestFolio();
+        vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
+        vm.roll(block.number + 1000000);
+        uint256 currentSupply = folio.totalSupply();
+        uint256 demFeeBps = folio.demurrageFee();
+        uint256 expectedFeeShares = (currentSupply * demFeeBps) / 1e4 / 2;
+        uint256 pendingFeeShares = folio.getPendingFeeShares();
+        assertEq(expectedFeeShares, pendingFeeShares);
+        folio.distributeFees();
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        assertEq(folio.balanceOf(address(dao)), expectedDaoShares);
     }
 }

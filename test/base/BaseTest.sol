@@ -13,6 +13,8 @@ import { MockERC20 } from "utils/MockERC20.sol";
 
 import { Folio } from "contracts/Folio.sol";
 import { FolioFactory } from "contracts/FolioFactory.sol";
+import { DAOFeeRegistry } from "contracts/DAOFeeRegistry.sol";
+import { RoleRegistry } from "contracts/RoleRegistry.sol";
 abstract contract BaseTest is Script, Test {
     uint256 constant D6_TOKEN_1 = 1e6;
     uint256 constant D6_TOKEN_10K = 1e10; // 1e4 = 10K tokens with 6 decimals
@@ -29,6 +31,7 @@ abstract contract BaseTest is Script, Test {
 
     uint256 constant YEAR_IN_SECONDS = 31536000;
 
+    address dao = 0xDA00000000000000000000000000000000000000;
     address owner = 0xf000000000000000000000000000000000000000;
     address user1 = 0xa000000000000000000000000000000000000000;
     address user2 = 0xB000000000000000000000000000000000000000;
@@ -39,6 +42,8 @@ abstract contract BaseTest is Script, Test {
 
     Folio folio;
     FolioFactory folioFactory;
+    DAOFeeRegistry daoFeeRegistry;
+    RoleRegistry roleRegistry;
 
     function setUp() public {
         _testSetup();
@@ -58,12 +63,15 @@ abstract contract BaseTest is Script, Test {
     function _coreSetup() public {}
 
     function _testSetupBefore() public {
-        folioFactory = new FolioFactory();
+        roleRegistry = new RoleRegistry();
+        daoFeeRegistry = new DAOFeeRegistry(roleRegistry, address(this));
+        folioFactory = new FolioFactory(address(daoFeeRegistry), address(0));
         deployCoins();
         mintTokens();
     }
 
     function _testSetupAfter() public {
+        vm.label(address(dao), "DAO");
         vm.label(address(owner), "Owner");
         vm.label(address(user1), "User 1");
         vm.label(address(user2), "User 2");

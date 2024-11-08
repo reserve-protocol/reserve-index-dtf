@@ -54,5 +54,5 @@ interface IFolio {
     ) external returns (address[] memory _assets, uint256[] memory _amounts);
 
     // function collectFee(address recipient) external;
-    function collectFees() external;
+    function distributeFees() external;
 }

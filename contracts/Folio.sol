@@ -7,6 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { IDAOFeeRegistry } from "./interfaces/IDAOFeeRegistry.sol";
 // import { FolioDutchTrade, TradePrices } from "./FolioDutchTrade.sol";
 import "forge-std/console2.sol";
 
@@ -27,17 +28,20 @@ contract Folio is IFolio, ERC20 {
     uint256 public dutchAuctionLength;
     address public owner;
     bool public basketInitialized;
+    IDAOFeeRegistry public daoFeeRegistry;
 
     constructor(
         string memory name,
         string memory symbol,
         uint256 _demurrageFee,
         DemurrageRecipient[] memory _demurrageRecipients,
+        address _daoFeeRegistry,
         address _dutchTradeImplementation
     ) ERC20(name, symbol) {
         _setDemurrageFee(_demurrageFee);
         _setDemurrageRecipients(_demurrageRecipients);
         dutchTradeImplementation = _dutchTradeImplementation;
+        daoFeeRegistry = IDAOFeeRegistry(_daoFeeRegistry);
         owner = msg.sender;
     }
 
@@ -145,8 +149,18 @@ contract Folio is IFolio, ERC20 {
         _setDemurrageRecipients(_demurrageRecipients);
     }
 
-    function collectFees() public {
+    function distributeFees() public {
         _poke();
+
+        // collect dao fee off the top
+        (address recipient, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(
+            address(this)
+        );
+        uint256 daoFee = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        _mint(recipient, daoFee);
+        pendingFeeShares -= daoFee;
+
+        // distribute the rest of the demurrage fee
         uint256 len = demurrageRecipients.length;
         for (uint256 i; i < len; i++) {
             uint256 bps = demurrageRecipients[i].bps;
@@ -158,6 +172,10 @@ contract Folio is IFolio, ERC20 {
 
     function poke() external override {
         _poke();
+    }
+
+    function getPendingFeeShares() external view returns (uint256) {
+        return pendingFeeShares + _getPendingFeeShares();
     }
 
     // function approveTrade(TradeParams memory trade) external {
