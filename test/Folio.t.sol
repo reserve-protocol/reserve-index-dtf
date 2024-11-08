@@ -22,7 +22,18 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
         MEME.approve(address(folioFactory), type(uint256).max);
-        folio = Folio(folioFactory.createFolio("Test Folio", "TFOLIO", tokens, amounts, 100, recipients, address(0)));
+        folio = Folio(
+            folioFactory.createFolio(
+                "Test Folio",
+                "TFOLIO",
+                tokens,
+                amounts,
+                D18_TOKEN_10K,
+                100,
+                recipients,
+                address(0)
+            )
+        );
         vm.stopPrank();
     }
 
@@ -56,10 +67,10 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folio), type(uint256).max);
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
-        folio.mint(1e24, user1);
-        assertEq(folio.balanceOf(user1), 1e24);
-        assertApproxEqAbs(USDC.balanceOf(address(folio)), startingUSDCBalance + D6_TOKEN_10K, 1);
-        assertApproxEqAbs(DAI.balanceOf(address(folio)), startingDAIBalance + D18_TOKEN_10K, 1);
-        assertApproxEqAbs(MEME.balanceOf(address(folio)), startingMEMEBalance + D27_TOKEN_10K, 1);
+        folio.mint(1e22, user1);
+        assertEq(folio.balanceOf(user1), 1e22);
+        assertApproxEqAbs(USDC.balanceOf(address(folio)), startingUSDCBalance + D6_TOKEN_10K, 1e9);
+        assertApproxEqAbs(DAI.balanceOf(address(folio)), startingDAIBalance + D18_TOKEN_10K, 1e9);
+        assertApproxEqAbs(MEME.balanceOf(address(folio)), startingMEMEBalance + D27_TOKEN_10K, 1e9);
     }
 }

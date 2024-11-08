@@ -9,6 +9,7 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { Decimals } from "./Decimals.sol";
 // import { FolioDutchTrade, TradePrices } from "./FolioDutchTrade.sol";
+import "forge-std/console2.sol";
 
 contract Folio is IFolio, ERC20 {
     using Math for uint256;
@@ -26,6 +27,7 @@ contract Folio is IFolio, ERC20 {
     address public dutchTradeImplementation;
     uint256 public dutchAuctionLength;
     address public owner;
+    bool public basketInitialized;
 
     constructor(
         string memory name,
@@ -51,21 +53,23 @@ contract Folio is IFolio, ERC20 {
         owner = _owner;
     }
 
-    function initialize(address[] memory _assets, uint256[] memory _amounts) external onlyOwner {
-        uint256 len = _assets.length;
-        if (len != _amounts.length) {
-            revert("length mismatch");
+    function initialize(address[] memory _assets, address initializer, uint256 shares) external onlyOwner {
+        if (basketInitialized) {
+            revert("basket already initialized");
         }
+        uint256 len = _assets.length;
         for (uint256 i; i < len; i++) {
             if (_assets[i] == address(0)) {
                 revert("asset cannot be 0");
             }
-            if (_amounts[i] == 0) {
+            uint256 bal = IERC20(_assets[i]).balanceOf(address(this));
+            if (bal == 0) {
                 revert("amount cannot be 0");
             }
             basket.add(address(_assets[i]));
-            IERC20(_assets[i]).transferFrom(msg.sender, address(this), _amounts[i]);
         }
+        _mint(initializer, shares);
+        basketInitialized = true;
     }
 
     function decimals() public view virtual override(ERC20) returns (uint8) {
@@ -102,18 +106,14 @@ contract Folio is IFolio, ERC20 {
         _amounts = new uint256[](len);
         for (uint256 i; i < len; i++) {
             uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
-            int8 dec = int8(IERC20Metadata(_assets[i]).decimals());
-            _amounts[i] = Decimals.shiftl(
-                shares.mulDiv(assetBal + 1, totalSupply() + 10 ** _decimalsOffset(), rounding),
-                -dec,
-                rounding
-            );
+            _amounts[i] = shares.mulDiv(assetBal + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
         }
     }
 
     function previewMint(uint256 shares) external view returns (address[] memory _assets, uint256[] memory _amounts) {
         return convertToAssets(shares, Math.Rounding.Down);
     }
+
     function mint(
         uint256 shares,
         address receiver
@@ -129,6 +129,7 @@ contract Folio is IFolio, ERC20 {
     function previewRedeem(uint256 shares) external view returns (address[] memory _assets, uint256[] memory _amounts) {
         return convertToAssets(shares, Math.Rounding.Down);
     }
+
     function redeem(
         uint256 shares,
         address receiver,
