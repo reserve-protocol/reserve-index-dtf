@@ -249,4 +249,40 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 9000) / 10000, "wrong owner shares");
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 1000) / 10000, "wrong fee receiver shares");
     }
+
+    function test_setDemurrageFee_InvalidFee() public {
+        _deployTestFolio();
+        vm.startPrank(owner);
+        uint256 newDemurrageFee = 10001;
+        vm.expectRevert(IFolio.Folio_badDemurrageFee.selector);
+        folio.setDemurrageFee(newDemurrageFee);
+    }
+
+    function test_setDemurrageFeeRecipients_InvalidRecipient() public {
+        _deployTestFolio();
+        vm.startPrank(owner);
+        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](1);
+        recipients[0] = IFolio.DemurrageRecipient(address(0), 1000);
+        vm.expectRevert(IFolio.Folio_badDemurrageFeeRecipientAddress.selector);
+        folio.setDemurrageRecipients(recipients);
+    }
+
+    function test_setDemurrageFeeRecipients_InvalidBps() public {
+        _deployTestFolio();
+        vm.startPrank(owner);
+        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](1);
+        recipients[0] = IFolio.DemurrageRecipient(owner, 0);
+        vm.expectRevert(IFolio.Folio_badDemurrageFeeRecipientBps.selector);
+        folio.setDemurrageRecipients(recipients);
+    }
+
+    function test_setDemurrageFeeRecipients_InvalidTotal() public {
+        _deployTestFolio();
+        vm.startPrank(owner);
+        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](2);
+        recipients[0] = IFolio.DemurrageRecipient(owner, 9000);
+        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 999);
+        vm.expectRevert(IFolio.Folio_badDemurrageFeeTotal.selector);
+        folio.setDemurrageRecipients(recipients);
+    }
 }

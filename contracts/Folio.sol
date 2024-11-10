@@ -247,7 +247,7 @@ contract Folio is IFolio, ERC20 {
 
     function _setDemurrageFee(uint256 _demurrageFee) internal {
         if (_demurrageFee > BPS_PRECISION) {
-            revert("demurrageFee > BPS_PRECISION");
+            revert Folio_badDemurrageFee();
         }
         demurrageFee = _demurrageFee;
     }
@@ -258,15 +258,15 @@ contract Folio is IFolio, ERC20 {
         uint256 total;
         for (uint256 i; i < len; i++) {
             if (_demurrageRecipients[i].recipient == address(0)) {
-                revert("recipient cannot be 0");
+                revert Folio_badDemurrageFeeRecipientAddress();
             }
             if (_demurrageRecipients[i].bps == 0) {
-                revert("amount cannot be 0");
+                revert Folio_badDemurrageFeeRecipientBps();
             }
             total += _demurrageRecipients[i].bps;
         }
         if (total != BPS_PRECISION) {
-            revert("total != BPS_PRECISION");
+            revert Folio_badDemurrageFeeTotal();
         }
         delete demurrageRecipients;
         for (uint256 i; i < len; i++) {

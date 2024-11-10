@@ -9,6 +9,11 @@ interface IFolio {
     event TradeLaunched(uint256 indexed tradeId);
     event TradeSettled(uint256 indexed tradeId, uint256 toAmount);
 
+    error Folio_badDemurrageFee();
+    error Folio_badDemurrageFeeRecipientAddress();
+    error Folio_badDemurrageFeeRecipientBps();
+    error Folio_badDemurrageFeeTotal();
+
     // struct TradeParams {
     //     address sell;
     //     address buy;
