@@ -159,4 +159,32 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 9000) / 10000, "wrong owner shares");
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 1000) / 10000, "wrong fee receiver shares");
     }
+
+    function test_setDemurrageRecipients() public {
+        _deployTestFolio();
+        vm.startPrank(owner);
+        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](3);
+        recipients[0] = IFolio.DemurrageRecipient(owner, 8000);
+        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 500);
+        recipients[2] = IFolio.DemurrageRecipient(user1, 1500);
+        folio.setDemurrageRecipients(recipients);
+
+        (address r1, uint256 bps1) = folio.demurrageRecipients(0);
+        assertEq(r1, owner, "wrong first recipient");
+        assertEq(bps1, 8000, "wrong first recipient bps");
+        (address r2, uint256 bps2) = folio.demurrageRecipients(1);
+        assertEq(r2, feeReceiver, "wrong second recipient");
+        assertEq(bps2, 500, "wrong second recipient bps");
+        (address r3, uint256 bps3) = folio.demurrageRecipients(2);
+        assertEq(r3, user1, "wrong third recipient");
+        assertEq(bps3, 1500, "wrong third recipient bps");
+    }
+
+    function test_setDemurrageFee() public {
+        _deployTestFolio();
+        vm.startPrank(owner);
+        uint256 newDemurrageFee = 200;
+        folio.setDemurrageFee(newDemurrageFee);
+        assertEq(folio.demurrageFee(), newDemurrageFee, "wrong demurrage fee");
+    }
 }
