@@ -191,6 +191,9 @@ contract FolioTest is BaseTest {
         uint256 pendingFeeShares = folio.getPendingFeeShares();
         assertEq(expectedFeeShares, pendingFeeShares, "wrong pending fee shares, before");
 
+        uint256 initialOwnerShares = folio.balanceOf(owner);
+        uint256 initialDaoShares = folio.balanceOf(dao);
+
         vm.startPrank(owner);
         IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](3);
         recipients[0] = IFolio.DemurrageRecipient(owner, 8000);
@@ -198,7 +201,15 @@ contract FolioTest is BaseTest {
         recipients[2] = IFolio.DemurrageRecipient(user1, 1500);
         folio.setDemurrageRecipients(recipients);
 
-        assertEq(expectedFeeShares, folio.pendingFeeShares(), "wrong pending fee shares, after");
+        assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
+
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
+
+        uint256 remainingShares = pendingFeeShares - expectedDaoShares;
+        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 9000) / 10000, "wrong owner shares");
+        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 1000) / 10000, "wrong fee receiver shares");
     }
 
     function test_setDemurrageFee() public {
@@ -220,10 +231,21 @@ contract FolioTest is BaseTest {
         uint256 pendingFeeShares = folio.getPendingFeeShares();
         assertEq(expectedFeeShares, pendingFeeShares, "wrong pending fee shares, before");
 
+        uint256 initialOwnerShares = folio.balanceOf(owner);
+        uint256 initialDaoShares = folio.balanceOf(dao);
+
         vm.startPrank(owner);
         uint256 newDemurrageFee = 200;
         folio.setDemurrageFee(newDemurrageFee);
 
-        assertEq(expectedFeeShares, folio.pendingFeeShares(), "wrong pending fee shares, after");
+        assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
+
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
+
+        uint256 remainingShares = pendingFeeShares - expectedDaoShares;
+        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 9000) / 10000, "wrong owner shares");
+        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 1000) / 10000, "wrong fee receiver shares");
     }
 }

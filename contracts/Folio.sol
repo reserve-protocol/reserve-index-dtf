@@ -142,10 +142,12 @@ contract Folio is IFolio, ERC20 {
     }
 
     function setDemurrageFee(uint256 _demurrageFee) external override {
+        distributeFees();
         _setDemurrageFee(_demurrageFee);
     }
 
     function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external override {
+        distributeFees();
         _setDemurrageRecipients(_demurrageRecipients);
     }
 
@@ -252,7 +254,6 @@ contract Folio is IFolio, ERC20 {
     }
 
     function _setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) internal {
-        _poke();
         // validate that amounts add up to 10000 BPS_PRECISION
         uint256 len = _demurrageRecipients.length;
         uint256 total;
