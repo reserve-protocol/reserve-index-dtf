@@ -140,17 +140,22 @@ contract FolioTest is BaseTest {
 
     function test_daoFee() public {
         _deployTestFolio();
+
+        // fast forward, accumulate fees
         vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
         vm.roll(block.number + 1000000);
+        uint256 pendingFeeShares = folio.getPendingFeeShares();
+
+        // validate pending fees have been accumulated
         uint256 currentSupply = folio.totalSupply();
         uint256 demFeeBps = folio.demurrageFee();
         uint256 expectedFeeShares = (currentSupply * demFeeBps) / 1e4 / 2;
-        uint256 pendingFeeShares = folio.getPendingFeeShares();
         assertEq(expectedFeeShares, pendingFeeShares, "wrong pending fee shares");
 
         uint256 initialOwnerShares = folio.balanceOf(owner);
         folio.distributeFees();
 
+        // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
         uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
@@ -180,16 +185,13 @@ contract FolioTest is BaseTest {
         assertEq(bps3, 1500, "wrong third recipient bps");
     }
 
-    function test_setDemurrageRecipientsAccountsFees() public {
+    function test_setDemurrageRecipients_DistributesFees() public {
         _deployTestFolio();
 
+        // fast forward, accumulate fees
         vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
         vm.roll(block.number + 1000000);
-        uint256 currentSupply = folio.totalSupply();
-        uint256 demFeeBps = folio.demurrageFee();
-        uint256 expectedFeeShares = (currentSupply * demFeeBps) / 1e4 / 2;
         uint256 pendingFeeShares = folio.getPendingFeeShares();
-        assertEq(expectedFeeShares, pendingFeeShares, "wrong pending fee shares, before");
 
         uint256 initialOwnerShares = folio.balanceOf(owner);
         uint256 initialDaoShares = folio.balanceOf(dao);
@@ -203,6 +205,7 @@ contract FolioTest is BaseTest {
 
         assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
 
+        // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
         uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
@@ -220,16 +223,13 @@ contract FolioTest is BaseTest {
         assertEq(folio.demurrageFee(), newDemurrageFee, "wrong demurrage fee");
     }
 
-    function test_setDemurrageFeeAccountsFees() public {
+    function test_setDemurrageFee_DistributesFees() public {
         _deployTestFolio();
 
+        // fast forward, accumulate fees
         vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
         vm.roll(block.number + 1000000);
-        uint256 currentSupply = folio.totalSupply();
-        uint256 demFeeBps = folio.demurrageFee();
-        uint256 expectedFeeShares = (currentSupply * demFeeBps) / 1e4 / 2;
         uint256 pendingFeeShares = folio.getPendingFeeShares();
-        assertEq(expectedFeeShares, pendingFeeShares, "wrong pending fee shares, before");
 
         uint256 initialOwnerShares = folio.balanceOf(owner);
         uint256 initialDaoShares = folio.balanceOf(dao);
@@ -240,6 +240,7 @@ contract FolioTest is BaseTest {
 
         assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
 
+        // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
         uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");

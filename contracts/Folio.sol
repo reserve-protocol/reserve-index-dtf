@@ -246,7 +246,6 @@ contract Folio is IFolio, ERC20 {
     }
 
     function _setDemurrageFee(uint256 _demurrageFee) internal {
-        _poke();
         if (_demurrageFee > BPS_PRECISION) {
             revert("demurrageFee > BPS_PRECISION");
         }
