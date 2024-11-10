@@ -285,4 +285,65 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio_badDemurrageFeeTotal.selector);
         folio.setDemurrageRecipients(recipients);
     }
+
+    function test_setFolioFeeRegistry() public {
+        _deployTestFolio();
+
+        // fast forward, accumulate fees
+        vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
+        vm.roll(block.number + 1000000);
+        uint256 pendingFeeShares = folio.getPendingFeeShares();
+
+        uint256 initialOwnerShares = folio.balanceOf(owner);
+        uint256 initialDaoShares = folio.balanceOf(dao);
+        uint256 initialFeeReceiverShares = folio.balanceOf(feeReceiver);
+
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+
+        daoFeeRegistry.setRTokenFeeNumerator(address(folio), 1000);
+
+        // check receipient balances
+        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares, 1st change");
+        uint256 remainingShares = pendingFeeShares - expectedDaoShares;
+        assertEq(
+            folio.balanceOf(owner),
+            initialOwnerShares + (remainingShares * 9000) / 10000,
+            "wrong owner shares, 1st change"
+        );
+        assertEq(
+            folio.balanceOf(feeReceiver),
+            initialFeeReceiverShares + (remainingShares * 1000) / 10000,
+            "wrong fee receiver shares, 1st change"
+        );
+
+        // fast forward again, accumulate fees
+        vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
+        vm.roll(block.number + 1000000);
+
+        pendingFeeShares = folio.getPendingFeeShares();
+
+        initialOwnerShares = folio.balanceOf(owner);
+        initialDaoShares = folio.balanceOf(dao);
+        initialFeeReceiverShares = folio.balanceOf(feeReceiver);
+        (, daoFeeNumerator, daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+
+        // set new fee numerator, should distribute fees
+        daoFeeRegistry.setRTokenFeeNumerator(address(folio), 500);
+
+        // check receipient balances
+        expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares, 2nd change");
+        remainingShares = pendingFeeShares - expectedDaoShares;
+        assertEq(
+            folio.balanceOf(owner),
+            initialOwnerShares + (remainingShares * 9000) / 10000,
+            "wrong owner shares, 2nd change"
+        );
+        assertEq(
+            folio.balanceOf(feeReceiver),
+            initialFeeReceiverShares + (remainingShares * 1000) / 10000,
+            "wrong fee receiver shares, 2nd change"
+        );
+    }
 }

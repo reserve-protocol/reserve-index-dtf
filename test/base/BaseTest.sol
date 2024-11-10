@@ -13,7 +13,7 @@ import { MockERC20 } from "utils/MockERC20.sol";
 
 import { Folio } from "contracts/Folio.sol";
 import { FolioFactory } from "contracts/FolioFactory.sol";
-import { DAOFeeRegistry } from "contracts/DAOFeeRegistry.sol";
+import { FolioFeeRegistry } from "contracts/FolioFeeRegistry.sol";
 import { RoleRegistry } from "contracts/RoleRegistry.sol";
 abstract contract BaseTest is Script, Test {
     uint256 constant D6_TOKEN_1 = 1e6;
@@ -43,7 +43,7 @@ abstract contract BaseTest is Script, Test {
 
     Folio folio;
     FolioFactory folioFactory;
-    DAOFeeRegistry daoFeeRegistry;
+    FolioFeeRegistry daoFeeRegistry;
     RoleRegistry roleRegistry;
 
     function setUp() public {
@@ -65,7 +65,7 @@ abstract contract BaseTest is Script, Test {
 
     function _testSetupBefore() public {
         roleRegistry = new RoleRegistry();
-        daoFeeRegistry = new DAOFeeRegistry(roleRegistry, address(this));
+        daoFeeRegistry = new FolioFeeRegistry(roleRegistry, dao);
         folioFactory = new FolioFactory(address(daoFeeRegistry), address(0));
         deployCoins();
         mintTokens();

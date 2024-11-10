@@ -7,7 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { IDAOFeeRegistry } from "./interfaces/IDAOFeeRegistry.sol";
+import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
 // import { FolioDutchTrade, TradePrices } from "./FolioDutchTrade.sol";
 import "forge-std/console2.sol";
 
@@ -28,7 +28,7 @@ contract Folio is IFolio, ERC20 {
     uint256 public dutchAuctionLength;
     address public owner;
     bool public basketInitialized;
-    IDAOFeeRegistry public daoFeeRegistry;
+    IFolioFeeRegistry public daoFeeRegistry;
 
     constructor(
         string memory name,
@@ -41,7 +41,7 @@ contract Folio is IFolio, ERC20 {
         _setDemurrageFee(_demurrageFee);
         _setDemurrageRecipients(_demurrageRecipients);
         dutchTradeImplementation = _dutchTradeImplementation;
-        daoFeeRegistry = IDAOFeeRegistry(_daoFeeRegistry);
+        daoFeeRegistry = IFolioFeeRegistry(_daoFeeRegistry);
         owner = msg.sender;
     }
 
