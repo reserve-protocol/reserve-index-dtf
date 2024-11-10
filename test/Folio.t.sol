@@ -180,11 +180,50 @@ contract FolioTest is BaseTest {
         assertEq(bps3, 1500, "wrong third recipient bps");
     }
 
+    function test_setDemurrageRecipientsAccountsFees() public {
+        _deployTestFolio();
+
+        vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
+        vm.roll(block.number + 1000000);
+        uint256 currentSupply = folio.totalSupply();
+        uint256 demFeeBps = folio.demurrageFee();
+        uint256 expectedFeeShares = (currentSupply * demFeeBps) / 1e4 / 2;
+        uint256 pendingFeeShares = folio.getPendingFeeShares();
+        assertEq(expectedFeeShares, pendingFeeShares, "wrong pending fee shares, before");
+
+        vm.startPrank(owner);
+        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](3);
+        recipients[0] = IFolio.DemurrageRecipient(owner, 8000);
+        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 500);
+        recipients[2] = IFolio.DemurrageRecipient(user1, 1500);
+        folio.setDemurrageRecipients(recipients);
+
+        assertEq(expectedFeeShares, folio.pendingFeeShares(), "wrong pending fee shares, after");
+    }
+
     function test_setDemurrageFee() public {
         _deployTestFolio();
         vm.startPrank(owner);
         uint256 newDemurrageFee = 200;
         folio.setDemurrageFee(newDemurrageFee);
         assertEq(folio.demurrageFee(), newDemurrageFee, "wrong demurrage fee");
+    }
+
+    function test_setDemurrageFeeAccountsFees() public {
+        _deployTestFolio();
+
+        vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
+        vm.roll(block.number + 1000000);
+        uint256 currentSupply = folio.totalSupply();
+        uint256 demFeeBps = folio.demurrageFee();
+        uint256 expectedFeeShares = (currentSupply * demFeeBps) / 1e4 / 2;
+        uint256 pendingFeeShares = folio.getPendingFeeShares();
+        assertEq(expectedFeeShares, pendingFeeShares, "wrong pending fee shares, before");
+
+        vm.startPrank(owner);
+        uint256 newDemurrageFee = 200;
+        folio.setDemurrageFee(newDemurrageFee);
+
+        assertEq(expectedFeeShares, folio.pendingFeeShares(), "wrong pending fee shares, after");
     }
 }
