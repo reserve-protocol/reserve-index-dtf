@@ -6,6 +6,7 @@ import { Folio } from "contracts/Folio.sol";
 import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
+    uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
     function _deployTestFolio() public {
         address[] memory tokens = new address[](3);
         tokens[0] = address(USDC);
@@ -24,7 +25,7 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folioFactory), type(uint256).max);
         MEME.approve(address(folioFactory), type(uint256).max);
         folio = Folio(
-            folioFactory.createFolio("Test Folio", "TFOLIO", tokens, amounts, D18_TOKEN_10K, 100, recipients)
+            folioFactory.createFolio("Test Folio", "TFOLIO", tokens, amounts, INITIAL_SUPPLY, 100, recipients)
         );
         vm.stopPrank();
     }
@@ -51,6 +52,24 @@ contract FolioTest is BaseTest {
         assertEq(r2, feeReceiver, "wrong second recipient");
         assertEq(bps2, 1000, "wrong second recipient bps");
     }
+
+    /*
+        this would test if the total supply is correct, based on a call to totalSupply() that takes into account unaccounted fees
+    */
+    // function test_totalSupply() public {
+    //     _deployTestFolio();
+    //     // fast forward, accumulate fees
+    //     vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
+    //     vm.roll(block.number + 1000000);
+
+    //     uint256 timeDelta = block.timestamp - folio.lastPoke();
+    //     uint256 demFee = folio.demurrageFee();
+    //     assertEq(
+    //         folio.totalSupply(),
+    //         INITIAL_SUPPLY + (((INITIAL_SUPPLY * timeDelta) / YEAR_IN_SECONDS) * demFee) / folio.BPS_PRECISION(),
+    //         "wrong total supply"
+    //     );
+    // }
 
     function test_mint() public {
         _deployTestFolio();

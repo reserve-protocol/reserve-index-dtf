@@ -176,7 +176,7 @@ contract Folio is IFolio, ERC20 {
         _poke();
     }
 
-    function getPendingFeeShares() external view returns (uint256) {
+    function getPendingFeeShares() public view returns (uint256) {
         return pendingFeeShares + _getPendingFeeShares();
     }
 
