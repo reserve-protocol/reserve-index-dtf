@@ -7,7 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { Decimals } from "./Decimals.sol";
+import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
 // import { FolioDutchTrade, TradePrices } from "./FolioDutchTrade.sol";
 import "forge-std/console2.sol";
 
@@ -28,17 +28,20 @@ contract Folio is IFolio, ERC20 {
     uint256 public dutchAuctionLength;
     address public owner;
     bool public basketInitialized;
+    IFolioFeeRegistry public daoFeeRegistry;
 
     constructor(
         string memory name,
         string memory symbol,
         uint256 _demurrageFee,
         DemurrageRecipient[] memory _demurrageRecipients,
+        address _daoFeeRegistry,
         address _dutchTradeImplementation
     ) ERC20(name, symbol) {
         _setDemurrageFee(_demurrageFee);
         _setDemurrageRecipients(_demurrageRecipients);
         dutchTradeImplementation = _dutchTradeImplementation;
+        daoFeeRegistry = IFolioFeeRegistry(_daoFeeRegistry);
         owner = msg.sender;
     }
 
@@ -139,15 +142,27 @@ contract Folio is IFolio, ERC20 {
     }
 
     function setDemurrageFee(uint256 _demurrageFee) external override {
+        distributeFees();
         _setDemurrageFee(_demurrageFee);
     }
 
     function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external override {
+        distributeFees();
         _setDemurrageRecipients(_demurrageRecipients);
     }
 
-    function collectFees() public {
+    function distributeFees() public {
         _poke();
+
+        // collect dao fee off the top
+        (address recipient, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(
+            address(this)
+        );
+        uint256 daoFee = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        _mint(recipient, daoFee);
+        pendingFeeShares -= daoFee;
+
+        // distribute the rest of the demurrage fee
         uint256 len = demurrageRecipients.length;
         for (uint256 i; i < len; i++) {
             uint256 bps = demurrageRecipients[i].bps;
@@ -159,6 +174,10 @@ contract Folio is IFolio, ERC20 {
 
     function poke() external override {
         _poke();
+    }
+
+    function getPendingFeeShares() public view returns (uint256) {
+        return pendingFeeShares + _getPendingFeeShares();
     }
 
     // function approveTrade(TradeParams memory trade) external {
@@ -227,29 +246,27 @@ contract Folio is IFolio, ERC20 {
     }
 
     function _setDemurrageFee(uint256 _demurrageFee) internal {
-        _poke();
         if (_demurrageFee > BPS_PRECISION) {
-            revert("demurrageFee > BPS_PRECISION");
+            revert Folio_badDemurrageFee();
         }
         demurrageFee = _demurrageFee;
     }
 
     function _setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) internal {
-        _poke();
         // validate that amounts add up to 10000 BPS_PRECISION
         uint256 len = _demurrageRecipients.length;
         uint256 total;
         for (uint256 i; i < len; i++) {
             if (_demurrageRecipients[i].recipient == address(0)) {
-                revert("recipient cannot be 0");
+                revert Folio_badDemurrageFeeRecipientAddress();
             }
             if (_demurrageRecipients[i].bps == 0) {
-                revert("amount cannot be 0");
+                revert Folio_badDemurrageFeeRecipientBps();
             }
             total += _demurrageRecipients[i].bps;
         }
         if (total != BPS_PRECISION) {
-            revert("total != BPS_PRECISION");
+            revert Folio_badDemurrageFeeTotal();
         }
         delete demurrageRecipients;
         for (uint256 i; i < len; i++) {

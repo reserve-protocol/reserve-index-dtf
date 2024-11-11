@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: BlueOak-1.0.0
+pragma solidity 0.8.25;
+
+interface IFolioFeeRegistry {
+    error FolioFeeRegistry__FeeRecipientAlreadySet();
+    error FolioFeeRegistry__InvalidFeeRecipient();
+    error FolioFeeRegistry__InvalidFeeNumerator();
+    error FolioFeeRegistry__InvalidRoleRegistry();
+    error FolioFeeRegistry__InvalidCaller();
+    error FolioFeeRegistry__RTokenAlreadySet();
+
+    event FeeRecipientSet(address indexed feeRecipient);
+    event DefaultFeeNumeratorSet(uint256 defaultFeeNumerator);
+    event RTokenFeeNumeratorSet(address indexed rToken, uint256 feeNumerator, bool isActive);
+
+    function getFeeDetails(
+        address rToken
+    ) external view returns (address recipient, uint256 feeNumerator, uint256 feeDenominator);
+}
