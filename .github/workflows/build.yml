@@ -30,9 +30,6 @@ jobs:
         with:
           version: nightly
 
-      - name: Enable corepack
-        run: corepack enable
-
       - name: Install Dependencies
         run: yarn --immutable
 
