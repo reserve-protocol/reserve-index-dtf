@@ -168,7 +168,7 @@ contract Folio is IFolio, ERC20 {
     }
 
     function distributeFees() public {
-        poke();
+        _poke();
 
         // collect dao fee off the top
         (address recipient, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(
@@ -187,14 +187,8 @@ contract Folio is IFolio, ERC20 {
         pendingFeeShares = 0;
     }
 
-    /// @dev updates the internal state by minting demurrage shares
-    function poke() public {
-        if (lastPoke == block.timestamp) {
-            return;
-        }
-
-        pendingFeeShares = _getPendingFeeShares();
-        lastPoke = uint40(block.timestamp);
+    function poke() external {
+        _poke();
     }
 
     function getPendingFeeShares() public view returns (uint256) {
@@ -256,6 +250,16 @@ contract Folio is IFolio, ERC20 {
         return ((supply * (demurrageFee * timeDelta)) / YEAR_IN_SECONDS) / BPS_PRECISION;
     }
 
+    /// @dev updates the internal state by minting demurrage shares
+    function _poke() internal {
+        if (lastPoke == block.timestamp) {
+            return;
+        }
+        uint256 demFee = _getPendingFeeShares();
+        pendingFeeShares += demFee;
+        lastPoke = uint40(block.timestamp);
+    }
+
     function _setDemurrageFee(uint256 _demurrageFee) internal {
         if (_demurrageFee >= BPS_PRECISION) {
             revert Folio_badDemurrageFee();
@@ -293,6 +297,6 @@ contract Folio is IFolio, ERC20 {
     }
 
     function _beforeTokenTransfer(address, address, uint256) internal virtual override {
-        poke();
+        _poke();
     }
 }
