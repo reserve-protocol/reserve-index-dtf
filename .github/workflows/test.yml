@@ -35,4 +35,7 @@ jobs:
         run: yarn --immutable
 
       - name: Core Tests
-        run: forge test
+        run: forge test --no-match-test extreme
+
+      - name: Extreme Tests
+        run: forge test --match-test extreme --memory-limit 536870912
