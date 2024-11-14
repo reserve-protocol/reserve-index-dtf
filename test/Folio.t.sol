@@ -7,6 +7,7 @@ import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
+
     function _deployTestFolio() public {
         address[] memory tokens = new address[](3);
         tokens[0] = address(USDC);

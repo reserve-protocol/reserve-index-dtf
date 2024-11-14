@@ -9,26 +9,33 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
 // import { FolioDutchTrade, TradePrices } from "./FolioDutchTrade.sol";
+
 import "forge-std/console2.sol";
 
 contract Folio is IFolio, ERC20 {
     using Math for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
-    uint256 public constant BPS_PRECISION = 10000;
+
+    uint256 public constant BPS_PRECISION = 100_00;
     uint256 public constant TRADE_PRECISION = 1e18;
-    uint256 public constant YEAR_IN_SECONDS = 31536000;
+    uint256 public constant YEAR_IN_SECONDS = 60 * 60 * 24 * 365;
+
+    address public owner;
+    IFolioFeeRegistry public daoFeeRegistry;
 
     EnumerableSet.AddressSet private basket;
-    uint256 public demurrageFee;
-    DemurrageRecipient[] public demurrageRecipients;
-    uint40 public lastPoke;
-    uint256 public pendingFeeShares;
-    // Trade[] public trades;
-    address public dutchTradeImplementation;
-    uint256 public dutchAuctionLength;
-    address public owner;
     bool public basketInitialized;
-    IFolioFeeRegistry public daoFeeRegistry;
+
+    DemurrageRecipient[] public demurrageRecipients;
+    uint256 public demurrageFee; // bps
+
+    address public dutchTradeImplementation;
+    uint256 public dutchAuctionLength; // {s}
+
+    // Trade[] public trades;
+
+    uint40 public lastPoke; // {s}
+    uint256 public pendingFeeShares;
 
     constructor(
         string memory name,
@@ -60,23 +67,23 @@ contract Folio is IFolio, ERC20 {
         if (basketInitialized) {
             revert("basket already initialized");
         }
+
         uint256 len = _assets.length;
         for (uint256 i; i < len; i++) {
             if (_assets[i] == address(0)) {
                 revert("asset cannot be 0");
             }
+
             uint256 bal = IERC20(_assets[i]).balanceOf(address(this));
             if (bal == 0) {
                 revert("amount cannot be 0");
             }
+
             basket.add(address(_assets[i]));
         }
+
         _mint(initializer, shares);
         basketInitialized = true;
-    }
-
-    function decimals() public view virtual override(ERC20) returns (uint8) {
-        return 18 + _decimalsOffset();
     }
 
     function totalSupply() public view virtual override(ERC20) returns (uint256) {
@@ -87,9 +94,9 @@ contract Folio is IFolio, ERC20 {
         return basket.values();
     }
 
-    // ( {tokAddress}, {tok/FU} )
+    // ( {tokAddress}, {tok/share} )
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return convertToAssets(10 ** decimals(), Math.Rounding.Floor);
+        return convertToAssets(1e18, Math.Rounding.Down);
     }
 
     // ( {tokAddress}, {tok} )
@@ -102,54 +109,60 @@ contract Folio is IFolio, ERC20 {
         }
     }
 
-    // {FU} -> ( {tokAddress}, {tok} )
+    // {share} -> ( {tokAddress}, {tok} )
     function convertToAssets(
         uint256 shares,
         Math.Rounding rounding
     ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
         _assets = basket.values();
+
         uint256 len = _assets.length;
         _amounts = new uint256[](len);
         for (uint256 i; i < len; i++) {
             uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
-            _amounts[i] = shares.mulDiv(assetBal + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
+            _amounts[i] = shares.mulDiv(assetBal + 1, totalSupply(), rounding);
         }
     }
 
+    // {share} -> ( {tokAddress}, {tok} )
     function mint(
         uint256 shares,
         address receiver
     ) external returns (address[] memory _assets, uint256[] memory _amounts) {
         (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Floor);
         _mint(receiver, shares);
+
         uint256 len = _assets.length;
         for (uint256 i; i < len; i++) {
             IERC20(_assets[i]).transferFrom(msg.sender, address(this), _amounts[i]);
         }
     }
 
+    // {share} -> ( {tokAddress}, {tok} )
     function redeem(
         uint256 shares,
         address receiver,
-        address _owner
+        address holder
     ) external returns (address[] memory _assets, uint256[] memory _amounts) {
-        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Floor);
-        if (msg.sender != _owner) {
-            _spendAllowance(_owner, msg.sender, shares);
+        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Down);
+
+        if (msg.sender != holder) {
+            _spendAllowance(holder, msg.sender, shares);
         }
-        _burn(_owner, shares);
+        _burn(holder, shares);
+
         uint256 len = _assets.length;
         for (uint256 i; i < len; i++) {
             IERC20(_assets[i]).transfer(receiver, _amounts[i]);
         }
     }
 
-    function setDemurrageFee(uint256 _demurrageFee) external override {
+    function setDemurrageFee(uint256 _demurrageFee) external onlyOwner {
         distributeFees();
         _setDemurrageFee(_demurrageFee);
     }
 
-    function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external override {
+    function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external onlyOwner {
         distributeFees();
         _setDemurrageRecipients(_demurrageRecipients);
     }
@@ -168,14 +181,13 @@ contract Folio is IFolio, ERC20 {
         // distribute the rest of the demurrage fee
         uint256 len = demurrageRecipients.length;
         for (uint256 i; i < len; i++) {
-            uint256 bps = demurrageRecipients[i].bps;
-            uint256 fee = (pendingFeeShares * bps) / BPS_PRECISION;
+            uint256 fee = (pendingFeeShares * demurrageRecipients[i].bps) / BPS_PRECISION;
             _mint(demurrageRecipients[i].recipient, fee);
         }
         pendingFeeShares = 0;
     }
 
-    function poke() external override {
+    function poke() external {
         _poke();
     }
 
@@ -202,7 +214,7 @@ contract Folio is IFolio, ERC20 {
     //     emit TradeApproved(trades.length, trade.sell, trade.buy, trade.amount);
     // }
     // function launchTrade(uint256 _tradeId, TradePrices memory prices) external {
-    //     _poke();
+    //     poke();
     //     FolioDutchTrade trader = FolioDutchTrade(address(dutchTradeImplementation).clone());
     //     Trade storage trade = trades[_tradeId];
     //     trades.trader = trader;
@@ -211,12 +223,12 @@ contract Folio is IFolio, ERC20 {
     //     emit TradeLaunched(_tradeId);
     // }
     // function forceSettleTrade(uint256 _tradeId) external {
-    //     _poke();
+    //     poke();
     //     Trade memory trade = trades[_tradeId];
     //     trade.trader.settle();
     // }
     // function settleTrade(uint256 _tradeId) external {
-    //     _poke();
+    //     poke();
     //     Trade memory trade = trades[_tradeId];
     //     if (msg.sender != address(trade.trader)) {
     //         revert("only trader can settle");
@@ -249,40 +261,43 @@ contract Folio is IFolio, ERC20 {
     }
 
     function _setDemurrageFee(uint256 _demurrageFee) internal {
-        if (_demurrageFee > BPS_PRECISION) {
+        if (_demurrageFee >= BPS_PRECISION) {
             revert Folio_badDemurrageFee();
         }
+
         demurrageFee = _demurrageFee;
     }
 
     function _setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) internal {
-        // validate that amounts add up to 10000 BPS_PRECISION
-        uint256 len = _demurrageRecipients.length;
+        // clear out demurrageRecipients
+        uint256 len = demurrageRecipients.length;
+        for (uint256 i; i < len; i++) {
+            demurrageRecipients.pop();
+        }
+
+        // validate that amounts add up to BPS_PRECISION
         uint256 total;
+        len = _demurrageRecipients.length;
         for (uint256 i; i < len; i++) {
             if (_demurrageRecipients[i].recipient == address(0)) {
                 revert Folio_badDemurrageFeeRecipientAddress();
             }
+
             if (_demurrageRecipients[i].bps == 0) {
                 revert Folio_badDemurrageFeeRecipientBps();
             }
+
             total += _demurrageRecipients[i].bps;
+            demurrageRecipients.push(_demurrageRecipients[i]);
         }
+
         if (total != BPS_PRECISION) {
             revert Folio_badDemurrageFeeTotal();
-        }
-        delete demurrageRecipients;
-        for (uint256 i; i < len; i++) {
-            demurrageRecipients.push(_demurrageRecipients[i]);
         }
     }
 
     function _update(address from, address to, uint256 value) internal virtual override {
         _poke();
         super._update(from, to, value);
-    }
-
-    function _decimalsOffset() internal view virtual returns (uint8) {
-        return 0;
     }
 }
