@@ -86,10 +86,12 @@ contract Folio is IFolio, ERC20 {
     function assets() external view returns (address[] memory _assets) {
         return basket.values();
     }
+
     // ( {tokAddress}, {tok/FU} )
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return convertToAssets(10 ** decimals(), Math.Rounding.Down);
+        return convertToAssets(10 ** decimals(), Math.Rounding.Floor);
     }
+
     // ( {tokAddress}, {tok} )
     function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
         _assets = basket.values();
@@ -99,6 +101,7 @@ contract Folio is IFolio, ERC20 {
             _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
         }
     }
+
     // {FU} -> ( {tokAddress}, {tok} )
     function convertToAssets(
         uint256 shares,
@@ -117,7 +120,7 @@ contract Folio is IFolio, ERC20 {
         uint256 shares,
         address receiver
     ) external returns (address[] memory _assets, uint256[] memory _amounts) {
-        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Down);
+        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Floor);
         _mint(receiver, shares);
         uint256 len = _assets.length;
         for (uint256 i; i < len; i++) {
@@ -130,7 +133,7 @@ contract Folio is IFolio, ERC20 {
         address receiver,
         address _owner
     ) external returns (address[] memory _assets, uint256[] memory _amounts) {
-        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Down);
+        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Floor);
         if (msg.sender != _owner) {
             _spendAllowance(_owner, msg.sender, shares);
         }
@@ -274,11 +277,10 @@ contract Folio is IFolio, ERC20 {
         }
     }
 
-    function _beforeTokenTransfer(address, address, uint256) internal virtual override {
+    function _update(address from, address to, uint256 value) internal virtual override {
         _poke();
+        super._update(from, to, value);
     }
-
-    function _afterTokenTransfer(address from, address to, uint256 amount) internal virtual override {}
 
     function _decimalsOffset() internal view virtual returns (uint8) {
         return 0;
