@@ -5,6 +5,7 @@ import { IFolio } from "./interfaces/IFolio.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
@@ -12,16 +13,19 @@ import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
 
 import "forge-std/console2.sol";
 
-contract Folio is IFolio, ERC20 {
+contract Folio is IFolio, ERC20, AccessControlEnumerable {
     using Math for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
+
+    // === Auth roles ===
+    bytes32 constant OWNER = keccak256("OWNER");
+    bytes32 constant PRICE_ORACLE = keccak256("PRICE_ORACLE");
 
     uint256 public constant BPS_PRECISION = 100_00;
     uint256 public constant TRADE_PRECISION = 1e18;
     uint256 public constant MAX_DEMURRAGE_FEE = 5000;
     uint256 public constant YEAR_IN_SECONDS = 60 * 60 * 24 * 365;
 
-    address public owner;
     IFolioFeeRegistry public daoFeeRegistry;
 
     EnumerableSet.AddressSet private basket;
@@ -50,18 +54,19 @@ contract Folio is IFolio, ERC20 {
         _setDemurrageRecipients(_demurrageRecipients);
         dutchTradeImplementation = _dutchTradeImplementation;
         daoFeeRegistry = IFolioFeeRegistry(_daoFeeRegistry);
-        owner = msg.sender;
+        _grantRole(OWNER, msg.sender);
     }
 
     modifier onlyOwner() {
-        if (msg.sender != owner) {
+        if (!hasRole(OWNER, msg.sender)) {
             revert("only owner can call this function");
         }
         _;
     }
 
     function setOwner(address _owner) external onlyOwner {
-        owner = _owner;
+        _grantRole(OWNER, _owner);
+        _revokeRole(OWNER, msg.sender);
     }
 
     function initialize(address[] memory _assets, address initializer, uint256 shares) external onlyOwner {
@@ -97,7 +102,7 @@ contract Folio is IFolio, ERC20 {
 
     // ( {tokAddress}, {tok/share} )
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return convertToAssets(1e18, Math.Rounding.Down);
+        return convertToAssets(1e18, Math.Rounding.Floor);
     }
 
     // ( {tokAddress}, {tok} )
@@ -130,7 +135,7 @@ contract Folio is IFolio, ERC20 {
         uint256 shares,
         address receiver
     ) external returns (address[] memory _assets, uint256[] memory _amounts) {
-        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Down);
+        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Floor);
         _mint(receiver, shares);
 
         uint256 len = _assets.length;
@@ -145,7 +150,7 @@ contract Folio is IFolio, ERC20 {
         address receiver,
         address holder
     ) external returns (address[] memory _assets, uint256[] memory _amounts) {
-        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Down);
+        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Floor);
 
         if (msg.sender != holder) {
             _spendAllowance(holder, msg.sender, shares);
@@ -297,7 +302,8 @@ contract Folio is IFolio, ERC20 {
         }
     }
 
-    function _beforeTokenTransfer(address, address, uint256) internal virtual override {
+    function _update(address from, address to, uint256 value) internal virtual override {
         _poke();
+        super._update(from, to, value);
     }
 }

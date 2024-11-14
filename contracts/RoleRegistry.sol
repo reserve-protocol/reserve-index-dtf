@@ -2,7 +2,7 @@
 pragma solidity 0.8.25;
 
 // solhint-disable-next-line max-line-length
-import { AccessControlEnumerable } from "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
+import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
 /**
  * @title RoleRegistry
@@ -12,7 +12,7 @@ contract RoleRegistry is AccessControlEnumerable {
     bytes32 public constant EMERGENCY_COUNCIL = keccak256("EMERGENCY_COUNCIL");
 
     constructor() {
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function isOwner(address account) public view returns (bool) {
