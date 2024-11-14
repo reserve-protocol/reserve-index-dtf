@@ -272,7 +272,7 @@ contract FolioTest is BaseTest {
     function test_setDemurrageFee_InvalidFee() public {
         _deployTestFolio();
         vm.startPrank(owner);
-        uint256 newDemurrageFee = 10001;
+        uint256 newDemurrageFee = 50001; // above max
         vm.expectRevert(IFolio.Folio_badDemurrageFee.selector);
         folio.setDemurrageFee(newDemurrageFee);
     }
