@@ -96,7 +96,7 @@ contract Folio is IFolio, ERC20 {
 
     // ( {tokAddress}, {tok/share} )
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return convertToAssets(1e18, Math.Rounding.Down);
+        return convertToAssets(1e18, Math.Rounding.Floor);
     }
 
     // ( {tokAddress}, {tok} )
@@ -144,7 +144,7 @@ contract Folio is IFolio, ERC20 {
         address receiver,
         address holder
     ) external returns (address[] memory _assets, uint256[] memory _amounts) {
-        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Down);
+        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Floor);
 
         if (msg.sender != holder) {
             _spendAllowance(holder, msg.sender, shares);
