@@ -18,6 +18,7 @@ contract Folio is IFolio, ERC20 {
 
     uint256 public constant BPS_PRECISION = 100_00;
     uint256 public constant TRADE_PRECISION = 1e18;
+    uint256 public constant MAX_DEMURRAGE_FEE = 5000;
     uint256 public constant YEAR_IN_SECONDS = 60 * 60 * 24 * 365;
 
     address public owner;
@@ -261,7 +262,7 @@ contract Folio is IFolio, ERC20 {
     }
 
     function _setDemurrageFee(uint256 _demurrageFee) internal {
-        if (_demurrageFee >= BPS_PRECISION) {
+        if (_demurrageFee > MAX_DEMURRAGE_FEE) {
             revert Folio_badDemurrageFee();
         }
 
