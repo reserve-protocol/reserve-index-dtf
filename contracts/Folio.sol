@@ -5,15 +5,21 @@ import { IFolio } from "./interfaces/IFolio.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
 // import { FolioDutchTrade, TradePrices } from "./FolioDutchTrade.sol";
 import "forge-std/console2.sol";
 
-contract Folio is IFolio, ERC20 {
+contract Folio is IFolio, ERC20, AccessControlEnumerable {
     using Math for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
+
+    // === Auth roles ===
+    bytes32 constant OWNER = keccak256("OWNER");
+    bytes32 constant PRICE_ORACLE = keccak256("PRICE_ORACLE");
+
     uint256 public constant BPS_PRECISION = 10000;
     uint256 public constant TRADE_PRECISION = 1e18;
     uint256 public constant YEAR_IN_SECONDS = 31536000;
@@ -26,7 +32,6 @@ contract Folio is IFolio, ERC20 {
     // Trade[] public trades;
     address public dutchTradeImplementation;
     uint256 public dutchAuctionLength;
-    address public owner;
     bool public basketInitialized;
     IFolioFeeRegistry public daoFeeRegistry;
 
@@ -42,18 +47,19 @@ contract Folio is IFolio, ERC20 {
         _setDemurrageRecipients(_demurrageRecipients);
         dutchTradeImplementation = _dutchTradeImplementation;
         daoFeeRegistry = IFolioFeeRegistry(_daoFeeRegistry);
-        owner = msg.sender;
+        _grantRole(OWNER, msg.sender);
     }
 
     modifier onlyOwner() {
-        if (msg.sender != owner) {
+        if (!hasRole(OWNER, msg.sender)) {
             revert("only owner can call this function");
         }
         _;
     }
 
     function setOwner(address _owner) external onlyOwner {
-        owner = _owner;
+        _grantRole(OWNER, _owner);
+        _revokeRole(OWNER, msg.sender);
     }
 
     function initialize(address[] memory _assets, address initializer, uint256 shares) external onlyOwner {
@@ -144,12 +150,12 @@ contract Folio is IFolio, ERC20 {
         }
     }
 
-    function setDemurrageFee(uint256 _demurrageFee) external override {
+    function setDemurrageFee(uint256 _demurrageFee) external override onlyOwner {
         distributeFees();
         _setDemurrageFee(_demurrageFee);
     }
 
-    function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external override {
+    function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external override onlyOwner {
         distributeFees();
         _setDemurrageRecipients(_demurrageRecipients);
     }
