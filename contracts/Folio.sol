@@ -162,20 +162,12 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
         }
     }
 
-<<<<<<< HEAD
-    function setDemurrageFee(uint256 _demurrageFee) external override onlyOwner {
-=======
     function setDemurrageFee(uint256 _demurrageFee) external onlyOwner {
->>>>>>> bump-oz
         distributeFees();
         _setDemurrageFee(_demurrageFee);
     }
 
-<<<<<<< HEAD
-    function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external override onlyOwner {
-=======
     function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external onlyOwner {
->>>>>>> bump-oz
         distributeFees();
         _setDemurrageRecipients(_demurrageRecipients);
     }
