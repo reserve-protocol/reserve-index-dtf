@@ -126,7 +126,7 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
         _amounts = new uint256[](len);
         for (uint256 i; i < len; i++) {
             uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
-            _amounts[i] = shares.mulDiv(assetBal + 1, totalSupply(), rounding);
+            _amounts[i] = shares.mulDiv(assetBal + 1, totalSupply() + 1, rounding);
         }
     }
 
