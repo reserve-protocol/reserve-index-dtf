@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import "forge-std/Script.sol";
-import "forge-std/Test.sol";
-import "forge-std/Test.sol";
-import "forge-std/console2.sol";
 import "./BaseTest.sol";
 
 abstract contract BaseExtremeTest is BaseTest {
