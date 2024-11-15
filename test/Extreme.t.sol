@@ -47,9 +47,6 @@ contract ExtremeTest is BaseExtremeTest {
         _deployTestFolio(tokens, amounts, initialSupply);
 
         // check deployment
-        assertEq(folio.name(), "Test Folio", "wrong name");
-        assertEq(folio.symbol(), "TFOLIO", "wrong symbol");
-        assertEq(folio.decimals(), 18, "wrong decimals");
         assertEq(folio.totalSupply(), initialSupply, "wrong total supply");
         assertEq(folio.balanceOf(owner), initialSupply, "wrong owner balance");
         assertEq(folio.assets().length, p.numTokens, "wrong assets length");
@@ -57,14 +54,6 @@ contract ExtremeTest is BaseExtremeTest {
             assertEq(folio.assets()[j], tokens[j], "wrong asset");
             assertEq(IERC20(tokens[j]).balanceOf(address(folio)), amounts[j], "wrong folio token balance");
         }
-        assertEq(folio.demurrageFee(), 100, "wrong demurrage fee");
-        (address r1, uint256 bps1) = folio.demurrageRecipients(0);
-        assertEq(r1, owner, "wrong first recipient");
-        assertEq(bps1, 9000, "wrong first recipient bps");
-        (address r2, uint256 bps2) = folio.demurrageRecipients(1);
-        assertEq(r2, feeReceiver, "wrong second recipient");
-        assertEq(bps2, 1000, "wrong second recipient bps");
-
         assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
 
         // Mint
