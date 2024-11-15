@@ -7,6 +7,7 @@ import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
+
     function _deployTestFolio() public {
         address[] memory tokens = new address[](3);
         tokens[0] = address(USDC);
@@ -204,6 +205,17 @@ contract FolioTest is BaseTest {
         assertEq(bps3, 1500, "wrong third recipient bps");
     }
 
+    function test_cannotsetDemurrageRecipientsIfNotOwner() public {
+        _deployTestFolio();
+        vm.startPrank(user1);
+        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](3);
+        recipients[0] = IFolio.DemurrageRecipient(owner, 8000);
+        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 500);
+        recipients[2] = IFolio.DemurrageRecipient(user1, 1500);
+        vm.expectRevert("only owner can call this function");
+        folio.setDemurrageRecipients(recipients);
+    }
+
     function test_setDemurrageRecipients_DistributesFees() public {
         _deployTestFolio();
 
@@ -242,6 +254,14 @@ contract FolioTest is BaseTest {
         assertEq(folio.demurrageFee(), newDemurrageFee, "wrong demurrage fee");
     }
 
+    function test_cannotsetDemurrageFeeIfNotOwner() public {
+        _deployTestFolio();
+        vm.startPrank(user1);
+        uint256 newDemurrageFee = 200;
+        vm.expectRevert("only owner can call this function");
+        folio.setDemurrageFee(newDemurrageFee);
+    }
+
     function test_setDemurrageFee_DistributesFees() public {
         _deployTestFolio();
 
@@ -272,7 +292,7 @@ contract FolioTest is BaseTest {
     function test_setDemurrageFee_InvalidFee() public {
         _deployTestFolio();
         vm.startPrank(owner);
-        uint256 newDemurrageFee = 10001;
+        uint256 newDemurrageFee = 5001; // above max
         vm.expectRevert(IFolio.Folio_badDemurrageFee.selector);
         folio.setDemurrageFee(newDemurrageFee);
     }
@@ -364,5 +384,17 @@ contract FolioTest is BaseTest {
             initialFeeReceiverShares + (remainingShares * 1000) / 10000,
             "wrong fee receiver shares, 2nd change"
         );
+    }
+
+    function test_setOwner() public {
+        _deployTestFolio();
+        assertTrue(folio.hasRole(OWNER, owner));
+
+        vm.startPrank(owner);
+        folio.setOwner(user1);
+        vm.stopPrank();
+
+        assertTrue(folio.hasRole(OWNER, user1));
+        assertFalse(folio.hasRole(OWNER, owner));
     }
 }

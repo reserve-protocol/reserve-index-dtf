@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "description": "Reserve Folio Protocol for DTFs",
   "dependencies": {
-    "@openzeppelin/contracts": "^4.9.6",
-    "@openzeppelin/contracts-upgradeable": "^4.9.6",
+    "@openzeppelin/contracts": "^5.1.0",
+    "@openzeppelin/contracts-upgradeable": "^5.1.0",
     "forge-std": "github:foundry-rs/forge-std#v1.9.2"
   },
   "devDependencies": {
@@ -19,8 +19,8 @@
     "lint": "solhint --fix 'contracts/**/*.sol' 'script/**/*.sol'",
     "lint:check": "solhint 'contracts/**/*.sol' 'script/**/*.sol'",
     "compile": "forge compile",
-    "test": "yarn test:core && yarn test:gauges",
     "test:extreme": "forge test --match-test extreme --memory-limit 536870912",
+    "test": "forge test",
     "size": "forge compile --sizes",
     "coverage": "forge coverage --report lcov",
     "coverage:summary": "forge coverage --report summary",

@@ -10,7 +10,7 @@ library Decimals {
     function shiftl(uint256 x, int8 decimals, Math.Rounding rounding) internal pure returns (uint256) {
         // Handle overflow cases
         if (x == 0) return 0; // always computable, no matter what decimals is
-        if (decimals <= -42) return (rounding == Math.Rounding.Up ? 1 : 0);
+        if (decimals <= -42) return (rounding == Math.Rounding.Ceil ? 1 : 0);
         if (96 <= decimals) revert("uint out of bounds");
 
         decimals -= 18; // shift so that toUint happens at the same time.
@@ -25,9 +25,9 @@ library Decimals {
     function divrnd(uint256 numerator, uint256 divisor, Math.Rounding rounding) public pure returns (uint256) {
         uint256 result = numerator / divisor;
 
-        if (rounding == Math.Rounding.Down) return result;
+        if (rounding == Math.Rounding.Floor) return result;
 
-        if (rounding == Math.Rounding.Zero) {
+        if (rounding == Math.Rounding.Trunc) {
             if (numerator % divisor > (divisor - 1) / 2) {
                 result++;
             }
