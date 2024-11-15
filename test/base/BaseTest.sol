@@ -67,7 +67,7 @@ abstract contract BaseTest is Script, Test {
 
     function _coreSetup() public {}
 
-    function _testSetupBefore() public {
+    function _testSetupBefore() public virtual {
         roleRegistry = new RoleRegistry();
         daoFeeRegistry = new FolioFeeRegistry(roleRegistry, dao);
         folioFactory = new FolioFactory(address(daoFeeRegistry), address(0));
@@ -75,7 +75,7 @@ abstract contract BaseTest is Script, Test {
         mintTokens();
     }
 
-    function _testSetupAfter() public {
+    function _testSetupAfter() public virtual {
         vm.label(address(dao), "DAO");
         vm.label(address(owner), "Owner");
         vm.label(address(user1), "User 1");

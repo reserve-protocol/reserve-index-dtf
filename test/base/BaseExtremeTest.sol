@@ -5,29 +5,9 @@ import "forge-std/Script.sol";
 import "forge-std/Test.sol";
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
+import "./BaseTest.sol";
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { MockERC20 } from "utils/MockERC20.sol";
-
-import { Folio } from "contracts/Folio.sol";
-import { FolioFactory } from "contracts/FolioFactory.sol";
-import { FolioFeeRegistry } from "contracts/FolioFeeRegistry.sol";
-import { RoleRegistry } from "contracts/RoleRegistry.sol";
-
-abstract contract BaseExtremeTest is Script, Test {
-    uint256 constant YEAR_IN_SECONDS = 31536000;
-
-    address dao = 0xDA00000000000000000000000000000000000000;
-    address owner = 0xfF00000000000000000000000000000000000000;
-    address user1 = 0xaa00000000000000000000000000000000000000;
-    address user2 = 0xbb00000000000000000000000000000000000000;
-    address feeReceiver = 0xCc00000000000000000000000000000000000000;
-
-    Folio folio;
-    FolioFactory folioFactory;
-    FolioFeeRegistry daoFeeRegistry;
-    RoleRegistry roleRegistry;
-
+abstract contract BaseExtremeTest is BaseTest {
     struct TestParam {
         uint256 numTokens;
         uint8 decimals;
@@ -41,38 +21,19 @@ abstract contract BaseExtremeTest is Script, Test {
 
     TestParam[] internal testParameters;
 
-    function setUp() public {
-        _testSetup();
-        // _setUp();
-    }
-
-    /// @dev Implement this if you want a custom configured deployment
-    function _setUp() public virtual {}
-
-    /// @dev Note that most permissions are given to owner
-    function _testSetup() public {
-        _testSetupBefore();
-        _coreSetup();
-        _testSetupAfter();
-    }
-
-    function _coreSetup() public {}
-
-    function _testSetupBefore() public {
+    function _testSetupBefore() public override {
         roleRegistry = new RoleRegistry();
         daoFeeRegistry = new FolioFeeRegistry(roleRegistry, dao);
         folioFactory = new FolioFactory(address(daoFeeRegistry), address(0));
         _processParameters();
     }
 
-    function _testSetupAfter() public {
+    function _testSetupAfter() public override {
         vm.label(address(dao), "DAO");
         vm.label(address(owner), "Owner");
         vm.label(address(user1), "User 1");
         vm.label(address(user2), "User 2");
     }
-
-    function _forkSetupAfter() public {}
 
     function deployCoin(string memory _name, string memory _symbol, uint8 _decimals) public returns (IERC20) {
         return IERC20(new MockERC20(_name, _symbol, _decimals));
@@ -89,18 +50,6 @@ abstract contract BaseExtremeTest is Script, Test {
 
         mintToken(_token, _accounts, amounts);
         dealETH(_accounts, amounts_eth);
-    }
-
-    function mintToken(address _token, address[] memory _accounts, uint256[] memory _amounts) public {
-        for (uint256 i = 0; i < _amounts.length; i++) {
-            deal(address(_token), _accounts[i], _amounts[i], true);
-        }
-    }
-
-    function dealETH(address[] memory _accounts, uint256[] memory _amounts) public {
-        for (uint256 i = 0; i < _accounts.length; i++) {
-            vm.deal(_accounts[i], _amounts[i]);
-        }
     }
 
     function getActors() public view returns (address[] memory) {
