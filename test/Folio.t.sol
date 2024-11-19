@@ -293,7 +293,7 @@ contract FolioTest is BaseTest {
         _deployTestFolio();
         vm.startPrank(owner);
         uint256 newDemurrageFee = 5001; // above max
-        vm.expectRevert(IFolio.Folio_badDemurrageFee.selector);
+        vm.expectRevert(IFolio.Folio__DemurrageFeeTooHigh.selector);
         folio.setDemurrageFee(newDemurrageFee);
     }
 
@@ -384,17 +384,5 @@ contract FolioTest is BaseTest {
             initialFeeReceiverShares + (remainingShares * 1000) / 10000,
             "wrong fee receiver shares, 2nd change"
         );
-    }
-
-    function test_setOwner() public {
-        _deployTestFolio();
-        assertTrue(folio.hasRole(OWNER, owner));
-
-        vm.startPrank(owner);
-        folio.setOwner(user1);
-        vm.stopPrank();
-
-        assertTrue(folio.hasRole(OWNER, user1));
-        assertFalse(folio.hasRole(OWNER, owner));
     }
 }

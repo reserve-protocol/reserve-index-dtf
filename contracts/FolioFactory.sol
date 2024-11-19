@@ -36,7 +36,7 @@ contract FolioFactory {
         }
 
         newFolio.initialize(assets, msg.sender, initShares);
-        newFolio.setOwner(msg.sender);
+        newFolio.grantRole(newFolio.DEFAULT_ADMIN_ROLE(), msg.sender);
 
         return address(newFolio);
     }
