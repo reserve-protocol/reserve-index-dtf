@@ -1,14 +1,14 @@
 [profile.default]
-  # Directory Setup
-  src = "contracts"
-  script = "script"
-  test = "test"
+# Directory Setup
+script = "script"
+src = "contracts"
+test = "test"
 
-  # Compiler Options
-  solc_version = "0.8.25"
-  optimizer = true
-  optimizer_runs = 200
-  evm_version = "shanghai"
+# Compiler Options
+evm_version = "paris"
+optimizer = true
+optimizer_runs = 200
+solc_version = "0.8.28"
 
-  # Permissions
-  fs_permissions = [{ access = "read-write", path = "./" }]
+# Permissions
+fs_permissions = [{access = "read-write", path = "./"}]

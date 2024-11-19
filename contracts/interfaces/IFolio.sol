@@ -1,18 +1,25 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity 0.8.28;
+
 import "./ITrade.sol";
 import "./ITrading.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 interface IFolio {
+    // Events
     event TradeApproved(uint256 indexed tradeId, address indexed from, address indexed to, uint256 amount);
     event TradeLaunched(uint256 indexed tradeId);
     event TradeSettled(uint256 indexed tradeId, uint256 toAmount);
 
-    error Folio_badDemurrageFee();
+    // Errors
     error Folio_badDemurrageFeeRecipientAddress();
     error Folio_badDemurrageFeeRecipientBps();
     error Folio_badDemurrageFeeTotal();
+
+    error Folio__DemurrageFeeTooHigh();
+    error Folio__BasketAlreadyInitialized();
+
+    // Structures
 
     // struct TradeParams {
     //     address sell;
@@ -25,10 +32,13 @@ interface IFolio {
     // }
     struct DemurrageRecipient {
         address recipient;
-        uint256 bps;
+        uint96 bps;
     }
+
     function setDemurrageFee(uint256 _demurrageFee) external;
+
     function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external;
+
     // function approveTrade(TradeParams memory trade) external;
     // function launchTrade(uint256 _tradeId, TradePrices memory prices) external;
     // function forceSettleTrade(uint256 _tradeId) external;
@@ -37,10 +47,13 @@ interface IFolio {
     function poke() external;
 
     function assets() external view returns (address[] memory _assets);
+
     // ( {tokAddress}, {tok/FU} )
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts);
+
     // ( {tokAddress}, {tok} )
     function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts);
+
     // {FU} -> ( {tokAddress}, {tok} )
     function convertToAssets(
         uint256 shares,

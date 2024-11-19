@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: BlueOak-1.0.0
-pragma solidity 0.8.25;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.28;
 
 interface IFolioFeeRegistry {
     error FolioFeeRegistry__FeeRecipientAlreadySet();

@@ -1,81 +1,82 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity 0.8.28;
 
-import { IFolio } from "./interfaces/IFolio.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { ERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
-// import { FolioDutchTrade, TradePrices } from "./FolioDutchTrade.sol";
 
+import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
+import { IFolio } from "./interfaces/IFolio.sol";
+
+// !!!! TODO !!!! REMOVE
 import "forge-std/console2.sol";
+
+uint256 constant BPS_PRECISION = 100_00;
+uint256 constant MAX_DEMURRAGE_FEE = 50_00;
 
 contract Folio is IFolio, ERC20, AccessControlEnumerable {
     using Math for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    // === Auth roles ===
-    bytes32 constant OWNER = keccak256("OWNER");
-    bytes32 constant PRICE_ORACLE = keccak256("PRICE_ORACLE");
-
-    uint256 public constant BPS_PRECISION = 100_00;
-    uint256 public constant TRADE_PRECISION = 1e18;
-    uint256 public constant MAX_DEMURRAGE_FEE = 5000;
-    uint256 public constant YEAR_IN_SECONDS = 60 * 60 * 24 * 365;
-
     IFolioFeeRegistry public daoFeeRegistry;
 
-    EnumerableSet.AddressSet private basket;
-    bool public basketInitialized;
+    /**
+     * Roles
+     */
+    bytes32 constant PRICE_ORACLE = keccak256("PRICE_ORACLE");
 
+    /**
+     * Basket
+     */
+    bool public basketInitialized; // @audit Do we need this? Non-zero length basket should be enough
+    EnumerableSet.AddressSet private basket;
+
+    /**
+     * Fees
+     */
     DemurrageRecipient[] public demurrageRecipients;
     uint256 public demurrageFee; // bps
+
+    /**
+     * System
+     */
+    uint256 public lastPoke; // {s}
+    uint256 public pendingFeeShares;
 
     address public dutchTradeImplementation;
     uint256 public dutchAuctionLength; // {s}
 
     // Trade[] public trades;
 
-    uint40 public lastPoke; // {s}
-    uint256 public pendingFeeShares;
-
     constructor(
-        string memory name,
-        string memory symbol,
+        string memory _name,
+        string memory _symbol,
         uint256 _demurrageFee,
         DemurrageRecipient[] memory _demurrageRecipients,
         address _daoFeeRegistry,
         address _dutchTradeImplementation
-    ) ERC20(name, symbol) {
+    ) ERC20(_name, _symbol) {
         _setDemurrageFee(_demurrageFee);
         _setDemurrageRecipients(_demurrageRecipients);
-        dutchTradeImplementation = _dutchTradeImplementation;
+
         daoFeeRegistry = IFolioFeeRegistry(_daoFeeRegistry);
-        _grantRole(OWNER, msg.sender);
+        dutchTradeImplementation = _dutchTradeImplementation;
+
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    modifier onlyOwner() {
-        if (!hasRole(OWNER, msg.sender)) {
-            revert("only owner can call this function");
-        }
-        _;
-    }
-
-    function setOwner(address _owner) external onlyOwner {
-        _grantRole(OWNER, _owner);
-        _revokeRole(OWNER, msg.sender);
-    }
-
-    function initialize(address[] memory _assets, address initializer, uint256 shares) external onlyOwner {
+    function initialize(
+        address[] memory _assets,
+        address initializer,
+        uint256 shares
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (basketInitialized) {
-            revert("basket already initialized");
+            revert Folio__BasketAlreadyInitialized();
         }
 
-        uint256 len = _assets.length;
-        for (uint256 i; i < len; i++) {
+        uint256 assetLength = _assets.length;
+        for (uint256 i; i < assetLength; i++) {
             if (_assets[i] == address(0)) {
                 revert("asset cannot be 0");
             }
@@ -88,8 +89,9 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
             basket.add(address(_assets[i]));
         }
 
-        _mint(initializer, shares);
         basketInitialized = true;
+
+        _mint(initializer, shares);
     }
 
     function totalSupply() public view virtual override(ERC20) returns (uint256) {
@@ -118,7 +120,7 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
     // {share} -> ( {tokAddress}, {tok} )
     function convertToAssets(
         uint256 shares,
-        Math.Rounding rounding
+        Math.Rounding rounding // @audit TODO: Make explicit, should not be an external facing detail
     ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
         _assets = basket.values();
 
@@ -163,13 +165,17 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
         }
     }
 
-    function setDemurrageFee(uint256 _demurrageFee) external onlyOwner {
+    function setDemurrageFee(uint256 _demurrageFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
+
         _setDemurrageFee(_demurrageFee);
     }
 
-    function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external onlyOwner {
+    function setDemurrageRecipients(
+        DemurrageRecipient[] memory _demurrageRecipients
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
+
         _setDemurrageRecipients(_demurrageRecipients);
     }
 
@@ -253,7 +259,8 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
     function _getPendingFeeShares() internal view returns (uint256) {
         uint256 supply = totalSupply();
         uint256 timeDelta = block.timestamp - lastPoke;
-        return ((supply * (demurrageFee * timeDelta)) / YEAR_IN_SECONDS) / BPS_PRECISION;
+
+        return ((supply * (demurrageFee * timeDelta)) / 365 days) / BPS_PRECISION;
     }
 
     /// @dev updates the internal state by minting demurrage shares
@@ -261,14 +268,14 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
         if (lastPoke == block.timestamp) {
             return;
         }
-        uint256 demFee = _getPendingFeeShares();
-        pendingFeeShares += demFee;
-        lastPoke = uint40(block.timestamp);
+
+        pendingFeeShares += _getPendingFeeShares();
+        lastPoke = block.timestamp;
     }
 
     function _setDemurrageFee(uint256 _demurrageFee) internal {
         if (_demurrageFee > MAX_DEMURRAGE_FEE) {
-            revert Folio_badDemurrageFee();
+            revert Folio__DemurrageFeeTooHigh();
         }
 
         demurrageFee = _demurrageFee;
@@ -304,6 +311,7 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
 
     function _update(address from, address to, uint256 value) internal virtual override {
         _poke();
+
         super._update(from, to, value);
     }
 }

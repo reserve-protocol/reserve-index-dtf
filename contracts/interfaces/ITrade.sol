@@ -1,8 +1,7 @@
-// SPDX-License-Identifier: BlueOak-1.0.0
-pragma solidity 0.8.25;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "./IVersioned.sol";
 
 enum TradeStatus {
     NOT_STARTED, // before init()
@@ -21,7 +20,7 @@ enum TradeKind {
  *
  * Usage: if (canSettle()) settle()
  */
-interface ITrade is IVersioned {
+interface ITrade {
     /// Complete the trade and transfer tokens back to the origin trader
     /// @return soldAmt {qSellTok} The quantity of tokens sold
     /// @return boughtAmt {qBuyTok} The quantity of tokens bought
