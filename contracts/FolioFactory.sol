@@ -19,24 +19,19 @@ contract FolioFactory {
         address[] memory assets,
         uint256[] memory amounts,
         uint256 initShares,
-        uint256 demurrageFee,
-        Folio.DemurrageRecipient[] memory demurrageRecipients
+        Folio.FeeRecipient[] memory feeRecipients,
+        uint256 folioFee
     ) external returns (address) {
-        Folio newFolio = new Folio(
-            name,
-            symbol,
-            demurrageFee,
-            demurrageRecipients,
-            daoFeeRegistry,
-            dutchTradeImplementation
-        );
+        Folio newFolio = new Folio(name, symbol, feeRecipients, folioFee, daoFeeRegistry, dutchTradeImplementation);
 
         for (uint256 i; i < assets.length; i++) {
             IERC20(assets[i]).transferFrom(msg.sender, address(newFolio), amounts[i]);
         }
 
         newFolio.initialize(assets, msg.sender, initShares);
+
         newFolio.grantRole(newFolio.DEFAULT_ADMIN_ROLE(), msg.sender);
+        newFolio.revokeRole(newFolio.DEFAULT_ADMIN_ROLE(), address(this));
 
         return address(newFolio);
     }
