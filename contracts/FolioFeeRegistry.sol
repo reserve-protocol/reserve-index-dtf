@@ -59,11 +59,12 @@ contract FolioFeeRegistry is IFolioFeeRegistry {
         if (feeNumerator_ > MAX_FEE_NUMERATOR) {
             revert FolioFeeRegistry__InvalidFeeNumerator();
         }
-        _setFTokenFee(fToken, feeNumerator_, true);
+
+        _setTokenFee(fToken, feeNumerator_, true);
     }
 
     function resetRTokenFee(address fToken) external onlyOwner {
-        _setFTokenFee(fToken, 0, false);
+        _setTokenFee(fToken, 0, false);
     }
 
     function getFeeDetails(
@@ -74,22 +75,13 @@ contract FolioFeeRegistry is IFolioFeeRegistry {
         feeDenominator = FEE_DENOMINATOR;
     }
 
-    function registerSelf() external {
-        if (fTokenFeeSet[msg.sender]) {
-            revert FolioFeeRegistry__RTokenAlreadySet();
-        }
-        fTokenFeeSet[msg.sender] = true;
-        fTokenFeeNumerator[msg.sender] = defaultFeeNumerator;
-    }
-
-    /*
-        Internal functions
-    */
-    function _setFTokenFee(address fToken, uint256 feeNumerator_, bool isActive) internal {
-        IFolio(fToken).distributeFees();
-
+    /**
+     * Internal Functions
+     */
+    function _setTokenFee(address fToken, uint256 feeNumerator_, bool isActive) internal {
         fTokenFeeNumerator[fToken] = feeNumerator_;
         fTokenFeeSet[fToken] = isActive;
-        emit RTokenFeeNumeratorSet(fToken, feeNumerator_, isActive);
+
+        emit TokenFeeNumeratorSet(fToken, feeNumerator_, isActive);
     }
 }

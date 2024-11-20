@@ -12,31 +12,19 @@ interface IFolio {
     event TradeSettled(uint256 indexed tradeId, uint256 toAmount);
 
     // Errors
-    error Folio_badDemurrageFeeRecipientAddress();
-    error Folio_badDemurrageFeeRecipientBps();
-    error Folio_badDemurrageFeeTotal();
-
-    error Folio__DemurrageFeeTooHigh();
     error Folio__BasketAlreadyInitialized();
 
+    error Folio__FeeRecipientInvalidAddress();
+    error Folio__FeeRecipientInvalidFeeShare();
+    error Folio__BadFeeTotal();
+    error Folio__FeeTooHigh();
+
     error Folio__InvalidAsset();
-    error Folio__InvalidAssetLength();
     error Folio__InvalidAssetAmount(address asset, uint256 amount);
-    error Folio__LengthMismatch();
 
     // Structures
-
-    // struct TradeParams {
-    //     address sell;
-    //     address buy;
-    //     uint256 amount; // {qFU} 1e18 precision
-    // }
-    // struct Trade {
-    //     TradeParams params;
-    //     ITrade trader;
-    // }
-    struct DemurrageRecipient {
+    struct FeeRecipient {
         address recipient;
-        uint96 bps;
+        uint96 share;
     }
 }

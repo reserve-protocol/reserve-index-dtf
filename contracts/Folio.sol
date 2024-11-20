@@ -13,11 +13,10 @@ import { IFolio } from "./interfaces/IFolio.sol";
 // !!!! TODO !!!! REMOVE
 import "forge-std/console2.sol";
 
-uint256 constant MAX_DEMURRAGE_FEE = 50_00;
-uint256 constant BPS_PRECISION = 100_00;
+uint256 constant MAX_FEE_NUMERATOR = 50_00;
+uint256 constant FEE_DENOMINATOR = 100_00;
 
 contract Folio is IFolio, ERC20, AccessControlEnumerable {
-    using Math for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
 
     IFolioFeeRegistry public daoFeeRegistry;
@@ -36,8 +35,8 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
     /**
      * Fees
      */
-    DemurrageRecipient[] public demurrageRecipients;
-    uint256 public demurrageFee; // bps
+    FeeRecipient[] public feeRecipients;
+    uint256 public folioFee; // of FEE_DENOMINATOR
 
     /**
      * System
@@ -48,18 +47,16 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
     address public dutchTradeImplementation;
     uint256 public dutchAuctionLength; // {s}
 
-    // Trade[] public trades;
-
     constructor(
         string memory _name,
         string memory _symbol,
-        uint256 _demurrageFee,
-        DemurrageRecipient[] memory _demurrageRecipients,
+        FeeRecipient[] memory _feeRecipients,
+        uint256 _folioFee,
         address _daoFeeRegistry,
         address _dutchTradeImplementation
     ) ERC20(_name, _symbol) {
-        _setDemurrageFee(_demurrageFee);
-        _setDemurrageRecipients(_demurrageRecipients);
+        _setFeeRecipients(_feeRecipients);
+        _setFolioFee(_folioFee);
 
         daoFeeRegistry = IFolioFeeRegistry(_daoFeeRegistry);
         dutchTradeImplementation = _dutchTradeImplementation;
@@ -96,17 +93,17 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
     }
 
     function totalSupply() public view virtual override(ERC20) returns (uint256) {
-        return super.totalSupply() + pendingFeeShares;
+        return super.totalSupply() + pendingFeeShares; // @audit This function should take time into consideration, both mint and redeem are wrong rn
     }
 
-    // ( {tokAddress}, {tok/share} )
+    // ({tokAddress}, {tok/share})
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
         return convertToAssets(1e18, Math.Rounding.Floor);
     }
 
     // {} -> ({tokAddress}, {tok})
     function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        _assets = basket.values();
+        _assets = basket.values(); // @audit We need to limit the max basket size, otherwise this has unbounded gas cost
 
         uint256 assetLength = _assets.length;
         _amounts = new uint256[](assetLength);
@@ -126,7 +123,8 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
         _amounts = new uint256[](len);
         for (uint256 i; i < len; i++) {
             uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
-            _amounts[i] = shares.mulDiv(assetBal + 1, totalSupply(), rounding);
+
+            _amounts[i] = Math.mulDiv(shares, assetBal, totalSupply(), rounding);
         }
     }
 
@@ -148,15 +146,11 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
     // {share} -> ({tokAddress}, {tok})
     function redeem(
         uint256 shares,
-        address receiver,
-        address holder
+        address receiver
     ) external returns (address[] memory _assets, uint256[] memory _amounts) {
         (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Floor);
 
-        if (msg.sender != holder) {
-            _spendAllowance(holder, msg.sender, shares);
-        }
-        _burn(holder, shares);
+        _burn(msg.sender, shares);
 
         uint256 len = _assets.length;
         for (uint256 i; i < len; i++) {
@@ -164,22 +158,24 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
         }
     }
 
-    function setDemurrageFee(uint256 _demurrageFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    /**
+     * Fee Management
+     */
+    function setFolioFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
-        _setDemurrageFee(_demurrageFee);
+        _setFolioFee(_newFee);
     }
 
-    function setDemurrageRecipients(
-        DemurrageRecipient[] memory _demurrageRecipients
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFeeRecipients(FeeRecipient[] memory _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
-        _setDemurrageRecipients(_demurrageRecipients);
+        _setFeeRecipients(_newRecipients);
     }
 
     function distributeFees() public {
         _poke();
+        // @audit TODO: Come back to this one.
 
         // collect dao fee off the top
         (address recipient, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(
@@ -190,11 +186,13 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
         pendingFeeShares -= daoFee;
 
         // distribute the rest of the demurrage fee
-        uint256 len = demurrageRecipients.length;
+        uint256 len = feeRecipients.length;
         for (uint256 i; i < len; i++) {
-            uint256 fee = (pendingFeeShares * demurrageRecipients[i].bps) / BPS_PRECISION;
-            _mint(demurrageRecipients[i].recipient, fee);
+            uint256 fee = (pendingFeeShares * feeRecipients[i].share) / FEE_DENOMINATOR;
+
+            _mint(feeRecipients[i].recipient, fee);
         }
+
         pendingFeeShares = 0;
     }
 
@@ -206,18 +204,16 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
         return pendingFeeShares + _getPendingFeeShares();
     }
 
-    /*
-        Internal functions
-    */
-
+    /**
+     * Internal Functions
+     */
     function _getPendingFeeShares() internal view returns (uint256) {
         uint256 supply = totalSupply();
         uint256 timeDelta = block.timestamp - lastPoke;
 
-        return ((supply * (demurrageFee * timeDelta)) / 365 days) / BPS_PRECISION;
+        return ((supply * (folioFee * timeDelta)) / 365 days) / FEE_DENOMINATOR;
     }
 
-    /// @dev updates the internal state by minting demurrage shares
     function _poke() internal {
         if (lastPoke == block.timestamp) {
             return;
@@ -227,39 +223,39 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
         lastPoke = block.timestamp;
     }
 
-    function _setDemurrageFee(uint256 _demurrageFee) internal {
-        if (_demurrageFee > MAX_DEMURRAGE_FEE) {
-            revert Folio__DemurrageFeeTooHigh();
+    function _setFolioFee(uint256 _newFee) internal {
+        if (_newFee > MAX_FEE_NUMERATOR) {
+            revert Folio__FeeTooHigh();
         }
 
-        demurrageFee = _demurrageFee;
+        folioFee = _newFee;
     }
 
-    function _setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) internal {
-        // clear out demurrageRecipients
-        uint256 len = demurrageRecipients.length;
+    function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
+        // Clear existing fee table
+        uint256 len = feeRecipients.length;
         for (uint256 i; i < len; i++) {
-            demurrageRecipients.pop();
+            feeRecipients.pop();
         }
 
-        // validate that amounts add up to BPS_PRECISION
+        // Add new items to the fee table
         uint256 total;
-        len = _demurrageRecipients.length;
+        len = _feeRecipients.length;
         for (uint256 i; i < len; i++) {
-            if (_demurrageRecipients[i].recipient == address(0)) {
-                revert Folio_badDemurrageFeeRecipientAddress();
+            if (_feeRecipients[i].recipient == address(0)) {
+                revert Folio__FeeRecipientInvalidAddress();
             }
 
-            if (_demurrageRecipients[i].bps == 0) {
-                revert Folio_badDemurrageFeeRecipientBps();
+            if (_feeRecipients[i].share == 0) {
+                revert Folio__FeeRecipientInvalidFeeShare();
             }
 
-            total += _demurrageRecipients[i].bps;
-            demurrageRecipients.push(_demurrageRecipients[i]);
+            total += _feeRecipients[i].share;
+            feeRecipients.push(_feeRecipients[i]);
         }
 
-        if (total != BPS_PRECISION) {
-            revert Folio_badDemurrageFeeTotal();
+        if (total != FEE_DENOMINATOR) {
+            revert Folio__BadFeeTotal();
         }
     }
 

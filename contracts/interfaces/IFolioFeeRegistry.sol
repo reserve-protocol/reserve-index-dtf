@@ -11,7 +11,7 @@ interface IFolioFeeRegistry {
 
     event FeeRecipientSet(address indexed feeRecipient);
     event DefaultFeeNumeratorSet(uint256 defaultFeeNumerator);
-    event RTokenFeeNumeratorSet(address indexed rToken, uint256 feeNumerator, bool isActive);
+    event TokenFeeNumeratorSet(address indexed rToken, uint256 feeNumerator, bool isActive);
 
     function getFeeDetails(
         address rToken
