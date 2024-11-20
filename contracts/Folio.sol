@@ -20,6 +20,7 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
     // === Auth roles ===
     bytes32 constant OWNER = keccak256("OWNER");
     bytes32 constant PRICE_ORACLE = keccak256("PRICE_ORACLE");
+    bytes32 constant CHIEF_VIBES_OFFICER = keccak256("CHIEF_VIBES_OFFICER");
 
     uint256 public constant BPS_PRECISION = 100_00;
     uint256 public constant TRADE_PRECISION = 1e18;
@@ -55,6 +56,7 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable {
         dutchTradeImplementation = _dutchTradeImplementation;
         daoFeeRegistry = IFolioFeeRegistry(_daoFeeRegistry);
         _grantRole(OWNER, msg.sender);
+        _setRoleAdmin(CHIEF_VIBES_OFFICER, OWNER);
     }
 
     modifier onlyOwner() {

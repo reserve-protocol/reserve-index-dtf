@@ -3,6 +3,8 @@ pragma solidity 0.8.25;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+
 import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
@@ -396,5 +398,31 @@ contract FolioTest is BaseTest {
 
         assertTrue(folio.hasRole(OWNER, user1));
         assertFalse(folio.hasRole(OWNER, owner));
+    }
+
+    function test_cannotSetChiefVibesOfficerIfNotOwner() public {
+        _deployTestFolio();
+        assertFalse(folio.hasRole(CHIEF_VIBES_OFFICER, user2));
+
+        vm.startPrank(user1);
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, OWNER));
+        folio.grantRole(CHIEF_VIBES_OFFICER, user2);
+        vm.stopPrank();
+
+        assertFalse(folio.hasRole(CHIEF_VIBES_OFFICER, user2));
+    }
+
+    function test_setChiefVibesOfficer() public {
+        _deployTestFolio();
+
+        // No CVO set so far
+        assertFalse(folio.hasRole(CHIEF_VIBES_OFFICER, owner));
+        assertFalse(folio.hasRole(CHIEF_VIBES_OFFICER, user1));
+
+        vm.startPrank(owner);
+        folio.grantRole(CHIEF_VIBES_OFFICER, user1);
+        vm.stopPrank();
+
+        assertTrue(folio.hasRole(CHIEF_VIBES_OFFICER, user1));
     }
 }
