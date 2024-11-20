@@ -19,6 +19,11 @@ interface IFolio {
     error Folio__DemurrageFeeTooHigh();
     error Folio__BasketAlreadyInitialized();
 
+    error Folio__InvalidAsset();
+    error Folio__InvalidAssetLength();
+    error Folio__InvalidAssetAmount(address asset, uint256 amount);
+    error Folio__LengthMismatch();
+
     // Structures
 
     // struct TradeParams {
@@ -34,43 +39,4 @@ interface IFolio {
         address recipient;
         uint96 bps;
     }
-
-    function setDemurrageFee(uint256 _demurrageFee) external;
-
-    function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external;
-
-    // function approveTrade(TradeParams memory trade) external;
-    // function launchTrade(uint256 _tradeId, TradePrices memory prices) external;
-    // function forceSettleTrade(uint256 _tradeId) external;
-    // function settleTrade(uint256 _tradeId) external;
-
-    function poke() external;
-
-    function assets() external view returns (address[] memory _assets);
-
-    // ( {tokAddress}, {tok/FU} )
-    function folio() external view returns (address[] memory _assets, uint256[] memory _amounts);
-
-    // ( {tokAddress}, {tok} )
-    function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts);
-
-    // {FU} -> ( {tokAddress}, {tok} )
-    function convertToAssets(
-        uint256 shares,
-        Math.Rounding rounding
-    ) external view returns (address[] memory _assets, uint256[] memory _amounts);
-
-    function mint(
-        uint256 shares,
-        address receiver
-    ) external returns (address[] memory _assets, uint256[] memory _amounts);
-
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) external returns (address[] memory _assets, uint256[] memory _amounts);
-
-    // function collectFee(address recipient) external;
-    function distributeFees() external;
 }
