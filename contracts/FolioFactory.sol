@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
 import { Folio } from "./Folio.sol";
 
 contract FolioFactory {
@@ -25,7 +26,7 @@ contract FolioFactory {
         Folio newFolio = new Folio(name, symbol, feeRecipients, folioFee, daoFeeRegistry, dutchTradeImplementation);
 
         for (uint256 i; i < assets.length; i++) {
-            IERC20(assets[i]).transferFrom(msg.sender, address(newFolio), amounts[i]);
+            SafeERC20.safeTransferFrom(IERC20(assets[i]), msg.sender, address(newFolio), amounts[i]);
         }
 
         newFolio.initialize(assets, msg.sender, initShares);
