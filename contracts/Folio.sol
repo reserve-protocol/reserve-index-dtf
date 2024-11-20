@@ -9,6 +9,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
 import { IFolio } from "./interfaces/IFolio.sol";
+import { Versioned } from "./Versioned.sol";
 
 // !!!! TODO !!!! REMOVE
 import "forge-std/console2.sol";
@@ -16,7 +17,7 @@ import "forge-std/console2.sol";
 uint256 constant MAX_FEE_NUMERATOR = 50_00;
 uint256 constant FEE_DENOMINATOR = 100_00;
 
-contract Folio is IFolio, ERC20, AccessControlEnumerable {
+contract Folio is IFolio, ERC20, AccessControlEnumerable, Versioned {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     IFolioFeeRegistry public daoFeeRegistry;

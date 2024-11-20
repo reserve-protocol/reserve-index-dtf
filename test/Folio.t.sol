@@ -17,16 +17,16 @@ contract FolioTest is BaseTest {
         amounts[0] = D6_TOKEN_10K;
         amounts[1] = D18_TOKEN_10K;
         amounts[2] = D27_TOKEN_10K;
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](2);
-        recipients[0] = IFolio.DemurrageRecipient(owner, 9000);
-        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 1000);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 9000);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1000);
         // 1% demurrage fee
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
         MEME.approve(address(folioFactory), type(uint256).max);
         folio = Folio(
-            folioFactory.createFolio("Test Folio", "TFOLIO", tokens, amounts, INITIAL_SUPPLY, 100, recipients)
+            folioFactory.createFolio("Test Folio", "TFOLIO", tokens, amounts, INITIAL_SUPPLY, recipients, 100)
         );
         vm.stopPrank();
     }
@@ -46,10 +46,10 @@ contract FolioTest is BaseTest {
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
         assertEq(MEME.balanceOf(address(folio)), D27_TOKEN_10K, "wrong folio meme balance");
         assertEq(folio.demurrageFee(), 100, "wrong demurrage fee");
-        (address r1, uint256 bps1) = folio.demurrageRecipients(0);
+        (address r1, uint256 bps1) = folio.FeeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 9000, "wrong first recipient bps");
-        (address r2, uint256 bps2) = folio.demurrageRecipients(1);
+        (address r2, uint256 bps2) = folio.FeeRecipients(1);
         assertEq(r2, feeReceiver, "wrong second recipient");
         assertEq(bps2, 1000, "wrong second recipient bps");
     }
@@ -185,38 +185,38 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 1000) / 10000, "wrong fee receiver shares");
     }
 
-    function test_setDemurrageRecipients() public {
+    function test_setFeeRecipients() public {
         _deployTestFolio();
         vm.startPrank(owner);
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](3);
-        recipients[0] = IFolio.DemurrageRecipient(owner, 8000);
-        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 500);
-        recipients[2] = IFolio.DemurrageRecipient(user1, 1500);
-        folio.setDemurrageRecipients(recipients);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](3);
+        recipients[0] = IFolio.FeeRecipient(owner, 8000);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 500);
+        recipients[2] = IFolio.FeeRecipient(user1, 1500);
+        folio.setFeeRecipients(recipients);
 
-        (address r1, uint256 bps1) = folio.demurrageRecipients(0);
+        (address r1, uint256 bps1) = folio.FeeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 8000, "wrong first recipient bps");
-        (address r2, uint256 bps2) = folio.demurrageRecipients(1);
+        (address r2, uint256 bps2) = folio.FeeRecipients(1);
         assertEq(r2, feeReceiver, "wrong second recipient");
         assertEq(bps2, 500, "wrong second recipient bps");
-        (address r3, uint256 bps3) = folio.demurrageRecipients(2);
+        (address r3, uint256 bps3) = folio.FeeRecipients(2);
         assertEq(r3, user1, "wrong third recipient");
         assertEq(bps3, 1500, "wrong third recipient bps");
     }
 
-    function test_cannotsetDemurrageRecipientsIfNotOwner() public {
+    function test_cannotsetFeeRecipientsIfNotOwner() public {
         _deployTestFolio();
         vm.startPrank(user1);
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](3);
-        recipients[0] = IFolio.DemurrageRecipient(owner, 8000);
-        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 500);
-        recipients[2] = IFolio.DemurrageRecipient(user1, 1500);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](3);
+        recipients[0] = IFolio.FeeRecipient(owner, 8000);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 500);
+        recipients[2] = IFolio.FeeRecipient(user1, 1500);
         vm.expectRevert("only owner can call this function");
-        folio.setDemurrageRecipients(recipients);
+        folio.setFeeRecipients(recipients);
     }
 
-    function test_setDemurrageRecipients_DistributesFees() public {
+    function test_setFeeRecipients_DistributesFees() public {
         _deployTestFolio();
 
         // fast forward, accumulate fees
@@ -228,11 +228,11 @@ contract FolioTest is BaseTest {
         uint256 initialDaoShares = folio.balanceOf(dao);
 
         vm.startPrank(owner);
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](3);
-        recipients[0] = IFolio.DemurrageRecipient(owner, 8000);
-        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 500);
-        recipients[2] = IFolio.DemurrageRecipient(user1, 1500);
-        folio.setDemurrageRecipients(recipients);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](3);
+        recipients[0] = IFolio.FeeRecipient(owner, 8000);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 500);
+        recipients[2] = IFolio.FeeRecipient(user1, 1500);
+        folio.setFeeRecipients(recipients);
 
         assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
 
@@ -300,29 +300,29 @@ contract FolioTest is BaseTest {
     function test_setDemurrageFeeRecipients_InvalidRecipient() public {
         _deployTestFolio();
         vm.startPrank(owner);
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](1);
-        recipients[0] = IFolio.DemurrageRecipient(address(0), 1000);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
+        recipients[0] = IFolio.FeeRecipient(address(0), 1000);
         vm.expectRevert(IFolio.Folio_badDemurrageFeeRecipientAddress.selector);
-        folio.setDemurrageRecipients(recipients);
+        folio.setFeeRecipients(recipients);
     }
 
     function test_setDemurrageFeeRecipients_InvalidBps() public {
         _deployTestFolio();
         vm.startPrank(owner);
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](1);
-        recipients[0] = IFolio.DemurrageRecipient(owner, 0);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
+        recipients[0] = IFolio.FeeRecipient(owner, 0);
         vm.expectRevert(IFolio.Folio_badDemurrageFeeRecipientBps.selector);
-        folio.setDemurrageRecipients(recipients);
+        folio.setFeeRecipients(recipients);
     }
 
     function test_setDemurrageFeeRecipients_InvalidTotal() public {
         _deployTestFolio();
         vm.startPrank(owner);
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](2);
-        recipients[0] = IFolio.DemurrageRecipient(owner, 9000);
-        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 999);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 9000);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 999);
         vm.expectRevert(IFolio.Folio_badDemurrageFeeTotal.selector);
-        folio.setDemurrageRecipients(recipients);
+        folio.setFeeRecipients(recipients);
     }
 
     function test_setFolioFeeRegistry() public {
