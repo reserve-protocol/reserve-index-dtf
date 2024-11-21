@@ -1,17 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import { Folio } from "./Folio.sol";
+import { Versioned } from "@utils/Versioned.sol";
+import { Folio } from "@src/Folio.sol";
 
-contract FolioFactory {
+contract FolioFactory is Versioned {
     address public daoFeeRegistry;
     address public dutchTradeImplementation;
+
+    address public immutable folioImplementation;
+
+    error FolioFactory__LengthMismatch();
 
     constructor(address _daoFeeRegistry, address _dutchTradeImplementation) {
         daoFeeRegistry = _daoFeeRegistry;
         dutchTradeImplementation = _dutchTradeImplementation;
+
+        folioImplementation = address(new Folio());
     }
 
     function createFolio(
@@ -21,18 +31,33 @@ contract FolioFactory {
         uint256[] memory amounts,
         uint256 initShares,
         Folio.FeeRecipient[] memory feeRecipients,
-        uint256 folioFee
+        uint256 folioFee,
+        address governor
     ) external returns (address) {
-        Folio newFolio = new Folio(name, symbol, feeRecipients, folioFee, daoFeeRegistry, dutchTradeImplementation);
+        if (assets.length != amounts.length) {
+            revert FolioFactory__LengthMismatch();
+        }
+
+        // @dev This creates a ProxyAdmin internally.
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(folioImplementation, address(governor), "");
+        Folio newFolio = Folio(address(proxy));
 
         for (uint256 i; i < assets.length; i++) {
             SafeERC20.safeTransferFrom(IERC20(assets[i]), msg.sender, address(newFolio), amounts[i]);
         }
 
-        newFolio.initialize(assets, msg.sender, initShares);
-
-        newFolio.grantRole(newFolio.DEFAULT_ADMIN_ROLE(), msg.sender);
-        newFolio.revokeRole(newFolio.DEFAULT_ADMIN_ROLE(), address(this));
+        newFolio.initialize(
+            name,
+            symbol,
+            dutchTradeImplementation,
+            daoFeeRegistry,
+            feeRecipients,
+            folioFee,
+            assets,
+            msg.sender,
+            initShares,
+            governor
+        );
 
         return address(newFolio);
     }

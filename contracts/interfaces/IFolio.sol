@@ -20,7 +20,7 @@ interface IFolio {
     error Folio__FeeTooHigh();
 
     error Folio__InvalidAsset();
-    error Folio__InvalidAssetAmount(address asset, uint256 amount);
+    error Folio__InvalidAssetAmount(address asset);
 
     // Structures
     struct FeeRecipient {

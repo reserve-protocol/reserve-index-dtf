@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import { AccessControlEnumerableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
+import { ERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+
+import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
 import { IFolio } from "./interfaces/IFolio.sol";
-import { Versioned } from "./Versioned.sol";
 
 // !!!! TODO !!!! REMOVE
 import "forge-std/console2.sol";
@@ -17,7 +20,7 @@ import "forge-std/console2.sol";
 uint256 constant MAX_FEE_NUMERATOR = 50_00;
 uint256 constant FEE_DENOMINATOR = 100_00;
 
-contract Folio is IFolio, ERC20, AccessControlEnumerable, Versioned {
+contract Folio is IFolio, Initializable, ERC20Upgradeable, AccessControlEnumerableUpgradeable, Versioned {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     IFolioFeeRegistry public daoFeeRegistry;
@@ -26,11 +29,11 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable, Versioned {
      * Roles
      */
     bytes32 constant PRICE_ORACLE = keccak256("PRICE_ORACLE");
+    bytes32 constant CHIEF_VIBES_OFFICER = keccak256("CHIEF_VIBES_OFFICER");
 
     /**
      * Basket
      */
-    bool public basketInitialized; // @audit Do we need this? Non-zero length basket should be enough
     EnumerableSet.AddressSet private basket;
 
     /**
@@ -48,31 +51,32 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable, Versioned {
     address public dutchTradeImplementation;
     uint256 public dutchAuctionLength; // {s}
 
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        FeeRecipient[] memory _feeRecipients,
-        uint256 _folioFee,
-        address _daoFeeRegistry,
-        address _dutchTradeImplementation
-    ) ERC20(_name, _symbol) {
-        _setFeeRecipients(_feeRecipients);
-        _setFolioFee(_folioFee);
-
-        daoFeeRegistry = IFolioFeeRegistry(_daoFeeRegistry);
-        dutchTradeImplementation = _dutchTradeImplementation;
-
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
     function initialize(
+        string memory _name,
+        string memory _symbol,
+        address _dutchTradeImplementation,
+        address _daoFeeRegistry,
+        FeeRecipient[] memory _feeRecipients,
+        uint256 _folioFee,
         address[] memory _assets,
-        address initializer,
-        uint256 shares
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (basketInitialized) {
-            revert Folio__BasketAlreadyInitialized();
-        }
+        address creator,
+        uint256 shares,
+        address governor
+    ) external initializer {
+        __ERC20_init(_name, _symbol);
+        __AccessControlEnumerable_init();
+        __AccessControl_init();
+
+        _setFeeRecipients(_feeRecipients);
+        _setFolioFee(_folioFee);
+
+        dutchTradeImplementation = _dutchTradeImplementation;
+        daoFeeRegistry = IFolioFeeRegistry(_daoFeeRegistry);
 
         uint256 assetLength = _assets.length;
         for (uint256 i; i < assetLength; i++) {
@@ -82,29 +86,28 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable, Versioned {
 
             uint256 assetBalance = IERC20(_assets[i]).balanceOf(address(this));
             if (assetBalance == 0) {
-                revert Folio__InvalidAssetAmount(_assets[i], assetBalance);
+                revert Folio__InvalidAssetAmount(_assets[i]);
             }
 
             basket.add(address(_assets[i]));
         }
 
-        basketInitialized = true;
-
-        _mint(initializer, shares);
+        _mint(creator, shares);
+        _grantRole(DEFAULT_ADMIN_ROLE, governor);
     }
 
-    function totalSupply() public view virtual override(ERC20) returns (uint256) {
+    function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
         return super.totalSupply() + pendingFeeShares; // @audit This function should take time into consideration, both mint and redeem are wrong rn
     }
 
     // ({tokAddress}, {tok/share})
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return convertToAssets(1e18, Math.Rounding.Floor);
+        return toAssets(10 ** decimals(), Math.Rounding.Floor);
     }
 
     // {} -> ({tokAddress}, {tok})
     function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        _assets = basket.values(); // @audit We need to limit the max basket size, otherwise this has unbounded gas cost
+        _assets = basket.values();
 
         uint256 assetLength = _assets.length;
         _amounts = new uint256[](assetLength);
@@ -114,9 +117,9 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable, Versioned {
     }
 
     // {share} -> ({tokAddress}, {tok})
-    function convertToAssets(
+    function toAssets(
         uint256 shares,
-        Math.Rounding rounding // @audit TODO: Make explicit, should not be an external facing detail
+        Math.Rounding rounding
     ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
         _assets = basket.values();
 
@@ -134,7 +137,7 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable, Versioned {
         uint256 shares,
         address receiver
     ) external returns (address[] memory _assets, uint256[] memory _amounts) {
-        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Ceil); // @audit This should be Ceil if we want to protect the folio, Floor for min mints
+        (_assets, _amounts) = toAssets(shares, Math.Rounding.Ceil); // @audit This should be Ceil if we want to protect the folio, Floor for min mints
 
         uint256 assetLength = _assets.length;
         for (uint256 i; i < assetLength; i++) {
@@ -149,7 +152,7 @@ contract Folio is IFolio, ERC20, AccessControlEnumerable, Versioned {
         uint256 shares,
         address receiver
     ) external returns (address[] memory _assets, uint256[] memory _amounts) {
-        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Floor);
+        (_assets, _amounts) = toAssets(shares, Math.Rounding.Floor);
 
         _burn(msg.sender, shares);
 
