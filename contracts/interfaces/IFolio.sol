@@ -27,4 +27,6 @@ interface IFolio {
         address recipient;
         uint96 share;
     }
+
+    function distributeFees() external; // @audit Review, needs to be called from FolioFeeRegistry
 }
