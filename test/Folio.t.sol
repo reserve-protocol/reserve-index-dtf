@@ -21,7 +21,7 @@ contract FolioTest is BaseTest {
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 9000);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 1000);
-        // 1% demurrage fee
+        // 1% folio fee
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
@@ -47,7 +47,7 @@ contract FolioTest is BaseTest {
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
         assertEq(MEME.balanceOf(address(folio)), D27_TOKEN_10K, "wrong folio meme balance");
-        assertEq(folio.folioFee(), 100, "wrong demurrage fee");
+        assertEq(folio.folioFee(), 100, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 9000, "wrong first recipient bps");
@@ -66,7 +66,7 @@ contract FolioTest is BaseTest {
     //     vm.roll(block.number + 1000000);
 
     //     uint256 timeDelta = block.timestamp - folio.lastPoke();
-    //     uint256 demFee = folio.demurrageFee();
+    //     uint256 demFee = folio.folioFee();
     //     assertEq(
     //         folio.totalSupply(),
     //         INITIAL_SUPPLY + (((INITIAL_SUPPLY * timeDelta) / YEAR_IN_SECONDS) * demFee) / folio.BPS_PRECISION(),
@@ -254,18 +254,18 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 1000) / 10000, "wrong fee receiver shares");
     }
 
-    function test_setDemurrageFee() public {
+    function test_setFolioFee() public {
         _deployTestFolio();
         vm.startPrank(owner);
-        uint256 newDemurrageFee = 200;
-        folio.setFolioFee(newDemurrageFee);
-        assertEq(folio.folioFee(), newDemurrageFee, "wrong demurrage fee");
+        uint256 newFolioFee = 200;
+        folio.setFolioFee(newFolioFee);
+        assertEq(folio.folioFee(), newFolioFee, "wrong folio fee");
     }
 
-    function test_cannotsetDemurrageFeeIfNotOwner() public {
+    function test_cannotsetFolioFeeIfNotOwner() public {
         _deployTestFolio();
         vm.startPrank(user1);
-        uint256 newDemurrageFee = 200;
+        uint256 newFolioFee = 200;
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector,
@@ -273,10 +273,10 @@ contract FolioTest is BaseTest {
                 folio.DEFAULT_ADMIN_ROLE()
             )
         );
-        folio.setFolioFee(newDemurrageFee);
+        folio.setFolioFee(newFolioFee);
     }
 
-    function test_setDemurrageFee_DistributesFees() public {
+    function test_setFolioFee_DistributesFees() public {
         _deployTestFolio();
 
         // fast forward, accumulate fees
@@ -288,8 +288,8 @@ contract FolioTest is BaseTest {
         uint256 initialDaoShares = folio.balanceOf(dao);
 
         vm.startPrank(owner);
-        uint256 newDemurrageFee = 200;
-        folio.setFolioFee(newDemurrageFee);
+        uint256 newFolioFee = 200;
+        folio.setFolioFee(newFolioFee);
 
         assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
 
@@ -303,15 +303,15 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 1000) / 10000, "wrong fee receiver shares");
     }
 
-    function test_setDemurrageFee_InvalidFee() public {
+    function test_setFolioFee_InvalidFee() public {
         _deployTestFolio();
         vm.startPrank(owner);
-        uint256 newDemurrageFee = 5001; // above max
+        uint256 newFolioFee = 5001; // above max
         vm.expectRevert(IFolio.Folio__FeeTooHigh.selector);
-        folio.setFolioFee(newDemurrageFee);
+        folio.setFolioFee(newFolioFee);
     }
 
-    function test_setDemurrageFeeRecipients_InvalidRecipient() public {
+    function test_setFolioFeeRecipients_InvalidRecipient() public {
         _deployTestFolio();
         vm.startPrank(owner);
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
@@ -320,7 +320,7 @@ contract FolioTest is BaseTest {
         folio.setFeeRecipients(recipients);
     }
 
-    function test_setDemurrageFeeRecipients_InvalidBps() public {
+    function test_setFolioFeeRecipients_InvalidBps() public {
         _deployTestFolio();
         vm.startPrank(owner);
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
@@ -329,7 +329,7 @@ contract FolioTest is BaseTest {
         folio.setFeeRecipients(recipients);
     }
 
-    function test_setDemurrageFeeRecipients_InvalidTotal() public {
+    function test_setFolioFeeRecipients_InvalidTotal() public {
         _deployTestFolio();
         vm.startPrank(owner);
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
