@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
@@ -213,7 +214,13 @@ contract FolioTest is BaseTest {
         recipients[0] = IFolio.FeeRecipient(owner, 8000);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 500);
         recipients[2] = IFolio.FeeRecipient(user1, 1500);
-        vm.expectRevert("only owner can call this function");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
         folio.setFeeRecipients(recipients);
     }
 
@@ -259,7 +266,13 @@ contract FolioTest is BaseTest {
         _deployTestFolio();
         vm.startPrank(user1);
         uint256 newDemurrageFee = 200;
-        vm.expectRevert("only owner can call this function");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
         folio.setFolioFee(newDemurrageFee);
     }
 
