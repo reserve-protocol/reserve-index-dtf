@@ -40,7 +40,7 @@ contract Folio is IFolio, Initializable, ERC20Upgradeable, AccessControlEnumerab
      * Fees
      */
     FeeRecipient[] public feeRecipients;
-    uint256 public folioFee; // of FEE_DENOMINATOR
+    uint256 public folioFee; // of FEE_DENOMINATOR, on AUM
 
     /**
      * System
