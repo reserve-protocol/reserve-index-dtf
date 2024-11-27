@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity 0.8.28;
 
 import "forge-std/Script.sol";
 import "forge-std/Test.sol";
@@ -10,11 +10,12 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
+import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 
 import { Folio } from "contracts/Folio.sol";
 import { FolioFactory } from "contracts/FolioFactory.sol";
-import { FolioFeeRegistry } from "contracts/FolioFeeRegistry.sol";
-import { RoleRegistry } from "contracts/RoleRegistry.sol";
+import { IRoleRegistry, FolioFeeRegistry } from "contracts/FolioFeeRegistry.sol";
+
 abstract contract BaseTest is Script, Test {
     // === Auth roles ===
     bytes32 constant OWNER = keccak256("OWNER");
@@ -48,7 +49,7 @@ abstract contract BaseTest is Script, Test {
     Folio folio;
     FolioFactory folioFactory;
     FolioFeeRegistry daoFeeRegistry;
-    RoleRegistry roleRegistry;
+    MockRoleRegistry roleRegistry;
 
     function setUp() public {
         _testSetup();
@@ -59,7 +60,7 @@ abstract contract BaseTest is Script, Test {
     function _setUp() public virtual {}
 
     /// @dev Note that most permissions are given to owner
-    function _testSetup() public {
+    function _testSetup() public virtual {
         _testSetupBefore();
         _coreSetup();
         _testSetupAfter();
@@ -68,8 +69,8 @@ abstract contract BaseTest is Script, Test {
     function _coreSetup() public {}
 
     function _testSetupBefore() public {
-        roleRegistry = new RoleRegistry();
-        daoFeeRegistry = new FolioFeeRegistry(roleRegistry, dao);
+        roleRegistry = new MockRoleRegistry();
+        daoFeeRegistry = new FolioFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         folioFactory = new FolioFactory(address(daoFeeRegistry), address(0));
         deployCoins();
         mintTokens();

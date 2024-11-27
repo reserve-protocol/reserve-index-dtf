@@ -1,14 +1,27 @@
-pragma solidity 0.8.25;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.28;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { Folio } from "./Folio.sol";
+import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
-contract FolioFactory {
-    address public daoFeeRegistry;
-    address public dutchTradeImplementation;
+import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import { Versioned } from "@utils/Versioned.sol";
+import { Folio } from "@src/Folio.sol";
+
+contract FolioFactory is Versioned {
+    address public immutable daoFeeRegistry;
+    address public immutable dutchTradeImplementation;
+
+    address public immutable folioImplementation;
+
+    error FolioFactory__LengthMismatch();
+
     constructor(address _daoFeeRegistry, address _dutchTradeImplementation) {
         daoFeeRegistry = _daoFeeRegistry;
         dutchTradeImplementation = _dutchTradeImplementation;
+
+        folioImplementation = address(new Folio());
     }
 
     function createFolio(
@@ -17,22 +30,32 @@ contract FolioFactory {
         address[] memory assets,
         uint256[] memory amounts,
         uint256 initShares,
-        uint256 demurrageFee,
-        Folio.DemurrageRecipient[] memory demurrageRecipients
+        Folio.FeeRecipient[] memory feeRecipients,
+        uint256 folioFee,
+        address governor
     ) external returns (address) {
-        Folio newFolio = new Folio(
+        if (assets.length != amounts.length) {
+            revert FolioFactory__LengthMismatch();
+        }
+
+        Folio newFolio = Folio(address(new TransparentUpgradeableProxy(folioImplementation, address(governor), "")));
+
+        for (uint256 i; i < assets.length; i++) {
+            SafeERC20.safeTransferFrom(IERC20(assets[i]), msg.sender, address(newFolio), amounts[i]);
+        }
+
+        newFolio.initialize(
             name,
             symbol,
-            demurrageFee,
-            demurrageRecipients,
+            dutchTradeImplementation,
             daoFeeRegistry,
-            dutchTradeImplementation
+            feeRecipients,
+            folioFee,
+            assets,
+            msg.sender,
+            initShares,
+            governor
         );
-        for (uint256 i; i < assets.length; i++) {
-            IERC20(assets[i]).transferFrom(msg.sender, address(newFolio), amounts[i]);
-        }
-        newFolio.initialize(assets, msg.sender, initShares);
-        newFolio.setOwner(msg.sender);
         return address(newFolio);
     }
 }

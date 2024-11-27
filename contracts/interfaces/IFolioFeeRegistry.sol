@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: BlueOak-1.0.0
-pragma solidity 0.8.25;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.28;
 
 interface IFolioFeeRegistry {
     error FolioFeeRegistry__FeeRecipientAlreadySet();
@@ -11,7 +11,7 @@ interface IFolioFeeRegistry {
 
     event FeeRecipientSet(address indexed feeRecipient);
     event DefaultFeeNumeratorSet(uint256 defaultFeeNumerator);
-    event RTokenFeeNumeratorSet(address indexed rToken, uint256 feeNumerator, bool isActive);
+    event TokenFeeNumeratorSet(address indexed rToken, uint256 feeNumerator, bool isActive);
 
     function getFeeDetails(
         address rToken
