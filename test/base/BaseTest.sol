@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity 0.8.28;
 
 import "forge-std/Script.sol";
 import "forge-std/Test.sol";
@@ -15,6 +15,7 @@ import { Folio } from "contracts/Folio.sol";
 import { FolioFactory } from "contracts/FolioFactory.sol";
 import { FolioFeeRegistry } from "contracts/FolioFeeRegistry.sol";
 import { RoleRegistry } from "contracts/RoleRegistry.sol";
+
 abstract contract BaseTest is Script, Test {
     // === Auth roles ===
     bytes32 constant OWNER = keccak256("OWNER");

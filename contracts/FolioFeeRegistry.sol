@@ -1,15 +1,18 @@
-// SPDX-License-Identifier: BlueOak-1.0.0
-pragma solidity 0.8.25;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.28;
 
 import { IFolio } from "./interfaces/IFolio.sol";
-import { RoleRegistry } from "./RoleRegistry.sol";
 import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
 
 uint256 constant MAX_FEE_NUMERATOR = 15_00; // Max DAO Fee: 15%
 uint256 constant FEE_DENOMINATOR = 100_00;
 
+interface IRoleRegistry {
+    function isOwner(address account) external view returns (bool);
+}
+
 contract FolioFeeRegistry is IFolioFeeRegistry {
-    RoleRegistry public roleRegistry;
+    IRoleRegistry public immutable roleRegistry;
 
     address private feeRecipient;
     uint256 private defaultFeeNumerator; // 0%
@@ -24,7 +27,7 @@ contract FolioFeeRegistry is IFolioFeeRegistry {
         _;
     }
 
-    constructor(RoleRegistry _roleRegistry, address _feeRecipient) {
+    constructor(IRoleRegistry _roleRegistry, address _feeRecipient) {
         if (address(_roleRegistry) == address(0)) {
             revert FolioFeeRegistry__InvalidRoleRegistry();
         }
@@ -55,15 +58,16 @@ contract FolioFeeRegistry is IFolioFeeRegistry {
     }
 
     /// @dev A fee below 1% not recommended due to poor precision in the Distributor
-    function setRTokenFeeNumerator(address fToken, uint256 feeNumerator_) external onlyOwner {
+    function setTokenFeeNumerator(address fToken, uint256 feeNumerator_) external onlyOwner {
         if (feeNumerator_ > MAX_FEE_NUMERATOR) {
             revert FolioFeeRegistry__InvalidFeeNumerator();
         }
-        _setFTokenFee(fToken, feeNumerator_, true);
+
+        _setTokenFee(fToken, feeNumerator_, true);
     }
 
-    function resetRTokenFee(address fToken) external onlyOwner {
-        _setFTokenFee(fToken, 0, false);
+    function resetTokenFee(address fToken) external onlyOwner {
+        _setTokenFee(fToken, 0, false);
     }
 
     function getFeeDetails(
@@ -74,22 +78,13 @@ contract FolioFeeRegistry is IFolioFeeRegistry {
         feeDenominator = FEE_DENOMINATOR;
     }
 
-    function registerSelf() external {
-        if (fTokenFeeSet[msg.sender]) {
-            revert FolioFeeRegistry__RTokenAlreadySet();
-        }
-        fTokenFeeSet[msg.sender] = true;
-        fTokenFeeNumerator[msg.sender] = defaultFeeNumerator;
-    }
-
-    /*
-        Internal functions
-    */
-    function _setFTokenFee(address fToken, uint256 feeNumerator_, bool isActive) internal {
-        IFolio(fToken).distributeFees();
-
+    /**
+     * Internal Functions
+     */
+    function _setTokenFee(address fToken, uint256 feeNumerator_, bool isActive) internal {
         fTokenFeeNumerator[fToken] = feeNumerator_;
         fTokenFeeSet[fToken] = isActive;
-        emit RTokenFeeNumeratorSet(fToken, feeNumerator_, isActive);
+
+        emit TokenFeeNumeratorSet(fToken, feeNumerator_, isActive);
     }
 }

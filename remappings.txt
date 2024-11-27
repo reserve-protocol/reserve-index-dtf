@@ -4,7 +4,6 @@ forge-std/=node_modules/forge-std/src/
 utils/=test/utils/
 
 @src/=contracts/
+@utils/=contracts/utils/
 @interfaces/=contracts/interfaces/
-@lib/=contracts/libraries/
-@ccx/=contracts/cross-chain/
 @deployer/=contracts/deployment/

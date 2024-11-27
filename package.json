@@ -1,11 +1,12 @@
 {
   "name": "folio",
   "version": "0.1.0",
-  "description": "Reserve Folio Protocol for DTFs",
+  "description": "Reserve Folio Protocol",
+  "license": "MIT",
   "dependencies": {
     "@openzeppelin/contracts": "^5.1.0",
     "@openzeppelin/contracts-upgradeable": "^5.1.0",
-    "forge-std": "github:foundry-rs/forge-std#v1.9.2"
+    "forge-std": "github:foundry-rs/forge-std#v1.9.4"
   },
   "devDependencies": {
     "prettier": "^3.3.3",
