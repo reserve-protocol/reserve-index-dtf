@@ -82,6 +82,8 @@ contract FolioFeeRegistry is IFolioFeeRegistry {
      * Internal Functions
      */
     function _setTokenFee(address fToken, uint256 feeNumerator_, bool isActive) internal {
+        IFolio(fToken).distributeFees(); // @audit review
+
         fTokenFeeNumerator[fToken] = feeNumerator_;
         fTokenFeeSet[fToken] = isActive;
 
