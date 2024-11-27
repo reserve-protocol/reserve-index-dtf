@@ -38,17 +38,7 @@ contract FolioFactory is Versioned {
             revert FolioFactory__LengthMismatch();
         }
 
-        // avoid stack-too-deep
-        Folio newFolio;
-        {
-            // @dev This creates a ProxyAdmin internally.
-            TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-                folioImplementation,
-                address(governor),
-                ""
-            );
-            newFolio = Folio(address(proxy));
-        }
+        Folio newFolio = Folio(address(new TransparentUpgradeableProxy(folioImplementation, address(governor), "")));
 
         for (uint256 i; i < assets.length; i++) {
             SafeERC20.safeTransferFrom(IERC20(assets[i]), msg.sender, address(newFolio), amounts[i]);
