@@ -10,8 +10,8 @@ import { Versioned } from "@utils/Versioned.sol";
 import { Folio } from "@src/Folio.sol";
 
 contract FolioFactory is Versioned {
-    address public daoFeeRegistry;
-    address public dutchTradeImplementation;
+    address public immutable daoFeeRegistry;
+    address public immutable dutchTradeImplementation;
 
     address public immutable folioImplementation;
 
@@ -38,9 +38,17 @@ contract FolioFactory is Versioned {
             revert FolioFactory__LengthMismatch();
         }
 
-        // @dev This creates a ProxyAdmin internally.
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(folioImplementation, address(governor), "");
-        Folio newFolio = Folio(address(proxy));
+        // avoid stack-too-deep
+        Folio newFolio;
+        {
+            // @dev This creates a ProxyAdmin internally.
+            TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+                folioImplementation,
+                address(governor),
+                ""
+            );
+            newFolio = Folio(address(proxy));
+        }
 
         for (uint256 i; i < assets.length; i++) {
             SafeERC20.safeTransferFrom(IERC20(assets[i]), msg.sender, address(newFolio), amounts[i]);
@@ -58,7 +66,6 @@ contract FolioFactory is Versioned {
             initShares,
             governor
         );
-
         return address(newFolio);
     }
 }
