@@ -162,6 +162,7 @@ contract FolioTest is BaseTest {
 
     function test_daoFee() public {
         _deployTestFolio();
+        uint256 supplyBefore = folio.totalSupply();
 
         // fast forward, accumulate fees
         vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
@@ -169,9 +170,8 @@ contract FolioTest is BaseTest {
         uint256 pendingFeeShares = folio.getPendingFeeShares();
 
         // validate pending fees have been accumulated
-        uint256 currentSupply = folio.totalSupply();
         uint256 demFeeBps = folio.folioFee();
-        uint256 expectedFeeShares = (currentSupply * demFeeBps) / 1e4 / 2;
+        uint256 expectedFeeShares = (supplyBefore * demFeeBps) / 1e4 / 2;
         assertEq(expectedFeeShares, pendingFeeShares, "wrong pending fee shares");
 
         uint256 initialOwnerShares = folio.balanceOf(owner);
