@@ -59,7 +59,7 @@ abstract contract BaseTest is Script, Test {
     function _setUp() public virtual {}
 
     /// @dev Note that most permissions are given to owner
-    function _testSetup() public {
+    function _testSetup() public virtual {
         _testSetupBefore();
         _coreSetup();
         _testSetupAfter();
