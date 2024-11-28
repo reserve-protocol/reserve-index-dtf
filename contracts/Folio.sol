@@ -9,6 +9,8 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
+import { UD60x18, powu } from "@prb/math/src/UD60x18.sol";
+
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
@@ -17,8 +19,10 @@ import { IFolio } from "./interfaces/IFolio.sol";
 // !!!! TODO !!!! REMOVE
 import "forge-std/console2.sol";
 
-uint256 constant MAX_FEE_NUMERATOR = 50_00;
-uint256 constant FEE_DENOMINATOR = 100_00;
+// TODO naming is confusing, 1e18 used for top-level fee, and bps within that
+uint256 constant MAX_FEE = 21979552668; // D18{1/s} 50% annually
+
+uint256 constant FEE_DENOMINATOR = 100_00; // {bps}
 
 contract Folio is IFolio, Initializable, ERC20Upgradeable, AccessControlEnumerableUpgradeable, Versioned {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -91,6 +95,7 @@ contract Folio is IFolio, Initializable, ERC20Upgradeable, AccessControlEnumerab
             basket.add(address(_assets[i]));
         }
 
+        _poke();
         _mint(_creator, _shares);
         _grantRole(DEFAULT_ADMIN_ROLE, _governor);
     }
@@ -116,6 +121,7 @@ contract Folio is IFolio, Initializable, ERC20Upgradeable, AccessControlEnumerab
     }
 
     // {share} -> ({tokAddress}, {tok})
+    /// @dev Will return stale values unless _poke() is called first
     function toAssets(
         uint256 shares,
         Math.Rounding rounding
@@ -138,6 +144,8 @@ contract Folio is IFolio, Initializable, ERC20Upgradeable, AccessControlEnumerab
         uint256 shares,
         address receiver
     ) external returns (address[] memory _assets, uint256[] memory _amounts) {
+        _poke();
+
         (_assets, _amounts) = toAssets(shares, Math.Rounding.Ceil);
 
         uint256 assetLength = _assets.length;
@@ -145,7 +153,7 @@ contract Folio is IFolio, Initializable, ERC20Upgradeable, AccessControlEnumerab
             SafeERC20.safeTransferFrom(IERC20(_assets[i]), msg.sender, address(this), _amounts[i]);
         }
 
-        _mint(receiver, shares); // call _poke() as a side-effect
+        _mint(receiver, shares);
     }
 
     // {share} -> ({tokAddress}, {tok})
@@ -153,9 +161,11 @@ contract Folio is IFolio, Initializable, ERC20Upgradeable, AccessControlEnumerab
         uint256 shares,
         address receiver
     ) external returns (address[] memory _assets, uint256[] memory _amounts) {
+        _poke();
+
         (_assets, _amounts) = toAssets(shares, Math.Rounding.Floor);
 
-        _burn(msg.sender, shares); // call _poke() as a side-effect
+        _burn(msg.sender, shares);
 
         uint256 len = _assets.length;
         for (uint256 i; i < len; i++) {
@@ -217,7 +227,7 @@ contract Folio is IFolio, Initializable, ERC20Upgradeable, AccessControlEnumerab
         uint256 supply = super.totalSupply() + _pendingFeeShares; // slightly stale value
         uint256 timeDelta = block.timestamp - lastPoke;
 
-        _pendingFeeShares += ((supply * (folioFee * timeDelta)) / 365 days) / FEE_DENOMINATOR;
+        _pendingFeeShares += (supply * 1e18) / UD60x18.wrap(1e18 - folioFee).powu(timeDelta).unwrap() - supply;
     }
 
     /// @dev After: pendingFeeShares is up-to-date
@@ -231,7 +241,7 @@ contract Folio is IFolio, Initializable, ERC20Upgradeable, AccessControlEnumerab
     }
 
     function _setFolioFee(uint256 _newFee) internal {
-        if (_newFee > MAX_FEE_NUMERATOR) {
+        if (_newFee > MAX_FEE) {
             revert Folio__FeeTooHigh();
         }
 
@@ -264,11 +274,5 @@ contract Folio is IFolio, Initializable, ERC20Upgradeable, AccessControlEnumerab
         if (total != FEE_DENOMINATOR) {
             revert Folio__BadFeeTotal();
         }
-    }
-
-    function _update(address from, address to, uint256 value) internal virtual override {
-        _poke();
-
-        super._update(from, to, value);
     }
 }
