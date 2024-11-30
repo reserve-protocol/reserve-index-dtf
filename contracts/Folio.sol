@@ -23,8 +23,8 @@ import "forge-std/console2.sol";
 
 uint256 constant MAX_FEE = 21979552668; // D18{1/s} 50% annually
 
-uint256 constant MIN_DUTCH_AUCTION_LENGTH = 60; // {s} 1 min
-uint256 constant MAX_DUTCH_AUCTION_LENGTH = 604800; // {s} 1 week
+uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
+uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 
 // TODO convert to D18
 uint256 constant FEE_DENOMINATOR = 100_00; // {bps}
@@ -90,7 +90,7 @@ contract Folio is
     function initialize(
         string memory _name,
         string memory _symbol,
-        uint256 _dutchAuctionLength,
+        uint256 _auctionLength,
         address _daoFeeRegistry,
         FeeRecipient[] memory _feeRecipients,
         uint256 _folioFee,
@@ -106,7 +106,7 @@ contract Folio is
 
         _setFeeRecipients(_feeRecipients);
         _setFolioFee(_folioFee);
-        _setDutchAuctionLength(_dutchAuctionLength);
+        _setAuctionLength(_auctionLength);
 
         daoFeeRegistry = IFolioFeeRegistry(_daoFeeRegistry);
 
@@ -155,8 +155,8 @@ contract Folio is
         _setFeeRecipients(_newRecipients);
     }
 
-    function setDutchAuctionLength(uint256 _newLength) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setDutchAuctionLength(_newLength);
+    function setAuctionLength(uint256 _newLength) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setAuctionLength(_newLength);
     }
 
     // ==== Share + Asset Accounting ====
@@ -446,9 +446,9 @@ contract Folio is
         }
     }
 
-    function _setDutchAuctionLength(uint256 _newLength) internal {
-        if (_newLength < MIN_DUTCH_AUCTION_LENGTH || _newLength > MAX_DUTCH_AUCTION_LENGTH) {
-            revert Folio__InvalidDutchAuctionLength();
+    function _setAuctionLength(uint256 _newLength) internal {
+        if (_newLength < MIN_AUCTION_LENGTH || _newLength > MAX_AUCTION_LENGTH) {
+            revert Folio__InvalidAuctionLength();
         }
 
         auctionLength = _newLength;
