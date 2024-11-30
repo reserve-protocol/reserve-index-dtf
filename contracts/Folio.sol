@@ -302,6 +302,7 @@ contract Folio is
                 end: 0
             })
         );
+        emit TradeApproved(tradeId, address(sell), address(buy), sellAmount, startPrice);
     }
 
     /// @param startPrice D18{buyTok/sellTok}
@@ -334,6 +335,7 @@ contract Folio is
         trade.endPrice = endPrice;
         trade.start = block.timestamp;
         trade.end = block.timestamp + auctionLength;
+        emit TradeOpened(tradeId, startPrice, endPrice, block.timestamp, block.timestamp + auctionLength);
     }
 
     /// @return {buyTok/sellTok}
@@ -373,11 +375,13 @@ contract Folio is
 
         trade.buy.safeTransferFrom(msg.sender, address(this), boughtAmt);
         trade.sell.safeTransfer(msg.sender, sellAmount);
+        emit Bid(tradeId, sellAmount, boughtAmt);
     }
 
     function closeTrade(uint256 tradeId) external nonReentrant onlyRole(PRICE_CURATOR) {
         // no reverting to prevent griefing by the EOA price curator against trading governance
         trades[tradeId].end = 1;
+        emit TradeManuallyClosed(tradeId);
     }
 
     // ==== Internal ====

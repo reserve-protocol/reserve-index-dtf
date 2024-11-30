@@ -4,11 +4,17 @@ pragma solidity 0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IFolio {
-    // TODO
     // Events
-    // event TradeApproved(uint256 indexed tradeId, address indexed from, address indexed to, uint256 amount);
-    // event TradeLaunched(uint256 indexed tradeId);
-    // event TradeSettled(uint256 indexed tradeId, uint256 toAmount);
+    event TradeApproved(
+        uint256 indexed tradeId,
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        uint256 startPrice
+    );
+    event TradeOpened(uint256 indexed tradeId, uint256 startPrice, uint256 endPrice, uint256 start, uint256 end);
+    event Bid(uint256 indexed tradeId, uint256 sellAmount, uint256 buyAmount);
+    event TradeManuallyClosed(uint256 indexed tradeId);
 
     // Errors
     error Folio__BasketAlreadyInitialized();
@@ -30,17 +36,6 @@ interface IFolio {
     error Folio__InvalidEndPrice();
     error Folio__TradeTimeout();
     error Folio__SlippageExceeded();
-
-    // enum TradeKind {
-    //     ATOMIC_SWAP,
-    //     DUTCH_AUCTION
-    // }
-
-    // enum TradeStatus {
-    //     APPROVED,
-    //     OPEN,
-    //     CLOSED
-    // }
 
     // Structures
     struct FeeRecipient {
