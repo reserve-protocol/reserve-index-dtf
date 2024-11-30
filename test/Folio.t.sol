@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_FEE } from "contracts/Folio.sol";
+import { Folio, MAX_DUTCH_AUCTION_LENGTH, MAX_FEE } from "contracts/Folio.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import "./base/BaseTest.sol";
 
@@ -31,6 +31,7 @@ contract FolioTest is BaseTest {
             folioFactory.createFolio(
                 "Test Folio",
                 "TFOLIO",
+                MAX_DUTCH_AUCTION_LENGTH,
                 tokens,
                 amounts,
                 INITIAL_SUPPLY,

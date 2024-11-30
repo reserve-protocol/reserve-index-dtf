@@ -71,7 +71,7 @@ abstract contract BaseTest is Script, Test {
     function _testSetupBefore() public {
         roleRegistry = new MockRoleRegistry();
         daoFeeRegistry = new FolioFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
-        folioFactory = new FolioFactory(address(daoFeeRegistry), address(0));
+        folioFactory = new FolioFactory(address(daoFeeRegistry));
         deployCoins();
         mintTokens();
     }
