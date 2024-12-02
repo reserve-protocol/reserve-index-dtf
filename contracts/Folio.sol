@@ -315,7 +315,7 @@ contract Folio is
         Trade storage trade = trades[tradeId];
 
         if (trade.start != 0 || trade.end != 0) {
-            revert Folio__TradeNotApproved();
+            revert Folio__TradeCannotBeOpened();
         }
 
         if (block.timestamp > trade.launchTimeout) {

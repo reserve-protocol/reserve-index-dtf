@@ -30,7 +30,7 @@ interface IFolio {
     error Folio__InvalidAuctionLength();
     error Folio__InvalidTradeId();
     error Folio__InvalidSellAmount();
-    error Folio__TradeNotApproved();
+    error Folio__TradeCannotBeOpened();
     error Folio__TradeNotOngoing();
     error Folio__InvalidStartPrice();
     error Folio__InvalidEndPrice();
