@@ -16,6 +16,7 @@ contract FolioFactory is Versioned {
     address public immutable folioImplementation;
 
     error FolioFactory__LengthMismatch();
+    error FolioFactory__EmptyAssets();
 
     constructor(address _daoFeeRegistry, address _dutchTradeImplementation) {
         daoFeeRegistry = _daoFeeRegistry;
@@ -36,6 +37,10 @@ contract FolioFactory is Versioned {
     ) external returns (address) {
         if (assets.length != amounts.length) {
             revert FolioFactory__LengthMismatch();
+        }
+
+        if (assets.length == 0) {
+            revert FolioFactory__EmptyAssets();
         }
 
         Folio newFolio = Folio(address(new TransparentUpgradeableProxy(folioImplementation, address(governor), "")));

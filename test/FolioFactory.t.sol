@@ -65,6 +65,19 @@ contract FolioFactoryTest is BaseTest {
         vm.stopPrank();
     }
 
+    function test_cannotCreateFolioWithNoAssets() public {
+        address[] memory tokens = new address[](0);
+        uint256[] memory amounts = new uint256[](0);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 9000);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1000);
+
+        vm.startPrank(owner);
+        vm.expectRevert(FolioFactory.FolioFactory__EmptyAssets.selector);
+        folioFactory.createFolio("Test Folio", "TFOLIO", tokens, amounts, 1, recipients, 100, owner);
+        vm.stopPrank();
+    }
+
     function test_cannotCreateFolioWithInvalidAsset() public {
         address[] memory tokens = new address[](2);
         tokens[0] = address(USDC);
@@ -97,6 +110,29 @@ contract FolioFactoryTest is BaseTest {
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         vm.expectRevert(abi.encodeWithSelector(IFolio.Folio__InvalidAssetAmount.selector, address(DAI)));
+        folioFactory.createFolio("Test Folio", "TFOLIO", tokens, amounts, INITIAL_SUPPLY, recipients, 100, owner);
+        vm.stopPrank();
+    }
+
+    function test_cannotCreateFolioWithNoApprovalOrBalance() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(USDC);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = D6_TOKEN_10K;
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 9000);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1000);
+
+        vm.startPrank(owner);
+        vm.expectRevert(); // no approval
+        folioFactory.createFolio("Test Folio", "TFOLIO", tokens, amounts, INITIAL_SUPPLY, recipients, 100, owner);
+        vm.stopPrank();
+
+        // with approval but no balance
+        vm.startPrank(user1);
+        USDC.transfer(owner, USDC.balanceOf(user1));
+        USDC.approve(address(folioFactory), type(uint256).max);
+        vm.expectRevert(); // no balance
         folioFactory.createFolio("Test Folio", "TFOLIO", tokens, amounts, INITIAL_SUPPLY, recipients, 100, owner);
         vm.stopPrank();
     }
