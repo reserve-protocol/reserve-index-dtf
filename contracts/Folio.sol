@@ -364,7 +364,6 @@ contract Folio is
 
         if (trade.sellAmount != type(uint256).max) {
             trade.sellAmount -= sellAmount;
-            // TODO correct to revert here on underflow? if we change this, `minBuyAmount` => `worstCasePrice` too
         }
 
         basket.add(address(trade.buy));
