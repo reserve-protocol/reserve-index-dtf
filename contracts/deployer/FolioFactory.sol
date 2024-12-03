@@ -12,22 +12,19 @@ import { Folio } from "@src/Folio.sol";
 
 contract FolioFactory is IFolioFactory, Versioned {
     address public immutable daoFeeRegistry;
-    address public immutable dutchTradeImplementation;
-
     address public immutable folioImplementation;
 
     error FolioFactory__LengthMismatch();
 
-    constructor(address _daoFeeRegistry, address _dutchTradeImplementation) {
+    constructor(address _daoFeeRegistry) {
         daoFeeRegistry = _daoFeeRegistry;
-        dutchTradeImplementation = _dutchTradeImplementation;
-
         folioImplementation = address(new Folio());
     }
 
     function createFolio(
         string memory name,
         string memory symbol,
+        uint256 auctionLength,
         address[] memory assets,
         uint256[] memory amounts,
         uint256 initShares,
@@ -48,7 +45,7 @@ contract FolioFactory is IFolioFactory, Versioned {
         newFolio.initialize(
             name,
             symbol,
-            dutchTradeImplementation,
+            auctionLength,
             daoFeeRegistry,
             feeRecipients,
             folioFee,
