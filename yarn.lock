@@ -47,6 +47,11 @@
     "@pnpm/network.ca-file" "^1.0.1"
     config-chain "^1.1.11"
 
+"@prb/math@^4.1.0":
+  version "4.1.0"
+  resolved "https://registry.yarnpkg.com/@prb/math/-/math-4.1.0.tgz#cb65ff415d5cb1539b7d1b0bc41ecc55c0c12b5f"
+  integrity sha512-ef5Xrlh3BeX4xT5/Wi810dpEPq2bYPndRxgFIaKSU1F/Op/s8af03kyom+mfU7gEpvfIZ46xu8W0duiHplbBMg==
+
 "@prettier/sync@^0.3.0":
   version "0.3.0"
   resolved "https://registry.yarnpkg.com/@prettier/sync/-/sync-0.3.0.tgz#91f2cfc23490a21586d1cf89c6f72157c000ca1e"

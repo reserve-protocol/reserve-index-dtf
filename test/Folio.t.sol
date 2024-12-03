@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio } from "contracts/Folio.sol";
+import { Folio, MAX_FEE } from "contracts/Folio.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import "./base/BaseTest.sol";
 
@@ -21,14 +21,28 @@ contract FolioTest is BaseTest {
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 9000);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 1000);
-        // 1% folio fee
+
+        // 50% folio fee annually
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
         MEME.approve(address(folioFactory), type(uint256).max);
         folio = Folio(
-            folioFactory.createFolio("Test Folio", "TFOLIO", tokens, amounts, INITIAL_SUPPLY, recipients, 100, owner)
+            folioFactory.createFolio(
+                "Test Folio",
+                "TFOLIO",
+                tokens,
+                amounts,
+                INITIAL_SUPPLY,
+                recipients,
+                MAX_FEE, // 50% annually
+                owner
+            )
         );
+
+        // TODO remove after debugging
+        assertEq(folio.getPendingFeeShares(), 0, "should start 0");
+
         vm.stopPrank();
     }
 
@@ -37,8 +51,8 @@ contract FolioTest is BaseTest {
         assertEq(folio.name(), "Test Folio", "wrong name");
         assertEq(folio.symbol(), "TFOLIO", "wrong symbol");
         assertEq(folio.decimals(), 18, "wrong decimals");
-        assertEq(folio.totalSupply(), 1e18 * 10000, "wrong total supply");
-        assertEq(folio.balanceOf(owner), 1e18 * 10000, "wrong owner balance");
+        assertEq(folio.totalSupply(), INITIAL_SUPPLY, "wrong total supply");
+        assertEq(folio.balanceOf(owner), INITIAL_SUPPLY, "wrong owner balance");
         (address[] memory _assets, ) = folio.totalAssets();
         assertEq(_assets.length, 3, "wrong assets length");
         assertEq(_assets[0], address(USDC), "wrong first asset");
@@ -47,7 +61,7 @@ contract FolioTest is BaseTest {
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
         assertEq(MEME.balanceOf(address(folio)), D27_TOKEN_10K, "wrong folio meme balance");
-        assertEq(folio.folioFee(), 100, "wrong folio fee");
+        assertEq(folio.folioFee(), MAX_FEE, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 9000, "wrong first recipient bps");
@@ -162,17 +176,15 @@ contract FolioTest is BaseTest {
 
     function test_daoFee() public {
         _deployTestFolio();
+        uint256 supplyBefore = folio.totalSupply();
 
         // fast forward, accumulate fees
-        vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
         vm.roll(block.number + 1000000);
         uint256 pendingFeeShares = folio.getPendingFeeShares();
 
-        // validate pending fees have been accumulated
-        uint256 currentSupply = folio.totalSupply();
-        uint256 demFeeBps = folio.folioFee();
-        uint256 expectedFeeShares = (currentSupply * demFeeBps) / 1e4 / 2;
-        assertEq(expectedFeeShares, pendingFeeShares, "wrong pending fee shares");
+        // validate pending fees have been accumulated -- 50% fee = 100% of supply
+        assertApproxEqAbs(supplyBefore, pendingFeeShares, 1e12, "wrong pending fee shares");
 
         uint256 initialOwnerShares = folio.balanceOf(owner);
         folio.distributeFees();
@@ -306,7 +318,7 @@ contract FolioTest is BaseTest {
     function test_setFolioFee_InvalidFee() public {
         _deployTestFolio();
         vm.startPrank(owner);
-        uint256 newFolioFee = 5001; // above max
+        uint256 newFolioFee = MAX_FEE + 1;
         vm.expectRevert(IFolio.Folio__FeeTooHigh.selector);
         folio.setFolioFee(newFolioFee);
     }
