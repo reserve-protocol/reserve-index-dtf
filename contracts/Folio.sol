@@ -21,6 +21,11 @@ import { IFolio } from "./interfaces/IFolio.sol";
 // !!!! TODO !!!! REMOVE
 import "forge-std/console2.sol";
 
+interface IBidderCallee {
+    /// @param buyAmount {qBuyTok}
+    function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
+}
+
 uint256 constant MAX_FEE = 21979552668; // D18{1/s} 50% annually
 
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
@@ -343,13 +348,20 @@ contract Folio is
         return _price(trades[tradeId], timestamp);
     }
 
+    /// Bid in an ongoing auction
+    ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
+    ///   If withCallback is false, caller must have provided an allowance in advance
     /// @dev Permissionless
     /// @param sellAmount {sellTok} Token the bidder receives, sold from the point of view of the Folio
     /// @param minBuyAmount {buyTok} Token the bidder provides, bought from the point of view of the Folio
+    /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
+    /// @param data Arbitrary data to pass to the callback
     function bid(
         uint256 tradeId,
         uint256 sellAmount,
-        uint256 minBuyAmount
+        uint256 minBuyAmount,
+        bool withCallback,
+        bytes calldata data
     ) external nonReentrant returns (uint256 boughtAmt) {
         Trade storage trade = trades[tradeId];
 
@@ -372,9 +384,14 @@ contract Folio is
             basket.remove(address(trade.sell));
         }
 
-        trade.buy.safeTransferFrom(msg.sender, address(this), boughtAmt);
         trade.sell.safeTransfer(msg.sender, sellAmount);
         emit Bid(tradeId, sellAmount, boughtAmt);
+
+        if (withCallback) {
+            IBidderCallee(msg.sender).bidCallback(address(trade.buy), boughtAmt, data);
+        } else {
+            trade.buy.safeTransferFrom(msg.sender, address(this), boughtAmt);
+        }
     }
 
     function closeTrade(uint256 tradeId) external nonReentrant onlyRole(PRICE_CURATOR) {
