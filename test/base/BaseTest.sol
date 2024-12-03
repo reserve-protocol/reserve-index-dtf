@@ -36,15 +36,16 @@ abstract contract BaseTest is Script, Test {
 
     uint256 constant YEAR_IN_SECONDS = 31536000;
 
-    address dao = 0xDA00000000000000000000000000000000000000;
-    address owner = 0xfF00000000000000000000000000000000000000;
+    address priceCurator = 0x00000000000000000000000000000000000000cc; // has PRICE_CURATOR
+    address dao = 0xDA00000000000000000000000000000000000000; // has TRADE_PROPOSER and PRICE_CURATOR
+    address owner = 0xfF00000000000000000000000000000000000000; // has admin and TRADE_PROPOSER and PRICE_CURATOR
     address user1 = 0xaa00000000000000000000000000000000000000;
     address user2 = 0xbb00000000000000000000000000000000000000;
     address feeReceiver = 0xCc00000000000000000000000000000000000000;
     IERC20 USDC;
-    IERC20 USDT;
     IERC20 DAI;
     IERC20 MEME;
+    IERC20 USDT; // not in basket
 
     Folio folio;
     FolioFactory folioFactory;
@@ -74,17 +75,20 @@ abstract contract BaseTest is Script, Test {
         folioFactory = new FolioFactory(address(daoFeeRegistry));
         deployCoins();
         mintTokens();
+        vm.warp(100);
+        vm.roll(1);
     }
 
     function _testSetupAfter() public {
+        vm.label(address(priceCurator), "Price Curator");
         vm.label(address(dao), "DAO");
         vm.label(address(owner), "Owner");
         vm.label(address(user1), "User 1");
         vm.label(address(user2), "User 2");
         vm.label(address(USDC), "USDC");
-        vm.label(address(USDT), "USDT");
         vm.label(address(DAI), "DAI");
         vm.label(address(MEME), "MEME");
+        vm.label(address(USDT), "USDT");
     }
 
     function _forkSetupAfter() public {}
@@ -92,8 +96,8 @@ abstract contract BaseTest is Script, Test {
     function deployCoins() public {
         USDC = IERC20(new MockERC20("USDC", "USDC", 6));
         DAI = IERC20(new MockERC20("DAI", "DAI", 18));
-        USDT = new MockERC20("USDT", "USDT", 6);
         MEME = new MockERC20("MEME", "MEME", 27);
+        USDT = new MockERC20("USDT", "USDT", 6);
     }
 
     function mintTokens() public {
@@ -121,6 +125,7 @@ abstract contract BaseTest is Script, Test {
         mintToken(address(USDC), actors, amounts_6);
         mintToken(address(DAI), actors, amounts_18);
         mintToken(address(MEME), actors, amounts_27);
+        mintToken(address(USDT), actors, amounts_6);
 
         uint256[] memory amounts_eth = new uint256[](4);
         amounts_eth[0] = 10 ether;

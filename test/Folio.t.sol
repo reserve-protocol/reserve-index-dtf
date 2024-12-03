@@ -40,10 +40,11 @@ contract FolioTest is BaseTest {
                 owner
             )
         );
-
-        // TODO remove after debugging
-        assertEq(folio.getPendingFeeShares(), 0, "should start 0");
-
+        folio.grantRole(folio.TRADE_PROPOSER(), owner);
+        folio.grantRole(folio.PRICE_CURATOR(), owner);
+        folio.grantRole(folio.TRADE_PROPOSER(), dao);
+        folio.grantRole(folio.PRICE_CURATOR(), dao);
+        folio.grantRole(folio.PRICE_CURATOR(), priceCurator);
         vm.stopPrank();
     }
 
@@ -411,5 +412,45 @@ contract FolioTest is BaseTest {
             initialFeeReceiverShares + (remainingShares * 1000) / 10000,
             "wrong fee receiver shares, 2nd change"
         );
+    }
+
+    function test_atomicBidWithoutCallback() public {
+        _deployTestFolio();
+
+        // bid in two chunks, each for half of the volume
+
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 1e18, 1e18);
+        folio.getPrice(0, block.timestamp); // should not revert
+
+        vm.startPrank(user1);
+        USDT.approve(address(folio), amt);
+        folio.bid(0, amt / 2, amt / 2, false, bytes(""));
+
+        // bid a 2nd time for the rest of the volume
+        USDT.approve(address(folio), amt);
+        folio.bid(0, amt / 2, amt / 2, false, bytes(""));
+        assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K - D6_TOKEN_1, "wrong usdc balance");
+        vm.stopPrank();
+    }
+
+    function test_auctionBidWithoutCallback() public {
+        _deployTestFolio();
+
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+
+        (, , , , , , , uint256 start, uint256 end) = folio.trades(0);
+        assertEq(folio.getBidAmount(0, amt, start), amt * 10, "wrong start bid amount"); // 10x
+        assertEq(folio.getBidAmount(0, amt, (start + end) / 2), 3162278, "wrong mid bid amount"); // ~3.16x
+        assertEq(folio.getBidAmount(0, amt, end), amt + 1, "wrong end bid amount"); // 1x + 1
     }
 }
