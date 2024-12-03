@@ -36,11 +36,6 @@ uint256 constant FEE_DENOMINATOR = 100_00; // {bps}
 
 // TODO go through and see if we can remove any of the nonReentrant modifiers
 
-// TODO do we need do create a guard against malicious pricing by TRADE_PROPOSER? Isn't it an issue
-// that the price curator can participate in governance to push through a proposal to trade far below market price,
-// and then execute it immediately? distinguishing between dutch auctions and atomic swaps doesn't fix it, because
-// they can still start a dutch auction in a tiny price range.
-
 contract Folio is
     IFolio,
     Initializable,
