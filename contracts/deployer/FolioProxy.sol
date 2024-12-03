@@ -5,6 +5,36 @@ import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/tran
 import { ERC1967Proxy, ERC1967Utils } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+
+// @todo Make this an interface
+import { FolioVersionRegistry } from "./FolioVersionRegistry.sol";
+
+/**
+ * @dev Custom ProxyAdmin for upgrade functionality.
+ */
+contract FolioProxyAdmin is Ownable {
+    address immutable upgradeController; // @todo sync with version/upgrade manager
+
+    error VersionDeprecated();
+
+    constructor(address initialOwner, address _upgradeController) Ownable(initialOwner) {
+        upgradeController = _upgradeController;
+    }
+
+    function upgradeToVersion(address proxyTarget, bytes32 versionHash) external onlyOwner {
+        FolioVersionRegistry folioRegistry = FolioVersionRegistry(upgradeController);
+
+        if (folioRegistry.isDeprecated(versionHash)) {
+            revert VersionDeprecated();
+        }
+
+        address folioImpl = folioRegistry.getImplementationForVersion(versionHash);
+
+        ITransparentUpgradeableProxy(proxyTarget).upgradeToAndCall(folioImpl, "");
+    }
+}
+
 /**
  * @dev This is an alternate implementation of the TransparentUpgradeableProxy contract, please read through
  *      their considerations and limitations before using this contract.
@@ -12,12 +42,12 @@ import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin
 contract FolioProxy is ERC1967Proxy {
     error ProxyDeniedAdminAccess();
 
-    address immutable upgradeController; // @todo sync with version/upgrade manager
-
-    constructor(address _logic, address _admin, address _upgradeController) ERC1967Proxy(_logic, "") {
-        ERC1967Utils.changeAdmin(_admin); // @dev _admin must be proxyAdmin
-
-        upgradeController = _upgradeController;
+    constructor(address _logic, address _admin) ERC1967Proxy(_logic, "") {
+        /**
+         * @dev _admin must be proxyAdmin
+         * @notice Yes, admin can be an immutable variable. Doing this way to honor ERC1967 spec.
+         */
+        ERC1967Utils.changeAdmin(_admin);
     }
 
     function _fallback() internal virtual override {

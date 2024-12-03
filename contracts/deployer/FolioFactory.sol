@@ -6,10 +6,11 @@ import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin
 
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import { IFolioFactory } from "@interfaces/IFolioFactory.sol";
 import { Versioned } from "@utils/Versioned.sol";
 import { Folio } from "@src/Folio.sol";
 
-contract FolioFactory is Versioned {
+contract FolioFactory is IFolioFactory, Versioned {
     address public immutable daoFeeRegistry;
     address public immutable dutchTradeImplementation;
 

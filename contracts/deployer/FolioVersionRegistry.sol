@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { Versioned } from "./utils/Versioned.sol";
-import { IRoleRegistry } from "./interfaces/IRoleRegistry.sol";
+import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
+import { IFolioFactory } from "@interfaces/IFolioFactory.sol";
+
+import { Versioned } from "@utils/Versioned.sol";
 
 /**
- * @title VersionRegistry
+ * @title VersionRegistry for Reserve Folio
  */
-contract VersionRegistry {
+contract FolioVersionRegistry {
     IRoleRegistry public immutable roleRegistry;
 
-    mapping(bytes32 => address) public deployments;
+    mapping(bytes32 => IFolioFactory) public deployments;
     mapping(bytes32 => bool) public isDeprecated;
     bytes32 private latestVersion;
 
@@ -19,7 +21,7 @@ contract VersionRegistry {
     error VersionRegistry__AlreadyDeprecated();
     error VersionRegistry__InvalidCaller();
 
-    event VersionRegistered(bytes32 versionHash, address folioImplementation);
+    event VersionRegistered(bytes32 versionHash, IFolioFactory folioFactory);
     event VersionDeprecated(bytes32 versionHash);
 
     constructor(IRoleRegistry _roleRegistry) {
@@ -30,26 +32,26 @@ contract VersionRegistry {
         roleRegistry = _roleRegistry;
     }
 
-    function registerVersion(address folioImpl) external {
+    function registerVersion(IFolioFactory folioFactory) external {
         if (!roleRegistry.isOwner(msg.sender)) {
             revert VersionRegistry__InvalidCaller();
         }
 
-        if (address(folioImpl) == address(0)) {
+        if (address(folioFactory) == address(0)) {
             revert VersionRegistry__ZeroAddress();
         }
 
-        string memory version = Versioned(folioImpl).version();
+        string memory version = Versioned(address(folioFactory)).version();
         bytes32 versionHash = keccak256(abi.encodePacked(version));
 
         if (address(deployments[versionHash]) != address(0)) {
             revert VersionRegistry__InvalidRegistration();
         }
 
-        deployments[versionHash] = folioImpl;
+        deployments[versionHash] = folioFactory;
         latestVersion = versionHash;
 
-        emit VersionRegistered(versionHash, folioImpl);
+        emit VersionRegistered(versionHash, folioFactory);
     }
 
     function deprecateVersion(bytes32 versionHash) external {
@@ -68,15 +70,15 @@ contract VersionRegistry {
     function getLatestVersion()
         external
         view
-        returns (bytes32 versionHash, string memory version, address folio, bool deprecated)
+        returns (bytes32 versionHash, string memory version, IFolioFactory folioFactory, bool deprecated)
     {
         versionHash = latestVersion;
-        folio = deployments[versionHash];
-        version = Versioned(folio).version();
+        folioFactory = deployments[versionHash];
+        version = Versioned(address(folioFactory)).version();
         deprecated = isDeprecated[versionHash];
     }
 
     function getImplementationForVersion(bytes32 versionHash) external view returns (address folio) {
-        return deployments[versionHash];
+        return deployments[versionHash].folioImplementation();
     }
 }
