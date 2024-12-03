@@ -14,7 +14,7 @@ interface IFolio {
     );
     event TradeOpened(uint256 indexed tradeId, uint256 startPrice, uint256 endPrice, uint256 start, uint256 end);
     event Bid(uint256 indexed tradeId, uint256 sellAmount, uint256 buyAmount);
-    event TradeManuallyClosed(uint256 indexed tradeId);
+    event TradeKilled(uint256 indexed tradeId);
 
     // Errors
     error Folio__BasketAlreadyInitialized();

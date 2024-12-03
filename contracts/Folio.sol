@@ -57,8 +57,8 @@ contract Folio is
     /**
      * Roles
      */
-    bytes32 constant TRADE_PROPOSER = keccak256("TRADE_PROPOSER"); // expected to be trading governance
-    bytes32 constant PRICE_CURATOR = keccak256("PRICE_CURATOR"); // expected to be the trading timelock + optional EOA
+    bytes32 public constant TRADE_PROPOSER = keccak256("TRADE_PROPOSER"); // expected to be trading governance
+    bytes32 public constant PRICE_CURATOR = keccak256("PRICE_CURATOR"); // expected to be the trading timelock + optional EOA
 
     /**
      * Basket
@@ -276,7 +276,7 @@ contract Folio is
     /// @param sellAmount {sellTok} Provide type(uint256).max to sell everything
     /// @param startPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator
     /// @param endPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator
-    /// @param ttl {s} How long trade can be opened (once opened, it always finishes)
+    /// @param ttl {s} How long trade can be opened (once opened, it always finishes). Accepts type(uint256).max
     function approveTrade(
         uint256 tradeId,
         IERC20 sell,
@@ -294,6 +294,8 @@ contract Folio is
             revert Folio__InvalidSellAmount();
         }
 
+        uint256 launchTimeout = ttl == type(uint256).max ? ttl : block.timestamp + ttl;
+
         trades.push(
             Trade({
                 id: trades.length,
@@ -302,7 +304,7 @@ contract Folio is
                 sellAmount: sellAmount,
                 startPrice: startPrice,
                 endPrice: endPrice,
-                launchTimeout: block.timestamp + ttl,
+                launchTimeout: launchTimeout,
                 start: 0,
                 end: 0
             })
@@ -343,9 +345,15 @@ contract Folio is
         emit TradeOpened(tradeId, startPrice, endPrice, block.timestamp, block.timestamp + auctionLength);
     }
 
-    /// @return {buyTok/sellTok}
+    /// @return D18{buyTok/sellTok}
     function getPrice(uint256 tradeId, uint256 timestamp) external view returns (uint256) {
         return _price(trades[tradeId], timestamp);
+    }
+
+    /// @return {buyTok} The amount the bidder would receive
+    function getBidAmount(uint256 tradeId, uint256 amount, uint256 timestamp) external view returns (uint256) {
+        uint256 price = _price(trades[tradeId], timestamp);
+        return (amount * price + 1e18 - 1) / 1e18;
     }
 
     /// Bid in an ongoing auction
@@ -394,10 +402,12 @@ contract Folio is
         }
     }
 
-    function closeTrade(uint256 tradeId) external nonReentrant onlyRole(PRICE_CURATOR) {
-        // no reverting to prevent griefing by the EOA price curator against governance
+    /// Kill a trade
+    /// A trade can be killed anywhere in its lifecycle, and cannot be restarted
+    /// @dev Redundant calls do not revert to prevent griefing
+    function killTrade(uint256 tradeId) external nonReentrant onlyRole(PRICE_CURATOR) {
         trades[tradeId].end = 1;
-        emit TradeManuallyClosed(tradeId);
+        emit TradeKilled(tradeId);
     }
 
     // ==== Internal ====
