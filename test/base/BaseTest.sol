@@ -13,7 +13,7 @@ import { MockERC20 } from "utils/MockERC20.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 
 import { Folio } from "contracts/Folio.sol";
-import { FolioFactory } from "contracts/FolioFactory.sol";
+import { FolioFactory } from "@deployer/FolioFactory.sol";
 import { IRoleRegistry, FolioFeeRegistry } from "contracts/FolioFeeRegistry.sol";
 
 abstract contract BaseTest is Script, Test {

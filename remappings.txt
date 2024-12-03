@@ -7,4 +7,4 @@ utils/=test/utils/
 @src/=contracts/
 @utils/=contracts/utils/
 @interfaces/=contracts/interfaces/
-@deployer/=contracts/deployment/
+@deployer/=contracts/deployer/
