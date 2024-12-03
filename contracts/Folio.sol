@@ -121,7 +121,6 @@ contract Folio is IFolio, Initializable, ERC20Upgradeable, AccessControlEnumerab
     }
 
     // {share} -> ({tokAddress}, {tok})
-    /// @dev Will return stale values unless _poke() is called first
     function toAssets(
         uint256 shares,
         Math.Rounding rounding
