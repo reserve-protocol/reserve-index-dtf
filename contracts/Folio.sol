@@ -395,7 +395,7 @@ contract Folio is
     }
 
     function closeTrade(uint256 tradeId) external nonReentrant onlyRole(PRICE_CURATOR) {
-        // no reverting to prevent griefing by the EOA price curator against trading governance
+        // no reverting to prevent griefing by the EOA price curator against governance
         trades[tradeId].end = 1;
         emit TradeManuallyClosed(tradeId);
     }
