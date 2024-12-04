@@ -648,4 +648,67 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
         folio.bid(0, amt, amt, false, bytes(""));
     }
+
+    function test_auctionRequiresBalanceToOpen() public {
+        _deployTestFolio();
+
+        // can approve trade without balance
+
+        uint256 bal = USDC.balanceOf(address(folio));
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, bal + 1, 0, 0, type(uint256).max);
+
+        // cannot open trade without balance
+
+        vm.prank(priceCurator);
+        vm.expectRevert(IFolio.Folio__InsufficientBalance.selector);
+        folio.openTrade(0, 10e18, 1e18);
+    }
+
+    function test_parallelAuctions() public {
+        _deployTestFolio();
+
+        // launch two auction in parallel to sell ALL USDC/DAI
+
+        uint256 amt1 = USDC.balanceOf(address(folio));
+        uint256 amt2 = DAI.balanceOf(address(folio));
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt1, 0, 0, type(uint256).max);
+        vm.prank(dao);
+        folio.approveTrade(1, DAI, USDT, amt2, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+        vm.prank(priceCurator);
+        folio.openTrade(1, 100e6, 1e6); // 100x -> 1x
+
+        // bid in first auction for half volume at start
+
+        vm.startPrank(user1);
+        USDT.approve(address(folio), amt1 * 5);
+        folio.bid(0, amt1 / 2, amt1 * 5, false, bytes(""));
+
+        // advance halfway and bid for full volume of second auction
+
+        (, , , , , , , uint256 start, uint256 end) = folio.trades(0);
+        vm.warp(start + (end - start) / 2);
+        uint256 bidAmt = (amt2 * 40) / 1e12; // adjust for decimals
+        USDT.approve(address(folio), bidAmt);
+        folio.bid(1, amt2, bidAmt, false, bytes("")); // ~31.6x
+
+        // advance to end and bid for rest of first auction
+
+        vm.warp(end);
+        USDT.approve(address(folio), amt1 / 2 + 1);
+        folio.bid(0, amt1 / 2, amt1 / 2 + 1, false, bytes(""));
+
+        // auctions are over, should have no USDC + DAI left
+
+        (, , , uint256 sellAmount, , , , , ) = folio.trades(0);
+        assertEq(sellAmount, 0, "unfinished auction 1");
+        (, , , sellAmount, , , , , ) = folio.trades(1);
+        assertEq(sellAmount, 0, "unfinished auction 2");
+        assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
+        assertEq(DAI.balanceOf(address(folio)), 0, "wrong dai balance");
+    }
 }
