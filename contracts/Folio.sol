@@ -355,13 +355,13 @@ contract Folio is
     ///   If withCallback is false, caller must have provided an allowance in advance
     /// @dev Permissionless
     /// @param sellAmount {sellTok} Token the bidder receives, sold from the point of view of the Folio
-    /// @param minBuyAmount {buyTok} Token the bidder provides, bought from the point of view of the Folio
+    /// @param maxBuyAmount {buyTok} Token the bidder provides, bought from the point of view of the Folio
     /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
     /// @param data Arbitrary data to pass to the callback
     function bid(
         uint256 tradeId,
         uint256 sellAmount,
-        uint256 minBuyAmount,
+        uint256 maxBuyAmount,
         bool withCallback,
         bytes calldata data
     ) external nonReentrant returns (uint256 boughtAmt) {
@@ -372,7 +372,7 @@ contract Folio is
 
         // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
         boughtAmt = (sellAmount * price + 1e18 - 1) / 1e18;
-        if (boughtAmt < minBuyAmount) {
+        if (boughtAmt > maxBuyAmount) {
             revert Folio__SlippageExceeded();
         }
 
