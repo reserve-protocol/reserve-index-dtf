@@ -50,7 +50,7 @@ interface IFolio {
         uint256 sellAmount; // {sellTok}
         uint256 startPrice; // D18{buyTok/sellTok}
         uint256 endPrice; // D18{buyTok/sellTok}
-        uint256 launchTimeout; // {s}
+        uint256 launchTimeout; // {s} inclusive
         uint256 start; // {s} inclusive
         uint256 end; // {s} inclusive
     }
