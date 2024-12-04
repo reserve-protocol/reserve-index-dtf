@@ -36,6 +36,8 @@ interface IFolio {
     error Folio__InvalidEndPrice();
     error Folio__TradeTimeout();
     error Folio__SlippageExceeded();
+    error Folio__InsufficientBalance();
+    error Folio__InvalidTradeTokens();
 
     // Structures
     struct FeeRecipient {

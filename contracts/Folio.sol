@@ -284,6 +284,10 @@ contract Folio is
             revert Folio__InvalidTradeId();
         }
 
+        if (address(sell) == address(0) || address(buy) == address(0)) {
+            revert Folio__InvalidTradeTokens();
+        }
+
         if (sellAmount == 0) {
             revert Folio__InvalidSellAmount();
         }
@@ -323,13 +327,20 @@ contract Folio is
             revert Folio__TradeTimeout();
         }
 
-        // Only allow price curator to raise starting price by factor of 100x at-most
-        if (startPrice < trade.startPrice || (trade.startPrice > 0 && startPrice > 100 * trade.startPrice)) {
+        if (
+            startPrice == 0 ||
+            startPrice < trade.startPrice ||
+            (trade.startPrice > 0 && startPrice > 100 * trade.startPrice)
+        ) {
             revert Folio__InvalidStartPrice();
         }
 
-        if (endPrice < trade.endPrice || startPrice < endPrice) {
+        if (endPrice == 0 || endPrice < trade.endPrice || startPrice < endPrice) {
             revert Folio__InvalidEndPrice();
+        }
+
+        if (trade.sellAmount != type(uint256).max && trade.sell.balanceOf(address(this)) < trade.sellAmount) {
+            revert Folio__InsufficientBalance();
         }
 
         trade.startPrice = startPrice;
