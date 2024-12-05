@@ -8,6 +8,12 @@ import "./base/BaseTest.sol";
 contract FolioFactoryTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
 
+    function test_constructor() public {
+        FolioFactory folioFactory = new FolioFactory(address(daoFeeRegistry), address(0));
+        assertEq(address(folioFactory.daoFeeRegistry()), address(daoFeeRegistry));
+        assertEq(address(folioFactory.dutchTradeImplementation()), address(0));
+    }
+
     function test_createFolio() public {
         address[] memory tokens = new address[](2);
         tokens[0] = address(USDC);
