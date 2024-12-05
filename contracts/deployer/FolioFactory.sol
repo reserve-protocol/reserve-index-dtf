@@ -8,7 +8,7 @@ import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/Saf
 
 import { IFolioFactory } from "@interfaces/IFolioFactory.sol";
 import { Versioned } from "@utils/Versioned.sol";
-import { Folio } from "@src/Folio.sol";
+import { Folio, IFolio } from "@src/Folio.sol";
 
 import { FolioProxyAdmin, FolioProxy } from "@deployer/FolioProxy.sol";
 
@@ -49,18 +49,23 @@ contract FolioFactory is IFolioFactory, Versioned {
             SafeERC20.safeTransferFrom(IERC20(assets[i]), msg.sender, address(newFolio), amounts[i]);
         }
 
-        newFolio.initialize(
-            name,
-            symbol,
-            auctionLength,
-            daoFeeRegistry,
-            feeRecipients,
-            folioFee,
-            assets,
-            msg.sender,
-            initShares,
-            governor
-        );
+        IFolio.FolioBasicDetails memory basicDetails = IFolio.FolioBasicDetails({
+            name: name,
+            symbol: symbol,
+            creator: msg.sender,
+            governor: governor,
+            assets: assets,
+            initialShares: initShares
+        });
+
+        IFolio.FolioAdditionalDetails memory additionalDetails = IFolio.FolioAdditionalDetails({
+            auctionLength: auctionLength,
+            feeRegistry: daoFeeRegistry,
+            feeRecipients: feeRecipients,
+            folioFee: folioFee
+        });
+
+        newFolio.initialize(basicDetails, additionalDetails);
 
         return address(newFolio);
     }

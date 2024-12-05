@@ -88,45 +88,37 @@ contract Folio is
     }
 
     function initialize(
-        string memory _name,
-        string memory _symbol,
-        uint256 _auctionLength,
-        address _daoFeeRegistry,
-        FeeRecipient[] memory _feeRecipients,
-        uint256 _folioFee,
-        address[] memory _assets,
-        address _creator,
-        uint256 _shares,
-        address _governor
+        FolioBasicDetails calldata basicDetails,
+        FolioAdditionalDetails calldata additionalDetails
     ) external initializer {
-        __ERC20_init(_name, _symbol);
+        __ERC20_init(basicDetails.name, basicDetails.symbol);
         __AccessControlEnumerable_init();
         __AccessControl_init();
         __ReentrancyGuard_init();
 
-        _setFeeRecipients(_feeRecipients);
-        _setFolioFee(_folioFee);
-        _setAuctionLength(_auctionLength);
+        _setFeeRecipients(additionalDetails.feeRecipients);
+        _setFolioFee(additionalDetails.folioFee);
+        _setAuctionLength(additionalDetails.auctionLength);
 
-        daoFeeRegistry = IFolioFeeRegistry(_daoFeeRegistry);
+        daoFeeRegistry = IFolioFeeRegistry(additionalDetails.feeRegistry);
 
-        uint256 assetLength = _assets.length;
+        uint256 assetLength = basicDetails.assets.length;
         for (uint256 i; i < assetLength; i++) {
-            if (_assets[i] == address(0)) {
+            if (basicDetails.assets[i] == address(0)) {
                 revert Folio__InvalidAsset();
             }
 
-            uint256 assetBalance = IERC20(_assets[i]).balanceOf(address(this));
+            uint256 assetBalance = IERC20(basicDetails.assets[i]).balanceOf(address(this));
             if (assetBalance == 0) {
-                revert Folio__InvalidAssetAmount(_assets[i]);
+                revert Folio__InvalidAssetAmount(basicDetails.assets[i]);
             }
 
-            basket.add(address(_assets[i]));
+            basket.add(address(basicDetails.assets[i]));
         }
 
         _poke();
-        _mint(_creator, _shares);
-        _grantRole(DEFAULT_ADMIN_ROLE, _governor);
+        _mint(basicDetails.creator, basicDetails.initialShares);
+        _grantRole(DEFAULT_ADMIN_ROLE, basicDetails.governor);
     }
 
     function poke() external nonReentrant {
