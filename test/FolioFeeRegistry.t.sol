@@ -81,7 +81,7 @@ contract FolioFeeRegistryTest is BaseTest {
         assertEq(recipient, user2);
     }
 
-    function test_cannotSetFeeRecipientIfNotRoleRegistryOwner() public {
+    function test_cannotSetFeeRecipientIfNotOwner() public {
         vm.prank(user1);
         vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__InvalidCaller.selector);
         daoFeeRegistry.setFeeRecipient(user2);
@@ -109,6 +109,12 @@ contract FolioFeeRegistryTest is BaseTest {
         assertEq(numerator, 10_00);
     }
 
+    function test_cannotSetDefaultTokenFeeNumeratorIfNotOwner() public {
+        vm.prank(user1);
+        vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__InvalidCaller.selector);
+        daoFeeRegistry.setDefaultFeeNumerator(10_00);
+    }
+
     function test_cannotSetDefaultFeeNumeratorWithInvalidValue() public {
         vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__InvalidFeeNumerator.selector);
         daoFeeRegistry.setDefaultFeeNumerator(MAX_FEE_NUMERATOR + 1);
@@ -124,6 +130,12 @@ contract FolioFeeRegistryTest is BaseTest {
 
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 10_00);
+    }
+
+    function test_cannotSetTokenFeeNumeratorIfNotOwner() public {
+        vm.prank(user2);
+        vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__InvalidCaller.selector);
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), 10_00);
     }
 
     function test_cannotSetTokenFeeNumeratorWithInvalidValue() public {
@@ -150,5 +162,20 @@ contract FolioFeeRegistryTest is BaseTest {
         // Token fee numerator overrides default
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 10_00);
+    }
+
+    function test_resetTokenFee() public {
+        _deployTestFolio();
+        uint256 numerator;
+
+        // set token fee numerator
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), 10_00);
+        (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
+        assertEq(numerator, 10_00);
+
+        // reset fee
+        daoFeeRegistry.resetTokenFee(address(folio));
+        (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
+        assertEq(numerator, 0);
     }
 }
