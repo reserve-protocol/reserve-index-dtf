@@ -6,10 +6,11 @@
   "dependencies": {
     "@openzeppelin/contracts": "^5.1.0",
     "@openzeppelin/contracts-upgradeable": "^5.1.0",
+    "@prb/math": "^4.1.0",
     "forge-std": "github:foundry-rs/forge-std#v1.9.4"
   },
   "devDependencies": {
-    "prettier": "^3.3.3",
+    "prettier": "^3.4.1",
     "prettier-plugin-solidity": "^1.4.1",
     "solhint": "^5.0.3",
     "solhint-plugin-prettier": "^0.1.0"
@@ -26,5 +27,6 @@
     "coverage:summary": "forge coverage --report summary",
     "deploy": "forge script script/Deploy.s.sol:DeployScript --broadcast --slow --skip-simulation",
     "anvil": "anvil --fork-url https://eth.public-rpc.com --chain-id 31337 --prune-history"
-  }
+  },
+  "packageManager": "yarn@4.5.3"
 }
