@@ -3,12 +3,9 @@ pragma solidity 0.8.28;
 
 import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { ERC1967Proxy, ERC1967Utils } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
-
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
-// @todo Make this an interface
-import { FolioVersionRegistry } from "./FolioVersionRegistry.sol";
+import { IFolioVersionRegistry } from "@interfaces/IFolioVersionRegistry.sol";
 
 /**
  * @dev Custom ProxyAdmin for upgrade functionality.
@@ -23,7 +20,7 @@ contract FolioProxyAdmin is Ownable {
     }
 
     function upgradeToVersion(address proxyTarget, bytes32 versionHash) external onlyOwner {
-        FolioVersionRegistry folioRegistry = FolioVersionRegistry(upgradeController);
+        IFolioVersionRegistry folioRegistry = IFolioVersionRegistry(upgradeController);
 
         if (folioRegistry.isDeprecated(versionHash)) {
             revert VersionDeprecated();
@@ -56,11 +53,6 @@ contract FolioProxy is ERC1967Proxy {
                 revert ProxyDeniedAdminAccess();
             } else {
                 (address newImplementation, bytes memory data) = abi.decode(msg.data[4:], (address, bytes));
-                // @todo There are two options:
-                //       1. We limit and check the newImplementation here; or
-                //       2. We add a custom function to upgrade using our upgrade manager
-                //
-                //       I like option 2 better, because the entire fallback is simplified.
 
                 ERC1967Utils.upgradeToAndCall(newImplementation, data);
             }

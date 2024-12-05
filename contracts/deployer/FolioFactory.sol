@@ -10,14 +10,20 @@ import { IFolioFactory } from "@interfaces/IFolioFactory.sol";
 import { Versioned } from "@utils/Versioned.sol";
 import { Folio } from "@src/Folio.sol";
 
+import { FolioProxyAdmin, FolioProxy } from "@deployer/FolioProxy.sol";
+
 contract FolioFactory is IFolioFactory, Versioned {
     address public immutable daoFeeRegistry;
+    address public immutable versionRegistry;
+
     address public immutable folioImplementation;
 
     error FolioFactory__LengthMismatch();
 
-    constructor(address _daoFeeRegistry) {
+    constructor(address _daoFeeRegistry, address _versionRegistry) {
         daoFeeRegistry = _daoFeeRegistry;
+        versionRegistry = _versionRegistry;
+
         folioImplementation = address(new Folio());
     }
 
@@ -36,7 +42,8 @@ contract FolioFactory is IFolioFactory, Versioned {
             revert FolioFactory__LengthMismatch();
         }
 
-        Folio newFolio = Folio(address(new TransparentUpgradeableProxy(folioImplementation, address(governor), "")));
+        FolioProxyAdmin folioAdmin = new FolioProxyAdmin(governor, versionRegistry);
+        Folio newFolio = Folio(address(new FolioProxy(folioImplementation, address(folioAdmin))));
 
         for (uint256 i; i < assets.length; i++) {
             SafeERC20.safeTransferFrom(IERC20(assets[i]), msg.sender, address(newFolio), amounts[i]);
@@ -54,6 +61,7 @@ contract FolioFactory is IFolioFactory, Versioned {
             initShares,
             governor
         );
+
         return address(newFolio);
     }
 }

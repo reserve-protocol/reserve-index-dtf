@@ -165,7 +165,7 @@ contract Folio is
         return super.totalSupply() + _getPendingFeeShares();
     }
 
-    // ({tokAddress}, {tok/share})
+    // {} -> ({tokAddress}, {tok/share})
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
         return toAssets(10 ** decimals(), Math.Rounding.Floor);
     }
