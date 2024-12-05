@@ -6,18 +6,25 @@ import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin
 
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import { IFolioFactory } from "@interfaces/IFolioFactory.sol";
 import { Versioned } from "@utils/Versioned.sol";
-import { Folio } from "@src/Folio.sol";
+import { Folio, IFolio } from "@src/Folio.sol";
 
-contract FolioFactory is Versioned {
+import { FolioProxyAdmin, FolioProxy } from "@deployer/FolioProxy.sol";
+
+contract FolioFactory is IFolioFactory, Versioned {
     address public immutable daoFeeRegistry;
+    address public immutable versionRegistry;
+
     address public immutable folioImplementation;
 
     error FolioFactory__LengthMismatch();
     error FolioFactory__EmptyAssets();
 
-    constructor(address _daoFeeRegistry) {
+    constructor(address _daoFeeRegistry, address _versionRegistry) {
         daoFeeRegistry = _daoFeeRegistry;
+        versionRegistry = _versionRegistry;
+
         folioImplementation = address(new Folio());
     }
 
@@ -40,24 +47,31 @@ contract FolioFactory is Versioned {
             revert FolioFactory__EmptyAssets();
         }
 
-        Folio newFolio = Folio(address(new TransparentUpgradeableProxy(folioImplementation, address(governor), "")));
+        FolioProxyAdmin folioAdmin = new FolioProxyAdmin(governor, versionRegistry);
+        Folio newFolio = Folio(address(new FolioProxy(folioImplementation, address(folioAdmin))));
 
         for (uint256 i; i < assets.length; i++) {
             SafeERC20.safeTransferFrom(IERC20(assets[i]), msg.sender, address(newFolio), amounts[i]);
         }
 
-        newFolio.initialize(
-            name,
-            symbol,
-            auctionLength,
-            daoFeeRegistry,
-            feeRecipients,
-            folioFee,
-            assets,
-            msg.sender,
-            initShares,
-            governor
-        );
+        IFolio.FolioBasicDetails memory basicDetails = IFolio.FolioBasicDetails({
+            name: name,
+            symbol: symbol,
+            creator: msg.sender,
+            governor: governor,
+            assets: assets,
+            initialShares: initShares
+        });
+
+        IFolio.FolioAdditionalDetails memory additionalDetails = IFolio.FolioAdditionalDetails({
+            auctionLength: auctionLength,
+            feeRegistry: daoFeeRegistry,
+            feeRecipients: feeRecipients,
+            folioFee: folioFee
+        });
+
+        newFolio.initialize(basicDetails, additionalDetails);
+
         return address(newFolio);
     }
 }
