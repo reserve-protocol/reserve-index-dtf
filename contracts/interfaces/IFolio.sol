@@ -4,7 +4,8 @@ pragma solidity 0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IFolio {
-    // Events
+    // === Events ===
+
     event TradeApproved(
         uint256 indexed tradeId,
         address indexed from,
@@ -16,7 +17,8 @@ interface IFolio {
     event Bid(uint256 indexed tradeId, uint256 sellAmount, uint256 buyAmount);
     event TradeKilled(uint256 indexed tradeId);
 
-    // Errors
+    // === Errors ===
+
     error Folio__BasketAlreadyInitialized();
 
     error Folio__FeeRecipientInvalidAddress();
@@ -39,6 +41,8 @@ interface IFolio {
     error Folio__InsufficientBalance();
     error Folio__InvalidTradeTokens();
 
+    // === Structures ===
+
     struct FolioBasicDetails {
         string name;
         string symbol;
@@ -55,10 +59,9 @@ interface IFolio {
         uint256 folioFee;
     }
 
-    // Structures
     struct FeeRecipient {
         address recipient;
-        uint96 share;
+        uint96 portion; // D18{1} <= 1e18
     }
 
     struct Trade {
@@ -73,5 +76,5 @@ interface IFolio {
         uint256 end; // {s} inclusive
     }
 
-    function distributeFees() external; // @audit Review, needs to be called from FolioFeeRegistry
+    function distributeFees() external; // @audit Review, needs to be called from FolioDAOFeeRegistry
 }

@@ -2,12 +2,12 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { IFolioFeeRegistry } from "contracts/interfaces/IFolioFeeRegistry.sol";
-import { FolioFeeRegistry, FEE_DENOMINATOR, MAX_FEE_NUMERATOR } from "contracts/FolioFeeRegistry.sol";
+import { IFolioDAOFeeRegistry } from "contracts/interfaces/IFolioDAOFeeRegistry.sol";
+import { FolioDAOFeeRegistry, FEE_DENOMINATOR, MAX_DAO_FEE } from "contracts/FolioDAOFeeRegistry.sol";
 import { MAX_AUCTION_LENGTH, MAX_FEE } from "contracts/Folio.sol";
 import "./base/BaseTest.sol";
 
-contract FolioFeeRegistryTest is BaseTest {
+contract FolioDAOFeeRegistryTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
 
     function _testSetup() public virtual override {
@@ -25,10 +25,10 @@ contract FolioFeeRegistryTest is BaseTest {
         amounts[0] = D6_TOKEN_10K;
         amounts[1] = D18_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9000);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1000);
+        recipients[0] = IFolio.FeeRecipient(owner, 9e17);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1e17);
 
-        // 50% folio fee annually
+        // 50% folio fee annually -- different from dao fee
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
@@ -54,9 +54,9 @@ contract FolioFeeRegistryTest is BaseTest {
     }
 
     function test_constructor() public {
-        FolioFeeRegistry folioFeeRegistry = new FolioFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
-        assertEq(address(folioFeeRegistry.roleRegistry()), address(roleRegistry));
-        (address recipient, uint256 feeNumerator, uint256 feeDenominator) = folioFeeRegistry.getFeeDetails(
+        FolioDAOFeeRegistry folioDAOFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
+        assertEq(address(folioDAOFeeRegistry.roleRegistry()), address(roleRegistry));
+        (address recipient, uint256 feeNumerator, uint256 feeDenominator) = folioDAOFeeRegistry.getFeeDetails(
             address(folio)
         );
         assertEq(recipient, dao);
@@ -65,8 +65,8 @@ contract FolioFeeRegistryTest is BaseTest {
     }
 
     function test_cannotCreateFeeRegistryWithInvalidRoleRegistry() public {
-        vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__InvalidRoleRegistry.selector);
-        new FolioFeeRegistry(IRoleRegistry(address(0)), dao);
+        vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidRoleRegistry.selector);
+        new FolioDAOFeeRegistry(IRoleRegistry(address(0)), dao);
     }
 
     function test_setFeeRecipient() public {
@@ -83,17 +83,17 @@ contract FolioFeeRegistryTest is BaseTest {
 
     function test_cannotSetFeeRecipientIfNotOwner() public {
         vm.prank(user1);
-        vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__InvalidCaller.selector);
+        vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidCaller.selector);
         daoFeeRegistry.setFeeRecipient(user2);
     }
 
     function test_cannotSetFeeRecipientWithInvalidAddress() public {
-        vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__InvalidFeeRecipient.selector);
+        vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidFeeRecipient.selector);
         daoFeeRegistry.setFeeRecipient(address(0));
     }
 
     function test_cannotSetFeeRecipientIfAlreadySet() public {
-        vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__FeeRecipientAlreadySet.selector);
+        vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__FeeRecipientAlreadySet.selector);
         daoFeeRegistry.setFeeRecipient(dao);
     }
 
@@ -111,13 +111,13 @@ contract FolioFeeRegistryTest is BaseTest {
 
     function test_cannotSetDefaultTokenFeeNumeratorIfNotOwner() public {
         vm.prank(user1);
-        vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__InvalidCaller.selector);
+        vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidCaller.selector);
         daoFeeRegistry.setDefaultFeeNumerator(10_00);
     }
 
     function test_cannotSetDefaultFeeNumeratorWithInvalidValue() public {
-        vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__InvalidFeeNumerator.selector);
-        daoFeeRegistry.setDefaultFeeNumerator(MAX_FEE_NUMERATOR + 1);
+        vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidFeeNumerator.selector);
+        daoFeeRegistry.setDefaultFeeNumerator(MAX_DAO_FEE + 1);
     }
 
     function test_setTokenFeeNumerator() public {
@@ -134,13 +134,13 @@ contract FolioFeeRegistryTest is BaseTest {
 
     function test_cannotSetTokenFeeNumeratorIfNotOwner() public {
         vm.prank(user2);
-        vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__InvalidCaller.selector);
+        vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidCaller.selector);
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 10_00);
     }
 
     function test_cannotSetTokenFeeNumeratorWithInvalidValue() public {
-        vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__InvalidFeeNumerator.selector);
-        daoFeeRegistry.setTokenFeeNumerator(address(folio), MAX_FEE_NUMERATOR + 1);
+        vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidFeeNumerator.selector);
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), MAX_DAO_FEE + 1);
     }
 
     function test_usesDefaultFeeNumeratorOnlyWhenTokenNumeratorIsNotSet() public {
@@ -181,7 +181,7 @@ contract FolioFeeRegistryTest is BaseTest {
 
     function test_cannotResetTokenFeeIfNotOwner() public {
         vm.prank(user2);
-        vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__InvalidCaller.selector);
+        vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidCaller.selector);
         daoFeeRegistry.resetTokenFee(address(folio));
     }
 }

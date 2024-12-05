@@ -15,7 +15,7 @@ import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 
 import { Versioned } from "@utils/Versioned.sol";
 
-import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
+import { IFolioDAOFeeRegistry } from "./interfaces/IFolioDAOFeeRegistry.sol";
 import { IFolio } from "./interfaces/IFolio.sol";
 
 // !!!! TODO !!!! REMOVE
@@ -27,12 +27,8 @@ interface IBidderCallee {
 }
 
 uint256 constant MAX_FEE = 21979552668; // D18{1/s} 50% annually
-
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
-
-// TODO convert to D18
-uint256 constant FEE_DENOMINATOR = 100_00; // {bps}
 
 // TODO go through and see if we can remove any of the nonReentrant modifiers
 
@@ -47,7 +43,7 @@ contract Folio is
     using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
 
-    IFolioFeeRegistry public daoFeeRegistry;
+    IFolioDAOFeeRegistry public daoFeeRegistry;
 
     /**
      * Roles
@@ -100,7 +96,7 @@ contract Folio is
         _setFolioFee(additionalDetails.folioFee);
         _setAuctionLength(additionalDetails.auctionLength);
 
-        daoFeeRegistry = IFolioFeeRegistry(additionalDetails.feeRegistry);
+        daoFeeRegistry = IFolioDAOFeeRegistry(additionalDetails.feeRegistry);
 
         uint256 assetLength = basicDetails.assets.length;
         for (uint256 i; i < assetLength; i++) {
@@ -141,6 +137,7 @@ contract Folio is
         _setFolioFee(_newFee);
     }
 
+    /// _newRecipients.portion must sum to 1e18
     function setFeeRecipients(FeeRecipient[] memory _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
@@ -242,9 +239,10 @@ contract Folio is
         // distribute the rest of the folioFee
         uint256 len = feeRecipients.length;
         for (uint256 i; i < len; i++) {
-            uint256 fee = (pendingFeeShares * feeRecipients[i].share) / FEE_DENOMINATOR;
+            // {share} = {share} * D18{1} / D18
+            uint256 share = (pendingFeeShares * feeRecipients[i].portion) / 1e18;
 
-            _mint(feeRecipients[i].recipient, fee);
+            _mint(feeRecipients[i].recipient, share);
         }
 
         pendingFeeShares = 0;
@@ -456,15 +454,15 @@ contract Folio is
                 revert Folio__FeeRecipientInvalidAddress();
             }
 
-            if (_feeRecipients[i].share == 0) {
+            if (_feeRecipients[i].portion == 0) {
                 revert Folio__FeeRecipientInvalidFeeShare();
             }
 
-            total += _feeRecipients[i].share;
+            total += _feeRecipients[i].portion;
             feeRecipients.push(_feeRecipients[i]);
         }
 
-        if (total != FEE_DENOMINATOR) {
+        if (total != 1e18) {
             revert Folio__BadFeeTotal();
         }
     }
