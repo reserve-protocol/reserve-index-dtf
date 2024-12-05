@@ -37,6 +37,22 @@ interface IFolio {
     error Folio__TradeTimeout();
     error Folio__SlippageExceeded();
 
+    struct FolioBasicDetails {
+        string name;
+        string symbol;
+        address creator;
+        address governor;
+        address[] assets;
+        uint256 initialShares;
+    }
+
+    struct FolioAdditionalDetails {
+        uint256 auctionLength;
+        address feeRegistry;
+        FeeRecipient[] feeRecipients;
+        uint256 folioFee;
+    }
+
     // Structures
     struct FeeRecipient {
         address recipient;
