@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { FolioFactory } from "contracts/FolioFactory.sol";
+import { FolioFactory } from "contracts/deployer/FolioFactory.sol";
 import { MAX_AUCTION_LENGTH } from "contracts/Folio.sol";
 import "./base/BaseTest.sol";
 
@@ -10,7 +10,7 @@ contract FolioFactoryTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
 
     function test_constructor() public {
-        FolioFactory folioFactory = new FolioFactory(address(daoFeeRegistry));
+        FolioFactory folioFactory = new FolioFactory(address(daoFeeRegistry), address(0));
         assertEq(address(folioFactory.daoFeeRegistry()), address(daoFeeRegistry));
         assertNotEq(address(folioFactory.folioImplementation()), address(0));
     }
