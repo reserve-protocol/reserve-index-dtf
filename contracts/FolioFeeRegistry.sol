@@ -3,13 +3,10 @@ pragma solidity 0.8.28;
 
 import { IFolio } from "./interfaces/IFolio.sol";
 import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
+import { IRoleRegistry } from "./interfaces/IRoleRegistry.sol";
 
 uint256 constant MAX_FEE_NUMERATOR = 15_00; // Max DAO Fee: 15%
 uint256 constant FEE_DENOMINATOR = 100_00;
-
-interface IRoleRegistry {
-    function isOwner(address account) external view returns (bool);
-}
 
 contract FolioFeeRegistry is IFolioFeeRegistry {
     IRoleRegistry public immutable roleRegistry;

@@ -70,6 +70,7 @@ contract FolioTest is BaseTest {
         (address r2, uint256 bps2) = folio.feeRecipients(1);
         assertEq(r2, feeReceiver, "wrong second recipient");
         assertEq(bps2, 1000, "wrong second recipient bps");
+        assertEq(folio.version(), "1.0.0");
     }
 
     /*
