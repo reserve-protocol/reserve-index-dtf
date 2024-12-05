@@ -178,4 +178,10 @@ contract FolioFeeRegistryTest is BaseTest {
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 0);
     }
+
+    function test_cannotResetTokenFeeIfNotOwner() public {
+        vm.prank(user2);
+        vm.expectRevert(IFolioFeeRegistry.FolioFeeRegistry__InvalidCaller.selector);
+        daoFeeRegistry.resetTokenFee(address(folio));
+    }
 }
