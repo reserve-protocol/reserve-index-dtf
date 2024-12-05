@@ -19,6 +19,7 @@ contract FolioFactory is IFolioFactory, Versioned {
     address public immutable folioImplementation;
 
     error FolioFactory__LengthMismatch();
+    error FolioFactory__EmptyAssets();
 
     constructor(address _daoFeeRegistry, address _versionRegistry) {
         daoFeeRegistry = _daoFeeRegistry;
@@ -40,6 +41,10 @@ contract FolioFactory is IFolioFactory, Versioned {
     ) external returns (address) {
         if (assets.length != amounts.length) {
             revert FolioFactory__LengthMismatch();
+        }
+
+        if (assets.length == 0) {
+            revert FolioFactory__EmptyAssets();
         }
 
         FolioProxyAdmin folioAdmin = new FolioProxyAdmin(governor, versionRegistry);
