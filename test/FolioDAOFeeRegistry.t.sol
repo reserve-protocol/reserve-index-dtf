@@ -23,8 +23,8 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         amounts[0] = D6_TOKEN_10K;
         amounts[1] = D18_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1e17);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         // 50% folio fee annually -- different from dao fee
         vm.startPrank(owner);
@@ -99,16 +99,16 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 0);
 
-        daoFeeRegistry.setDefaultFeeNumerator(10_00);
+        daoFeeRegistry.setDefaultFeeNumerator(0.1e18);
 
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(numerator, 10_00);
+        assertEq(numerator, 0.1e18);
     }
 
     function test_cannotSetDefaultTokenFeeNumeratorIfNotOwner() public {
         vm.prank(user1);
         vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidCaller.selector);
-        daoFeeRegistry.setDefaultFeeNumerator(10_00);
+        daoFeeRegistry.setDefaultFeeNumerator(0.1e18);
     }
 
     function test_cannotSetDefaultFeeNumeratorWithInvalidValue() public {
@@ -121,16 +121,16 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 0);
 
-        daoFeeRegistry.setTokenFeeNumerator(address(folio), 10_00);
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.1e18);
 
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(numerator, 10_00);
+        assertEq(numerator, 0.1e18);
     }
 
     function test_cannotSetTokenFeeNumeratorIfNotOwner() public {
         vm.prank(user2);
         vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidCaller.selector);
-        daoFeeRegistry.setTokenFeeNumerator(address(folio), 10_00);
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.1e18);
     }
 
     function test_cannotSetTokenFeeNumeratorWithInvalidValue() public {
@@ -144,27 +144,27 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         assertEq(numerator, 0); // default
 
         // set new value for default fee numerator
-        daoFeeRegistry.setDefaultFeeNumerator(5_00);
+        daoFeeRegistry.setDefaultFeeNumerator(0.05e18);
 
         // still using default
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(numerator, 5_00);
+        assertEq(numerator, 0.05e18);
 
         // set token fee numerator
-        daoFeeRegistry.setTokenFeeNumerator(address(folio), 10_00);
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.1e18);
 
         // Token fee numerator overrides default
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(numerator, 10_00);
+        assertEq(numerator, 0.1e18);
     }
 
     function test_resetTokenFee() public {
         uint256 numerator;
 
         // set token fee numerator
-        daoFeeRegistry.setTokenFeeNumerator(address(folio), 10_00);
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.1e18);
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(numerator, 10_00);
+        assertEq(numerator, 0.1e18);
 
         // reset fee
         daoFeeRegistry.resetTokenFee(address(folio));

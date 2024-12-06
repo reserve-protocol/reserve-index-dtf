@@ -23,8 +23,8 @@ contract FolioFactoryTest is BaseTest {
         amounts[0] = D6_TOKEN_10K;
         amounts[1] = D18_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1e17);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
@@ -60,10 +60,10 @@ contract FolioFactoryTest is BaseTest {
         assertEq(folio.folioFee(), 100, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
-        assertEq(bps1, 9e17, "wrong first recipient bps");
+        assertEq(bps1, 0.9e18, "wrong first recipient bps");
         (address r2, uint256 bps2) = folio.feeRecipients(1);
         assertEq(r2, feeReceiver, "wrong second recipient");
-        assertEq(bps2, 1e17, "wrong second recipient bps");
+        assertEq(bps2, 0.1e18, "wrong second recipient bps");
     }
 
     function test_cannotCreateFolioWithLengthMismatch() public {
@@ -73,8 +73,8 @@ contract FolioFactoryTest is BaseTest {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = D6_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1e17);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
@@ -99,8 +99,8 @@ contract FolioFactoryTest is BaseTest {
         address[] memory tokens = new address[](0);
         uint256[] memory amounts = new uint256[](0);
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1e17);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         vm.expectRevert(IFolioFactory.FolioFactory__EmptyAssets.selector);
@@ -127,8 +127,8 @@ contract FolioFactoryTest is BaseTest {
         amounts[0] = D6_TOKEN_10K;
         amounts[1] = D18_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1e17);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
@@ -156,8 +156,8 @@ contract FolioFactoryTest is BaseTest {
         amounts[0] = D6_TOKEN_10K;
         amounts[1] = 0;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1e17);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
@@ -183,8 +183,8 @@ contract FolioFactoryTest is BaseTest {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = D6_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1e17);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         vm.expectRevert(); // no approval
@@ -228,8 +228,8 @@ contract FolioFactoryTest is BaseTest {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = D6_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1e17);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
@@ -271,8 +271,8 @@ contract FolioFactoryTest is BaseTest {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = D6_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1e17);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);

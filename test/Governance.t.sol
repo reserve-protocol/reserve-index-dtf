@@ -43,7 +43,7 @@ contract GovernanceTest is BaseTest {
             votingToken,
             1 days,
             1 weeks,
-            1e16 /* 1% proposal threshold */,
+            0.01e18 /* 1% proposal threshold */,
             4,
             1 days
         );
@@ -67,7 +67,7 @@ contract GovernanceTest is BaseTest {
             votingToken,
             1 seconds,
             30 minutes,
-            1e16 /* 1% proposal threshold */,
+            0.01e18 /* 1% proposal threshold */,
             4,
             0 seconds // 0s execution delay for trading governor
         );

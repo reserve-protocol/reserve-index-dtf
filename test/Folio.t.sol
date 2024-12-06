@@ -24,8 +24,8 @@ contract FolioTest is BaseTest {
         amounts[1] = D18_TOKEN_10K;
         amounts[2] = D27_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1e17);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         // 50% folio fee annually
         vm.startPrank(owner);
@@ -70,10 +70,10 @@ contract FolioTest is BaseTest {
         assertEq(folio.folioFee(), MAX_FEE, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
-        assertEq(bps1, 9e17, "wrong first recipient bps");
+        assertEq(bps1, 0.9e18, "wrong first recipient bps");
         (address r2, uint256 bps2) = folio.feeRecipients(1);
         assertEq(r2, feeReceiver, "wrong second recipient");
-        assertEq(bps2, 1e17, "wrong second recipient bps");
+        assertEq(bps2, 0.1e18, "wrong second recipient bps");
         assertEq(folio.version(), "1.0.0");
     }
 
@@ -181,35 +181,35 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 9e17) / 1e18, "wrong owner shares");
-        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 1e17) / 1e18, "wrong fee receiver shares");
+        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
+        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
     }
 
     function test_setFeeRecipients() public {
         vm.startPrank(owner);
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](3);
-        recipients[0] = IFolio.FeeRecipient(owner, 8e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 5e16);
-        recipients[2] = IFolio.FeeRecipient(user1, 15e16);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.05e18);
+        recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
         folio.setFeeRecipients(recipients);
 
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
-        assertEq(bps1, 8e17, "wrong first recipient bps");
+        assertEq(bps1, 0.8e18, "wrong first recipient bps");
         (address r2, uint256 bps2) = folio.feeRecipients(1);
         assertEq(r2, feeReceiver, "wrong second recipient");
-        assertEq(bps2, 5e16, "wrong second recipient bps");
+        assertEq(bps2, 0.05e18, "wrong second recipient bps");
         (address r3, uint256 bps3) = folio.feeRecipients(2);
         assertEq(r3, user1, "wrong third recipient");
-        assertEq(bps3, 15e16, "wrong third recipient bps");
+        assertEq(bps3, 0.15e18, "wrong third recipient bps");
     }
 
     function test_cannotSetFeeRecipientsIfNotOwner() public {
         vm.startPrank(user1);
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](3);
-        recipients[0] = IFolio.FeeRecipient(owner, 8e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 5e16);
-        recipients[2] = IFolio.FeeRecipient(user1, 15e16);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.05e18);
+        recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector,
@@ -231,9 +231,9 @@ contract FolioTest is BaseTest {
 
         vm.startPrank(owner);
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](3);
-        recipients[0] = IFolio.FeeRecipient(owner, 8e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 5e16);
-        recipients[2] = IFolio.FeeRecipient(user1, 15e16);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.05e18);
+        recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
         folio.setFeeRecipients(recipients);
 
         assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
@@ -244,14 +244,14 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 9e17) / 1e18, "wrong owner shares");
-        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 1e17) / 1e18, "wrong fee receiver shares");
+        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
+        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
     }
 
     function test_setFolioFee() public {
         vm.startPrank(owner);
         assertEq(folio.folioFee(), MAX_FEE, "wrong folio fee");
-        uint256 newFolioFee = 200;
+        uint256 newFolioFee = MAX_FEE / 1000;
         folio.setFolioFee(newFolioFee);
         assertEq(folio.folioFee(), newFolioFee, "wrong folio fee");
     }
@@ -274,7 +274,7 @@ contract FolioTest is BaseTest {
 
     function test_cannotSetFolioFeeIfNotOwner() public {
         vm.startPrank(user1);
-        uint256 newFolioFee = 200;
+        uint256 newFolioFee = MAX_FEE / 1000;
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector,
@@ -295,7 +295,7 @@ contract FolioTest is BaseTest {
         uint256 initialDaoShares = folio.balanceOf(dao);
 
         vm.startPrank(owner);
-        uint256 newFolioFee = 200;
+        uint256 newFolioFee = MAX_FEE / 1000;
         folio.setFolioFee(newFolioFee);
 
         assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
@@ -306,8 +306,8 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 9e17) / 1e18, "wrong owner shares");
-        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 1e17) / 1e18, "wrong fee receiver shares");
+        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
+        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
     }
 
     function test_setFolioFee_InvalidFee() public {
@@ -320,7 +320,7 @@ contract FolioTest is BaseTest {
     function test_setFolioFeeRecipients_InvalidRecipient() public {
         vm.startPrank(owner);
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
-        recipients[0] = IFolio.FeeRecipient(address(0), 1e17);
+        recipients[0] = IFolio.FeeRecipient(address(0), 0.1e18);
         vm.expectRevert(IFolio.Folio__FeeRecipientInvalidAddress.selector);
         folio.setFeeRecipients(recipients);
     }
@@ -336,8 +336,8 @@ contract FolioTest is BaseTest {
     function test_setFolioFeeRecipients_InvalidTotal() public {
         vm.startPrank(owner);
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9e17);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 999);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.0999e18);
         vm.expectRevert(IFolio.Folio__BadFeeTotal.selector);
         folio.setFeeRecipients(recipients);
     }
@@ -354,7 +354,7 @@ contract FolioTest is BaseTest {
 
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
 
-        daoFeeRegistry.setTokenFeeNumerator(address(folio), 1e17);
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.1e18);
 
         // check receipient balances
         uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
@@ -362,12 +362,12 @@ contract FolioTest is BaseTest {
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
         assertEq(
             folio.balanceOf(owner),
-            initialOwnerShares + (remainingShares * 9e17) / 1e18,
+            initialOwnerShares + (remainingShares * 0.9e18) / 1e18,
             "wrong owner shares, 1st change"
         );
         assertEq(
             folio.balanceOf(feeReceiver),
-            initialFeeReceiverShares + (remainingShares * 1e17) / 1e18,
+            initialFeeReceiverShares + (remainingShares * 0.1e18) / 1e18,
             "wrong fee receiver shares, 1st change"
         );
 
@@ -383,7 +383,7 @@ contract FolioTest is BaseTest {
         (, daoFeeNumerator, daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
 
         // set new fee numerator, should distribute fees
-        daoFeeRegistry.setTokenFeeNumerator(address(folio), 5e16);
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.05e18);
 
         // check receipient balances
         expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
@@ -391,12 +391,12 @@ contract FolioTest is BaseTest {
         remainingShares = pendingFeeShares - expectedDaoShares;
         assertEq(
             folio.balanceOf(owner),
-            initialOwnerShares + (remainingShares * 9e17) / 1e18,
+            initialOwnerShares + (remainingShares * 0.9e18) / 1e18,
             "wrong owner shares, 2nd change"
         );
         assertEq(
             folio.balanceOf(feeReceiver),
-            initialFeeReceiverShares + (remainingShares * 1e17) / 1e18,
+            initialFeeReceiverShares + (remainingShares * 0.1e18) / 1e18,
             "wrong fee receiver shares, 2nd change"
         );
     }
@@ -503,39 +503,6 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionBidWithCallback() public {
-        // bid in two chunks, one at start time and one at end time
-
-        // bid in two chunks, one at start time and one at end time
-
-        uint256 amt = D6_TOKEN_1;
-        vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
-
-        vm.prank(priceCurator);
-        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
-
-        // bid once at start time
-
-        vm.startPrank(user1);
-        USDT.approve(address(folio), amt * 5);
-        folio.bid(0, amt / 2, amt * 5, false, bytes(""));
-
-        (, , , , , , , uint256 start, uint256 end) = folio.trades(0);
-        assertEq(folio.getBidAmount(0, amt, start), amt * 10, "wrong start bid amount"); // 10x
-        assertEq(folio.getBidAmount(0, amt, (start + end) / 2), 3162278, "wrong mid bid amount"); // ~3.16x
-        assertEq(folio.getBidAmount(0, amt, end), amt + 1, "wrong end bid amount"); // 1x + 1
-        vm.warp(end);
-
-        // bid a 2nd time for the rest of the volume, at end time
-        USDT.approve(address(folio), amt);
-        folio.bid(0, amt / 2, amt / 2 + 1, false, bytes(""));
-        assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K - D6_TOKEN_1, "wrong usdc balance");
-        vm.stopPrank();
-    }
-
-    function test_auctionBidWithCallback() public {
-        _deployTestFolio();
-
         // bid in two chunks, one at start time and one at end time
 
         uint256 amt = D6_TOKEN_1;
