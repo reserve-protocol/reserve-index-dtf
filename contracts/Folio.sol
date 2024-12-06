@@ -252,9 +252,9 @@ contract Folio is
         uint256 len = feeRecipients.length;
         for (uint256 i; i < len; i++) {
             // {share} = {share} * D18{1} / D18
-            uint256 share = (pendingFeeShares * feeRecipients[i].portion) / 1e18;
+            uint256 shares = (pendingFeeShares * feeRecipients[i].portion) / 1e18;
 
-            _mint(feeRecipients[i].recipient, share);
+            _mint(feeRecipients[i].recipient, shares);
         }
 
         pendingFeeShares = 0;
@@ -306,6 +306,10 @@ contract Folio is
             revert Folio__InvalidPrices();
         }
 
+        if ((startPrice == 0 || endPrice == 0) && ttl < tradeDelay) {
+            revert Folio__InvalidTTL();
+        }
+
         uint256 launchTimeout = ttl == type(uint256).max ? ttl : block.timestamp + ttl;
 
         trades.push(
@@ -326,8 +330,8 @@ contract Folio is
         emit TradeApproved(tradeId, address(sell), address(buy), sellAmount, startPrice);
     }
 
-    /// @param startPrice D18{buyTok/sellTok} Must be > O && >= trade.startPrice, but not by too much
-    /// @param endPrice D18{buyTok/sellTok} Must be > 0 && >= trade.endPrice
+    /// @param startPrice D18{buyTok/sellTok}
+    /// @param endPrice D18{buyTok/sellTok}
     function openTrade(
         uint256 tradeId,
         uint256 startPrice,

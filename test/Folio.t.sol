@@ -580,7 +580,7 @@ contract FolioTest is BaseTest {
     function test_auctionNotLaunchableAfterTimeout() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, 1 days);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TRADE_DELAY);
 
         // should not be openable after launchTimeout
 
