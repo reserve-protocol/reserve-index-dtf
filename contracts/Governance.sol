@@ -17,18 +17,18 @@ contract Governance is
     GovernorTimelockControl
 {
     // 100%
-    uint256 public constant ONE_HUNDRED_PERCENT = 1e8; // {micro %}
+    uint256 public constant PROPOSAL_THRESHOLD_DENOMINATOR = 1e18; // {1}
 
     constructor(
         IVotes _token,
         TimelockController _timelock,
         uint48 votingDelay_, // {s}
         uint32 votingPeriod_, // {s}
-        uint256 proposalThresholdAsMicroPercent_, // e.g. 1e4 for 0.01%
+        uint256 proposalThreshold_, // {1} e.g. 1e14 for 0.01%
         uint256 quorumPercent // e.g 4 for 4%
     )
         Governor("Reserve Folio Governor")
-        GovernorSettings(votingDelay_, votingPeriod_, proposalThresholdAsMicroPercent_)
+        GovernorSettings(votingDelay_, votingPeriod_, proposalThreshold_)
         GovernorVotes(_token)
         GovernorVotesQuorumFraction(quorumPercent)
         GovernorTimelockControl(_timelock)
@@ -59,9 +59,7 @@ contract Governance is
     function proposalThreshold() public view override(Governor, GovernorSettings) returns (uint256) {
         uint256 asMicroPercent = super.proposalThreshold(); // {micro %}
         uint256 pastSupply = token().getPastTotalSupply(clock() - 1);
-
-        // CEIL to make sure thresholds near 0% don't get rounded down to 0 tokens
-        return (asMicroPercent * pastSupply + (ONE_HUNDRED_PERCENT - 1)) / ONE_HUNDRED_PERCENT;
+        return (asMicroPercent * pastSupply + (PROPOSAL_THRESHOLD_DENOMINATOR - 1)) / PROPOSAL_THRESHOLD_DENOMINATOR;
     }
 
     function _queueOperations(
