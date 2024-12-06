@@ -15,6 +15,7 @@ import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 import { Folio } from "contracts/Folio.sol";
 import { FolioFactory } from "@deployer/FolioFactory.sol";
 import { IRoleRegistry, FolioFeeRegistry } from "contracts/FolioFeeRegistry.sol";
+import { FolioVersionRegistry } from "contracts/deployer/FolioVersionRegistry.sol";
 
 abstract contract BaseTest is Script, Test {
     // === Auth roles ===
@@ -50,6 +51,7 @@ abstract contract BaseTest is Script, Test {
     Folio folio;
     FolioFactory folioFactory;
     FolioFeeRegistry daoFeeRegistry;
+    FolioVersionRegistry versionRegistry;
     MockRoleRegistry roleRegistry;
 
     function setUp() public {
@@ -72,7 +74,12 @@ abstract contract BaseTest is Script, Test {
     function _testSetupBefore() public {
         roleRegistry = new MockRoleRegistry();
         daoFeeRegistry = new FolioFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
-        folioFactory = new FolioFactory(address(daoFeeRegistry), address(0)); // @todo This needs to be set to test upgrades
+        versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
+        folioFactory = new FolioFactory(address(daoFeeRegistry), address(versionRegistry));
+
+        // register version
+        versionRegistry.registerVersion(folioFactory);
+
         deployCoins();
         mintTokens();
         vm.warp(100);
