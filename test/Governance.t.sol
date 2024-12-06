@@ -2,13 +2,13 @@
 pragma solidity 0.8.28;
 
 import "./base/BaseTest.sol";
-import { Governance } from "contracts/Governance.sol";
+import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { IGovernor } from "@openzeppelin/contracts/governance/IGovernor.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { MockERC20Votes } from "utils/MockERC20Votes.sol";
 
 contract GovernanceTest is BaseTest {
-    Governance governor;
+    FolioGovernor governor;
     TimelockController timelock;
     MockERC20Votes votingToken;
 
@@ -19,12 +19,12 @@ contract GovernanceTest is BaseTest {
         uint256 proposalThresholdAsMicroPercent_, // e.g. 1e4 for 0.01%
         uint256 quorumPercent, // e.g 4 for 4%
         uint256 _executionDelay // {s} for timelock
-    ) internal returns (Governance _governor, TimelockController _timelock) {
+    ) internal returns (FolioGovernor _governor, TimelockController _timelock) {
         address[] memory proposers = new address[](1);
         proposers[0] = owner;
         address[] memory executors = new address[](1); // add 0 address executor to enable permisionless execution
         _timelock = new TimelockController(_executionDelay, proposers, executors, address(this));
-        _governor = new Governance(
+        _governor = new FolioGovernor(
             _votingToken,
             _timelock,
             votingDelay_,
@@ -44,7 +44,7 @@ contract GovernanceTest is BaseTest {
             votingToken,
             1 days,
             1 weeks,
-            1e6 /* 1% proposal threshold */,
+            0.01e18 /* 1% proposal threshold */,
             4,
             1 days
         );
