@@ -4,7 +4,8 @@ pragma solidity 0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IFolio {
-    // Events
+    // === Events ===
+
     event TradeApproved(
         uint256 indexed tradeId,
         address indexed from,
@@ -16,7 +17,8 @@ interface IFolio {
     event Bid(uint256 indexed tradeId, uint256 sellAmount, uint256 buyAmount);
     event TradeKilled(uint256 indexed tradeId);
 
-    // Errors
+    // === Errors ===
+
     error Folio__BasketAlreadyInitialized();
 
     error Folio__FeeRecipientInvalidAddress();
@@ -31,13 +33,17 @@ interface IFolio {
     error Folio__InvalidTradeId();
     error Folio__InvalidSellAmount();
     error Folio__TradeCannotBeOpened();
+    error Folio__TradeCannotBeOpenedPermissionlesslyYet();
     error Folio__TradeNotOngoing();
-    error Folio__InvalidStartPrice();
-    error Folio__InvalidEndPrice();
+    error Folio__InvalidPrices();
+    error Folio__InvalidTTL();
     error Folio__TradeTimeout();
     error Folio__SlippageExceeded();
     error Folio__InsufficientBalance();
     error Folio__InvalidTradeTokens();
+    error Folio__InvalidTradeDelay();
+
+    // === Structures ===
 
     struct FolioBasicDetails {
         string name;
@@ -49,16 +55,16 @@ interface IFolio {
     }
 
     struct FolioAdditionalDetails {
+        uint256 tradeDelay;
         uint256 auctionLength;
         address feeRegistry;
         FeeRecipient[] feeRecipients;
         uint256 folioFee;
     }
 
-    // Structures
     struct FeeRecipient {
         address recipient;
-        uint96 share;
+        uint96 portion; // D18{1} <= 1e18
     }
 
     struct Trade {
@@ -68,10 +74,13 @@ interface IFolio {
         uint256 sellAmount; // {sellTok}
         uint256 startPrice; // D18{buyTok/sellTok}
         uint256 endPrice; // D18{buyTok/sellTok}
+        uint256 availableAt; // {s} inclusive
         uint256 launchTimeout; // {s} inclusive
         uint256 start; // {s} inclusive
         uint256 end; // {s} inclusive
+        // === Gas optimization ===
+        uint256 k; // {1} price = startPrice * e ^ -kt
     }
 
-    function distributeFees() external; // @audit Review, needs to be called from FolioFeeRegistry
+    function distributeFees() external; // @audit Review, needs to be called from FolioDAOFeeRegistry
 }

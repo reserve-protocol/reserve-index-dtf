@@ -54,7 +54,7 @@ contract FolioGovernor is
     }
 
     function proposalThreshold() public view override(Governor, GovernorSettings) returns (uint256) {
-        uint256 threshold = super.proposalThreshold(); // {1e18 %}
+        uint256 threshold = super.proposalThreshold(); // D18{1}
         uint256 pastSupply = token().getPastTotalSupply(clock() - 1);
 
         // CEIL to make sure thresholds near 0% don't get rounded down to 0 tokens

@@ -25,6 +25,7 @@ contract FolioFactory is IFolioFactory, Versioned {
     function createFolio(
         string memory name,
         string memory symbol,
+        uint256 tradeDelay,
         uint256 auctionLength,
         address[] memory assets,
         uint256[] memory amounts,
@@ -58,6 +59,7 @@ contract FolioFactory is IFolioFactory, Versioned {
         });
 
         IFolio.FolioAdditionalDetails memory additionalDetails = IFolio.FolioAdditionalDetails({
+            tradeDelay: tradeDelay,
             auctionLength: auctionLength,
             feeRegistry: daoFeeRegistry,
             feeRecipients: feeRecipients,
