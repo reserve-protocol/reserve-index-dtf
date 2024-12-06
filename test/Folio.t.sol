@@ -635,17 +635,47 @@ contract FolioTest is BaseTest {
     function test_auctionOnlyPriceCuratorCanBypassDelay() public {
         uint256 amt = D6_TOKEN_1;
         vm.startPrank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 1, 1, type(uint256).max);
 
-        // dao should not be able to open trade
+        // dao should not be able to open trade because not price curator
 
-        vm.expectRevert(IFolio.Folio__TradeCannotBeOpened.selector);
-        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, dao, folio.PRICE_CURATOR())
+        );
+        folio.openTrade(0, 1, 1); // 10x -> 1x
+
+        vm.expectRevert(IFolio.Folio__TradeCannotBeOpenedPermissionlesslyYet.selector);
+        folio.openTradePermissionlessly(0);
+
+        // but should be possible after trading delay
+
+        (, , , , , , uint256 availableAt, , , , ) = folio.trades(0);
+        vm.warp(availableAt);
+        folio.openTradePermissionlessly(0);
         vm.stopPrank();
+    }
 
-        // price curator should be able to open trade
-        vm.prank(priceCurator);
-        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+    function test_permissionlessAuctionNotAvailableForZeroPricedTrades() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.startPrank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 1e18, 1e18, type(uint256).max);
+
+        // dao should not be able to open trade because not price curator
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, dao, folio.PRICE_CURATOR())
+        );
+        folio.openTrade(0, 1e18, 1e18);
+
+        vm.expectRevert(IFolio.Folio__TradeCannotBeOpenedPermissionlesslyYet.selector);
+        folio.openTradePermissionlessly(0);
+
+        // but should be possible after trading delay
+
+        (, , , , , , uint256 availableAt, , , , ) = folio.trades(0);
+        vm.warp(availableAt);
+        folio.openTradePermissionlessly(0);
+        vm.stopPrank();
     }
 
     function test_parallelAuctions() public {

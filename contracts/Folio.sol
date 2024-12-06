@@ -302,6 +302,10 @@ contract Folio is
             revert Folio__InvalidSellAmount();
         }
 
+        if (startPrice < endPrice) {
+            revert Folio__InvalidPrices();
+        }
+
         uint256 launchTimeout = ttl == type(uint256).max ? ttl : block.timestamp + ttl;
 
         trades.push(
@@ -322,54 +326,38 @@ contract Folio is
         emit TradeApproved(tradeId, address(sell), address(buy), sellAmount, startPrice);
     }
 
-    /// @dev Callable only by price curator within the trading delay; permissionless after
-    /// @param startPrice D18{buyTok/sellTok}
-    /// @param endPrice D18{buyTok/sellTok}
-    function openTrade(uint256 tradeId, uint256 startPrice, uint256 endPrice) external nonReentrant {
+    /// @param startPrice D18{buyTok/sellTok} Must be > O && >= trade.startPrice, but not by too much
+    /// @param endPrice D18{buyTok/sellTok} Must be > 0 && >= trade.endPrice
+    function openTrade(
+        uint256 tradeId,
+        uint256 startPrice,
+        uint256 endPrice
+    ) external nonReentrant onlyRole(PRICE_CURATOR) {
         Trade storage trade = trades[tradeId];
 
-        if (trade.start != 0 || trade.end != 0) {
-            revert Folio__TradeCannotBeOpened();
-        }
-
-        if (!hasRole(PRICE_CURATOR, msg.sender)) {
-            if (block.timestamp < trade.availableAt) {
-                revert Folio__TradeCannotBeOpened();
-            }
-
-            if (trade.startPrice == 0 || trade.endPrice == 0) {
-                revert Folio__TradeCannotBeOpened();
-            }
-        }
-
-        if (block.timestamp > trade.launchTimeout) {
-            revert Folio__TradeTimeout();
-        }
-
         if (
-            startPrice == 0 ||
             startPrice < trade.startPrice ||
-            (trade.startPrice > 0 && startPrice > 100 * trade.startPrice)
+            endPrice < trade.endPrice ||
+            (trade.startPrice != 0 && startPrice > 100 * trade.startPrice)
         ) {
-            revert Folio__InvalidStartPrice();
-        }
-
-        if (endPrice == 0 || endPrice < trade.endPrice || startPrice < endPrice) {
-            revert Folio__InvalidEndPrice();
-        }
-
-        if (trade.sellAmount != type(uint256).max && trade.sell.balanceOf(address(this)) < trade.sellAmount) {
-            revert Folio__InsufficientBalance();
+            revert Folio__InvalidPrices();
         }
 
         trade.startPrice = startPrice;
         trade.endPrice = endPrice;
-        trade.start = block.timestamp;
-        trade.end = block.timestamp + auctionLength;
-        emit TradeOpened(tradeId, startPrice, endPrice, block.timestamp, block.timestamp + auctionLength);
 
-        // k = ln(P_0 / P_t) / t
-        trade.k = UD60x18.wrap((startPrice * 1e18) / endPrice).ln().unwrap() / auctionLength;
+        _openTrade(trade);
+    }
+
+    /// @dev Permissionless, callable only after the trading delay
+    function openTradePermissionlessly(uint256 tradeId) external nonReentrant {
+        Trade storage trade = trades[tradeId];
+
+        if (block.timestamp < trade.availableAt) {
+            revert Folio__TradeCannotBeOpenedPermissionlesslyYet();
+        }
+
+        _openTrade(trade);
     }
 
     /// Bid in an ongoing auction
@@ -427,6 +415,31 @@ contract Folio is
     }
 
     // ==== Internal ====
+
+    function _openTrade(Trade storage trade) internal {
+        if (trade.start != 0 || trade.end != 0) {
+            revert Folio__TradeCannotBeOpened();
+        }
+
+        if (block.timestamp > trade.launchTimeout) {
+            revert Folio__TradeTimeout();
+        }
+
+        if (trade.startPrice < trade.endPrice || trade.startPrice == 0 || trade.endPrice == 0) {
+            revert Folio__InvalidPrices();
+        }
+
+        if (trade.sellAmount != type(uint256).max && trade.sell.balanceOf(address(this)) < trade.sellAmount) {
+            revert Folio__InsufficientBalance();
+        }
+
+        trade.start = block.timestamp;
+        trade.end = block.timestamp + auctionLength;
+        emit TradeOpened(trade.id, trade.startPrice, trade.endPrice, block.timestamp, block.timestamp + auctionLength);
+
+        // k = ln(P_0 / P_t) / t
+        trade.k = UD60x18.wrap((trade.startPrice * 1e18) / trade.endPrice).ln().unwrap() / auctionLength;
+    }
 
     function _price(Trade storage trade, uint256 timestamp) internal view returns (uint256) {
         if (timestamp < trade.start || timestamp > trade.end || trade.sellAmount == 0) {

@@ -33,9 +33,9 @@ interface IFolio {
     error Folio__InvalidTradeId();
     error Folio__InvalidSellAmount();
     error Folio__TradeCannotBeOpened();
+    error Folio__TradeCannotBeOpenedPermissionlesslyYet();
     error Folio__TradeNotOngoing();
-    error Folio__InvalidStartPrice();
-    error Folio__InvalidEndPrice();
+    error Folio__InvalidPrices();
     error Folio__TradeTimeout();
     error Folio__SlippageExceeded();
     error Folio__InsufficientBalance();
