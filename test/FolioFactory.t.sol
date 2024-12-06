@@ -2,8 +2,8 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { FolioFactory } from "contracts/deployer/FolioFactory.sol";
-import { MAX_AUCTION_LENGTH } from "contracts/Folio.sol";
+import { MAX_AUCTION_LENGTH, MAX_TRADE_DELAY } from "contracts/Folio.sol";
+import { FolioFactory, IFolioFactory } from "contracts/deployer/FolioFactory.sol";
 import "./base/BaseTest.sol";
 
 contract FolioFactoryTest is BaseTest {
@@ -23,8 +23,8 @@ contract FolioFactoryTest is BaseTest {
         amounts[0] = D6_TOKEN_10K;
         amounts[1] = D18_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9000);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1000);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
@@ -33,6 +33,7 @@ contract FolioFactoryTest is BaseTest {
             folioFactory.createFolio(
                 "Test Folio",
                 "TFOLIO",
+                MAX_TRADE_DELAY,
                 MAX_AUCTION_LENGTH,
                 tokens,
                 amounts,
@@ -59,10 +60,10 @@ contract FolioFactoryTest is BaseTest {
         assertEq(folio.folioFee(), 100, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
-        assertEq(bps1, 9000, "wrong first recipient bps");
+        assertEq(bps1, 0.9e18, "wrong first recipient bps");
         (address r2, uint256 bps2) = folio.feeRecipients(1);
         assertEq(r2, feeReceiver, "wrong second recipient");
-        assertEq(bps2, 1000, "wrong second recipient bps");
+        assertEq(bps2, 0.1e18, "wrong second recipient bps");
     }
 
     function test_cannotCreateFolioWithLengthMismatch() public {
@@ -72,16 +73,17 @@ contract FolioFactoryTest is BaseTest {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = D6_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9000);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1000);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
-        vm.expectRevert(FolioFactory.FolioFactory__LengthMismatch.selector);
+        vm.expectRevert(IFolioFactory.FolioFactory__LengthMismatch.selector);
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             tokens,
             amounts,
@@ -97,14 +99,15 @@ contract FolioFactoryTest is BaseTest {
         address[] memory tokens = new address[](0);
         uint256[] memory amounts = new uint256[](0);
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9000);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1000);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
-        vm.expectRevert(FolioFactory.FolioFactory__EmptyAssets.selector);
+        vm.expectRevert(IFolioFactory.FolioFactory__EmptyAssets.selector);
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             tokens,
             amounts,
@@ -124,8 +127,8 @@ contract FolioFactoryTest is BaseTest {
         amounts[0] = D6_TOKEN_10K;
         amounts[1] = D18_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9000);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1000);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
@@ -133,6 +136,7 @@ contract FolioFactoryTest is BaseTest {
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             tokens,
             amounts,
@@ -152,8 +156,8 @@ contract FolioFactoryTest is BaseTest {
         amounts[0] = D6_TOKEN_10K;
         amounts[1] = 0;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9000);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1000);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
@@ -161,6 +165,7 @@ contract FolioFactoryTest is BaseTest {
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             tokens,
             amounts,
@@ -178,14 +183,15 @@ contract FolioFactoryTest is BaseTest {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = D6_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9000);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1000);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         vm.expectRevert(); // no approval
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             tokens,
             amounts,
@@ -204,6 +210,7 @@ contract FolioFactoryTest is BaseTest {
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             tokens,
             amounts,
@@ -221,20 +228,61 @@ contract FolioFactoryTest is BaseTest {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = D6_TOKEN_10K;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 9000);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1000);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector); // below min
-        folioFactory.createFolio("Test Folio", "TFOLIO", 1, tokens, amounts, INITIAL_SUPPLY, recipients, 100, owner);
+        folioFactory.createFolio(
+            "Test Folio",
+            "TFOLIO",
+            MAX_TRADE_DELAY,
+            1,
+            tokens,
+            amounts,
+            INITIAL_SUPPLY,
+            recipients,
+            100,
+            owner
+        );
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector); // above max
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH + 1,
+            tokens,
+            amounts,
+            INITIAL_SUPPLY,
+            recipients,
+            100,
+            owner
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_cannotCreateFolioWithInvalidTradeDelay() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(USDC);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = D6_TOKEN_10K;
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
+
+        vm.startPrank(owner);
+        USDC.approve(address(folioFactory), type(uint256).max);
+
+        vm.expectRevert(IFolio.Folio__InvalidTradeDelay.selector); // above max
+        folioFactory.createFolio(
+            "Test Folio",
+            "TFOLIO",
+            MAX_TRADE_DELAY + 1,
+            MAX_AUCTION_LENGTH,
             tokens,
             amounts,
             INITIAL_SUPPLY,

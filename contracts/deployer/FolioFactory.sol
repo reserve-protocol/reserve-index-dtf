@@ -1,25 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
-
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import { FolioProxyAdmin, FolioProxy } from "@deployer/FolioProxy.sol";
 
 import { IFolioFactory } from "@interfaces/IFolioFactory.sol";
 import { Versioned } from "@utils/Versioned.sol";
 import { Folio, IFolio } from "@src/Folio.sol";
-
-import { FolioProxyAdmin, FolioProxy } from "@deployer/FolioProxy.sol";
 
 contract FolioFactory is IFolioFactory, Versioned {
     address public immutable daoFeeRegistry;
     address public immutable versionRegistry;
 
     address public immutable folioImplementation;
-
-    error FolioFactory__LengthMismatch();
-    error FolioFactory__EmptyAssets();
 
     constructor(address _daoFeeRegistry, address _versionRegistry) {
         daoFeeRegistry = _daoFeeRegistry;
@@ -31,6 +25,7 @@ contract FolioFactory is IFolioFactory, Versioned {
     function createFolio(
         string memory name,
         string memory symbol,
+        uint256 tradeDelay,
         uint256 auctionLength,
         address[] memory assets,
         uint256[] memory amounts,
@@ -64,6 +59,7 @@ contract FolioFactory is IFolioFactory, Versioned {
         });
 
         IFolio.FolioAdditionalDetails memory additionalDetails = IFolio.FolioAdditionalDetails({
+            tradeDelay: tradeDelay,
             auctionLength: auctionLength,
             feeRegistry: daoFeeRegistry,
             feeRecipients: feeRecipients,

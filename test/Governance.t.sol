@@ -2,13 +2,13 @@
 pragma solidity 0.8.28;
 
 import "./base/BaseTest.sol";
-import { Governance } from "contracts/Governance.sol";
+import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { IGovernor } from "@openzeppelin/contracts/governance/IGovernor.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { MockERC20Votes } from "utils/MockERC20Votes.sol";
 
 contract GovernanceTest is BaseTest {
-    Governance governor;
+    FolioGovernor governor;
     TimelockController timelock;
     MockERC20Votes votingToken;
 
@@ -16,20 +16,20 @@ contract GovernanceTest is BaseTest {
         MockERC20Votes _votingToken,
         uint48 votingDelay_, // {s}
         uint32 votingPeriod_, // {s}
-        uint256 proposalThresholdAsMicroPercent_, // e.g. 1e4 for 0.01%
+        uint256 proposalThreshold_, // {1} e.g. 1e14 for 0.01%
         uint256 quorumPercent, // e.g 4 for 4%
         uint256 _executionDelay // {s} for timelock
-    ) internal returns (Governance _governor, TimelockController _timelock) {
+    ) internal returns (FolioGovernor _governor, TimelockController _timelock) {
         address[] memory proposers = new address[](1);
         proposers[0] = owner;
         address[] memory executors = new address[](1); // add 0 address executor to enable permisionless execution
         _timelock = new TimelockController(_executionDelay, proposers, executors, address(this));
-        _governor = new Governance(
+        _governor = new FolioGovernor(
             _votingToken,
             _timelock,
             votingDelay_,
             votingPeriod_,
-            proposalThresholdAsMicroPercent_,
+            proposalThreshold_,
             quorumPercent
         );
     }
@@ -39,12 +39,11 @@ contract GovernanceTest is BaseTest {
         votingToken = new MockERC20Votes("DAO Staked Token", "DAOSTKTKN");
         votingToken.mint(owner, 100e18);
 
-        // deploy governance
         (governor, timelock) = _deployTestGovernance(
             votingToken,
             1 days,
             1 weeks,
-            1e6 /* 1% proposal threshold */,
+            0.01e18 /* 1% proposal threshold */,
             4,
             1 days
         );
@@ -53,7 +52,7 @@ contract GovernanceTest is BaseTest {
         vm.roll(block.number + 1);
     }
 
-    function test_deployment() public {
+    function test_deployment() public view {
         assertEq(address(governor.token()), address(votingToken));
         assertEq(governor.votingDelay(), 1 days);
         assertEq(governor.votingPeriod(), 1 weeks);
@@ -61,6 +60,23 @@ contract GovernanceTest is BaseTest {
         assertEq(governor.quorum(block.number), 4e18); // 4% of 100 total supply
         assertEq(address(governor.timelock()), address(timelock));
         assertEq(timelock.getMinDelay(), 1 days);
+    }
+
+    function test_tradingGovernorConfiguration() public {
+        (FolioGovernor tradingGovernor, TimelockController tradingTimelock) = _deployTestGovernance(
+            votingToken,
+            1 seconds,
+            30 minutes,
+            0.01e18 /* 1% proposal threshold */,
+            4,
+            0 seconds // 0s execution delay for trading governor
+        );
+
+        assertEq(address(tradingGovernor.token()), address(votingToken));
+        assertEq(tradingGovernor.votingDelay(), 1 seconds);
+        assertEq(tradingGovernor.votingPeriod(), 30 minutes);
+        assertEq(address(tradingGovernor.timelock()), address(tradingTimelock));
+        assertEq(tradingTimelock.getMinDelay(), 0 seconds);
     }
 
     function testCannotProposeWithoutSufficientBalance() public {
