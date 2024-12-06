@@ -315,7 +315,8 @@ contract Folio is
                 availableAt: block.timestamp + tradeDelay,
                 launchTimeout: launchTimeout,
                 start: 0,
-                end: 0
+                end: 0,
+                k: 0
             })
         );
         emit TradeApproved(tradeId, address(sell), address(buy), sellAmount, startPrice);
@@ -366,6 +367,9 @@ contract Folio is
         trade.start = block.timestamp;
         trade.end = block.timestamp + auctionLength;
         emit TradeOpened(tradeId, startPrice, endPrice, block.timestamp, block.timestamp + auctionLength);
+
+        // k = ln(P_0 / P_t) / t
+        trade.k = UD60x18.wrap((startPrice * 1e18) / endPrice).ln().unwrap() / auctionLength;
     }
 
     /// Bid in an ongoing auction
@@ -429,14 +433,10 @@ contract Folio is
             revert Folio__TradeNotOngoing();
         }
 
-        uint256 _auctionLength = trade.end - trade.start;
-
-        // k = ln(P_0 / P_t) / t
-        uint256 k = UD60x18.wrap((trade.startPrice * 1e18) / trade.endPrice).ln().unwrap() / _auctionLength;
-
         uint256 elapsed = timestamp - trade.start;
+
         // TODO check exp() for overflow
-        return (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(k * elapsed))))) / 1e18;
+        return (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / 1e18;
     }
 
     function _getPendingFeeShares() internal view returns (uint256 _pendingFeeShares) {

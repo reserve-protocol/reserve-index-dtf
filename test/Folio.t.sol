@@ -692,4 +692,18 @@ contract FolioTest is BaseTest {
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         assertEq(DAI.balanceOf(address(folio)), 0, "wrong dai balance");
     }
+
+    function test_priceCalculationGasCost() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+        (, , , , , , , , , uint256 end) = folio.trades(0);
+
+        vm.startSnapshotGas("getPrice()");
+        folio.getPrice(0, end);
+        vm.stopSnapshotGas();
+    }
 }

@@ -77,6 +77,8 @@ interface IFolio {
         uint256 launchTimeout; // {s} inclusive
         uint256 start; // {s} inclusive
         uint256 end; // {s} inclusive
+        // === Gas optimization ===
+        uint256 k; // {1} price = startPrice * e ^ -kt
     }
 
     function distributeFees() external; // @audit Review, needs to be called from FolioDAOFeeRegistry
