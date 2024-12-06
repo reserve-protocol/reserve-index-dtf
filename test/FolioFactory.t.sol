@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { FolioFactory } from "contracts/deployer/FolioFactory.sol";
-import { MAX_AUCTION_LENGTH } from "contracts/Folio.sol";
+import { MAX_AUCTION_LENGTH, MAX_TRADE_DELAY } from "contracts/Folio.sol";
 import "./base/BaseTest.sol";
 
 contract FolioFactoryTest is BaseTest {
@@ -33,6 +33,7 @@ contract FolioFactoryTest is BaseTest {
             folioFactory.createFolio(
                 "Test Folio",
                 "TFOLIO",
+                MAX_TRADE_DELAY,
                 MAX_AUCTION_LENGTH,
                 tokens,
                 amounts,
@@ -82,6 +83,7 @@ contract FolioFactoryTest is BaseTest {
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             tokens,
             amounts,
@@ -105,6 +107,7 @@ contract FolioFactoryTest is BaseTest {
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             tokens,
             amounts,
@@ -133,6 +136,7 @@ contract FolioFactoryTest is BaseTest {
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             tokens,
             amounts,
@@ -161,6 +165,7 @@ contract FolioFactoryTest is BaseTest {
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             tokens,
             amounts,
@@ -186,6 +191,7 @@ contract FolioFactoryTest is BaseTest {
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             tokens,
             amounts,
@@ -204,6 +210,7 @@ contract FolioFactoryTest is BaseTest {
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             tokens,
             amounts,
@@ -228,13 +235,54 @@ contract FolioFactoryTest is BaseTest {
         USDC.approve(address(folioFactory), type(uint256).max);
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector); // below min
-        folioFactory.createFolio("Test Folio", "TFOLIO", 1, tokens, amounts, INITIAL_SUPPLY, recipients, 100, owner);
+        folioFactory.createFolio(
+            "Test Folio",
+            "TFOLIO",
+            MAX_TRADE_DELAY,
+            1,
+            tokens,
+            amounts,
+            INITIAL_SUPPLY,
+            recipients,
+            100,
+            owner
+        );
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector); // above max
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
+            MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH + 1,
+            tokens,
+            amounts,
+            INITIAL_SUPPLY,
+            recipients,
+            100,
+            owner
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_cannotCreateFolioWithInvalidTradeDelay() public {
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(USDC);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = D6_TOKEN_10K;
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 9e17);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 1e17);
+
+        vm.startPrank(owner);
+        USDC.approve(address(folioFactory), type(uint256).max);
+
+        vm.expectRevert(IFolio.Folio__InvalidTradeDelay.selector); // above max
+        folioFactory.createFolio(
+            "Test Folio",
+            "TFOLIO",
+            MAX_TRADE_DELAY + 1,
+            MAX_AUCTION_LENGTH,
             tokens,
             amounts,
             INITIAL_SUPPLY,

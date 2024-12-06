@@ -4,16 +4,14 @@ pragma solidity 0.8.28;
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { IFolioDAOFeeRegistry } from "contracts/interfaces/IFolioDAOFeeRegistry.sol";
 import { FolioDAOFeeRegistry, FEE_DENOMINATOR, MAX_DAO_FEE } from "contracts/FolioDAOFeeRegistry.sol";
-import { MAX_AUCTION_LENGTH, MAX_FEE } from "contracts/Folio.sol";
+import { MAX_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
 import "./base/BaseTest.sol";
 
 contract FolioDAOFeeRegistryTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
 
     function _testSetup() public virtual override {
-        _testSetupBefore();
-        _testSetupAfter();
-
+        super._testSetup();
         _deployTestFolio();
     }
 
@@ -36,6 +34,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
             folioFactory.createFolio(
                 "Test Folio",
                 "TFOLIO",
+                MAX_TRADE_DELAY,
                 MAX_AUCTION_LENGTH,
                 tokens,
                 amounts,
@@ -48,7 +47,6 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         folio.grantRole(folio.TRADE_PROPOSER(), owner);
         folio.grantRole(folio.PRICE_CURATOR(), owner);
         folio.grantRole(folio.TRADE_PROPOSER(), dao);
-        folio.grantRole(folio.PRICE_CURATOR(), dao);
         folio.grantRole(folio.PRICE_CURATOR(), priceCurator);
         vm.stopPrank();
     }
@@ -70,7 +68,6 @@ contract FolioDAOFeeRegistryTest is BaseTest {
     }
 
     function test_setFeeRecipient() public {
-        _deployTestFolio();
         address recipient;
         (recipient, , ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(recipient, dao);
@@ -98,7 +95,6 @@ contract FolioDAOFeeRegistryTest is BaseTest {
     }
 
     function test_setDefaultFeeNumerator() public {
-        _deployTestFolio();
         uint256 numerator;
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 0);
@@ -121,7 +117,6 @@ contract FolioDAOFeeRegistryTest is BaseTest {
     }
 
     function test_setTokenFeeNumerator() public {
-        _deployTestFolio();
         uint256 numerator;
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 0);
@@ -144,7 +139,6 @@ contract FolioDAOFeeRegistryTest is BaseTest {
     }
 
     function test_usesDefaultFeeNumeratorOnlyWhenTokenNumeratorIsNotSet() public {
-        _deployTestFolio();
         uint256 numerator;
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 0); // default
@@ -165,7 +159,6 @@ contract FolioDAOFeeRegistryTest is BaseTest {
     }
 
     function test_resetTokenFee() public {
-        _deployTestFolio();
         uint256 numerator;
 
         // set token fee numerator

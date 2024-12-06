@@ -40,6 +40,7 @@ interface IFolio {
     error Folio__SlippageExceeded();
     error Folio__InsufficientBalance();
     error Folio__InvalidTradeTokens();
+    error Folio__InvalidTradeDelay();
 
     // === Structures ===
 
@@ -53,6 +54,7 @@ interface IFolio {
     }
 
     struct FolioAdditionalDetails {
+        uint256 tradeDelay;
         uint256 auctionLength;
         address feeRegistry;
         FeeRecipient[] feeRecipients;
@@ -71,6 +73,7 @@ interface IFolio {
         uint256 sellAmount; // {sellTok}
         uint256 startPrice; // D18{buyTok/sellTok}
         uint256 endPrice; // D18{buyTok/sellTok}
+        uint256 availableAt; // {s} inclusive
         uint256 launchTimeout; // {s} inclusive
         uint256 start; // {s} inclusive
         uint256 end; // {s} inclusive
