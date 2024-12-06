@@ -2,8 +2,8 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { FolioFactory } from "contracts/deployer/FolioFactory.sol";
 import { MAX_AUCTION_LENGTH, MAX_TRADE_DELAY } from "contracts/Folio.sol";
+import { FolioFactory, IFolioFactory } from "contracts/deployer/FolioFactory.sol";
 import "./base/BaseTest.sol";
 
 contract FolioFactoryTest is BaseTest {
@@ -79,7 +79,7 @@ contract FolioFactoryTest is BaseTest {
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
-        vm.expectRevert(FolioFactory.FolioFactory__LengthMismatch.selector);
+        vm.expectRevert(IFolioFactory.FolioFactory__LengthMismatch.selector);
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
@@ -103,7 +103,7 @@ contract FolioFactoryTest is BaseTest {
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 1e17);
 
         vm.startPrank(owner);
-        vm.expectRevert(FolioFactory.FolioFactory__EmptyAssets.selector);
+        vm.expectRevert(IFolioFactory.FolioFactory__EmptyAssets.selector);
         folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",

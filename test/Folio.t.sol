@@ -505,6 +505,39 @@ contract FolioTest is BaseTest {
     function test_auctionBidWithCallback() public {
         // bid in two chunks, one at start time and one at end time
 
+        // bid in two chunks, one at start time and one at end time
+
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+
+        // bid once at start time
+
+        vm.startPrank(user1);
+        USDT.approve(address(folio), amt * 5);
+        folio.bid(0, amt / 2, amt * 5, false, bytes(""));
+
+        (, , , , , , , uint256 start, uint256 end) = folio.trades(0);
+        assertEq(folio.getBidAmount(0, amt, start), amt * 10, "wrong start bid amount"); // 10x
+        assertEq(folio.getBidAmount(0, amt, (start + end) / 2), 3162278, "wrong mid bid amount"); // ~3.16x
+        assertEq(folio.getBidAmount(0, amt, end), amt + 1, "wrong end bid amount"); // 1x + 1
+        vm.warp(end);
+
+        // bid a 2nd time for the rest of the volume, at end time
+        USDT.approve(address(folio), amt);
+        folio.bid(0, amt / 2, amt / 2 + 1, false, bytes(""));
+        assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K - D6_TOKEN_1, "wrong usdc balance");
+        vm.stopPrank();
+    }
+
+    function test_auctionBidWithCallback() public {
+        _deployTestFolio();
+
+        // bid in two chunks, one at start time and one at end time
+
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
         folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);

@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/governance/extensions/GovernorVotes.sol";
 import "@openzeppelin/contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
 import "@openzeppelin/contracts/governance/extensions/GovernorTimelockControl.sol";
 
-contract Governance is
+contract FolioGovernor is
     Governor,
     GovernorSettings,
     GovernorCountingSimple,
@@ -16,19 +16,16 @@ contract Governance is
     GovernorVotesQuorumFraction,
     GovernorTimelockControl
 {
-    // 100%
-    uint256 public constant PROPOSAL_THRESHOLD_DENOMINATOR = 1e18; // {1}
-
     constructor(
         IVotes _token,
         TimelockController _timelock,
-        uint48 votingDelay_, // {s}
-        uint32 votingPeriod_, // {s}
-        uint256 proposalThreshold_, // {1} e.g. 1e14 for 0.01%
+        uint48 _votingDelay, // {s}
+        uint32 _votingPeriod, // {s}
+        uint256 _proposalThreshold, // e.g. 0.01e18 for 1%
         uint256 quorumPercent // e.g 4 for 4%
     )
         Governor("Reserve Folio Governor")
-        GovernorSettings(votingDelay_, votingPeriod_, proposalThreshold_)
+        GovernorSettings(_votingDelay, _votingPeriod, _proposalThreshold)
         GovernorVotes(_token)
         GovernorVotesQuorumFraction(quorumPercent)
         GovernorTimelockControl(_timelock)
@@ -57,9 +54,11 @@ contract Governance is
     }
 
     function proposalThreshold() public view override(Governor, GovernorSettings) returns (uint256) {
-        uint256 asMicroPercent = super.proposalThreshold(); // {micro %}
+        uint256 threshold = super.proposalThreshold(); // {1e18 %}
         uint256 pastSupply = token().getPastTotalSupply(clock() - 1);
-        return (asMicroPercent * pastSupply + (PROPOSAL_THRESHOLD_DENOMINATOR - 1)) / PROPOSAL_THRESHOLD_DENOMINATOR;
+
+        // CEIL to make sure thresholds near 0% don't get rounded down to 0 tokens
+        return (threshold * pastSupply + (1e18 - 1)) / 1e18;
     }
 
     function _queueOperations(
@@ -93,14 +92,5 @@ contract Governance is
 
     function _executor() internal view override(Governor, GovernorTimelockControl) returns (address) {
         return super._executor();
-    }
-
-    function clock() public view override(GovernorVotes, Governor) returns (uint48) {
-        return SafeCast.toUint48(block.timestamp);
-    }
-
-    // solhint-disable-next-line func-name-mixedcase
-    function CLOCK_MODE() public pure override(GovernorVotes, Governor) returns (string memory) {
-        return "mode=timestamp";
     }
 }
