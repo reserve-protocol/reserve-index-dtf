@@ -2,13 +2,13 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "./interfaces/IFolio.sol";
-import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
+import { IFolioDAOFeeRegistry } from "./interfaces/IFolioDAOFeeRegistry.sol";
 import { IRoleRegistry } from "./interfaces/IRoleRegistry.sol";
 
-uint256 constant MAX_FEE_NUMERATOR = 15_00; // Max DAO Fee: 15%
-uint256 constant FEE_DENOMINATOR = 100_00;
+uint256 constant MAX_DAO_FEE = 0.15e18; // D18{1} 15%
+uint256 constant FEE_DENOMINATOR = 1e18;
 
-contract FolioFeeRegistry is IFolioFeeRegistry {
+contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     IRoleRegistry public immutable roleRegistry;
 
     address private feeRecipient;
@@ -19,26 +19,28 @@ contract FolioFeeRegistry is IFolioFeeRegistry {
 
     modifier onlyOwner() {
         if (!roleRegistry.isOwner(msg.sender)) {
-            revert FolioFeeRegistry__InvalidCaller();
+            revert FolioDAOFeeRegistry__InvalidCaller();
         }
         _;
     }
 
     constructor(IRoleRegistry _roleRegistry, address _feeRecipient) {
         if (address(_roleRegistry) == address(0)) {
-            revert FolioFeeRegistry__InvalidRoleRegistry();
+            revert FolioDAOFeeRegistry__InvalidRoleRegistry();
         }
 
         roleRegistry = _roleRegistry;
         feeRecipient = _feeRecipient;
     }
 
+    // === External ===
+
     function setFeeRecipient(address feeRecipient_) external onlyOwner {
         if (feeRecipient_ == address(0)) {
-            revert FolioFeeRegistry__InvalidFeeRecipient();
+            revert FolioDAOFeeRegistry__InvalidFeeRecipient();
         }
         if (feeRecipient_ == feeRecipient) {
-            revert FolioFeeRegistry__FeeRecipientAlreadySet();
+            revert FolioDAOFeeRegistry__FeeRecipientAlreadySet();
         }
 
         feeRecipient = feeRecipient_;
@@ -46,18 +48,17 @@ contract FolioFeeRegistry is IFolioFeeRegistry {
     }
 
     function setDefaultFeeNumerator(uint256 feeNumerator_) external onlyOwner {
-        if (feeNumerator_ > MAX_FEE_NUMERATOR) {
-            revert FolioFeeRegistry__InvalidFeeNumerator();
+        if (feeNumerator_ > MAX_DAO_FEE) {
+            revert FolioDAOFeeRegistry__InvalidFeeNumerator();
         }
 
         defaultFeeNumerator = feeNumerator_;
         emit DefaultFeeNumeratorSet(defaultFeeNumerator);
     }
 
-    /// @dev A fee below 1% not recommended due to poor precision in the Distributor
     function setTokenFeeNumerator(address fToken, uint256 feeNumerator_) external onlyOwner {
-        if (feeNumerator_ > MAX_FEE_NUMERATOR) {
-            revert FolioFeeRegistry__InvalidFeeNumerator();
+        if (feeNumerator_ > MAX_DAO_FEE) {
+            revert FolioDAOFeeRegistry__InvalidFeeNumerator();
         }
 
         _setTokenFee(fToken, feeNumerator_, true);
@@ -75,9 +76,8 @@ contract FolioFeeRegistry is IFolioFeeRegistry {
         feeDenominator = FEE_DENOMINATOR;
     }
 
-    /**
-     * Internal Functions
-     */
+    // ==== Internal ====
+
     function _setTokenFee(address fToken, uint256 feeNumerator_, bool isActive) internal {
         IFolio(fToken).distributeFees(); // @audit review
 

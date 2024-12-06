@@ -11,11 +11,12 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
+import { MockBidder } from "utils/MockBidder.sol";
 
 import { Folio } from "contracts/Folio.sol";
 import { FolioFactory } from "@deployer/FolioFactory.sol";
-import { IRoleRegistry, FolioFeeRegistry } from "contracts/FolioFeeRegistry.sol";
 import { FolioVersionRegistry } from "contracts/deployer/FolioVersionRegistry.sol";
+import { IRoleRegistry, FolioDAOFeeRegistry } from "contracts/FolioDAOFeeRegistry.sol";
 
 abstract contract BaseTest is Script, Test {
     // === Auth roles ===
@@ -50,8 +51,8 @@ abstract contract BaseTest is Script, Test {
 
     Folio folio;
     FolioFactory folioFactory;
-    FolioFeeRegistry daoFeeRegistry;
     FolioVersionRegistry versionRegistry;
+    FolioDAOFeeRegistry daoFeeRegistry;
     MockRoleRegistry roleRegistry;
 
     function setUp() public {
@@ -73,7 +74,7 @@ abstract contract BaseTest is Script, Test {
 
     function _testSetupBefore() public {
         roleRegistry = new MockRoleRegistry();
-        daoFeeRegistry = new FolioFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
+        daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
         folioFactory = new FolioFactory(address(daoFeeRegistry), address(versionRegistry));
 
