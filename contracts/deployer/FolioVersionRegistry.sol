@@ -3,19 +3,26 @@ pragma solidity 0.8.28;
 
 import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
 import { IFolioFactory } from "@interfaces/IFolioFactory.sol";
-import { IFolioVersionRegistry } from "@interfaces/IFolioVersionRegistry.sol";
 
 import { Versioned } from "@utils/Versioned.sol";
 
 /**
  * @title VersionRegistry for Reserve Folio
  */
-contract FolioVersionRegistry is IFolioVersionRegistry {
+contract FolioVersionRegistry {
     IRoleRegistry public immutable roleRegistry;
 
     mapping(bytes32 => IFolioFactory) public deployments;
     mapping(bytes32 => bool) public isDeprecated;
     bytes32 private latestVersion;
+
+    error VersionRegistry__ZeroAddress();
+    error VersionRegistry__InvalidRegistration();
+    error VersionRegistry__AlreadyDeprecated();
+    error VersionRegistry__InvalidCaller();
+
+    event VersionRegistered(bytes32 versionHash, IFolioFactory folioFactory);
+    event VersionDeprecated(bytes32 versionHash);
 
     constructor(IRoleRegistry _roleRegistry) {
         if (address(_roleRegistry) == address(0)) {
