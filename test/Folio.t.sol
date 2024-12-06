@@ -418,7 +418,7 @@ contract FolioTest is BaseTest {
     function test_atomicBidWithoutCallback() public {
         _deployTestFolio();
 
-        // bid in two chunks, each for half of the volume
+        // bid in two chunks, one at start time and one at end time
 
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
@@ -426,20 +426,213 @@ contract FolioTest is BaseTest {
 
         vm.prank(priceCurator);
         folio.openTrade(0, 1e18, 1e18);
-        folio.getPrice(0, block.timestamp); // should not revert
+
+        // bid once at start time
 
         vm.startPrank(user1);
         USDT.approve(address(folio), amt);
         folio.bid(0, amt / 2, amt / 2, false, bytes(""));
 
-        // bid a 2nd time for the rest of the volume
+        (, , , , , , , uint256 start, uint256 end) = folio.trades(0);
+        assertEq(folio.getBidAmount(0, amt, start), amt, "wrong start bid amount"); // 1x
+        assertEq(folio.getBidAmount(0, amt, (start + end) / 2), amt, "wrong mid bid amount"); // 1x
+        assertEq(folio.getBidAmount(0, amt, end), amt, "wrong end bid amount"); // 1x
+
+        // bid a 2nd time for the rest of the volume, at end time
+        vm.warp(end);
         USDT.approve(address(folio), amt);
         folio.bid(0, amt / 2, amt / 2, false, bytes(""));
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K - D6_TOKEN_1, "wrong usdc balance");
         vm.stopPrank();
+
+        (, , , uint256 sellAmount, , , , , ) = folio.trades(0);
+        assertEq(sellAmount, 0, "auction should be empty");
+    }
+
+    function test_atomicBidWithCallback() public {
+        _deployTestFolio();
+
+        // bid in two chunks, one at start time and one at end time
+
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 1e18, 1e18);
+
+        // bid once at start time
+
+        MockBidder mockBidder = new MockBidder();
+        vm.prank(user1);
+        USDT.transfer(address(mockBidder), amt / 2);
+        vm.prank(address(mockBidder));
+        folio.bid(0, amt / 2, amt / 2, true, bytes(""));
+        assertEq(USDT.balanceOf(address(mockBidder)), 0, "wrong mock bidder balance");
+
+        (, , , , , , , uint256 start, uint256 end) = folio.trades(0);
+        assertEq(folio.getBidAmount(0, amt, start), amt, "wrong start bid amount"); // 1x
+        assertEq(folio.getBidAmount(0, amt, (start + end) / 2), amt, "wrong mid bid amount"); // 1x
+        assertEq(folio.getBidAmount(0, amt, end), amt, "wrong end bid amount"); // 1x
+
+        // bid a 2nd time for the rest of the volume, at end time
+
+        vm.warp(end);
+        MockBidder mockBidder2 = new MockBidder();
+        vm.prank(user1);
+        USDT.transfer(address(mockBidder2), amt / 2);
+        vm.prank(address(mockBidder2));
+        folio.bid(0, amt / 2, amt / 2, true, bytes(""));
+        assertEq(USDT.balanceOf(address(mockBidder2)), 0, "wrong mock bidder2 balance");
+        assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K - D6_TOKEN_1, "wrong usdc balance");
+        vm.stopPrank();
+
+        (, , , uint256 sellAmount, , , , , ) = folio.trades(0);
+        assertEq(sellAmount, 0, "auction should be empty");
     }
 
     function test_auctionBidWithoutCallback() public {
+        _deployTestFolio();
+
+        // bid in two chunks, one at start time and one at end time
+
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+
+        // bid once at start time
+
+        vm.startPrank(user1);
+        USDT.approve(address(folio), amt * 5);
+        folio.bid(0, amt / 2, amt * 5, false, bytes(""));
+
+        (, , , , , , , uint256 start, uint256 end) = folio.trades(0);
+        assertEq(folio.getBidAmount(0, amt, start), amt * 10, "wrong start bid amount"); // 10x
+        assertEq(folio.getBidAmount(0, amt, (start + end) / 2), 3162278, "wrong mid bid amount"); // ~3.16x
+        assertEq(folio.getBidAmount(0, amt, end), amt + 1, "wrong end bid amount"); // 1x + 1
+        vm.warp(end);
+
+        // bid a 2nd time for the rest of the volume, at end time
+        USDT.approve(address(folio), amt);
+        folio.bid(0, amt / 2, amt / 2 + 1, false, bytes(""));
+        assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K - D6_TOKEN_1, "wrong usdc balance");
+        vm.stopPrank();
+    }
+
+    function test_auctionBidWithCallback() public {
+        _deployTestFolio();
+
+        // bid in two chunks, one at start time and one at end time
+
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+
+        // bid once at start time
+
+        MockBidder mockBidder = new MockBidder();
+        vm.prank(user1);
+        USDT.transfer(address(mockBidder), amt * 5);
+        vm.prank(address(mockBidder));
+        folio.bid(0, amt / 2, amt * 5, true, bytes(""));
+        assertEq(USDT.balanceOf(address(mockBidder)), 0, "wrong mock bidder balance");
+
+        // check prices
+
+        (, , , , , , , uint256 start, uint256 end) = folio.trades(0);
+        assertEq(folio.getBidAmount(0, amt, start), amt * 10, "wrong start bid amount"); // 10x
+        assertEq(folio.getBidAmount(0, amt, (start + end) / 2), 3162278, "wrong mid bid amount"); // ~3.16x
+        assertEq(folio.getBidAmount(0, amt, end), amt + 1, "wrong end bid amount"); // 1x + 1
+
+        // bid a 2nd time for the rest of the volume, at end time
+
+        vm.warp(end);
+        MockBidder mockBidder2 = new MockBidder();
+        vm.prank(user1);
+        USDT.transfer(address(mockBidder2), amt / 2 + 1);
+        vm.prank(address(mockBidder2));
+        folio.bid(0, amt / 2, amt / 2 + 1, true, bytes(""));
+        assertEq(USDT.balanceOf(address(mockBidder2)), 0, "wrong mock bidder2 balance");
+        assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K - D6_TOKEN_1, "wrong usdc balance");
+        vm.stopPrank();
+    }
+
+    function test_auctionKillTrade() public {
+        _deployTestFolio();
+
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.startPrank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+        folio.killTrade(0);
+
+        // next auction index should revert
+
+        vm.expectRevert();
+        folio.killTrade(1); // index out of bounds
+
+        (, , , , , , , , uint256 end) = folio.trades(0);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+
+        vm.warp(end);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+
+        vm.warp(end + 1);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+        vm.stopPrank();
+    }
+
+    function test_auctionNotOpenableUntilApproved() public {
+        _deployTestFolio();
+
+        // should not be openable until approved
+
+        vm.prank(dao);
+        vm.expectRevert();
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+    }
+
+    function test_auctionNotLaunchableAfterTimeout() public {
+        _deployTestFolio();
+
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, 1 days);
+
+        // should not be openable after launchTimeout
+
+        (, , , , , , uint256 launchTimeout, , ) = folio.trades(0);
+        vm.warp(launchTimeout + 1);
+        vm.prank(priceCurator);
+        vm.expectRevert(IFolio.Folio__TradeTimeout.selector);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+    }
+
+    function test_auctionNotAvailableBeforeOpen() public {
+        _deployTestFolio();
+
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        // auction should not be biddable before openTrade
+
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+    }
+
+    function test_auctionNotAvailableAfterEnd() public {
         _deployTestFolio();
 
         uint256 amt = D6_TOKEN_1;
@@ -449,9 +642,74 @@ contract FolioTest is BaseTest {
         vm.prank(priceCurator);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
 
+        // auction should not biddable after end
+
+        (, , , , , , , , uint256 end) = folio.trades(0);
+        vm.warp(end + 1);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+    }
+
+    function test_auctionRequiresBalanceToOpen() public {
+        _deployTestFolio();
+
+        // can approve trade without balance
+
+        uint256 bal = USDC.balanceOf(address(folio));
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, bal + 1, 0, 0, type(uint256).max);
+
+        // cannot open trade without balance
+
+        vm.prank(priceCurator);
+        vm.expectRevert(IFolio.Folio__InsufficientBalance.selector);
+        folio.openTrade(0, 10e18, 1e18);
+    }
+
+    function test_parallelAuctions() public {
+        _deployTestFolio();
+
+        // launch two auction in parallel to sell ALL USDC/DAI
+
+        uint256 amt1 = USDC.balanceOf(address(folio));
+        uint256 amt2 = DAI.balanceOf(address(folio));
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt1, 0, 0, type(uint256).max);
+        vm.prank(dao);
+        folio.approveTrade(1, DAI, USDT, amt2, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+        vm.prank(priceCurator);
+        folio.openTrade(1, 100e6, 1e6); // 100x -> 1x
+
+        // bid in first auction for half volume at start
+
+        vm.startPrank(user1);
+        USDT.approve(address(folio), amt1 * 5);
+        folio.bid(0, amt1 / 2, amt1 * 5, false, bytes(""));
+
+        // advance halfway and bid for full volume of second auction
+
         (, , , , , , , uint256 start, uint256 end) = folio.trades(0);
-        assertEq(folio.getBidAmount(0, amt, start), amt * 10, "wrong start bid amount"); // 10x
-        assertEq(folio.getBidAmount(0, amt, (start + end) / 2), 3162278, "wrong mid bid amount"); // ~3.16x
-        assertEq(folio.getBidAmount(0, amt, end), amt + 1, "wrong end bid amount"); // 1x + 1
+        vm.warp(start + (end - start) / 2);
+        uint256 bidAmt = (amt2 * 40) / 1e12; // adjust for decimals
+        USDT.approve(address(folio), bidAmt);
+        folio.bid(1, amt2, bidAmt, false, bytes("")); // ~31.6x
+
+        // advance to end and bid for rest of first auction
+
+        vm.warp(end);
+        USDT.approve(address(folio), amt1 / 2 + 1);
+        folio.bid(0, amt1 / 2, amt1 / 2 + 1, false, bytes(""));
+
+        // auctions are over, should have no USDC + DAI left
+
+        (, , , uint256 sellAmount, , , , , ) = folio.trades(0);
+        assertEq(sellAmount, 0, "unfinished auction 1");
+        (, , , sellAmount, , , , , ) = folio.trades(1);
+        assertEq(sellAmount, 0, "unfinished auction 2");
+        assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
+        assertEq(DAI.balanceOf(address(folio)), 0, "wrong dai balance");
     }
 }

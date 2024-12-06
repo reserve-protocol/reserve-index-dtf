@@ -276,6 +276,10 @@ contract Folio is
             revert Folio__InvalidTradeId();
         }
 
+        if (address(sell) == address(0) || address(buy) == address(0)) {
+            revert Folio__InvalidTradeTokens();
+        }
+
         if (sellAmount == 0) {
             revert Folio__InvalidSellAmount();
         }
@@ -315,13 +319,20 @@ contract Folio is
             revert Folio__TradeTimeout();
         }
 
-        // Only allow price curator to raise starting price by factor of 100x at-most
-        if (startPrice < trade.startPrice || (trade.startPrice > 0 && startPrice > 100 * trade.startPrice)) {
+        if (
+            startPrice == 0 ||
+            startPrice < trade.startPrice ||
+            (trade.startPrice > 0 && startPrice > 100 * trade.startPrice)
+        ) {
             revert Folio__InvalidStartPrice();
         }
 
-        if (endPrice < trade.endPrice || startPrice < endPrice) {
+        if (endPrice == 0 || endPrice < trade.endPrice || startPrice < endPrice) {
             revert Folio__InvalidEndPrice();
+        }
+
+        if (trade.sellAmount != type(uint256).max && trade.sell.balanceOf(address(this)) < trade.sellAmount) {
+            revert Folio__InsufficientBalance();
         }
 
         trade.startPrice = startPrice;
@@ -347,13 +358,13 @@ contract Folio is
     ///   If withCallback is false, caller must have provided an allowance in advance
     /// @dev Permissionless
     /// @param sellAmount {sellTok} Token the bidder receives, sold from the point of view of the Folio
-    /// @param minBuyAmount {buyTok} Token the bidder provides, bought from the point of view of the Folio
+    /// @param maxBuyAmount {buyTok} Token the bidder provides, bought from the point of view of the Folio
     /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
     /// @param data Arbitrary data to pass to the callback
     function bid(
         uint256 tradeId,
         uint256 sellAmount,
-        uint256 minBuyAmount,
+        uint256 maxBuyAmount,
         bool withCallback,
         bytes calldata data
     ) external nonReentrant returns (uint256 boughtAmt) {
@@ -364,7 +375,7 @@ contract Folio is
 
         // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
         boughtAmt = (sellAmount * price + 1e18 - 1) / 1e18;
-        if (boughtAmt < minBuyAmount) {
+        if (boughtAmt > maxBuyAmount) {
             revert Folio__SlippageExceeded();
         }
 

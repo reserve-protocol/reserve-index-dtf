@@ -11,6 +11,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
+import { MockBidder } from "utils/MockBidder.sol";
 
 import { Folio } from "contracts/Folio.sol";
 import { FolioFactory } from "@deployer/FolioFactory.sol";
