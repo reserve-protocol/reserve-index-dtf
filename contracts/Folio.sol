@@ -18,9 +18,6 @@ import { Versioned } from "@utils/Versioned.sol";
 import { IFolioDAOFeeRegistry } from "./interfaces/IFolioDAOFeeRegistry.sol";
 import { IFolio } from "./interfaces/IFolio.sol";
 
-// !!!! TODO !!!! REMOVE
-import "forge-std/console2.sol";
-
 interface IBidderCallee {
     /// @param buyAmount {qBuyTok}
     function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
