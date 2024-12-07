@@ -266,6 +266,10 @@ contract Folio is
 
     // ==== Trading ====
 
+    function tradesLen() external view returns (uint256) {
+        return trades.length;
+    }
+
     /// @return D18{buyTok/sellTok} The price at the given timestamp as an 18-decimal fixed point
     function getPrice(uint256 tradeId, uint256 timestamp) external view returns (uint256) {
         return _price(trades[tradeId], timestamp);
