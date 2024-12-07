@@ -290,8 +290,9 @@ contract Folio is
     /// @param sellAmount {sellTok} Provide type(uint256).max to sell everything
     /// @param startPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator
     /// @param endPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator
-    /// @param ttl {s} How long trade can be opened (once opened, it always finishes). Accepts type(uint256).max
-    ///                Must be longer than tradeDelay if intended to be permissionlessly available
+    /// @param ttl {s} How long a trade can exist in an APPROVED state until it can no longer be OPENED
+    ///     (once opened, it always finishes). Accepts type(uint256).max .
+    ///     Must be longer than tradeDelay if intended to be permissionlessly available.
     function approveTrade(
         uint256 tradeId,
         IERC20 sell,
@@ -317,7 +318,7 @@ contract Folio is
             revert Folio__InvalidPrices();
         }
 
-        if ((startPrice == 0 || endPrice == 0) && ttl < tradeDelay) {
+        if ((startPrice == 0 || endPrice == 0) && ttl > tradeDelay) {
             revert Folio__InvalidTTL();
         }
 
