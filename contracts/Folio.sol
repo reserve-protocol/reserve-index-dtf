@@ -155,11 +155,12 @@ contract Folio is
 
     // ==== Share + Asset Accounting ====
 
+    /// @dev Contains pending fee shares
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
         return super.totalSupply() + _getPendingFeeShares();
     }
 
-    // {} -> ({tokAddress}, {tok/share})
+    // {} -> ({tokAddress}, D18{tok/share})
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
         return toAssets(10 ** decimals(), Math.Rounding.Floor);
     }
@@ -233,6 +234,8 @@ contract Folio is
 
     // === Fee Shares ===
 
+    /// @dev totalSupply() already contains pending fee shares
+    /// @return {share} Quantity of fee shares currently pending
     function getPendingFeeShares() public view returns (uint256) {
         return _getPendingFeeShares();
     }
@@ -263,18 +266,18 @@ contract Folio is
 
     // ==== Trading ====
 
-    /// @return D18{buyTok/sellTok}
+    /// @return D18{buyTok/sellTok} The price at the given timestamp as an 18-decimal fixed point
     function getPrice(uint256 tradeId, uint256 timestamp) external view returns (uint256) {
         return _price(trades[tradeId], timestamp);
     }
 
-    /// @return {buyTok} The amount the bidder would receive
+    /// @return {buyTok} The amount the bidder would receive if they bid at the given timestamp
     function getBidAmount(uint256 tradeId, uint256 amount, uint256 timestamp) external view returns (uint256) {
         uint256 price = _price(trades[tradeId], timestamp);
         return (amount * price + 1e18 - 1) / 1e18;
     }
 
-    /// @param tradeId Used to ensure expected ordering
+    /// @param tradeId Use to ensure expected ordering
     /// @param sell The token to sell, from the perspective of the Folio
     /// @param buy The token to buy, from the perspective of the Folio
     /// @param sellAmount {sellTok} Provide type(uint256).max to sell everything
@@ -373,6 +376,7 @@ contract Folio is
     /// @param maxBuyAmount {buyTok} Token the bidder provides, bought from the point of view of the Folio
     /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
     /// @param data Arbitrary data to pass to the callback
+    /// @return boughtAmt {buyTok} The amount bidder received
     function bid(
         uint256 tradeId,
         uint256 sellAmount,
@@ -413,8 +417,8 @@ contract Folio is
 
     /// Kill a trade
     /// A trade can be killed anywhere in its lifecycle, and cannot be restarted
-    /// @dev Redundant calls do not revert to prevent griefing
     function killTrade(uint256 tradeId) external nonReentrant onlyRole(PRICE_CURATOR) {
+        /// do not revert, to prevent griefing
         trades[tradeId].end = 1;
         emit TradeKilled(tradeId);
     }
@@ -446,6 +450,7 @@ contract Folio is
         trade.k = UD60x18.wrap((trade.startPrice * 1e18) / trade.endPrice).ln().unwrap() / auctionLength;
     }
 
+    /// @return D18{buyTok/sellTok}
     function _price(Trade storage trade, uint256 timestamp) internal view returns (uint256) {
         if (timestamp < trade.start || timestamp > trade.end || trade.sellAmount == 0) {
             revert Folio__TradeNotOngoing();
@@ -457,10 +462,11 @@ contract Folio is
         return (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / 1e18;
     }
 
+    /// @return _pendingFeeShares {share}
     function _getPendingFeeShares() internal view returns (uint256 _pendingFeeShares) {
         _pendingFeeShares = pendingFeeShares;
 
-        uint256 supply = super.totalSupply() + _pendingFeeShares; // slightly stale value
+        uint256 supply = super.totalSupply() + _pendingFeeShares;
         uint256 elapsed = block.timestamp - lastPoke;
 
         _pendingFeeShares += (supply * 1e18) / UD60x18.wrap(1e18 - folioFee).powu(elapsed).unwrap() - supply;
