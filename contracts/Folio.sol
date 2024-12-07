@@ -190,6 +190,7 @@ contract Folio is
         for (uint256 i; i < len; i++) {
             uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
 
+            // {tok} = {share} * {tok} / {share}
             _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
         }
     }
@@ -248,6 +249,7 @@ contract Folio is
         (address recipient, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(
             address(this)
         );
+        // {share} = {share} * D18{1} / D18
         uint256 daoFee = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
         _mint(recipient, daoFee);
         pendingFeeShares -= daoFee;
@@ -278,6 +280,7 @@ contract Folio is
     /// @return {buyTok} The amount the bidder would receive if they bid at the given timestamp
     function getBidAmount(uint256 tradeId, uint256 amount, uint256 timestamp) external view returns (uint256) {
         uint256 price = _price(trades[tradeId], timestamp);
+        // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
         return (amount * price + 1e18 - 1) / 1e18;
     }
 
