@@ -727,7 +727,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D27_TOKEN_1;
 
         for (uint256 i = 1e59; i > 0; i /= 10) {
-            uint256 index = folio.tradesLen();
+            uint256 index = folio.nextTradeId();
 
             vm.prank(dao);
             folio.approveTrade(index, MEME, USDC, amt, 0, 0, type(uint256).max);

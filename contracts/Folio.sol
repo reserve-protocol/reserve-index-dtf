@@ -266,7 +266,7 @@ contract Folio is
 
     // ==== Trading ====
 
-    function tradesLen() external view returns (uint256) {
+    function nextTradeId() external view returns (uint256) {
         return trades.length;
     }
 
