@@ -204,7 +204,9 @@ contract Folio is
 
         uint256 assetLength = _assets.length;
         for (uint256 i; i < assetLength; i++) {
-            SafeERC20.safeTransferFrom(IERC20(_assets[i]), msg.sender, address(this), _amounts[i]);
+            if (_amounts[i] != 0) {
+                SafeERC20.safeTransferFrom(IERC20(_assets[i]), msg.sender, address(this), _amounts[i]);
+            }
         }
 
         _mint(receiver, shares);
@@ -223,7 +225,9 @@ contract Folio is
 
         uint256 len = _assets.length;
         for (uint256 i; i < len; i++) {
-            SafeERC20.safeTransfer(IERC20(_assets[i]), receiver, _amounts[i]);
+            if (_amounts[i] != 0) {
+                SafeERC20.safeTransfer(IERC20(_assets[i]), receiver, _amounts[i]);
+            }
         }
     }
 
