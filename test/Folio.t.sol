@@ -723,6 +723,24 @@ contract FolioTest is BaseTest {
         assertEq(DAI.balanceOf(address(folio)), 0, "wrong dai balance");
     }
 
+    function test_auctionPriceRange() public {
+        uint256 amt = D27_TOKEN_1;
+
+        for (uint256 i = 1e59; i > 0; i /= 10) {
+            uint256 index = folio.tradesLen();
+
+            vm.prank(dao);
+            folio.approveTrade(index, MEME, USDC, amt, 0, 0, type(uint256).max);
+
+            // should not revert at top or bottom end
+            vm.prank(priceCurator);
+            folio.openTrade(index, i, 1);
+            (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(index);
+            folio.getPrice(index, start);
+            folio.getPrice(index, end);
+        }
+    }
+
     function test_priceCalculationGasCost() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
