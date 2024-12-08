@@ -417,7 +417,13 @@ contract Folio is
         emit Bid(tradeId, sellAmount, boughtAmt);
 
         if (withCallback) {
+            uint256 balBefore = trade.buy.balanceOf(address(this));
+
             IBidderCallee(msg.sender).bidCallback(address(trade.buy), boughtAmt, data);
+
+            if (trade.buy.balanceOf(address(this)) - balBefore < boughtAmt) {
+                revert Folio__InsufficientBid();
+            }
         } else {
             trade.buy.safeTransferFrom(msg.sender, address(this), boughtAmt);
         }

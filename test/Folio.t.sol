@@ -445,7 +445,7 @@ contract FolioTest is BaseTest {
 
         // bid once at start time
 
-        MockBidder mockBidder = new MockBidder();
+        MockBidder mockBidder = new MockBidder(true);
         vm.prank(user1);
         USDT.transfer(address(mockBidder), amt / 2);
         vm.prank(address(mockBidder));
@@ -460,7 +460,7 @@ contract FolioTest is BaseTest {
         // bid a 2nd time for the rest of the volume, at end time
 
         vm.warp(end);
-        MockBidder mockBidder2 = new MockBidder();
+        MockBidder mockBidder2 = new MockBidder(true);
         vm.prank(user1);
         USDT.transfer(address(mockBidder2), amt / 2);
         vm.prank(address(mockBidder2));
@@ -514,7 +514,7 @@ contract FolioTest is BaseTest {
 
         // bid once at start time
 
-        MockBidder mockBidder = new MockBidder();
+        MockBidder mockBidder = new MockBidder(true);
         vm.prank(user1);
         USDT.transfer(address(mockBidder), amt * 5);
         vm.prank(address(mockBidder));
@@ -531,7 +531,7 @@ contract FolioTest is BaseTest {
         // bid a 2nd time for the rest of the volume, at end time
 
         vm.warp(end);
-        MockBidder mockBidder2 = new MockBidder();
+        MockBidder mockBidder2 = new MockBidder(true);
         vm.prank(user1);
         USDT.transfer(address(mockBidder2), amt / 2 + 1);
         vm.prank(address(mockBidder2));
@@ -662,6 +662,23 @@ contract FolioTest is BaseTest {
         vm.warp(availableAt);
         folio.openTradePermissionlessly(0);
         vm.stopPrank();
+    }
+
+    function test_auctionDishonestCallback() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 1e18, 1e18); // 1x
+
+        // dishonest callback that returns fewer tokens than expected
+
+        MockBidder mockBidder = new MockBidder(false);
+        USDT.transfer(address(mockBidder), amt);
+        vm.prank(address(mockBidder));
+        vm.expectRevert(abi.encodeWithSelector(IFolio.Folio__InsufficientBid.selector));
+        folio.bid(0, amt, amt, true, bytes(""));
     }
 
     function test_parallelAuctions() public {
