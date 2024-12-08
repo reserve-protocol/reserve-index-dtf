@@ -413,6 +413,10 @@ contract Folio is
             basket.remove(address(trade.sell));
         }
 
+        if (trade.sell.balanceOf(address(this)) < sellAmount) {
+            revert Folio__InsufficientBalance();
+        }
+
         trade.sell.safeTransfer(msg.sender, sellAmount);
         emit Bid(tradeId, sellAmount, boughtAmt);
 
@@ -444,10 +448,6 @@ contract Folio is
 
         if (trade.startPrice < trade.endPrice || trade.startPrice == 0 || trade.endPrice == 0) {
             revert Folio__InvalidPrices();
-        }
-
-        if (trade.sellAmount != type(uint256).max && trade.sell.balanceOf(address(this)) < trade.sellAmount) {
-            revert Folio__InsufficientBalance();
         }
 
         trade.start = block.timestamp;
