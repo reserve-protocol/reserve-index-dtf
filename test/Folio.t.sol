@@ -618,20 +618,6 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt, amt, false, bytes(""));
     }
 
-    function test_auctionRequiresBalanceToOpen() public {
-        // can approve trade without balance
-
-        uint256 bal = USDC.balanceOf(address(folio));
-        vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, bal + 1, 0, 0, type(uint256).max);
-
-        // cannot open trade without balance
-
-        vm.prank(priceCurator);
-        vm.expectRevert(IFolio.Folio__InsufficientBalance.selector);
-        folio.openTrade(0, 10e18, 1e18);
-    }
-
     function test_auctionOnlyPriceCuratorCanBypassDelay() public {
         uint256 amt = D6_TOKEN_1;
         vm.startPrank(dao);

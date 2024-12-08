@@ -318,10 +318,6 @@ contract Folio is
             revert Folio__InvalidPrices();
         }
 
-        if ((startPrice == 0 || endPrice == 0) && ttl > tradeDelay) {
-            revert Folio__InvalidTTL();
-        }
-
         uint256 launchTimeout = ttl == type(uint256).max ? ttl : block.timestamp + ttl;
 
         trades.push(
