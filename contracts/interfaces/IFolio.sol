@@ -36,10 +36,10 @@ interface IFolio {
     error Folio__TradeCannotBeOpenedPermissionlesslyYet();
     error Folio__TradeNotOngoing();
     error Folio__InvalidPrices();
-    error Folio__InvalidTTL();
     error Folio__TradeTimeout();
     error Folio__SlippageExceeded();
     error Folio__InsufficientBalance();
+    error Folio__InsufficientBid();
     error Folio__InvalidTradeTokens();
     error Folio__InvalidTradeDelay();
 
