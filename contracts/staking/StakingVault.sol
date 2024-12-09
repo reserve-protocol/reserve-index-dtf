@@ -1,0 +1,151 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.28;
+
+import { ERC4626, IERC20, ERC20 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
+import { UD60x18, powu } from "@prb/math/src/UD60x18.sol";
+
+import "forge-std/console2.sol";
+
+uint256 constant SCALAR = 1e18;
+
+contract StakingVault is ERC4626, Ownable {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
+    EnumerableSet.AddressSet private rewardTokens;
+
+    struct RewardInfo {
+        uint256 payoutLastPaid; // {s}
+        uint256 rewardIndex;
+        //
+        uint256 balanceAccounted;
+        uint256 totalClaimed;
+    }
+
+    struct UserRewardInfo {
+        uint256 lastRewardIndex;
+        uint256 accruedRewards;
+    }
+
+    mapping(address token => RewardInfo rewardInfo) public rewardTrackers;
+    mapping(address token => mapping(address user => UserRewardInfo userReward)) public userRewardTrackers;
+
+    constructor(
+        string memory _name,
+        string memory _symbol,
+        IERC20 _underlying,
+        address initialOwner
+    ) ERC4626(_underlying) ERC20(_name, _symbol) Ownable(initialOwner) {}
+
+    function registerRewardToken(address _rewardToken) external onlyOwner {
+        rewardTokens.add(_rewardToken);
+
+        RewardInfo storage rewardInfo = rewardTrackers[_rewardToken];
+
+        rewardInfo.payoutLastPaid = block.timestamp;
+    }
+
+    function poke() external accrueRewards(msg.sender, msg.sender) {}
+
+    /**
+     * Reward Accrual Logic
+     */
+    modifier accrueRewards(address _caller, address _receiver) {
+        address[] memory _rewardTokens = rewardTokens.values();
+        uint256 _rewardTokensLength = _rewardTokens.length;
+
+        for (uint256 i; i < _rewardTokensLength; i++) {
+            address rewardToken = _rewardTokens[i];
+
+            _accrueRewards(rewardToken, _accrueSingle(rewardToken));
+            _accrueUser(_receiver, rewardToken);
+
+            // If a deposit/withdraw operation gets called for another user we should
+            // accrue for both of them to avoid potential issues
+            if (_receiver != _caller) {
+                _accrueUser(_caller, rewardToken);
+            }
+        }
+        _;
+    }
+
+    /**
+     * @notice Accrue rewards over time.
+     * @return accrued {qRewardTok}
+     */
+    function _accrueSingle(address _rewardToken) internal returns (uint256 accrued) {
+        RewardInfo storage rewardInfo = rewardTrackers[_rewardToken];
+
+        uint256 elapsed = block.timestamp - rewardInfo.payoutLastPaid;
+
+        if (elapsed == 0) {
+            return 0;
+        }
+
+        // @todo Add exponential handout logic here.
+
+        // @todo make it param
+        uint256 rewardRatio = 1e18 / uint256(60 * 60 * 24 * 3); // ratio for 3 days
+        uint256 handoutPercentage = 1e18 - UD60x18.wrap(1e18 - rewardRatio).powu(elapsed).unwrap();
+
+        uint256 totalRewardsKnown = IERC20(_rewardToken).balanceOf(address(this)) + rewardInfo.totalClaimed;
+        uint256 unaccountedBalance = totalRewardsKnown - rewardInfo.balanceAccounted;
+        uint256 tokensToHandout = (unaccountedBalance * handoutPercentage) / 1e18;
+
+        rewardInfo.balanceAccounted += tokensToHandout;
+
+        console2.log("tokensToHandout", tokensToHandout);
+
+        return tokensToHandout;
+    }
+
+    /**
+     * @notice Accrue global rewards for a rewardToken
+     * @param accrued {qRewardTok}
+     */
+    function _accrueRewards(address _rewardToken, uint256 accrued) internal {
+        uint256 supplyTokens = totalSupply();
+        uint256 deltaIndex;
+
+        console2.log("supplyTokens", supplyTokens);
+
+        if (supplyTokens != 0) {
+            // {qRewardTok} = {qRewardTok} * {qShare} / {qShare}
+            deltaIndex = (accrued * uint256(10 ** decimals())) / supplyTokens;
+            console2.log("deltaIndex", deltaIndex);
+        } else {
+            // @todo Come back to this.
+            // leftoverRewards[_rewardToken] += accrued;
+        }
+
+        RewardInfo storage rewardInfo = rewardTrackers[_rewardToken];
+
+        // {qRewardTok} += {qRewardTok}
+        rewardInfo.rewardIndex += deltaIndex;
+        rewardInfo.payoutLastPaid = block.timestamp;
+    }
+
+    /**
+     * @notice Sync a user's rewards for a rewardToken with the global reward index for that token
+     */
+    function _accrueUser(address _user, address _rewardToken) internal {
+        RewardInfo memory rewardInfo = rewardTrackers[_rewardToken];
+        UserRewardInfo storage userRewardTracker = userRewardTrackers[_rewardToken][_user];
+
+        uint256 deltaIndex = rewardInfo.rewardIndex - userRewardTracker.lastRewardIndex;
+
+        // Accumulate rewards by multiplying user tokens by rewardsPerToken index and adding on unclaimed
+        // {qRewardTok} = {qShare} * {qRewardTok} / {qShare}
+        uint256 supplierDelta = (balanceOf(_user) * deltaIndex) / uint256(10 ** decimals());
+
+        console2.log("supplierDelta", supplierDelta);
+
+        // {qRewardTok} += {qRewardTok}
+        userRewardTracker.accruedRewards += supplierDelta;
+        userRewardTracker.lastRewardIndex = rewardInfo.rewardIndex;
+    }
+}
