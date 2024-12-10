@@ -49,7 +49,7 @@ contract ExtremeTest is BaseExtremeTest {
             tokens[j] = address(
                 deployCoin(string(abi.encodePacked("Token", j)), string(abi.encodePacked("TKN", j)), p.decimals)
             );
-            amounts[j] = p.amount * (10 ** p.decimals);
+            amounts[j] = p.amount;
             mintTokens(tokens[j], getActors(), amounts[j]);
         }
 
