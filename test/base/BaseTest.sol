@@ -16,12 +16,14 @@ import { MockBidder } from "utils/MockBidder.sol";
 import { Folio } from "contracts/Folio.sol";
 import { FolioFactory } from "@deployer/FolioFactory.sol";
 import { FolioVersionRegistry } from "contracts/deployer/FolioVersionRegistry.sol";
+import { FolioProxyAdmin } from "contracts/deployer/FolioProxy.sol";
 import { IRoleRegistry, FolioDAOFeeRegistry } from "contracts/FolioDAOFeeRegistry.sol";
 
 abstract contract BaseTest is Script, Test {
     // === Auth roles ===
     bytes32 constant OWNER = keccak256("OWNER");
     bytes32 constant PRICE_ORACLE = keccak256("PRICE_ORACLE");
+    bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
     uint256 constant D6_TOKEN_1 = 1e6;
     uint256 constant D6_TOKEN_10K = 1e10; // 1e4 = 10K tokens with 6 decimals
@@ -53,6 +55,7 @@ abstract contract BaseTest is Script, Test {
     FolioFactory folioFactory;
     FolioDAOFeeRegistry daoFeeRegistry;
     FolioVersionRegistry versionRegistry;
+    FolioProxyAdmin proxyAdmin;
     MockRoleRegistry roleRegistry;
 
     function setUp() public {

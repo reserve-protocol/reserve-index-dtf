@@ -5,7 +5,10 @@ import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { IFolioFactory } from "contracts/interfaces/IFolioFactory.sol";
 import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
 import { FolioFactoryV2 } from "./utils/upgrades/FolioFactoryV2.sol";
+import { FolioProxyAdmin, FolioProxy } from "contracts/deployer/FolioProxy.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { ERC1967Utils } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import "./base/BaseTest.sol";
 
@@ -53,6 +56,7 @@ contract FolioTest is BaseTest {
         folio.grantRole(folio.PRICE_CURATOR(), owner);
         folio.grantRole(folio.TRADE_PROPOSER(), dao);
         folio.grantRole(folio.PRICE_CURATOR(), priceCurator);
+        proxyAdmin = FolioProxyAdmin(deploymentInfo.proxyAdmin);
         vm.stopPrank();
     }
 
@@ -62,6 +66,7 @@ contract FolioTest is BaseTest {
         assertEq(folio.decimals(), 18, "wrong decimals");
         assertEq(folio.totalSupply(), INITIAL_SUPPLY, "wrong total supply");
         assertEq(folio.balanceOf(owner), INITIAL_SUPPLY, "wrong owner balance");
+        assertTrue(folio.hasRole(DEFAULT_ADMIN_ROLE, owner), "wrong governor");
         (address[] memory _assets, ) = folio.totalAssets();
         assertEq(_assets.length, 3, "wrong assets length");
         assertEq(_assets[0], address(USDC), "wrong first asset");
@@ -761,34 +766,91 @@ contract FolioTest is BaseTest {
         vm.stopSnapshotGas();
     }
 
-    // function test_upgrade() public {
-    //     // Deploy and register new factory with version 2.0.0
-    //     FolioFactory newFactoryV2 = new FolioFactoryV2(address(daoFeeRegistry), address(versionRegistry));
-    //     versionRegistry.registerVersion(newFactoryV2);
+    function test_upgrade() public {
+        // Deploy and register new factory with version 2.0.0
+        FolioFactory newFactoryV2 = new FolioFactoryV2(address(daoFeeRegistry), address(versionRegistry));
+        versionRegistry.registerVersion(newFactoryV2);
 
-    //     // Get implementation for new version
-    //     bytes32 newVersion = keccak256("2.0.0");
-    //     address impl = versionRegistry.getImplementationForVersion(newVersion);
-    //     assertEq(impl, newFactoryV2.folioImplementation());
+        // Check implementation for new version
+        bytes32 newVersion = keccak256("2.0.0");
+        address impl = versionRegistry.getImplementationForVersion(newVersion);
+        assertEq(impl, newFactoryV2.folioImplementation());
 
-    //     // Upgrate to V2
-    //     // TODO: get proxy admin
-    //     vm.startPrank(dao);
-    //     proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
-    //     vm.stopPrank();
-    // }
+        // Check current version
+        assertEq(folio.version(), "1.0.0");
 
-    // function test_cannotUpgradeIfNotOwnerOfProxyAdmin() public {
-    //    // Deploy and register new factory with version 2.0.0
-    //     FolioFactory newFactoryV2 = new FolioFactoryV2(address(daoFeeRegistry), address(versionRegistry));
-    //     versionRegistry.registerVersion(newFactoryV2);
+        // Upgrate to V2 with owner
+        vm.prank(owner);
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+        assertEq(folio.version(), "2.0.0");
+    }
 
-    //     // Get implementation for new version
-    //     bytes32 newVersion = keccak256("2.0.0");
-    //     address impl = versionRegistry.getImplementationForVersion(newVersion);
-    //     assertEq(impl, newFactoryV2.folioImplementation());
+    function test_cannotUpgradeToVersionNotInRegistry() public {
+        // Deploy new factory with version 2.0.0
+        FolioFactory newFactoryV2 = new FolioFactoryV2(address(daoFeeRegistry), address(versionRegistry));
 
-    //     // Attempt to Upgrate to V2
-    //     proxyAdmin.upgradeToVersion(impl, keccak256("2.0.0"));
-    // }
+        // Check current version
+        assertEq(folio.version(), "1.0.0");
+
+        // Attempt to upgrate to V2 (not registered)
+        vm.prank(owner);
+        vm.expectRevert();
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+
+        // still on old version
+        assertEq(folio.version(), "1.0.0");
+    }
+
+    function test_cannotUpgradeToDeprecatedVersion() public {
+        // Deploy and register new factory with version 2.0.0
+        FolioFactory newFactoryV2 = new FolioFactoryV2(address(daoFeeRegistry), address(versionRegistry));
+        versionRegistry.registerVersion(newFactoryV2);
+
+        // deprecate version
+        versionRegistry.deprecateVersion(keccak256("2.0.0"));
+
+        // Check current version
+        assertEq(folio.version(), "1.0.0");
+
+        // Attempt to upgrate to V2 (deprecated)
+        vm.prank(owner);
+        vm.expectRevert(FolioProxyAdmin.VersionDeprecated.selector);
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+
+        // still on old version
+        assertEq(folio.version(), "1.0.0");
+    }
+
+    function test_cannotUpgradeIfNotOwnerOfProxyAdmin() public {
+        // Deploy and register new factory with version 2.0.0
+        FolioFactory newFactoryV2 = new FolioFactoryV2(address(daoFeeRegistry), address(versionRegistry));
+        versionRegistry.registerVersion(newFactoryV2);
+
+        // Attempt to Upgrate to V2 with random user
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user1));
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+    }
+
+    function test_cannotCallAnyOtherFunctionFromProxyAdmin() public {
+        // Attempt to call other functions in folio from ProxyAdmin
+        vm.prank(address(proxyAdmin));
+        vm.expectRevert(abi.encodeWithSelector(FolioProxy.ProxyDeniedAdminAccess.selector));
+        folio.version();
+    }
+
+    function test_cannotUpgradeFolioDirectly() public {
+        // Deploy and register new factory with version 2.0.0
+        FolioFactory newFactoryV2 = new FolioFactoryV2(address(daoFeeRegistry), address(versionRegistry));
+        versionRegistry.registerVersion(newFactoryV2);
+
+        // Get implementation for new version
+        bytes32 newVersion = keccak256("2.0.0");
+        address impl = versionRegistry.getImplementationForVersion(newVersion);
+        assertEq(impl, newFactoryV2.folioImplementation());
+
+        // Attempt to Upgrate to V2 directly on the proxy
+        vm.expectRevert();
+        ITransparentUpgradeableProxy(address(folio)).upgradeToAndCall(impl, "");
+    }
 }
