@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: BlueOak-1.0.0
-pragma solidity 0.8.25;
+pragma solidity 0.8.28;
 
 // solhint-disable-next-line max-line-length
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
 /**
- * @title RoleRegistry
+ * @title MockRoleRegistry
  * @notice Contract to manage roles for RToken <> DAO interactions
  */
-contract RoleRegistry is AccessControlEnumerable {
+contract MockRoleRegistry is AccessControlEnumerable {
     bytes32 public constant EMERGENCY_COUNCIL = keccak256("EMERGENCY_COUNCIL");
 
     constructor() {

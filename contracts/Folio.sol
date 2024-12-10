@@ -1,309 +1,573 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity 0.8.28;
 
-import { IFolio } from "./interfaces/IFolio.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import { AccessControlEnumerableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
+import { ERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { IFolioFeeRegistry } from "./interfaces/IFolioFeeRegistry.sol";
-// import { FolioDutchTrade, TradePrices } from "./FolioDutchTrade.sol";
 
-import "forge-std/console2.sol";
+import { UD60x18, powu } from "@prb/math/src/UD60x18.sol";
+import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 
-contract Folio is IFolio, ERC20, AccessControlEnumerable {
-    using Math for uint256;
+import { Versioned } from "@utils/Versioned.sol";
+
+import { IFolioDAOFeeRegistry } from "./interfaces/IFolioDAOFeeRegistry.sol";
+import { IFolio } from "./interfaces/IFolio.sol";
+
+interface IBidderCallee {
+    /// @param buyAmount {qBuyTok}
+    function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
+}
+
+uint256 constant MAX_FEE = 21979552668; // D18{1/s} 50% annually
+uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
+uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
+uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
+uint256 constant MAX_FEE_RECIPIENTS = 64;
+
+// TODO go through and see if we can remove any of the nonReentrant modifiers
+
+/**
+ * @title Folio
+ * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
+ */
+contract Folio is
+    IFolio,
+    Initializable,
+    ERC20Upgradeable,
+    AccessControlEnumerableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    Versioned
+{
     using EnumerableSet for EnumerableSet.AddressSet;
+    using SafeERC20 for IERC20;
 
-    // === Auth roles ===
-    bytes32 constant OWNER = keccak256("OWNER");
-    bytes32 constant PRICE_ORACLE = keccak256("PRICE_ORACLE");
+    IFolioDAOFeeRegistry public daoFeeRegistry;
 
-    uint256 public constant BPS_PRECISION = 100_00;
-    uint256 public constant TRADE_PRECISION = 1e18;
-    uint256 public constant MAX_DEMURRAGE_FEE = 5000;
-    uint256 public constant YEAR_IN_SECONDS = 60 * 60 * 24 * 365;
+    /**
+     * Roles
+     */
+    bytes32 public constant TRADE_PROPOSER = keccak256("TRADE_PROPOSER"); // expected to be trading governance's timelock
+    bytes32 public constant PRICE_CURATOR = keccak256("PRICE_CURATOR"); // optional: EOA or multisig
 
-    IFolioFeeRegistry public daoFeeRegistry;
-
+    /**
+     * Basket
+     */
     EnumerableSet.AddressSet private basket;
-    bool public basketInitialized;
 
-    DemurrageRecipient[] public demurrageRecipients;
-    uint256 public demurrageFee; // bps
+    /**
+     * Fees
+     */
+    FeeRecipient[] public feeRecipients;
+    uint256 public folioFee; // D18{1} demurrage fee on AUM
 
-    address public dutchTradeImplementation;
-    uint256 public dutchAuctionLength; // {s}
+    /**
+     * System
+     */
+    uint256 public lastPoke; // {s}
+    uint256 public pendingFeeShares; // {share} virtual shares part of supply; use getPendingFeeShares() externally
 
-    // Trade[] public trades;
+    /**
+     * Trading
+     *   - Trades have a delay before they can be opened, that PRICE_CURATOR can bypass
+     *   - Multiple trades can be open at once
+     *   - Multiple bids can be executed against the same trade
+     *   - All trades are dutch auctions, but it's possible to pass startPrice = endPrice
+     */
 
-    uint40 public lastPoke; // {s}
-    uint256 public pendingFeeShares;
+    uint256 public auctionLength; // {s}
+    uint256 public tradeDelay; // {s}
+    Trade[] public trades;
 
-    constructor(
-        string memory name,
-        string memory symbol,
-        uint256 _demurrageFee,
-        DemurrageRecipient[] memory _demurrageRecipients,
-        address _daoFeeRegistry,
-        address _dutchTradeImplementation
-    ) ERC20(name, symbol) {
-        _setDemurrageFee(_demurrageFee);
-        _setDemurrageRecipients(_demurrageRecipients);
-        dutchTradeImplementation = _dutchTradeImplementation;
-        daoFeeRegistry = IFolioFeeRegistry(_daoFeeRegistry);
-        _grantRole(OWNER, msg.sender);
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
-    modifier onlyOwner() {
-        if (!hasRole(OWNER, msg.sender)) {
-            revert("only owner can call this function");
-        }
-        _;
-    }
+    function initialize(
+        FolioBasicDetails calldata basicDetails,
+        FolioAdditionalDetails calldata additionalDetails
+    ) external initializer {
+        __ERC20_init(basicDetails.name, basicDetails.symbol);
+        __AccessControlEnumerable_init();
+        __AccessControl_init();
+        __ReentrancyGuard_init();
 
-    function setOwner(address _owner) external onlyOwner {
-        _grantRole(OWNER, _owner);
-        _revokeRole(OWNER, msg.sender);
-    }
+        _setFeeRecipients(additionalDetails.feeRecipients);
+        _setFolioFee(additionalDetails.folioFee);
+        _setTradeDelay(additionalDetails.tradeDelay);
+        _setAuctionLength(additionalDetails.auctionLength);
 
-    function initialize(address[] memory _assets, address initializer, uint256 shares) external onlyOwner {
-        if (basketInitialized) {
-            revert("basket already initialized");
-        }
+        daoFeeRegistry = IFolioDAOFeeRegistry(additionalDetails.feeRegistry);
 
-        uint256 len = _assets.length;
-        for (uint256 i; i < len; i++) {
-            if (_assets[i] == address(0)) {
-                revert("asset cannot be 0");
+        uint256 assetLength = basicDetails.assets.length;
+        for (uint256 i; i < assetLength; i++) {
+            if (basicDetails.assets[i] == address(0)) {
+                revert Folio__InvalidAsset();
             }
 
-            uint256 bal = IERC20(_assets[i]).balanceOf(address(this));
-            if (bal == 0) {
-                revert("amount cannot be 0");
+            uint256 assetBalance = IERC20(basicDetails.assets[i]).balanceOf(address(this));
+            if (assetBalance == 0) {
+                revert Folio__InvalidAssetAmount(basicDetails.assets[i]);
             }
 
-            basket.add(address(_assets[i]));
+            basket.add(address(basicDetails.assets[i]));
         }
 
-        _mint(initializer, shares);
-        basketInitialized = true;
+        _poke();
+        _mint(basicDetails.creator, basicDetails.initialShares);
+        _grantRole(DEFAULT_ADMIN_ROLE, basicDetails.governor);
     }
 
-    function totalSupply() public view virtual override(ERC20) returns (uint256) {
-        return super.totalSupply() + pendingFeeShares;
+    function poke() external nonReentrant {
+        _poke();
     }
 
-    function assets() external view returns (address[] memory _assets) {
-        return basket.values();
+    // ==== Governance ====
+
+    function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        basket.add(address(token));
     }
 
-    // ( {tokAddress}, {tok/share} )
+    function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        basket.remove(address(token));
+    }
+
+    function setFolioFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        distributeFees();
+
+        _setFolioFee(_newFee);
+    }
+
+    /// _newRecipients.portion must sum to 1e18
+    function setFeeRecipients(FeeRecipient[] memory _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        distributeFees();
+
+        _setFeeRecipients(_newRecipients);
+    }
+
+    function setTradeDelay(uint256 _newDelay) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setTradeDelay(_newDelay);
+    }
+
+    function setAuctionLength(uint256 _newLength) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setAuctionLength(_newLength);
+    }
+
+    // ==== Share + Asset Accounting ====
+
+    /// @dev Contains pending fee shares
+    function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
+        return super.totalSupply() + _getPendingFeeShares();
+    }
+
+    // {} -> ({tokAddress}, D18{tok/share})
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return convertToAssets(1e18, Math.Rounding.Floor);
+        return toAssets(10 ** decimals(), Math.Rounding.Floor);
     }
 
-    // ( {tokAddress}, {tok} )
+    // {} -> ({tokAddress}, {tok})
     function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
         _assets = basket.values();
-        uint256 len = _assets.length;
-        _amounts = new uint256[](len);
-        for (uint256 i; i < len; i++) {
+
+        uint256 assetLength = _assets.length;
+        _amounts = new uint256[](assetLength);
+        for (uint256 i; i < assetLength; i++) {
             _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
         }
     }
 
-    // {share} -> ( {tokAddress}, {tok} )
-    function convertToAssets(
+    // {share} -> ({tokAddress}, {tok})
+    function toAssets(
         uint256 shares,
         Math.Rounding rounding
     ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
+        uint256 _totalSupply = totalSupply();
+
         _assets = basket.values();
 
         uint256 len = _assets.length;
         _amounts = new uint256[](len);
         for (uint256 i; i < len; i++) {
             uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
-            _amounts[i] = shares.mulDiv(assetBal + 1, totalSupply() + 1, rounding);
+
+            // {tok} = {share} * {tok} / {share}
+            _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
         }
     }
 
-    // {share} -> ( {tokAddress}, {tok} )
+    // {share} -> ({tokAddress}, {tok})
     function mint(
         uint256 shares,
         address receiver
-    ) external returns (address[] memory _assets, uint256[] memory _amounts) {
-        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Floor);
-        _mint(receiver, shares);
+    ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
+        _poke();
 
-        uint256 len = _assets.length;
-        for (uint256 i; i < len; i++) {
-            IERC20(_assets[i]).transferFrom(msg.sender, address(this), _amounts[i]);
+        (_assets, _amounts) = toAssets(shares, Math.Rounding.Ceil);
+
+        uint256 assetLength = _assets.length;
+        for (uint256 i; i < assetLength; i++) {
+            if (_amounts[i] != 0) {
+                SafeERC20.safeTransferFrom(IERC20(_assets[i]), msg.sender, address(this), _amounts[i]);
+            }
         }
+
+        _mint(receiver, shares);
     }
 
-    // {share} -> ( {tokAddress}, {tok} )
+    // {share} -> ({tokAddress}, {tok})
     function redeem(
         uint256 shares,
-        address receiver,
-        address holder
-    ) external returns (address[] memory _assets, uint256[] memory _amounts) {
-        (_assets, _amounts) = convertToAssets(shares, Math.Rounding.Floor);
+        address receiver
+    ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
+        _poke();
 
-        if (msg.sender != holder) {
-            _spendAllowance(holder, msg.sender, shares);
-        }
-        _burn(holder, shares);
+        (_assets, _amounts) = toAssets(shares, Math.Rounding.Floor);
+
+        _burn(msg.sender, shares);
 
         uint256 len = _assets.length;
         for (uint256 i; i < len; i++) {
-            IERC20(_assets[i]).transfer(receiver, _amounts[i]);
+            if (_amounts[i] != 0) {
+                SafeERC20.safeTransfer(IERC20(_assets[i]), receiver, _amounts[i]);
+            }
         }
     }
 
-    function setDemurrageFee(uint256 _demurrageFee) external onlyOwner {
-        distributeFees();
-        _setDemurrageFee(_demurrageFee);
+    // === Fee Shares ===
+
+    /// @dev totalSupply() already contains pending fee shares
+    /// @return {share} Quantity of fee shares currently pending
+    function getPendingFeeShares() public view returns (uint256) {
+        return _getPendingFeeShares();
     }
 
-    function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external onlyOwner {
-        distributeFees();
-        _setDemurrageRecipients(_demurrageRecipients);
-    }
-
-    function distributeFees() public {
+    function distributeFees() public nonReentrant {
         _poke();
+        // pendingFeeShares is up-to-date
 
         // collect dao fee off the top
         (address recipient, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(
             address(this)
         );
+        // {share} = {share} * D18{1} / D18
         uint256 daoFee = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
         _mint(recipient, daoFee);
         pendingFeeShares -= daoFee;
 
-        // distribute the rest of the demurrage fee
-        uint256 len = demurrageRecipients.length;
+        // distribute the rest of the folioFee
+        uint256 len = feeRecipients.length;
         for (uint256 i; i < len; i++) {
-            uint256 fee = (pendingFeeShares * demurrageRecipients[i].bps) / BPS_PRECISION;
-            _mint(demurrageRecipients[i].recipient, fee);
+            // {share} = {share} * D18{1} / D18
+            uint256 shares = (pendingFeeShares * feeRecipients[i].portion) / 1e18;
+
+            _mint(feeRecipients[i].recipient, shares);
         }
+
         pendingFeeShares = 0;
     }
 
-    function poke() external {
-        _poke();
+    // ==== Trading ====d
+
+    function nextTradeId() external view returns (uint256) {
+        return trades.length;
     }
 
-    function getPendingFeeShares() public view returns (uint256) {
-        return pendingFeeShares + _getPendingFeeShares();
+    /// @return D18{buyTok/sellTok} The price at the given timestamp as an 18-decimal fixed point
+    function getPrice(uint256 tradeId, uint256 timestamp) external view returns (uint256) {
+        return _price(trades[tradeId], timestamp);
     }
 
-    // function approveTrade(TradeParams memory trade) external {
-    //     if (trade.amount == 0) {
-    //         revert("trade.amount cannot be 0");
-    //     }
-    //     if (trade.from == address(0) || trade.to == address(0)) {
-    //         revert("trade.from or trade.to cannot be 0");
-    //     }
-    //     if (trade.from == trade.to) {
-    //         revert("trade.from and trade.to cannot be the same");
-    //     }
-    //     if (!basket.contains(trade.from)) {
-    //         revert("trade.from is not in basket");
-    //     }
-
-    //     trades.push(new Trade(trade, address(0)));
-
-    //     emit TradeApproved(trades.length, trade.sell, trade.buy, trade.amount);
-    // }
-    // function launchTrade(uint256 _tradeId, TradePrices memory prices) external {
-    //     poke();
-    //     FolioDutchTrade trader = FolioDutchTrade(address(dutchTradeImplementation).clone());
-    //     Trade storage trade = trades[_tradeId];
-    //     trades.trader = trader;
-    //     IERC20(address(trade.sell)).safeTransfer(address(trade), trade.amount);
-    //     trade.init(address(this), trade.sell, trade.buy, trade.amount, dutchAuctionLength, prices);
-    //     emit TradeLaunched(_tradeId);
-    // }
-    // function forceSettleTrade(uint256 _tradeId) external {
-    //     poke();
-    //     Trade memory trade = trades[_tradeId];
-    //     trade.trader.settle();
-    // }
-    // function settleTrade(uint256 _tradeId) external {
-    //     poke();
-    //     Trade memory trade = trades[_tradeId];
-    //     if (msg.sender != address(trade.trader)) {
-    //         revert("only trader can settle");
-    //     }
-    //     if (!basket.contains(trade.to)) {
-    //         basket.add(trade.to);
-    //     }
-    //     (uint256 soldAmount, uint256 boughtAmount) = trade.trader.settle();
-    //     emit TradeSettled(_tradeId, boughtAmount);
-    // }
-
-    /*
-        Internal functions
-    */
-
-    function _getPendingFeeShares() internal view returns (uint256) {
-        uint256 supply = totalSupply();
-        uint256 timeDelta = block.timestamp - lastPoke;
-        return ((supply * (demurrageFee * timeDelta)) / YEAR_IN_SECONDS) / BPS_PRECISION;
+    /// @return {buyTok} The amount the bidder would receive if they bid at the given timestamp
+    function getBidAmount(uint256 tradeId, uint256 amount, uint256 timestamp) external view returns (uint256) {
+        uint256 price = _price(trades[tradeId], timestamp);
+        // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
+        return (amount * price + 1e18 - 1) / 1e18;
     }
 
-    /// @dev updates the internal state by minting demurrage shares
+    /// @param tradeId Use to ensure expected ordering
+    /// @param sell The token to sell, from the perspective of the Folio
+    /// @param buy The token to buy, from the perspective of the Folio
+    /// @param sellAmount {sellTok} Provide type(uint256).max to sell everything
+    /// @param startPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator
+    /// @param endPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator
+    /// @param ttl {s} How long a trade can exist in an APPROVED state until it can no longer be OPENED
+    ///     (once opened, it always finishes). Accepts type(uint256).max .
+    ///     Must be longer than tradeDelay if intended to be permissionlessly available.
+    function approveTrade(
+        uint256 tradeId,
+        IERC20 sell,
+        IERC20 buy,
+        uint256 sellAmount,
+        uint256 startPrice,
+        uint256 endPrice,
+        uint256 ttl
+    ) external nonReentrant onlyRole(TRADE_PROPOSER) {
+        if (trades.length != tradeId) {
+            revert Folio__InvalidTradeId();
+        }
+
+        if (address(sell) == address(0) || address(buy) == address(0)) {
+            revert Folio__InvalidTradeTokens();
+        }
+
+        if (sellAmount == 0) {
+            revert Folio__InvalidSellAmount();
+        }
+
+        if (startPrice < endPrice) {
+            revert Folio__InvalidPrices();
+        }
+
+        uint256 launchTimeout = ttl == type(uint256).max ? ttl : block.timestamp + ttl;
+
+        trades.push(
+            Trade({
+                id: trades.length,
+                sell: sell,
+                buy: buy,
+                sellAmount: sellAmount,
+                startPrice: startPrice,
+                endPrice: endPrice,
+                availableAt: block.timestamp + tradeDelay,
+                launchTimeout: launchTimeout,
+                start: 0,
+                end: 0,
+                k: 0
+            })
+        );
+        emit TradeApproved(tradeId, address(sell), address(buy), sellAmount, startPrice);
+    }
+
+    /// @param startPrice D18{buyTok/sellTok}
+    /// @param endPrice D18{buyTok/sellTok}
+    function openTrade(
+        uint256 tradeId,
+        uint256 startPrice,
+        uint256 endPrice
+    ) external nonReentrant onlyRole(PRICE_CURATOR) {
+        Trade storage trade = trades[tradeId];
+
+        // price curator can:
+        //   - raise starting price by up to 100x
+        //   - raise ending price arbitrarily (can cause auction not to clear)
+
+        if (
+            startPrice < trade.startPrice ||
+            endPrice < trade.endPrice ||
+            (trade.startPrice != 0 && startPrice > 100 * trade.startPrice)
+        ) {
+            revert Folio__InvalidPrices();
+        }
+
+        trade.startPrice = startPrice;
+        trade.endPrice = endPrice;
+        // more price checks in _openTrade()
+
+        _openTrade(trade);
+    }
+
+    /// @dev Permissionless, callable only after the trading delay
+    function openTradePermissionlessly(uint256 tradeId) external nonReentrant {
+        Trade storage trade = trades[tradeId];
+
+        // only open trades that have not timed out (ttl check)
+        if (block.timestamp < trade.availableAt) {
+            revert Folio__TradeCannotBeOpenedPermissionlesslyYet();
+        }
+
+        _openTrade(trade);
+    }
+
+    /// Bid in an ongoing auction
+    ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
+    ///   If withCallback is false, caller must have provided an allowance in advance
+    /// @dev Permissionless
+    /// @param sellAmount {sellTok} Token the bidder receives, sold from the point of view of the Folio
+    /// @param maxBuyAmount {buyTok} Token the bidder provides, bought from the point of view of the Folio
+    /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
+    /// @param data Arbitrary data to pass to the callback
+    /// @return boughtAmt {buyTok} The amount bidder received
+    function bid(
+        uint256 tradeId,
+        uint256 sellAmount,
+        uint256 maxBuyAmount,
+        bool withCallback,
+        bytes calldata data
+    ) external nonReentrant returns (uint256 boughtAmt) {
+        Trade storage trade = trades[tradeId];
+
+        // checks trade is ongoing
+        uint256 price = _price(trade, block.timestamp);
+
+        // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
+        boughtAmt = (sellAmount * price + 1e18 - 1) / 1e18;
+        if (boughtAmt > maxBuyAmount) {
+            revert Folio__SlippageExceeded();
+        }
+
+        // deduct sellAmount from trade; special-case uint256.max
+        if (trade.sellAmount != type(uint256).max) {
+            trade.sellAmount -= sellAmount;
+        }
+
+        // ensure buy token is in basket
+        basket.add(address(trade.buy));
+
+        // ensure we have sufficient balance to pay bidder
+        if (trade.sell.balanceOf(address(this)) < sellAmount) {
+            revert Folio__InsufficientBalance();
+        }
+
+        // pay bidder
+        trade.sell.safeTransfer(msg.sender, sellAmount);
+        emit Bid(tradeId, sellAmount, boughtAmt);
+
+        // remove token from the basket if we have sold all of it
+        if (trade.sell.balanceOf(address(this)) == 0) {
+            basket.remove(address(trade.sell));
+        }
+
+        // collect payment from bidder
+        if (withCallback) {
+            uint256 balBefore = trade.buy.balanceOf(address(this));
+
+            IBidderCallee(msg.sender).bidCallback(address(trade.buy), boughtAmt, data);
+
+            if (trade.buy.balanceOf(address(this)) - balBefore < boughtAmt) {
+                revert Folio__InsufficientBid();
+            }
+        } else {
+            trade.buy.safeTransferFrom(msg.sender, address(this), boughtAmt);
+        }
+    }
+
+    /// Kill a trade
+    /// A trade can be killed anywhere in its lifecycle, and cannot be restarted
+    function killTrade(uint256 tradeId) external nonReentrant onlyRole(PRICE_CURATOR) {
+        /// do not revert, to prevent griefing
+        trades[tradeId].end = 1;
+        emit TradeKilled(tradeId);
+    }
+
+    // ==== Internal ====
+
+    function _openTrade(Trade storage trade) internal {
+        // only open APPROVED trades
+        if (trade.start != 0 || trade.end != 0) {
+            revert Folio__TradeCannotBeOpened();
+        }
+
+        // do not open trades that have timed out from ttl
+        if (block.timestamp > trade.launchTimeout) {
+            revert Folio__TradeTimeout();
+        }
+
+        // ensure valid price range (startPrice == endPrice is valid)
+        if (trade.startPrice < trade.endPrice || trade.startPrice == 0 || trade.endPrice == 0) {
+            revert Folio__InvalidPrices();
+        }
+
+        trade.start = block.timestamp;
+        trade.end = block.timestamp + auctionLength;
+        emit TradeOpened(trade.id, trade.startPrice, trade.endPrice, block.timestamp, block.timestamp + auctionLength);
+
+        // k = ln(P_0 / P_t) / t
+        trade.k = UD60x18.wrap((trade.startPrice * 1e18) / trade.endPrice).ln().unwrap() / auctionLength;
+        // gas optimization to avoid recomputing k on every bid
+    }
+
+    /// @return D18{buyTok/sellTok}
+    function _price(Trade storage trade, uint256 timestamp) internal view returns (uint256) {
+        // ensure auction is ongoing
+        if (timestamp < trade.start || timestamp > trade.end || trade.sellAmount == 0) {
+            revert Folio__TradeNotOngoing();
+        }
+
+        uint256 elapsed = timestamp - trade.start;
+
+        // P_t = P_0 * e ^ -kt
+        return (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / 1e18;
+    }
+
+    /// @return _pendingFeeShares {share}
+    function _getPendingFeeShares() internal view returns (uint256 _pendingFeeShares) {
+        _pendingFeeShares = pendingFeeShares;
+
+        uint256 supply = super.totalSupply() + _pendingFeeShares;
+        uint256 elapsed = block.timestamp - lastPoke;
+
+        // {share} = {share} * D18{1} / D18{1} - {share}
+        _pendingFeeShares += (supply * 1e18) / UD60x18.wrap(1e18 - folioFee).powu(elapsed).unwrap() - supply;
+    }
+
+    function _setFolioFee(uint256 _newFee) internal {
+        if (_newFee > MAX_FEE) {
+            revert Folio__FeeTooHigh();
+        }
+
+        folioFee = _newFee;
+    }
+
+    function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
+        // Clear existing fee table
+        uint256 len = feeRecipients.length;
+        for (uint256 i; i < len; i++) {
+            feeRecipients.pop();
+        }
+
+        // Add new items to the fee table
+        uint256 total;
+        len = _feeRecipients.length;
+        if (len > MAX_FEE_RECIPIENTS) {
+            revert Folio__TooManyFeeRecipients();
+        }
+
+        for (uint256 i; i < len; i++) {
+            if (_feeRecipients[i].recipient == address(0)) {
+                revert Folio__FeeRecipientInvalidAddress();
+            }
+
+            if (_feeRecipients[i].portion == 0) {
+                revert Folio__FeeRecipientInvalidFeeShare();
+            }
+
+            total += _feeRecipients[i].portion;
+            feeRecipients.push(_feeRecipients[i]);
+        }
+
+        if (total != 1e18) {
+            revert Folio__BadFeeTotal();
+        }
+    }
+
+    function _setTradeDelay(uint256 _newDelay) internal {
+        if (_newDelay > MAX_TRADE_DELAY) {
+            revert Folio__InvalidTradeDelay();
+        }
+
+        tradeDelay = _newDelay;
+    }
+
+    function _setAuctionLength(uint256 _newLength) internal {
+        if (_newLength < MIN_AUCTION_LENGTH || _newLength > MAX_AUCTION_LENGTH) {
+            revert Folio__InvalidAuctionLength();
+        }
+
+        auctionLength = _newLength;
+    }
+
+    /// @dev After: pendingFeeShares is up-to-date
     function _poke() internal {
         if (lastPoke == block.timestamp) {
             return;
         }
-        uint256 demFee = _getPendingFeeShares();
-        pendingFeeShares += demFee;
-        lastPoke = uint40(block.timestamp);
-    }
 
-    function _setDemurrageFee(uint256 _demurrageFee) internal {
-        if (_demurrageFee > MAX_DEMURRAGE_FEE) {
-            revert Folio_badDemurrageFee();
-        }
-
-        demurrageFee = _demurrageFee;
-    }
-
-    function _setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) internal {
-        // clear out demurrageRecipients
-        uint256 len = demurrageRecipients.length;
-        for (uint256 i; i < len; i++) {
-            demurrageRecipients.pop();
-        }
-
-        // validate that amounts add up to BPS_PRECISION
-        uint256 total;
-        len = _demurrageRecipients.length;
-        for (uint256 i; i < len; i++) {
-            if (_demurrageRecipients[i].recipient == address(0)) {
-                revert Folio_badDemurrageFeeRecipientAddress();
-            }
-
-            if (_demurrageRecipients[i].bps == 0) {
-                revert Folio_badDemurrageFeeRecipientBps();
-            }
-
-            total += _demurrageRecipients[i].bps;
-            demurrageRecipients.push(_demurrageRecipients[i]);
-        }
-
-        if (total != BPS_PRECISION) {
-            revert Folio_badDemurrageFeeTotal();
-        }
-    }
-
-    function _update(address from, address to, uint256 value) internal virtual override {
-        _poke();
-        super._update(from, to, value);
+        pendingFeeShares = _getPendingFeeShares();
+        lastPoke = block.timestamp;
     }
 }

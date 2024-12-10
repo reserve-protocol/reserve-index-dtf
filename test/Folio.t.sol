@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
+
+    function _testSetup() public virtual override {
+        super._testSetup();
+        _deployTestFolio();
+    }
 
     function _deployTestFolio() public {
         address[] memory tokens = new address[](3);
@@ -17,63 +23,61 @@ contract FolioTest is BaseTest {
         amounts[0] = D6_TOKEN_10K;
         amounts[1] = D18_TOKEN_10K;
         amounts[2] = D27_TOKEN_10K;
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](2);
-        recipients[0] = IFolio.DemurrageRecipient(owner, 9000);
-        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 1000);
-        // 1% demurrage fee
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
+
+        // 50% folio fee annually
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
         MEME.approve(address(folioFactory), type(uint256).max);
         folio = Folio(
-            folioFactory.createFolio("Test Folio", "TFOLIO", tokens, amounts, INITIAL_SUPPLY, 100, recipients)
+            folioFactory.createFolio(
+                "Test Folio",
+                "TFOLIO",
+                MAX_TRADE_DELAY,
+                MAX_AUCTION_LENGTH,
+                tokens,
+                amounts,
+                INITIAL_SUPPLY,
+                recipients,
+                MAX_FEE, // 50% annually
+                owner
+            )
         );
+        folio.grantRole(folio.TRADE_PROPOSER(), owner);
+        folio.grantRole(folio.PRICE_CURATOR(), owner);
+        folio.grantRole(folio.TRADE_PROPOSER(), dao);
+        folio.grantRole(folio.PRICE_CURATOR(), priceCurator);
         vm.stopPrank();
     }
 
-    function test_deployment() public {
-        _deployTestFolio();
+    function test_deployment() public view {
         assertEq(folio.name(), "Test Folio", "wrong name");
         assertEq(folio.symbol(), "TFOLIO", "wrong symbol");
         assertEq(folio.decimals(), 18, "wrong decimals");
-        assertEq(folio.totalSupply(), 1e18 * 10000, "wrong total supply");
-        assertEq(folio.balanceOf(owner), 1e18 * 10000, "wrong owner balance");
-        assertEq(folio.assets().length, 3, "wrong assets length");
-        assertEq(folio.assets()[0], address(USDC), "wrong first asset");
-        assertEq(folio.assets()[1], address(DAI), "wrong second asset");
-        assertEq(folio.assets()[2], address(MEME), "wrong third asset");
+        assertEq(folio.totalSupply(), INITIAL_SUPPLY, "wrong total supply");
+        assertEq(folio.balanceOf(owner), INITIAL_SUPPLY, "wrong owner balance");
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
         assertEq(MEME.balanceOf(address(folio)), D27_TOKEN_10K, "wrong folio meme balance");
-        assertEq(folio.demurrageFee(), 100, "wrong demurrage fee");
-        (address r1, uint256 bps1) = folio.demurrageRecipients(0);
+        assertEq(folio.folioFee(), MAX_FEE, "wrong folio fee");
+        (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
-        assertEq(bps1, 9000, "wrong first recipient bps");
-        (address r2, uint256 bps2) = folio.demurrageRecipients(1);
+        assertEq(bps1, 0.9e18, "wrong first recipient bps");
+        (address r2, uint256 bps2) = folio.feeRecipients(1);
         assertEq(r2, feeReceiver, "wrong second recipient");
-        assertEq(bps2, 1000, "wrong second recipient bps");
+        assertEq(bps2, 0.1e18, "wrong second recipient bps");
+        assertEq(folio.version(), "1.0.0");
     }
 
-    /*
-        this would test if the total supply is correct, based on a call to totalSupply() that takes into account unaccounted fees
-    */
-    // function test_totalSupply() public {
-    //     _deployTestFolio();
-    //     // fast forward, accumulate fees
-    //     vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
-    //     vm.roll(block.number + 1000000);
-
-    //     uint256 timeDelta = block.timestamp - folio.lastPoke();
-    //     uint256 demFee = folio.demurrageFee();
-    //     assertEq(
-    //         folio.totalSupply(),
-    //         INITIAL_SUPPLY + (((INITIAL_SUPPLY * timeDelta) / YEAR_IN_SECONDS) * demFee) / folio.BPS_PRECISION(),
-    //         "wrong total supply"
-    //     );
-    // }
-
     function test_mint() public {
-        _deployTestFolio();
         assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
         uint256 startingUSDCBalance = USDC.balanceOf(address(folio));
         uint256 startingDAIBalance = DAI.balanceOf(address(folio));
@@ -105,7 +109,6 @@ contract FolioTest is BaseTest {
     }
 
     function test_redeem() public {
-        _deployTestFolio();
         assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
         vm.startPrank(user1);
         USDC.approve(address(folio), type(uint256).max);
@@ -119,7 +122,7 @@ contract FolioTest is BaseTest {
         uint256 startingUSDCBalanceAlice = USDC.balanceOf(address(user1));
         uint256 startingDAIBalanceAlice = DAI.balanceOf(address(user1));
         uint256 startingMEMEBalanceAlice = MEME.balanceOf(address(user1));
-        folio.redeem(5e21, user1, user1);
+        folio.redeem(5e21, user1);
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
             startingUSDCBalanceFolio - D6_TOKEN_10K / 2,
@@ -159,18 +162,15 @@ contract FolioTest is BaseTest {
     }
 
     function test_daoFee() public {
-        _deployTestFolio();
+        uint256 supplyBefore = folio.totalSupply();
 
         // fast forward, accumulate fees
-        vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
         vm.roll(block.number + 1000000);
         uint256 pendingFeeShares = folio.getPendingFeeShares();
 
-        // validate pending fees have been accumulated
-        uint256 currentSupply = folio.totalSupply();
-        uint256 demFeeBps = folio.demurrageFee();
-        uint256 expectedFeeShares = (currentSupply * demFeeBps) / 1e4 / 2;
-        assertEq(expectedFeeShares, pendingFeeShares, "wrong pending fee shares");
+        // validate pending fees have been accumulated -- 50% fee = 100% of supply
+        assertApproxEqAbs(supplyBefore, pendingFeeShares, 1e12, "wrong pending fee shares");
 
         uint256 initialOwnerShares = folio.balanceOf(owner);
         folio.distributeFees();
@@ -181,44 +181,46 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 9000) / 10000, "wrong owner shares");
-        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 1000) / 10000, "wrong fee receiver shares");
+        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
+        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
     }
 
-    function test_setDemurrageRecipients() public {
-        _deployTestFolio();
+    function test_setFeeRecipients() public {
         vm.startPrank(owner);
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](3);
-        recipients[0] = IFolio.DemurrageRecipient(owner, 8000);
-        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 500);
-        recipients[2] = IFolio.DemurrageRecipient(user1, 1500);
-        folio.setDemurrageRecipients(recipients);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](3);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.05e18);
+        recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
+        folio.setFeeRecipients(recipients);
 
-        (address r1, uint256 bps1) = folio.demurrageRecipients(0);
+        (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
-        assertEq(bps1, 8000, "wrong first recipient bps");
-        (address r2, uint256 bps2) = folio.demurrageRecipients(1);
+        assertEq(bps1, 0.8e18, "wrong first recipient bps");
+        (address r2, uint256 bps2) = folio.feeRecipients(1);
         assertEq(r2, feeReceiver, "wrong second recipient");
-        assertEq(bps2, 500, "wrong second recipient bps");
-        (address r3, uint256 bps3) = folio.demurrageRecipients(2);
+        assertEq(bps2, 0.05e18, "wrong second recipient bps");
+        (address r3, uint256 bps3) = folio.feeRecipients(2);
         assertEq(r3, user1, "wrong third recipient");
-        assertEq(bps3, 1500, "wrong third recipient bps");
+        assertEq(bps3, 0.15e18, "wrong third recipient bps");
     }
 
-    function test_cannotsetDemurrageRecipientsIfNotOwner() public {
-        _deployTestFolio();
+    function test_cannotSetFeeRecipientsIfNotOwner() public {
         vm.startPrank(user1);
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](3);
-        recipients[0] = IFolio.DemurrageRecipient(owner, 8000);
-        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 500);
-        recipients[2] = IFolio.DemurrageRecipient(user1, 1500);
-        vm.expectRevert("only owner can call this function");
-        folio.setDemurrageRecipients(recipients);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](3);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.05e18);
+        recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.setFeeRecipients(recipients);
     }
 
-    function test_setDemurrageRecipients_DistributesFees() public {
-        _deployTestFolio();
-
+    function test_setFeeRecipients_DistributesFees() public {
         // fast forward, accumulate fees
         vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
         vm.roll(block.number + 1000000);
@@ -228,11 +230,11 @@ contract FolioTest is BaseTest {
         uint256 initialDaoShares = folio.balanceOf(dao);
 
         vm.startPrank(owner);
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](3);
-        recipients[0] = IFolio.DemurrageRecipient(owner, 8000);
-        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 500);
-        recipients[2] = IFolio.DemurrageRecipient(user1, 1500);
-        folio.setDemurrageRecipients(recipients);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](3);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.05e18);
+        recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
+        folio.setFeeRecipients(recipients);
 
         assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
 
@@ -242,29 +244,48 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 9000) / 10000, "wrong owner shares");
-        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 1000) / 10000, "wrong fee receiver shares");
+        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
+        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
     }
 
-    function test_setDemurrageFee() public {
-        _deployTestFolio();
+    function test_setFolioFee() public {
         vm.startPrank(owner);
-        uint256 newDemurrageFee = 200;
-        folio.setDemurrageFee(newDemurrageFee);
-        assertEq(folio.demurrageFee(), newDemurrageFee, "wrong demurrage fee");
+        assertEq(folio.folioFee(), MAX_FEE, "wrong folio fee");
+        uint256 newFolioFee = MAX_FEE / 1000;
+        folio.setFolioFee(newFolioFee);
+        assertEq(folio.folioFee(), newFolioFee, "wrong folio fee");
     }
 
-    function test_cannotsetDemurrageFeeIfNotOwner() public {
-        _deployTestFolio();
+    function test_setTradeDelay() public {
+        vm.startPrank(owner);
+        assertEq(folio.tradeDelay(), MAX_TRADE_DELAY, "wrong trade delay");
+        uint256 newAuctionLength = 0;
+        folio.setTradeDelay(newAuctionLength);
+        assertEq(folio.tradeDelay(), newAuctionLength, "wrong trade delay");
+    }
+
+    function test_setAuctionLength() public {
+        vm.startPrank(owner);
+        assertEq(folio.auctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
+        uint256 newAuctionLength = MIN_AUCTION_LENGTH;
+        folio.setAuctionLength(newAuctionLength);
+        assertEq(folio.auctionLength(), newAuctionLength, "wrong auction length");
+    }
+
+    function test_cannotSetFolioFeeIfNotOwner() public {
         vm.startPrank(user1);
-        uint256 newDemurrageFee = 200;
-        vm.expectRevert("only owner can call this function");
-        folio.setDemurrageFee(newDemurrageFee);
+        uint256 newFolioFee = MAX_FEE / 1000;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.setFolioFee(newFolioFee);
     }
 
-    function test_setDemurrageFee_DistributesFees() public {
-        _deployTestFolio();
-
+    function test_setFolioFee_DistributesFees() public {
         // fast forward, accumulate fees
         vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
         vm.roll(block.number + 1000000);
@@ -274,8 +295,8 @@ contract FolioTest is BaseTest {
         uint256 initialDaoShares = folio.balanceOf(dao);
 
         vm.startPrank(owner);
-        uint256 newDemurrageFee = 200;
-        folio.setDemurrageFee(newDemurrageFee);
+        uint256 newFolioFee = MAX_FEE / 1000;
+        folio.setFolioFee(newFolioFee);
 
         assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
 
@@ -285,49 +306,43 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 9000) / 10000, "wrong owner shares");
-        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 1000) / 10000, "wrong fee receiver shares");
+        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
+        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
     }
 
-    function test_setDemurrageFee_InvalidFee() public {
-        _deployTestFolio();
+    function test_setFolioFee_InvalidFee() public {
         vm.startPrank(owner);
-        uint256 newDemurrageFee = 5001; // above max
-        vm.expectRevert(IFolio.Folio_badDemurrageFee.selector);
-        folio.setDemurrageFee(newDemurrageFee);
+        uint256 newFolioFee = MAX_FEE + 1;
+        vm.expectRevert(IFolio.Folio__FeeTooHigh.selector);
+        folio.setFolioFee(newFolioFee);
     }
 
-    function test_setDemurrageFeeRecipients_InvalidRecipient() public {
-        _deployTestFolio();
+    function test_setFolioFeeRecipients_InvalidRecipient() public {
         vm.startPrank(owner);
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](1);
-        recipients[0] = IFolio.DemurrageRecipient(address(0), 1000);
-        vm.expectRevert(IFolio.Folio_badDemurrageFeeRecipientAddress.selector);
-        folio.setDemurrageRecipients(recipients);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
+        recipients[0] = IFolio.FeeRecipient(address(0), 0.1e18);
+        vm.expectRevert(IFolio.Folio__FeeRecipientInvalidAddress.selector);
+        folio.setFeeRecipients(recipients);
     }
 
-    function test_setDemurrageFeeRecipients_InvalidBps() public {
-        _deployTestFolio();
+    function test_setFolioFeeRecipients_InvalidBps() public {
         vm.startPrank(owner);
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](1);
-        recipients[0] = IFolio.DemurrageRecipient(owner, 0);
-        vm.expectRevert(IFolio.Folio_badDemurrageFeeRecipientBps.selector);
-        folio.setDemurrageRecipients(recipients);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
+        recipients[0] = IFolio.FeeRecipient(owner, 0);
+        vm.expectRevert(IFolio.Folio__FeeRecipientInvalidFeeShare.selector);
+        folio.setFeeRecipients(recipients);
     }
 
-    function test_setDemurrageFeeRecipients_InvalidTotal() public {
-        _deployTestFolio();
+    function test_setFolioFeeRecipients_InvalidTotal() public {
         vm.startPrank(owner);
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](2);
-        recipients[0] = IFolio.DemurrageRecipient(owner, 9000);
-        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 999);
-        vm.expectRevert(IFolio.Folio_badDemurrageFeeTotal.selector);
-        folio.setDemurrageRecipients(recipients);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.0999e18);
+        vm.expectRevert(IFolio.Folio__BadFeeTotal.selector);
+        folio.setFeeRecipients(recipients);
     }
 
-    function test_setFolioFeeRegistry() public {
-        _deployTestFolio();
-
+    function test_setFolioDAOFeeRegistry() public {
         // fast forward, accumulate fees
         vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
         vm.roll(block.number + 1000000);
@@ -339,7 +354,7 @@ contract FolioTest is BaseTest {
 
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
 
-        daoFeeRegistry.setRTokenFeeNumerator(address(folio), 1000);
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.1e18);
 
         // check receipient balances
         uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
@@ -347,12 +362,12 @@ contract FolioTest is BaseTest {
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
         assertEq(
             folio.balanceOf(owner),
-            initialOwnerShares + (remainingShares * 9000) / 10000,
+            initialOwnerShares + (remainingShares * 0.9e18) / 1e18,
             "wrong owner shares, 1st change"
         );
         assertEq(
             folio.balanceOf(feeReceiver),
-            initialFeeReceiverShares + (remainingShares * 1000) / 10000,
+            initialFeeReceiverShares + (remainingShares * 0.1e18) / 1e18,
             "wrong fee receiver shares, 1st change"
         );
 
@@ -368,7 +383,7 @@ contract FolioTest is BaseTest {
         (, daoFeeNumerator, daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
 
         // set new fee numerator, should distribute fees
-        daoFeeRegistry.setRTokenFeeNumerator(address(folio), 500);
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.05e18);
 
         // check receipient balances
         expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
@@ -376,25 +391,370 @@ contract FolioTest is BaseTest {
         remainingShares = pendingFeeShares - expectedDaoShares;
         assertEq(
             folio.balanceOf(owner),
-            initialOwnerShares + (remainingShares * 9000) / 10000,
+            initialOwnerShares + (remainingShares * 0.9e18) / 1e18,
             "wrong owner shares, 2nd change"
         );
         assertEq(
             folio.balanceOf(feeReceiver),
-            initialFeeReceiverShares + (remainingShares * 1000) / 10000,
+            initialFeeReceiverShares + (remainingShares * 0.1e18) / 1e18,
             "wrong fee receiver shares, 2nd change"
         );
     }
 
-    function test_setOwner() public {
-        _deployTestFolio();
-        assertTrue(folio.hasRole(OWNER, owner));
+    function test_atomicBidWithoutCallback() public {
+        // bid in two chunks, one at start time and one at end time
 
-        vm.startPrank(owner);
-        folio.setOwner(user1);
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 1e18, 1e18);
+
+        // bid once at start time
+
+        vm.startPrank(user1);
+        USDT.approve(address(folio), amt);
+        folio.bid(0, amt / 2, amt / 2, false, bytes(""));
+
+        (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        assertEq(folio.getBidAmount(0, amt, start), amt, "wrong start bid amount"); // 1x
+        assertEq(folio.getBidAmount(0, amt, (start + end) / 2), amt, "wrong mid bid amount"); // 1x
+        assertEq(folio.getBidAmount(0, amt, end), amt, "wrong end bid amount"); // 1x
+
+        // bid a 2nd time for the rest of the volume, at end time
+        vm.warp(end);
+        USDT.approve(address(folio), amt);
+        folio.bid(0, amt / 2, amt / 2, false, bytes(""));
+        assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K - D6_TOKEN_1, "wrong usdc balance");
         vm.stopPrank();
 
-        assertTrue(folio.hasRole(OWNER, user1));
-        assertFalse(folio.hasRole(OWNER, owner));
+        (, , , uint256 sellAmount, , , , , , , ) = folio.trades(0);
+        assertEq(sellAmount, 0, "auction should be empty");
+    }
+
+    function test_atomicBidWithCallback() public {
+        // bid in two chunks, one at start time and one at end time
+
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 1e18, 1e18);
+
+        // bid once at start time
+
+        MockBidder mockBidder = new MockBidder(true);
+        vm.prank(user1);
+        USDT.transfer(address(mockBidder), amt / 2);
+        vm.prank(address(mockBidder));
+        folio.bid(0, amt / 2, amt / 2, true, bytes(""));
+        assertEq(USDT.balanceOf(address(mockBidder)), 0, "wrong mock bidder balance");
+
+        (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        assertEq(folio.getBidAmount(0, amt, start), amt, "wrong start bid amount"); // 1x
+        assertEq(folio.getBidAmount(0, amt, (start + end) / 2), amt, "wrong mid bid amount"); // 1x
+        assertEq(folio.getBidAmount(0, amt, end), amt, "wrong end bid amount"); // 1x
+
+        // bid a 2nd time for the rest of the volume, at end time
+
+        vm.warp(end);
+        MockBidder mockBidder2 = new MockBidder(true);
+        vm.prank(user1);
+        USDT.transfer(address(mockBidder2), amt / 2);
+        vm.prank(address(mockBidder2));
+        folio.bid(0, amt / 2, amt / 2, true, bytes(""));
+        assertEq(USDT.balanceOf(address(mockBidder2)), 0, "wrong mock bidder2 balance");
+        assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K - D6_TOKEN_1, "wrong usdc balance");
+        vm.stopPrank();
+
+        (, , , uint256 sellAmount, , , , , , , ) = folio.trades(0);
+        assertEq(sellAmount, 0, "auction should be empty");
+    }
+
+    function test_auctionBidWithoutCallback() public {
+        // bid in two chunks, one at start time and one at end time
+
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+
+        // bid once at start time
+
+        vm.startPrank(user1);
+        USDT.approve(address(folio), amt * 5);
+        folio.bid(0, amt / 2, amt * 5, false, bytes(""));
+
+        (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        assertEq(folio.getBidAmount(0, amt, start), amt * 10, "wrong start bid amount"); // 10x
+        assertEq(folio.getBidAmount(0, amt, (start + end) / 2), 3162278, "wrong mid bid amount"); // ~3.16x
+        assertEq(folio.getBidAmount(0, amt, end), amt + 1, "wrong end bid amount"); // 1x + 1
+        vm.warp(end);
+
+        // bid a 2nd time for the rest of the volume, at end time
+        USDT.approve(address(folio), amt);
+        folio.bid(0, amt / 2, amt / 2 + 1, false, bytes(""));
+        assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K - D6_TOKEN_1, "wrong usdc balance");
+        vm.stopPrank();
+    }
+
+    function test_auctionBidWithCallback() public {
+        // bid in two chunks, one at start time and one at end time
+
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+
+        // bid once at start time
+
+        MockBidder mockBidder = new MockBidder(true);
+        vm.prank(user1);
+        USDT.transfer(address(mockBidder), amt * 5);
+        vm.prank(address(mockBidder));
+        folio.bid(0, amt / 2, amt * 5, true, bytes(""));
+        assertEq(USDT.balanceOf(address(mockBidder)), 0, "wrong mock bidder balance");
+
+        // check prices
+
+        (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        assertEq(folio.getBidAmount(0, amt, start), amt * 10, "wrong start bid amount"); // 10x
+        assertEq(folio.getBidAmount(0, amt, (start + end) / 2), 3162278, "wrong mid bid amount"); // ~3.16x
+        assertEq(folio.getBidAmount(0, amt, end), amt + 1, "wrong end bid amount"); // 1x + 1
+
+        // bid a 2nd time for the rest of the volume, at end time
+
+        vm.warp(end);
+        MockBidder mockBidder2 = new MockBidder(true);
+        vm.prank(user1);
+        USDT.transfer(address(mockBidder2), amt / 2 + 1);
+        vm.prank(address(mockBidder2));
+        folio.bid(0, amt / 2, amt / 2 + 1, true, bytes(""));
+        assertEq(USDT.balanceOf(address(mockBidder2)), 0, "wrong mock bidder2 balance");
+        assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K - D6_TOKEN_1, "wrong usdc balance");
+        vm.stopPrank();
+    }
+
+    function test_auctionKillTrade() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.startPrank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+        folio.killTrade(0);
+
+        // next auction index should revert
+
+        vm.expectRevert();
+        folio.killTrade(1); // index out of bounds
+
+        (, , , , , , , , , uint256 end, ) = folio.trades(0);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+
+        vm.warp(end);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+
+        vm.warp(end + 1);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+        vm.stopPrank();
+    }
+
+    function test_auctionNotOpenableUntilApproved() public {
+        // should not be openable until approved
+
+        vm.prank(dao);
+        vm.expectRevert();
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+    }
+
+    function test_auctionNotLaunchableAfterTimeout() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TRADE_DELAY);
+
+        // should not be openable after launchTimeout
+
+        (, , , , , , , uint256 launchTimeout, , , ) = folio.trades(0);
+        vm.warp(launchTimeout + 1);
+        vm.prank(priceCurator);
+        vm.expectRevert(IFolio.Folio__TradeTimeout.selector);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+    }
+
+    function test_auctionNotAvailableBeforeOpen() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        // auction should not be biddable before openTrade
+
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+    }
+
+    function test_auctionNotAvailableAfterEnd() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+
+        // auction should not biddable after end
+
+        (, , , , , , , , , uint256 end, ) = folio.trades(0);
+        vm.warp(end + 1);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+    }
+
+    function test_auctionOnlyPriceCuratorCanBypassDelay() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.startPrank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 1, 1, type(uint256).max);
+
+        // dao should not be able to open trade because not price curator
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, dao, folio.PRICE_CURATOR())
+        );
+        folio.openTrade(0, 1, 1); // 10x -> 1x
+
+        vm.expectRevert(IFolio.Folio__TradeCannotBeOpenedPermissionlesslyYet.selector);
+        folio.openTradePermissionlessly(0);
+
+        // but should be possible after trading delay
+
+        (, , , , , , uint256 availableAt, , , , ) = folio.trades(0);
+        vm.warp(availableAt);
+        folio.openTradePermissionlessly(0);
+        vm.stopPrank();
+    }
+
+    function test_permissionlessAuctionNotAvailableForZeroPricedTrades() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.startPrank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 1e18, 1e18, type(uint256).max);
+
+        // dao should not be able to open trade because not price curator
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, dao, folio.PRICE_CURATOR())
+        );
+        folio.openTrade(0, 1e18, 1e18);
+
+        vm.expectRevert(IFolio.Folio__TradeCannotBeOpenedPermissionlesslyYet.selector);
+        folio.openTradePermissionlessly(0);
+
+        // but should be possible after trading delay
+
+        (, , , , , , uint256 availableAt, , , , ) = folio.trades(0);
+        vm.warp(availableAt);
+        folio.openTradePermissionlessly(0);
+        vm.stopPrank();
+    }
+
+    function test_auctionDishonestCallback() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 1e18, 1e18); // 1x
+
+        // dishonest callback that returns fewer tokens than expected
+
+        MockBidder mockBidder = new MockBidder(false);
+        USDT.transfer(address(mockBidder), amt);
+        vm.prank(address(mockBidder));
+        vm.expectRevert(abi.encodeWithSelector(IFolio.Folio__InsufficientBid.selector));
+        folio.bid(0, amt, amt, true, bytes(""));
+    }
+
+    function test_parallelAuctions() public {
+        // launch two auction in parallel to sell ALL USDC/DAI
+
+        uint256 amt1 = USDC.balanceOf(address(folio));
+        uint256 amt2 = DAI.balanceOf(address(folio));
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt1, 0, 0, type(uint256).max);
+        vm.prank(dao);
+        folio.approveTrade(1, DAI, USDT, amt2, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+        vm.prank(priceCurator);
+        folio.openTrade(1, 100e6, 1e6); // 100x -> 1x
+
+        // bid in first auction for half volume at start
+
+        vm.startPrank(user1);
+        USDT.approve(address(folio), amt1 * 5);
+        folio.bid(0, amt1 / 2, amt1 * 5, false, bytes(""));
+
+        // advance halfway and bid for full volume of second auction
+
+        (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        vm.warp(start + (end - start) / 2);
+        uint256 bidAmt = (amt2 * 40) / 1e12; // adjust for decimals
+        USDT.approve(address(folio), bidAmt);
+        folio.bid(1, amt2, bidAmt, false, bytes("")); // ~31.6x
+
+        // advance to end and bid for rest of first auction
+
+        vm.warp(end);
+        USDT.approve(address(folio), amt1 / 2 + 1);
+        folio.bid(0, amt1 / 2, amt1 / 2 + 1, false, bytes(""));
+
+        // auctions are over, should have no USDC + DAI left
+
+        (, , , uint256 sellAmount, , , , , , , ) = folio.trades(0);
+        assertEq(sellAmount, 0, "unfinished auction 1");
+        (, , , sellAmount, , , , , , , ) = folio.trades(1);
+        assertEq(sellAmount, 0, "unfinished auction 2");
+        assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
+        assertEq(DAI.balanceOf(address(folio)), 0, "wrong dai balance");
+    }
+
+    function test_auctionPriceRange() public {
+        uint256 amt = D27_TOKEN_1;
+
+        for (uint256 i = 1e59; i > 0; i /= 10) {
+            uint256 index = folio.nextTradeId();
+
+            vm.prank(dao);
+            folio.approveTrade(index, MEME, USDC, amt, 0, 0, type(uint256).max);
+
+            // should not revert at top or bottom end
+            vm.prank(priceCurator);
+            folio.openTrade(index, i, 1);
+            (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(index);
+            folio.getPrice(index, start);
+            folio.getPrice(index, end);
+        }
+    }
+
+    function test_priceCalculationGasCost() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+        (, , , , , , , , , uint256 end, ) = folio.trades(0);
+
+        vm.startSnapshotGas("getPrice()");
+        folio.getPrice(0, end);
+        vm.stopSnapshotGas();
     }
 }

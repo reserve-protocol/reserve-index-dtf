@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity 0.8.28;
 
 import "forge-std/Script.sol";
 import "forge-std/Test.sol";
@@ -10,11 +10,14 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
+import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
+import { MockBidder } from "utils/MockBidder.sol";
 
 import { Folio } from "contracts/Folio.sol";
-import { FolioFactory } from "contracts/FolioFactory.sol";
-import { FolioFeeRegistry } from "contracts/FolioFeeRegistry.sol";
-import { RoleRegistry } from "contracts/RoleRegistry.sol";
+import { FolioFactory } from "@deployer/FolioFactory.sol";
+import { FolioVersionRegistry } from "contracts/deployer/FolioVersionRegistry.sol";
+import { IRoleRegistry, FolioDAOFeeRegistry } from "contracts/FolioDAOFeeRegistry.sol";
+
 abstract contract BaseTest is Script, Test {
     // === Auth roles ===
     bytes32 constant OWNER = keccak256("OWNER");
@@ -35,20 +38,22 @@ abstract contract BaseTest is Script, Test {
 
     uint256 constant YEAR_IN_SECONDS = 31536000;
 
-    address dao = 0xDA00000000000000000000000000000000000000;
-    address owner = 0xfF00000000000000000000000000000000000000;
+    address priceCurator = 0x00000000000000000000000000000000000000cc; // has PRICE_CURATOR
+    address dao = 0xDA00000000000000000000000000000000000000; // has TRADE_PROPOSER and PRICE_CURATOR
+    address owner = 0xfF00000000000000000000000000000000000000; // has admin and TRADE_PROPOSER and PRICE_CURATOR
     address user1 = 0xaa00000000000000000000000000000000000000;
     address user2 = 0xbb00000000000000000000000000000000000000;
     address feeReceiver = 0xCc00000000000000000000000000000000000000;
     IERC20 USDC;
-    IERC20 USDT;
     IERC20 DAI;
     IERC20 MEME;
+    IERC20 USDT; // not in basket
 
     Folio folio;
     FolioFactory folioFactory;
-    FolioFeeRegistry daoFeeRegistry;
-    RoleRegistry roleRegistry;
+    FolioDAOFeeRegistry daoFeeRegistry;
+    FolioVersionRegistry versionRegistry;
+    MockRoleRegistry roleRegistry;
 
     function setUp() public {
         _testSetup();
@@ -59,7 +64,7 @@ abstract contract BaseTest is Script, Test {
     function _setUp() public virtual {}
 
     /// @dev Note that most permissions are given to owner
-    function _testSetup() public {
+    function _testSetup() public virtual {
         _testSetupBefore();
         _coreSetup();
         _testSetupAfter();
@@ -67,23 +72,31 @@ abstract contract BaseTest is Script, Test {
 
     function _coreSetup() public {}
 
-    function _testSetupBefore() public virtual {
-        roleRegistry = new RoleRegistry();
-        daoFeeRegistry = new FolioFeeRegistry(roleRegistry, dao);
-        folioFactory = new FolioFactory(address(daoFeeRegistry), address(0));
+    function _testSetupBefore() public {
+        roleRegistry = new MockRoleRegistry();
+        daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
+        versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
+        folioFactory = new FolioFactory(address(daoFeeRegistry), address(0)); // @todo This needs to be set to test upgrades
+
+        // register version
+        versionRegistry.registerVersion(folioFactory);
+
         deployCoins();
         mintTokens();
+        vm.warp(100);
+        vm.roll(1);
     }
 
-    function _testSetupAfter() public virtual {
+    function _testSetupAfter() public {
+        vm.label(address(priceCurator), "Price Curator");
         vm.label(address(dao), "DAO");
         vm.label(address(owner), "Owner");
         vm.label(address(user1), "User 1");
         vm.label(address(user2), "User 2");
         vm.label(address(USDC), "USDC");
-        vm.label(address(USDT), "USDT");
         vm.label(address(DAI), "DAI");
         vm.label(address(MEME), "MEME");
+        vm.label(address(USDT), "USDT");
     }
 
     function _forkSetupAfter() public {}
@@ -91,8 +104,8 @@ abstract contract BaseTest is Script, Test {
     function deployCoins() public {
         USDC = IERC20(new MockERC20("USDC", "USDC", 6));
         DAI = IERC20(new MockERC20("DAI", "DAI", 18));
-        USDT = new MockERC20("USDT", "USDT", 6);
         MEME = new MockERC20("MEME", "MEME", 27);
+        USDT = new MockERC20("USDT", "USDT", 6);
     }
 
     function mintTokens() public {
@@ -120,6 +133,7 @@ abstract contract BaseTest is Script, Test {
         mintToken(address(USDC), actors, amounts_6);
         mintToken(address(DAI), actors, amounts_18);
         mintToken(address(MEME), actors, amounts_27);
+        mintToken(address(USDT), actors, amounts_6);
 
         uint256[] memory amounts_eth = new uint256[](4);
         amounts_eth[0] = 10 ether;

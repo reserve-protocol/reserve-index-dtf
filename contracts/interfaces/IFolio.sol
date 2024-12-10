@@ -1,63 +1,91 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
-import "./ITrade.sol";
-import "./ITrading.sol";
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+pragma solidity 0.8.28;
+
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IFolio {
-    event TradeApproved(uint256 indexed tradeId, address indexed from, address indexed to, uint256 amount);
-    event TradeLaunched(uint256 indexed tradeId);
-    event TradeSettled(uint256 indexed tradeId, uint256 toAmount);
+    // === Events ===
 
-    error Folio_badDemurrageFee();
-    error Folio_badDemurrageFeeRecipientAddress();
-    error Folio_badDemurrageFeeRecipientBps();
-    error Folio_badDemurrageFeeTotal();
+    event TradeApproved(
+        uint256 indexed tradeId,
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        uint256 startPrice
+    );
+    event TradeOpened(uint256 indexed tradeId, uint256 startPrice, uint256 endPrice, uint256 start, uint256 end);
+    event Bid(uint256 indexed tradeId, uint256 sellAmount, uint256 buyAmount);
+    event TradeKilled(uint256 indexed tradeId);
 
-    // struct TradeParams {
-    //     address sell;
-    //     address buy;
-    //     uint256 amount; // {qFU} 1e18 precision
-    // }
-    // struct Trade {
-    //     TradeParams params;
-    //     ITrade trader;
-    // }
-    struct DemurrageRecipient {
-        address recipient;
-        uint256 bps;
+    // === Errors ===
+
+    error Folio__BasketAlreadyInitialized();
+
+    error Folio__FeeRecipientInvalidAddress();
+    error Folio__FeeRecipientInvalidFeeShare();
+    error Folio__BadFeeTotal();
+    error Folio__FeeTooHigh();
+
+    error Folio__InvalidAsset();
+    error Folio__InvalidAssetAmount(address asset);
+
+    error Folio__InvalidAuctionLength();
+    error Folio__InvalidTradeId();
+    error Folio__InvalidSellAmount();
+    error Folio__TradeCannotBeOpened();
+    error Folio__TradeCannotBeOpenedPermissionlesslyYet();
+    error Folio__TradeNotOngoing();
+    error Folio__InvalidPrices();
+    error Folio__TradeTimeout();
+    error Folio__SlippageExceeded();
+    error Folio__InsufficientBalance();
+    error Folio__InsufficientBid();
+    error Folio__InvalidTradeTokens();
+    error Folio__InvalidTradeDelay();
+    error Folio__TooManyFeeRecipients();
+
+    // === Structures ===
+
+    struct FolioBasicDetails {
+        string name;
+        string symbol;
+        address creator;
+        address governor;
+        address[] assets;
+        uint256 initialShares;
     }
-    function setDemurrageFee(uint256 _demurrageFee) external;
-    function setDemurrageRecipients(DemurrageRecipient[] memory _demurrageRecipients) external;
-    // function approveTrade(TradeParams memory trade) external;
-    // function launchTrade(uint256 _tradeId, TradePrices memory prices) external;
-    // function forceSettleTrade(uint256 _tradeId) external;
-    // function settleTrade(uint256 _tradeId) external;
 
-    function poke() external;
+    struct FolioAdditionalDetails {
+        uint256 tradeDelay;
+        uint256 auctionLength;
+        address feeRegistry;
+        FeeRecipient[] feeRecipients;
+        uint256 folioFee;
+    }
 
-    function assets() external view returns (address[] memory _assets);
-    // ( {tokAddress}, {tok/FU} )
-    function folio() external view returns (address[] memory _assets, uint256[] memory _amounts);
-    // ( {tokAddress}, {tok} )
-    function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts);
-    // {FU} -> ( {tokAddress}, {tok} )
-    function convertToAssets(
-        uint256 shares,
-        Math.Rounding rounding
-    ) external view returns (address[] memory _assets, uint256[] memory _amounts);
+    struct FeeRecipient {
+        address recipient;
+        uint96 portion; // D18{1} <= 1e18
+    }
 
-    function mint(
-        uint256 shares,
-        address receiver
-    ) external returns (address[] memory _assets, uint256[] memory _amounts);
+    /// Trade states:
+    ///   - APPROVED: start == 0 && end == 0
+    ///   - OPEN: block.timestamp >= start && block.timestamp <= end
+    ///   - CLOSED: block.timestamp > end
+    struct Trade {
+        uint256 id;
+        IERC20 sell;
+        IERC20 buy;
+        uint256 sellAmount; // {sellTok}
+        uint256 startPrice; // D18{buyTok/sellTok}
+        uint256 endPrice; // D18{buyTok/sellTok}
+        uint256 availableAt; // {s} inclusive
+        uint256 launchTimeout; // {s} inclusive
+        uint256 start; // {s} inclusive
+        uint256 end; // {s} inclusive
+        // === Gas optimization ===
+        uint256 k; // {1} price = startPrice * e ^ -kt
+    }
 
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) external returns (address[] memory _assets, uint256[] memory _amounts);
-
-    // function collectFee(address recipient) external;
-    function distributeFees() external;
+    function distributeFees() external; // @audit Review, needs to be called from FolioDAOFeeRegistry
 }
