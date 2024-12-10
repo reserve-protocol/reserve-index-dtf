@@ -28,26 +28,21 @@ contract FolioDAOFeeRegistryTest is BaseTest {
 
         // 50% folio fee annually -- different from dao fee
         vm.startPrank(owner);
-        USDC.approve(address(folioFactory), type(uint256).max);
-        DAI.approve(address(folioFactory), type(uint256).max);
-        folio = Folio(
-            folioFactory.createFolio(
-                "Test Folio",
-                "TFOLIO",
-                MAX_TRADE_DELAY,
-                MAX_AUCTION_LENGTH,
-                tokens,
-                amounts,
-                INITIAL_SUPPLY,
-                recipients,
-                MAX_FEE, // 50% annually
-                owner
-            )
+        USDC.approve(address(folioDeployer), type(uint256).max);
+        DAI.approve(address(folioDeployer), type(uint256).max);
+
+        folio = createFolio(
+            tokens,
+            amounts,
+            INITIAL_SUPPLY,
+            MAX_TRADE_DELAY,
+            MAX_AUCTION_LENGTH,
+            recipients,
+            MAX_FEE, // 50% annually
+            owner,
+            dao,
+            priceCurator
         );
-        folio.grantRole(folio.TRADE_PROPOSER(), owner);
-        folio.grantRole(folio.PRICE_CURATOR(), owner);
-        folio.grantRole(folio.TRADE_PROPOSER(), dao);
-        folio.grantRole(folio.PRICE_CURATOR(), priceCurator);
         vm.stopPrank();
     }
 

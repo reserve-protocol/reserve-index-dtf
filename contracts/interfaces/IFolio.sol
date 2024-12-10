@@ -20,6 +20,7 @@ interface IFolio {
     // === Errors ===
 
     error Folio__BasketAlreadyInitialized();
+    error Folio__EmptyAssets();
 
     error Folio__FeeRecipientInvalidAddress();
     error Folio__FeeRecipientInvalidFeeShare();
@@ -48,7 +49,6 @@ interface IFolio {
     struct FolioBasicDetails {
         string name;
         string symbol;
-        address creator;
         address[] assets;
         uint256[] amounts;
         uint256 initialShares;
@@ -57,7 +57,6 @@ interface IFolio {
     struct FolioAdditionalDetails {
         uint256 tradeDelay;
         uint256 auctionLength;
-        address feeRegistry;
         FeeRecipient[] feeRecipients;
         uint256 folioFee;
     }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { IFolioFactory } from "@interfaces/IFolioFactory.sol";
+import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 
 interface IFolioVersionRegistry {
     error VersionRegistry__ZeroAddress();
@@ -9,7 +9,7 @@ interface IFolioVersionRegistry {
     error VersionRegistry__AlreadyDeprecated();
     error VersionRegistry__InvalidCaller();
 
-    event VersionRegistered(bytes32 versionHash, IFolioFactory folioFactory);
+    event VersionRegistered(bytes32 versionHash, IFolioDeployer folioDeployer);
     event VersionDeprecated(bytes32 versionHash);
 
     function getImplementationForVersion(bytes32 versionHash) external view returns (address folio);

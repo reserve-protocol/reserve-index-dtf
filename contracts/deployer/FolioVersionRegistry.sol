@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
-import { IFolioFactory } from "@interfaces/IFolioFactory.sol";
+import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 import { IFolioVersionRegistry } from "@interfaces/IFolioVersionRegistry.sol";
 
 import { Versioned } from "@utils/Versioned.sol";
@@ -13,7 +13,7 @@ import { Versioned } from "@utils/Versioned.sol";
 contract FolioVersionRegistry is IFolioVersionRegistry {
     IRoleRegistry public immutable roleRegistry;
 
-    mapping(bytes32 => IFolioFactory) public deployments;
+    mapping(bytes32 => IFolioDeployer) public deployments;
     mapping(bytes32 => bool) public isDeprecated;
     bytes32 private latestVersion;
 
@@ -25,26 +25,26 @@ contract FolioVersionRegistry is IFolioVersionRegistry {
         roleRegistry = _roleRegistry;
     }
 
-    function registerVersion(IFolioFactory folioFactory) external {
+    function registerVersion(IFolioDeployer folioDeployer) external {
         if (!roleRegistry.isOwner(msg.sender)) {
             revert VersionRegistry__InvalidCaller();
         }
 
-        if (address(folioFactory) == address(0)) {
+        if (address(folioDeployer) == address(0)) {
             revert VersionRegistry__ZeroAddress();
         }
 
-        string memory version = Versioned(address(folioFactory)).version();
+        string memory version = Versioned(address(folioDeployer)).version();
         bytes32 versionHash = keccak256(abi.encodePacked(version));
 
         if (address(deployments[versionHash]) != address(0)) {
             revert VersionRegistry__InvalidRegistration();
         }
 
-        deployments[versionHash] = folioFactory;
+        deployments[versionHash] = folioDeployer;
         latestVersion = versionHash;
 
-        emit VersionRegistered(versionHash, folioFactory);
+        emit VersionRegistered(versionHash, folioDeployer);
     }
 
     function deprecateVersion(bytes32 versionHash) external {
@@ -63,11 +63,11 @@ contract FolioVersionRegistry is IFolioVersionRegistry {
     function getLatestVersion()
         external
         view
-        returns (bytes32 versionHash, string memory version, IFolioFactory folioFactory, bool deprecated)
+        returns (bytes32 versionHash, string memory version, IFolioDeployer folioDeployer, bool deprecated)
     {
         versionHash = latestVersion;
-        folioFactory = deployments[versionHash];
-        version = Versioned(address(folioFactory)).version();
+        folioDeployer = deployments[versionHash];
+        version = Versioned(address(folioDeployer)).version();
         deprecated = isDeprecated[versionHash];
     }
 
