@@ -6,7 +6,6 @@ import { TimelockController } from "@openzeppelin/contracts/governance/TimelockC
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
-import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { Folio, IFolio } from "@src/Folio.sol";
@@ -81,8 +80,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IVotes stToken,
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
-        IGovernanceDeployer.GovernanceParams calldata ownerGovParams,
-        IGovernanceDeployer.GovernanceParams calldata tradingGovParams,
+        GovernanceParams calldata ownerGovParams,
+        GovernanceParams calldata tradingGovParams,
         address[] memory priceCurators
     ) external returns (address folio_, address ownerGovernor_, address tradingGovernor_) {
         // Deploy governances and timelocks
@@ -104,7 +103,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
     function _deployTimelockedGovernance(
         IVotes stToken,
-        IGovernanceDeployer.GovernanceParams calldata govParams
+        GovernanceParams calldata govParams
     ) internal returns (address governor_, address timelock_) {
         address[] memory empty = new address[](0);
         TimelockController timelock = new TimelockController(govParams.timelockDelay, empty, empty, address(this));

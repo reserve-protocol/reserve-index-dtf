@@ -5,14 +5,14 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol"
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 
-import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
+import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 
 import { Folio } from "@src/Folio.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
-contract GovernanceDeployer is Versioned {
+contract CommunityGovernorDeployer is Versioned {
     /// Deploy a staking vault and community governor
     /// @return stToken A staking vault that can be used with multiple governors
     /// @return governor The governor that owns the staking vault
@@ -20,7 +20,7 @@ contract GovernanceDeployer is Versioned {
         string memory name,
         string memory symbol,
         IERC20 underlying,
-        IGovernanceDeployer.GovernanceParams calldata govParams
+        IFolioDeployer.GovernanceParams calldata govParams
     ) external returns (address stToken, address governor) {
         stToken = address(new StakingVault(name, symbol, underlying, address(0))); // TODO return to 4th arg
 
