@@ -76,7 +76,7 @@ abstract contract BaseTest is Script, Test {
         roleRegistry = new MockRoleRegistry();
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
-        folioFactory = new FolioFactory(address(daoFeeRegistry), address(0)); // @todo This needs to be set to test upgrades
+        folioFactory = new FolioFactory(address(daoFeeRegistry), address(versionRegistry));
 
         // register version
         versionRegistry.registerVersion(folioFactory);

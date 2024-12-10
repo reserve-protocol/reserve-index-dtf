@@ -3,7 +3,9 @@ pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
+import { FolioFactoryV2 } from "./utils/upgrades/FolioFactoryV2.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { ERC1967Utils } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
@@ -32,20 +34,20 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
         MEME.approve(address(folioFactory), type(uint256).max);
-        folio = Folio(
-            folioFactory.createFolio(
-                "Test Folio",
-                "TFOLIO",
-                MAX_TRADE_DELAY,
-                MAX_AUCTION_LENGTH,
-                tokens,
-                amounts,
-                INITIAL_SUPPLY,
-                recipients,
-                MAX_FEE, // 50% annually
-                owner
-            )
+        (address folioAddr, ) = folioFactory.createFolio(
+            "Test Folio",
+            "TFOLIO",
+            MAX_TRADE_DELAY,
+            MAX_AUCTION_LENGTH,
+            tokens,
+            amounts,
+            INITIAL_SUPPLY,
+            recipients,
+            MAX_FEE, // 50% annually
+            owner
         );
+
+        folio = Folio(folioAddr);
         folio.grantRole(folio.TRADE_PROPOSER(), owner);
         folio.grantRole(folio.PRICE_CURATOR(), owner);
         folio.grantRole(folio.TRADE_PROPOSER(), dao);
@@ -736,4 +738,35 @@ contract FolioTest is BaseTest {
         folio.getPrice(0, end);
         vm.stopSnapshotGas();
     }
+
+    // function test_upgrade() public {
+    //     // Deploy and register new factory with version 2.0.0
+    //     FolioFactory newFactoryV2 = new FolioFactoryV2(address(daoFeeRegistry), address(versionRegistry));
+    //     versionRegistry.registerVersion(newFactoryV2);
+
+    //     // Get implementation for new version
+    //     bytes32 newVersion = keccak256("2.0.0");
+    //     address impl = versionRegistry.getImplementationForVersion(newVersion);
+    //     assertEq(impl, newFactoryV2.folioImplementation());
+
+    //     // Upgrate to V2
+    //     // TODO: get proxy admin
+    //     vm.startPrank(dao);
+    //     proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+    //     vm.stopPrank();
+    // }
+
+    // function test_cannotUpgradeIfNotOwnerOfProxyAdmin() public {
+    //    // Deploy and register new factory with version 2.0.0
+    //     FolioFactory newFactoryV2 = new FolioFactoryV2(address(daoFeeRegistry), address(versionRegistry));
+    //     versionRegistry.registerVersion(newFactoryV2);
+
+    //     // Get implementation for new version
+    //     bytes32 newVersion = keccak256("2.0.0");
+    //     address impl = versionRegistry.getImplementationForVersion(newVersion);
+    //     assertEq(impl, newFactoryV2.folioImplementation());
+
+    //     // Attempt to Upgrate to V2
+    //     proxyAdmin.upgradeToVersion(impl, keccak256("2.0.0"));
+    // }
 }

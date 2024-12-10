@@ -29,21 +29,20 @@ contract FolioFactoryTest is BaseTest {
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
-        folio = Folio(
-            folioFactory.createFolio(
-                "Test Folio",
-                "TFOLIO",
-                MAX_TRADE_DELAY,
-                MAX_AUCTION_LENGTH,
-                tokens,
-                amounts,
-                INITIAL_SUPPLY,
-                recipients,
-                100,
-                owner
-            )
+        (address folioAddr, ) = folioFactory.createFolio(
+            "Test Folio",
+            "TFOLIO",
+            MAX_TRADE_DELAY,
+            MAX_AUCTION_LENGTH,
+            tokens,
+            amounts,
+            INITIAL_SUPPLY,
+            recipients,
+            100,
+            owner
         );
 
+        folio = Folio(folioAddr);
         vm.stopPrank();
         assertEq(folio.name(), "Test Folio", "wrong name");
         assertEq(folio.symbol(), "TFOLIO", "wrong symbol");

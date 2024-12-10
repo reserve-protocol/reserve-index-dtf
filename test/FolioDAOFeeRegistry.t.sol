@@ -30,20 +30,19 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
-        folio = Folio(
-            folioFactory.createFolio(
-                "Test Folio",
-                "TFOLIO",
-                MAX_TRADE_DELAY,
-                MAX_AUCTION_LENGTH,
-                tokens,
-                amounts,
-                INITIAL_SUPPLY,
-                recipients,
-                MAX_FEE, // 50% annually
-                owner
-            )
+        (address folioAddr, ) = folioFactory.createFolio(
+            "Test Folio",
+            "TFOLIO",
+            MAX_TRADE_DELAY,
+            MAX_AUCTION_LENGTH,
+            tokens,
+            amounts,
+            INITIAL_SUPPLY,
+            recipients,
+            MAX_FEE, // 50% annually
+            owner
         );
+        folio = Folio(folioAddr);
         folio.grantRole(folio.TRADE_PROPOSER(), owner);
         folio.grantRole(folio.PRICE_CURATOR(), owner);
         folio.grantRole(folio.TRADE_PROPOSER(), dao);
