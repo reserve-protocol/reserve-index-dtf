@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FEE } from "contracts/Folio.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
     function _deployTestFolio(address[] memory _tokens, uint256[] memory _amounts, uint256 initialSupply) public {
-        // 1% demurrage fee
-        IFolio.DemurrageRecipient[] memory recipients = new IFolio.DemurrageRecipient[](2);
-        recipients[0] = IFolio.DemurrageRecipient(owner, 9000);
-        recipients[1] = IFolio.DemurrageRecipient(feeReceiver, 1000);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         // create folio
         vm.startPrank(owner);
@@ -18,8 +17,20 @@ contract ExtremeTest is BaseExtremeTest {
             IERC20(_tokens[i]).approve(address(folioFactory), type(uint256).max);
         }
         folio = Folio(
-            folioFactory.createFolio("Test Folio", "TFOLIO", _tokens, _amounts, initialSupply, 100, recipients)
+            folioFactory.createFolio(
+                "Test Folio",
+                "TFOLIO",
+                MAX_TRADE_DELAY,
+                MAX_AUCTION_LENGTH,
+                _tokens,
+                _amounts,
+                initialSupply,
+                recipients,
+                100,
+                owner
+            )
         );
+
         vm.stopPrank();
     }
 
@@ -49,9 +60,11 @@ contract ExtremeTest is BaseExtremeTest {
         // check deployment
         assertEq(folio.totalSupply(), initialSupply, "wrong total supply");
         assertEq(folio.balanceOf(owner), initialSupply, "wrong owner balance");
-        assertEq(folio.assets().length, p.numTokens, "wrong assets length");
+        (address[] memory _assets, ) = folio.totalAssets();
+
+        assertEq(_assets.length, p.numTokens, "wrong assets length");
         for (uint256 j = 0; j < p.numTokens; j++) {
-            assertEq(folio.assets()[j], tokens[j], "wrong asset");
+            assertEq(_assets[j], tokens[j], "wrong asset");
             assertEq(IERC20(tokens[j]).balanceOf(address(folio)), amounts[j], "wrong folio token balance");
         }
         assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
@@ -98,7 +111,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // Redeem
         vm.startPrank(user1);
-        folio.redeem(mintAmount / 2, user1, user1);
+        folio.redeem(mintAmount / 2, user1);
 
         // check balances
         assertEq(folio.balanceOf(user1), mintAmount / 2, "wrong user1 balance");

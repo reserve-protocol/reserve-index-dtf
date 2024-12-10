@@ -36,3 +36,28 @@ jobs:
 
       - name: Core Tests
         run: forge test --no-match-test extreme
+
+  extreme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: yarn
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Install Dependencies
+        run: yarn --immutable
+
+      - name: Core Tests
+        run: yarn test:extreme

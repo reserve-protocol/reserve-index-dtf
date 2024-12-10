@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity 0.8.28;
 
 import "./BaseTest.sol";
 
@@ -13,14 +13,19 @@ abstract contract BaseExtremeTest is BaseTest {
     // Test dimensions
     uint8[] internal testDecimals = [6, 8, 18, 27];
     uint256[] internal testNumTokens = [1, 2, 4, 10, 100, 500];
-    uint256[] internal testAmounts = [1, 10, 1e4, 1e6, 1e12];
+    uint256[] internal testAmounts = [1, 10, 1e4, 1e6, 1e12, 1e18, 1e24, 1e36];
 
     TestParam[] internal testParameters;
 
     function _testSetupBefore() public override {
-        roleRegistry = new RoleRegistry();
-        daoFeeRegistry = new FolioFeeRegistry(roleRegistry, dao);
-        folioFactory = new FolioFactory(address(daoFeeRegistry), address(0));
+        roleRegistry = new MockRoleRegistry();
+        daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
+        versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
+        folioFactory = new FolioFactory(address(daoFeeRegistry), address(0)); // @todo This needs to be set to test upgrades
+
+        // register version
+        versionRegistry.registerVersion(folioFactory);
+
         _processParameters();
     }
 
