@@ -68,6 +68,10 @@ interface IFolio {
         uint96 portion; // D18{1} <= 1e18
     }
 
+    /// Trade states:
+    ///   - APPROVED: start == 0 && end == 0
+    ///   - OPEN: block.timestamp >= start && block.timestamp <= end
+    ///   - CLOSED: block.timestamp > end
     struct Trade {
         uint256 id;
         IERC20 sell;
