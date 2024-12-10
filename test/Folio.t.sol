@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
+import { IFolioFactory } from "contracts/interfaces/IFolioFactory.sol";
 import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
 import { FolioFactoryV2 } from "./utils/upgrades/FolioFactoryV2.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -34,7 +35,7 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
         MEME.approve(address(folioFactory), type(uint256).max);
-        (address folioAddr, ) = folioFactory.createFolio(
+        IFolioFactory.FolioDeploymentInfo memory deploymentInfo = folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
             MAX_TRADE_DELAY,
@@ -47,7 +48,7 @@ contract FolioTest is BaseTest {
             owner
         );
 
-        folio = Folio(folioAddr);
+        folio = Folio(deploymentInfo.folio);
         folio.grantRole(folio.TRADE_PROPOSER(), owner);
         folio.grantRole(folio.PRICE_CURATOR(), owner);
         folio.grantRole(folio.TRADE_PROPOSER(), dao);

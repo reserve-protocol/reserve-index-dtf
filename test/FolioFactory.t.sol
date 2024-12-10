@@ -29,7 +29,7 @@ contract FolioFactoryTest is BaseTest {
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
-        (address folioAddr, ) = folioFactory.createFolio(
+        IFolioFactory.FolioDeploymentInfo memory deploymentInfo = folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
             MAX_TRADE_DELAY,
@@ -42,7 +42,7 @@ contract FolioFactoryTest is BaseTest {
             owner
         );
 
-        folio = Folio(folioAddr);
+        folio = Folio(deploymentInfo.folio);
         vm.stopPrank();
         assertEq(folio.name(), "Test Folio", "wrong name");
         assertEq(folio.symbol(), "TFOLIO", "wrong symbol");

@@ -33,7 +33,7 @@ contract FolioFactory is IFolioFactory, Versioned {
         Folio.FeeRecipient[] memory feeRecipients,
         uint256 folioFee,
         address governor
-    ) external returns (address, address) {
+    ) external returns (FolioDeploymentInfo memory) {
         if (assets.length != amounts.length) {
             revert FolioFactory__LengthMismatch();
         }
@@ -68,6 +68,6 @@ contract FolioFactory is IFolioFactory, Versioned {
 
         newFolio.initialize(basicDetails, additionalDetails);
 
-        return (address(newFolio), address(folioAdmin));
+        return FolioDeploymentInfo({ folio: address(newFolio), proxyAdmin: address(folioAdmin) });
     }
 }

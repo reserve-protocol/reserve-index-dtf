@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
+import { IFolioFactory } from "contracts/interfaces/IFolioFactory.sol";
 import { IFolioDAOFeeRegistry } from "contracts/interfaces/IFolioDAOFeeRegistry.sol";
 import { FolioDAOFeeRegistry, FEE_DENOMINATOR, MAX_DAO_FEE } from "contracts/FolioDAOFeeRegistry.sol";
 import { MAX_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
@@ -30,7 +31,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
-        (address folioAddr, ) = folioFactory.createFolio(
+        IFolioFactory.FolioDeploymentInfo memory deploymentInfo = folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
             MAX_TRADE_DELAY,
@@ -42,7 +43,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
             MAX_FEE, // 50% annually
             owner
         );
-        folio = Folio(folioAddr);
+        folio = Folio(deploymentInfo.folio);
         folio.grantRole(folio.TRADE_PROPOSER(), owner);
         folio.grantRole(folio.PRICE_CURATOR(), owner);
         folio.grantRole(folio.TRADE_PROPOSER(), dao);
