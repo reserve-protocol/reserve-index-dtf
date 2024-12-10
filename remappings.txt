@@ -9,3 +9,4 @@ utils/=test/utils/
 @interfaces/=contracts/interfaces/
 @deployer/=contracts/deployer/
 @gov/=contracts/governance/
+@staking/=contracts/staking/

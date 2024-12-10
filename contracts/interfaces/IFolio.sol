@@ -49,8 +49,8 @@ interface IFolio {
         string name;
         string symbol;
         address creator;
-        address governor;
         address[] assets;
+        uint256[] amounts;
         uint256 initialShares;
     }
 

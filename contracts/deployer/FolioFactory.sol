@@ -23,51 +23,32 @@ contract FolioFactory is IFolioFactory, Versioned {
     }
 
     function createFolio(
-        string memory name,
-        string memory symbol,
-        uint256 tradeDelay,
-        uint256 auctionLength,
-        address[] memory assets,
-        uint256[] memory amounts,
-        uint256 initShares,
-        Folio.FeeRecipient[] memory feeRecipients,
-        uint256 folioFee,
-        address governor
-    ) external returns (address) {
-        if (assets.length != amounts.length) {
+        IFolio.FolioBasicDetails calldata basicDetails,
+        IFolio.FolioAdditionalDetails calldata additionalDetails,
+        address owner
+    ) external returns (address folio, address proxyAdmin) {
+        if (basicDetails.assets.length != basicDetails.amounts.length) {
             revert FolioFactory__LengthMismatch();
         }
 
-        if (assets.length == 0) {
+        if (basicDetails.assets.length == 0) {
             revert FolioFactory__EmptyAssets();
         }
 
-        FolioProxyAdmin folioAdmin = new FolioProxyAdmin(governor, versionRegistry);
+        FolioProxyAdmin folioAdmin = new FolioProxyAdmin(owner, versionRegistry);
         Folio newFolio = Folio(address(new FolioProxy(folioImplementation, address(folioAdmin))));
 
-        for (uint256 i; i < assets.length; i++) {
-            SafeERC20.safeTransferFrom(IERC20(assets[i]), msg.sender, address(newFolio), amounts[i]);
+        for (uint256 i; i < basicDetails.assets.length; i++) {
+            SafeERC20.safeTransferFrom(
+                IERC20(basicDetails.assets[i]),
+                msg.sender,
+                address(newFolio),
+                basicDetails.amounts[i]
+            );
         }
 
-        IFolio.FolioBasicDetails memory basicDetails = IFolio.FolioBasicDetails({
-            name: name,
-            symbol: symbol,
-            creator: msg.sender,
-            governor: governor,
-            assets: assets,
-            initialShares: initShares
-        });
+        newFolio.initialize(basicDetails, additionalDetails, owner);
 
-        IFolio.FolioAdditionalDetails memory additionalDetails = IFolio.FolioAdditionalDetails({
-            tradeDelay: tradeDelay,
-            auctionLength: auctionLength,
-            feeRegistry: daoFeeRegistry,
-            feeRecipients: feeRecipients,
-            folioFee: folioFee
-        });
-
-        newFolio.initialize(basicDetails, additionalDetails);
-
-        return address(newFolio);
+        return (address(newFolio), address(folioAdmin));
     }
 }

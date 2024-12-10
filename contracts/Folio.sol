@@ -85,7 +85,8 @@ contract Folio is
 
     function initialize(
         FolioBasicDetails calldata basicDetails,
-        FolioAdditionalDetails calldata additionalDetails
+        FolioAdditionalDetails calldata additionalDetails,
+        address owner
     ) external initializer {
         __ERC20_init(basicDetails.name, basicDetails.symbol);
         __AccessControlEnumerable_init();
@@ -115,7 +116,7 @@ contract Folio is
 
         _poke();
         _mint(basicDetails.creator, basicDetails.initialShares);
-        _grantRole(DEFAULT_ADMIN_ROLE, basicDetails.governor);
+        _grantRole(DEFAULT_ADMIN_ROLE, owner);
     }
 
     function poke() external nonReentrant {
