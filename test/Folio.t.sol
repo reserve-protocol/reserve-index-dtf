@@ -447,7 +447,7 @@ contract FolioTest is BaseTest {
 
         // bid once at start time
 
-        MockBidder mockBidder = new MockBidder();
+        MockBidder mockBidder = new MockBidder(true);
         vm.prank(user1);
         USDT.transfer(address(mockBidder), amt / 2);
         vm.prank(address(mockBidder));
@@ -462,7 +462,7 @@ contract FolioTest is BaseTest {
         // bid a 2nd time for the rest of the volume, at end time
 
         vm.warp(end);
-        MockBidder mockBidder2 = new MockBidder();
+        MockBidder mockBidder2 = new MockBidder(true);
         vm.prank(user1);
         USDT.transfer(address(mockBidder2), amt / 2);
         vm.prank(address(mockBidder2));
@@ -516,7 +516,7 @@ contract FolioTest is BaseTest {
 
         // bid once at start time
 
-        MockBidder mockBidder = new MockBidder();
+        MockBidder mockBidder = new MockBidder(true);
         vm.prank(user1);
         USDT.transfer(address(mockBidder), amt * 5);
         vm.prank(address(mockBidder));
@@ -533,7 +533,7 @@ contract FolioTest is BaseTest {
         // bid a 2nd time for the rest of the volume, at end time
 
         vm.warp(end);
-        MockBidder mockBidder2 = new MockBidder();
+        MockBidder mockBidder2 = new MockBidder(true);
         vm.prank(user1);
         USDT.transfer(address(mockBidder2), amt / 2 + 1);
         vm.prank(address(mockBidder2));
@@ -620,20 +620,6 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt, amt, false, bytes(""));
     }
 
-    function test_auctionRequiresBalanceToOpen() public {
-        // can approve trade without balance
-
-        uint256 bal = USDC.balanceOf(address(folio));
-        vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, bal + 1, 0, 0, type(uint256).max);
-
-        // cannot open trade without balance
-
-        vm.prank(priceCurator);
-        vm.expectRevert(IFolio.Folio__InsufficientBalance.selector);
-        folio.openTrade(0, 10e18, 1e18);
-    }
-
     function test_auctionOnlyPriceCuratorCanBypassDelay() public {
         uint256 amt = D6_TOKEN_1;
         vm.startPrank(dao);
@@ -680,6 +666,23 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
+    function test_auctionDishonestCallback() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+
+        vm.prank(priceCurator);
+        folio.openTrade(0, 1e18, 1e18); // 1x
+
+        // dishonest callback that returns fewer tokens than expected
+
+        MockBidder mockBidder = new MockBidder(false);
+        USDT.transfer(address(mockBidder), amt);
+        vm.prank(address(mockBidder));
+        vm.expectRevert(abi.encodeWithSelector(IFolio.Folio__InsufficientBid.selector));
+        folio.bid(0, amt, amt, true, bytes(""));
+    }
+
     function test_parallelAuctions() public {
         // launch two auction in parallel to sell ALL USDC/DAI
 
@@ -723,6 +726,24 @@ contract FolioTest is BaseTest {
         assertEq(sellAmount, 0, "unfinished auction 2");
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         assertEq(DAI.balanceOf(address(folio)), 0, "wrong dai balance");
+    }
+
+    function test_auctionPriceRange() public {
+        uint256 amt = D27_TOKEN_1;
+
+        for (uint256 i = 1e59; i > 0; i /= 10) {
+            uint256 index = folio.nextTradeId();
+
+            vm.prank(dao);
+            folio.approveTrade(index, MEME, USDC, amt, 0, 0, type(uint256).max);
+
+            // should not revert at top or bottom end
+            vm.prank(priceCurator);
+            folio.openTrade(index, i, 1);
+            (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(index);
+            folio.getPrice(index, start);
+            folio.getPrice(index, end);
+        }
     }
 
     function test_priceCalculationGasCost() public {
