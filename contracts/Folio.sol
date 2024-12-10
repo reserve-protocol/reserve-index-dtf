@@ -27,6 +27,7 @@ uint256 constant MAX_FEE = 21979552668; // D18{1/s} 50% annually
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
+uint256 constant MAX_FEE_RECIPIENTS = 64;
 
 // TODO go through and see if we can remove any of the nonReentrant modifiers
 
@@ -500,6 +501,10 @@ contract Folio is
         // Add new items to the fee table
         uint256 total;
         len = _feeRecipients.length;
+        if (len > MAX_FEE_RECIPIENTS) {
+            revert Folio__TooManyFeeRecipients();
+        }
+
         for (uint256 i; i < len; i++) {
             if (_feeRecipients[i].recipient == address(0)) {
                 revert Folio__FeeRecipientInvalidAddress();
