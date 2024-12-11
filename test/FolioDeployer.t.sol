@@ -8,6 +8,7 @@ import { MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FEE } from "contracts/Folio.so
 import { FolioDeployer, IFolioDeployer } from "contracts/folio/FolioDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { FolioGovernorLib } from "@gov/FolioGovernorLib.sol";
+import { StakingVault } from "@staking/StakingVault.sol";
 import "./base/BaseTest.sol";
 
 contract FolioDeployerTest is BaseTest {
@@ -279,7 +280,7 @@ contract FolioDeployerTest is BaseTest {
     function test_createGovernedFolio() public {
         // Deploy Community Governor
 
-        (address stToken, ) = governanceDeployer.deployGovernedStakingToken(
+        (address _stToken, ) = governanceDeployer.deployGovernedStakingToken(
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
@@ -307,7 +308,7 @@ contract FolioDeployerTest is BaseTest {
 
         vm.startSnapshotGas("deployGovernedFolio");
         (address _folio, address _ownerGovernor, address _tradingGovernor) = folioDeployer.deployGovernedFolio(
-            IVotes(stToken),
+            IVotes(_stToken),
             IFolio.FolioBasicDetails({
                 name: "Test Folio",
                 symbol: "TFOLIO",
@@ -352,6 +353,11 @@ contract FolioDeployerTest is BaseTest {
         assertEq(bps2, 0.1e18, "wrong second recipient bps");
 
         // Check owner governor + owner timelock
+        StakingVault stToken = StakingVault(_stToken);
+        vm.startPrank(user1);
+        MEME.approve(address(stToken), type(uint256).max);
+        stToken.deposit(D18_TOKEN_1, user1);
+        vm.stopPrank();
         vm.warp(block.timestamp + 1);
 
         FolioGovernor ownerGovernor = FolioGovernor(payable(_ownerGovernor));

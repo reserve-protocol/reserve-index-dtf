@@ -21,7 +21,7 @@ contract GovernanceDeployerTest is BaseTest {
         StakingVault stToken = StakingVault(_stToken);
         vm.startPrank(user1);
         MEME.approve(address(stToken), type(uint256).max);
-        stToken.deposit(D27_TOKEN_1, user1);
+        stToken.deposit(D18_TOKEN_1, user1);
         vm.stopPrank();
         vm.warp(block.timestamp + 1);
 
