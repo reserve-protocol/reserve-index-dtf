@@ -161,6 +161,84 @@ contract FolioTest is BaseTest {
         );
     }
 
+    function test_addToBasket() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.BasketTokenAdded(address(USDT));
+        folio.addToBasket(USDT);
+
+        (_assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 4, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+        assertEq(_assets[3], address(USDT), "wrong fourth asset");
+        vm.stopPrank();
+    }
+
+    function test_cannotAddToBasketIfNotOwner() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+
+        vm.startPrank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.addToBasket(USDT);
+        vm.stopPrank();
+    }
+
+    function test_removeFromBasket() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.BasketTokenRemoved(address(MEME));
+        folio.removeFromBasket(MEME);
+
+        (_assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 2, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        vm.stopPrank();
+    }
+
+    function test_cannotRemoveFromBasketIfNotOwner() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+
+        vm.startPrank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.removeFromBasket(MEME);
+        vm.stopPrank();
+    }
+
     function test_daoFee() public {
         uint256 supplyBefore = folio.totalSupply();
 
