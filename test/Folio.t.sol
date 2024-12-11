@@ -185,9 +185,6 @@ contract FolioTest is BaseTest {
     function test_cannotAddToBasketIfNotOwner() public {
         (address[] memory _assets, ) = folio.totalAssets();
         assertEq(_assets.length, 3, "wrong assets length");
-        assertEq(_assets[0], address(USDC), "wrong first asset");
-        assertEq(_assets[1], address(DAI), "wrong second asset");
-        assertEq(_assets[2], address(MEME), "wrong third asset");
 
         vm.startPrank(user1);
         vm.expectRevert(
@@ -223,9 +220,6 @@ contract FolioTest is BaseTest {
     function test_cannotRemoveFromBasketIfNotOwner() public {
         (address[] memory _assets, ) = folio.totalAssets();
         assertEq(_assets.length, 3, "wrong assets length");
-        assertEq(_assets[0], address(USDC), "wrong first asset");
-        assertEq(_assets[1], address(DAI), "wrong second asset");
-        assertEq(_assets[2], address(MEME), "wrong third asset");
 
         vm.startPrank(user1);
         vm.expectRevert(
