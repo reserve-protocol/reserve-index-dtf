@@ -16,6 +16,7 @@ import { MockBidder } from "utils/MockBidder.sol";
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioDeployer } from "@folio/FolioDeployer.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
+import { GovernanceDeployer } from "@gov/GovernanceDeployer.sol";
 import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 
 abstract contract BaseTest is Script, Test {
@@ -39,8 +40,8 @@ abstract contract BaseTest is Script, Test {
     uint256 constant YEAR_IN_SECONDS = 31536000;
 
     address priceCurator = 0x00000000000000000000000000000000000000cc; // has PRICE_CURATOR
-    address dao = 0xDA00000000000000000000000000000000000000; // has TRADE_PROPOSER and PRICE_CURATOR
-    address owner = 0xfF00000000000000000000000000000000000000; // has admin and TRADE_PROPOSER and PRICE_CURATOR
+    address dao = 0xDA00000000000000000000000000000000000000; // has TRADE_PROPOSER
+    address owner = 0xfF00000000000000000000000000000000000000; // has DEFAULT_ADMIN_ROLE
     address user1 = 0xaa00000000000000000000000000000000000000;
     address user2 = 0xbb00000000000000000000000000000000000000;
     address feeReceiver = 0xCc00000000000000000000000000000000000000;
@@ -54,6 +55,8 @@ abstract contract BaseTest is Script, Test {
     FolioDAOFeeRegistry daoFeeRegistry;
     FolioVersionRegistry versionRegistry;
     MockRoleRegistry roleRegistry;
+
+    GovernanceDeployer governanceDeployer;
 
     function setUp() public {
         _testSetup();
@@ -77,6 +80,8 @@ abstract contract BaseTest is Script, Test {
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
         folioDeployer = new FolioDeployer(address(daoFeeRegistry), address(0)); // @todo This needs to be set to test upgrades
+
+        governanceDeployer = new GovernanceDeployer();
 
         // register version
         versionRegistry.registerVersion(folioDeployer);

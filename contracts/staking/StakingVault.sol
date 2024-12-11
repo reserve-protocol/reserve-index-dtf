@@ -49,7 +49,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         address _initialOwner,
         uint256 rewardPeriod
     ) ERC4626(_underlying) ERC20(_name, _symbol) ERC20Permit(_name) Ownable(_initialOwner) {
-        setRewardRatio(rewardPeriod);
+        _setRewardRatio(rewardPeriod);
     }
 
     /**
@@ -97,10 +97,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     /**
      * Reward Accrual Logic
      */
-    function setRewardRatio(uint256 rewardHalfLife) public onlyOwner {
-        // @todo sensible range for half life?
-        // @todo this probably should also accrue rewards
-        rewardRatio = UD60x18.unwrap(ln(UD60x18.wrap(2e18)) / UD60x18.wrap(rewardHalfLife)) / 1e18;
+    function setRewardRatio(uint256 rewardHalfLife) external onlyOwner {
+        _setRewardRatio(rewardHalfLife);
     }
 
     function poke() external accrueRewards(msg.sender, msg.sender) {}
@@ -204,5 +202,14 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
     function decimals() public view virtual override(ERC20, ERC4626) returns (uint8) {
         return super.decimals();
+    }
+
+    /**
+     * Internal
+     */
+    function _setRewardRatio(uint256 rewardHalfLife) internal {
+        // @todo sensible range for half life?
+        // @todo this probably should also accrue rewards
+        rewardRatio = UD60x18.unwrap(ln(UD60x18.wrap(2e18)) / UD60x18.wrap(rewardHalfLife)) / 1e18;
     }
 }
