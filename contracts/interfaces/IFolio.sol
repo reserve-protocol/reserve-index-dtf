@@ -42,6 +42,7 @@ interface IFolio {
     error Folio__InsufficientBid();
     error Folio__InvalidTradeTokens();
     error Folio__InvalidTradeDelay();
+    error Folio__InvalidTradeTTL();
     error Folio__TooManyFeeRecipients();
 
     // === Structures ===

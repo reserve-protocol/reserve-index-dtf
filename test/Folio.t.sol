@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY, MAX_TTL } from "contracts/Folio.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import "./base/BaseTest.sol";
 
@@ -406,7 +406,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 1e18, 1e18);
@@ -438,7 +438,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 1e18, 1e18);
@@ -478,7 +478,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
@@ -507,7 +507,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
@@ -544,7 +544,7 @@ contract FolioTest is BaseTest {
     function test_auctionKillTrade() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.startPrank(priceCurator);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
@@ -567,6 +567,13 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
         folio.bid(0, amt, amt, false, bytes(""));
         vm.stopPrank();
+    }
+
+    function test_auctionAboveMaxTTL() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidTradeTTL.selector);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL + 1);
     }
 
     function test_auctionNotOpenableUntilApproved() public {
@@ -594,7 +601,7 @@ contract FolioTest is BaseTest {
     function test_auctionNotAvailableBeforeOpen() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         // auction should not be biddable before openTrade
 
@@ -605,7 +612,7 @@ contract FolioTest is BaseTest {
     function test_auctionNotAvailableAfterEnd() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
@@ -621,7 +628,7 @@ contract FolioTest is BaseTest {
     function test_auctionOnlyPriceCuratorCanBypassDelay() public {
         uint256 amt = D6_TOKEN_1;
         vm.startPrank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 1, 1, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 1, 1, MAX_TTL);
 
         // dao should not be able to open trade because not price curator
 
@@ -644,7 +651,7 @@ contract FolioTest is BaseTest {
     function test_permissionlessAuctionNotAvailableForZeroPricedTrades() public {
         uint256 amt = D6_TOKEN_1;
         vm.startPrank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 1e18, 1e18, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 1e18, 1e18, MAX_TTL);
 
         // dao should not be able to open trade because not price curator
 
@@ -667,7 +674,7 @@ contract FolioTest is BaseTest {
     function test_auctionDishonestCallback() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 1e18, 1e18); // 1x
@@ -687,9 +694,9 @@ contract FolioTest is BaseTest {
         uint256 amt1 = USDC.balanceOf(address(folio));
         uint256 amt2 = DAI.balanceOf(address(folio));
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt1, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt1, 0, 0, MAX_TTL);
         vm.prank(dao);
-        folio.approveTrade(1, DAI, USDT, amt2, 0, 0, type(uint256).max);
+        folio.approveTrade(1, DAI, USDT, amt2, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
@@ -733,7 +740,7 @@ contract FolioTest is BaseTest {
             uint256 index = folio.nextTradeId();
 
             vm.prank(dao);
-            folio.approveTrade(index, MEME, USDC, amt, 0, 0, type(uint256).max);
+            folio.approveTrade(index, MEME, USDC, amt, 0, 0, MAX_TTL);
 
             // should not revert at top or bottom end
             vm.prank(priceCurator);
@@ -747,7 +754,7 @@ contract FolioTest is BaseTest {
     function test_priceCalculationGasCost() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x

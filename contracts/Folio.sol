@@ -28,6 +28,7 @@ uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
+uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 
 // TODO go through and see if we can remove any of the nonReentrant modifiers
 
@@ -323,7 +324,9 @@ contract Folio is
             revert Folio__InvalidPrices();
         }
 
-        uint256 launchTimeout = ttl == type(uint256).max ? ttl : block.timestamp + ttl;
+        if (ttl > MAX_TTL) {
+            revert Folio__InvalidTradeTTL();
+        }
 
         trades.push(
             Trade({
@@ -334,7 +337,7 @@ contract Folio is
                 startPrice: startPrice,
                 endPrice: endPrice,
                 availableAt: block.timestamp + tradeDelay,
-                launchTimeout: launchTimeout,
+                launchTimeout: block.timestamp + ttl,
                 start: 0,
                 end: 0,
                 k: 0
