@@ -22,7 +22,7 @@
     "lint:check": "solhint 'contracts/**/*.sol' 'script/**/*.sol'",
     "compile": "forge compile",
     "test:extreme": "forge test --match-test extreme --memory-limit 536870912 --gas-limit '18446744073709551615'",
-    "test": "forge test",
+    "test": "forge test --no-match-test extreme",
     "size": "forge compile --sizes",
     "coverage": "forge coverage --report lcov",
     "coverage:summary": "forge coverage --report summary",
