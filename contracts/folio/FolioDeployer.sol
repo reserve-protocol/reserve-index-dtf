@@ -125,7 +125,9 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         timelockController.grantRole(timelockController.PROPOSER_ROLE(), address(governor));
 
-        // TODO no cancellers/guardian?
+        if (govParams.guardian != address(0)) {
+            timelockController.grantRole(timelockController.CANCELLER_ROLE(), govParams.guardian);
+        }
 
         timelockController.renounceRole(timelockController.DEFAULT_ADMIN_ROLE(), address(this));
 
