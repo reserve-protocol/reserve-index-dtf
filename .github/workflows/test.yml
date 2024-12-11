@@ -35,7 +35,7 @@ jobs:
         run: yarn --immutable
 
       - name: Core Tests
-        run: forge test --no-match-test extreme
+        run: yarn test
 
   extreme:
     runs-on: ubuntu-latest
