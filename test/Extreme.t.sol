@@ -10,12 +10,14 @@ contract ExtremeTest is BaseExtremeTest {
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
+        string memory deployGasTag = string.concat("deployFolio(", vm.toString(_tokens.length), " tokens)");
 
         // create folio
         vm.startPrank(owner);
         for (uint256 i = 0; i < _tokens.length; i++) {
             IERC20(_tokens[i]).approve(address(folioFactory), type(uint256).max);
         }
+        vm.startSnapshotGas(deployGasTag);
         folio = Folio(
             folioFactory.createFolio(
                 "Test Folio",
@@ -30,7 +32,7 @@ contract ExtremeTest is BaseExtremeTest {
                 owner
             )
         );
-
+        vm.stopSnapshotGas(deployGasTag);
         vm.stopPrank();
     }
 
@@ -42,6 +44,25 @@ contract ExtremeTest is BaseExtremeTest {
     }
 
     function run_mint_redeem_scenario(TestParam memory p) public {
+        string memory mintGasTag = string.concat(
+            "mint(",
+            vm.toString(p.numTokens),
+            " tokens, ",
+            vm.toString(p.amount),
+            " amount, ",
+            vm.toString(p.decimals),
+            " decimals)"
+        );
+        string memory redeemGasTag = string.concat(
+            "redeem(",
+            vm.toString(p.numTokens),
+            " tokens, ",
+            vm.toString(p.amount),
+            " amount, ",
+            vm.toString(p.decimals),
+            " decimals)"
+        );
+
         // Create and mint tokens
         address[] memory tokens = new address[](p.numTokens);
         uint256[] memory amounts = new uint256[](p.numTokens);
@@ -81,7 +102,9 @@ contract ExtremeTest is BaseExtremeTest {
         }
         // mint folio
         uint256 mintAmount = p.amount * 1e18;
+        vm.startSnapshotGas(mintGasTag);
         folio.mint(mintAmount, user1);
+        vm.stopSnapshotGas(mintGasTag);
         vm.stopPrank();
 
         // check balances
@@ -111,7 +134,9 @@ contract ExtremeTest is BaseExtremeTest {
 
         // Redeem
         vm.startPrank(user1);
+        vm.startSnapshotGas(redeemGasTag);
         folio.redeem(mintAmount / 2, user1);
+        vm.stopSnapshotGas(redeemGasTag);
 
         // check balances
         assertEq(folio.balanceOf(user1), mintAmount / 2, "wrong user1 balance");

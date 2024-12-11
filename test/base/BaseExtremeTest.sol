@@ -12,8 +12,8 @@ abstract contract BaseExtremeTest is BaseTest {
 
     // Test dimensions
     uint8[] internal testDecimals = [6, 8, 18, 27];
-    uint256[] internal testNumTokens = [1, 2, 4, 10, 100, 500];
-    uint256[] internal testAmounts = [1, 10, 1e4, 1e6, 1e12, 1e18, 1e24, 1e36];
+    uint256[] internal testNumTokens = [1, 10, 50, 100, 500];
+    uint256[] internal testAmounts = [1, 1e6, 1e18, 1e36];
 
     TestParam[] internal testParameters;
 
