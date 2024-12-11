@@ -38,8 +38,7 @@ contract CommunityGovernorDeployer is Versioned {
             )
         );
 
-        timelock.grantRole(timelock.DEFAULT_ADMIN_ROLE(), address(this));
-        timelock.grantRole(timelock.PROPOSER_ROLE(), address(this));
+        timelock.grantRole(timelock.PROPOSER_ROLE(), address(governor));
         timelock.grantRole(timelock.EXECUTOR_ROLE(), address(0)); // grant executor to everyone
         // TODO no cancellers/guardian?
 
