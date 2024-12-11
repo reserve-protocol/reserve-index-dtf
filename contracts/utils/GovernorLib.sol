@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
+import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 
 /**
@@ -10,7 +11,6 @@ import { FolioGovernor } from "@gov/FolioGovernor.sol";
  */
 library GovernorLib {
     struct Params {
-        address stToken;
         uint48 votingDelay; // {s}
         uint32 votingPeriod; // {s}
         uint256 proposalThreshold; // D18{1}
@@ -20,11 +20,12 @@ library GovernorLib {
 
     function deployGovernor(
         Params calldata params,
+        IVotes stToken,
         TimelockController timelockController
     ) public returns (address governor) {
         governor = address(
             new FolioGovernor(
-                IVotes(params.stToken),
+                stToken,
                 timelockController,
                 params.votingDelay,
                 params.votingPeriod,

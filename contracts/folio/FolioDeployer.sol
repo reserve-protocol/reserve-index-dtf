@@ -81,6 +81,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
     /// @return ownerGovernor The owner governor with attached timelock
     /// @return tradingGovernor The trading governor with attached timelock
     function deployGovernedFolio(
+        IVotes stToken,
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         GovernorLib.Params calldata ownerGovParams,
@@ -90,12 +91,12 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         // Deploy owner governor + timelock
 
         address ownerTimelock;
-        (ownerGovernor, ownerTimelock) = _deployTimelockedGovernance(ownerGovParams);
+        (ownerGovernor, ownerTimelock) = _deployTimelockedGovernance(ownerGovParams, stToken);
 
         // Deploy trading governor + timelock
 
         address tradingTimelock;
-        (tradingGovernor, tradingTimelock) = _deployTimelockedGovernance(tradingGovParams);
+        (tradingGovernor, tradingTimelock) = _deployTimelockedGovernance(tradingGovParams, stToken);
 
         // Deploy Folio
 
@@ -107,7 +108,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
     // ==== Internal ====
 
     function _deployTimelockedGovernance(
-        GovernorLib.Params calldata govParams
+        GovernorLib.Params calldata govParams,
+        IVotes stToken
     ) internal returns (address governor, address timelock) {
         address[] memory empty = new address[](0);
         address[] memory executors = new address[](1);
@@ -119,7 +121,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             address(this)
         );
 
-        governor = GovernorLib.deployGovernor(govParams, timelockController);
+        governor = GovernorLib.deployGovernor(govParams, stToken, timelockController);
 
         timelockController.grantRole(timelockController.PROPOSER_ROLE(), address(governor));
 
