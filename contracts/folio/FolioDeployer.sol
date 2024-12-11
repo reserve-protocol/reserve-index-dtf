@@ -8,7 +8,7 @@ import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/Saf
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
-import { GovernorLib } from "@utils/GovernorLib.sol";
+import { FolioGovernorLib } from "@gov/FolioGovernorLib.sol";
 import { Folio, IFolio } from "@src/Folio.sol";
 import { FolioProxyAdmin, FolioProxy } from "@folio/FolioProxy.sol";
 import { Versioned } from "@utils/Versioned.sol";
@@ -84,8 +84,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IVotes stToken,
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
-        GovernorLib.Params calldata ownerGovParams,
-        GovernorLib.Params calldata tradingGovParams,
+        FolioGovernorLib.Params calldata ownerGovParams,
+        FolioGovernorLib.Params calldata tradingGovParams,
         address[] memory priceCurators
     ) external returns (address folio, address ownerGovernor, address tradingGovernor) {
         // Deploy owner governor + timelock
@@ -108,7 +108,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
     // ==== Internal ====
 
     function _deployTimelockedGovernance(
-        GovernorLib.Params calldata govParams,
+        FolioGovernorLib.Params calldata govParams,
         IVotes stToken
     ) internal returns (address governor, address timelock) {
         address[] memory empty = new address[](0);
@@ -121,7 +121,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             address(this)
         );
 
-        governor = GovernorLib.deployGovernor(govParams, stToken, timelockController);
+        governor = FolioGovernorLib.deployGovernor(govParams, stToken, timelockController);
 
         timelockController.grantRole(timelockController.PROPOSER_ROLE(), address(governor));
 

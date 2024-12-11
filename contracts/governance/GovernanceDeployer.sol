@@ -5,7 +5,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol"
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 
-import { GovernorLib } from "@utils/GovernorLib.sol";
+import { FolioGovernorLib } from "@gov/FolioGovernorLib.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import { StakingVaultLib } from "@staking/StakingVaultLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
@@ -24,7 +24,7 @@ contract GovernanceDeployer is Versioned {
         string memory name,
         string memory symbol,
         IERC20 underlying,
-        GovernorLib.Params calldata govParams
+        FolioGovernorLib.Params calldata govParams
     ) external returns (address stToken, address governor) {
         address[] memory empty = new address[](0);
         address[] memory executors = new address[](1);
@@ -44,7 +44,7 @@ contract GovernanceDeployer is Versioned {
             REWARD_PERIOD
         );
 
-        governor = GovernorLib.deployGovernor(govParams, IVotes(stToken), timelockController);
+        governor = FolioGovernorLib.deployGovernor(govParams, IVotes(stToken), timelockController);
 
         timelockController.grantRole(timelockController.PROPOSER_ROLE(), address(governor));
 

@@ -7,9 +7,9 @@ import { TimelockController } from "@openzeppelin/contracts/governance/TimelockC
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 
 /**
- * @title GovernorLib
+ * @title FolioGovernorLib
  */
-library GovernorLib {
+library FolioGovernorLib {
     struct Params {
         uint48 votingDelay; // {s}
         uint32 votingPeriod; // {s}
