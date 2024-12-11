@@ -17,6 +17,13 @@ interface IFolio {
     event Bid(uint256 indexed tradeId, uint256 sellAmount, uint256 buyAmount);
     event TradeKilled(uint256 indexed tradeId);
 
+    event BasketTokenAdded(address indexed token);
+    event BasketTokenRemoved(address indexed token);
+    event FolioFeeSet(uint256 newFee);
+    event FeeRecipientSet(address indexed recipient, uint96 portion);
+    event TradeDelaySet(uint256 newTradeDelay);
+    event AuctionLengthSet(uint256 newAuctionLength);
+
     // === Errors ===
 
     error Folio__BasketAlreadyInitialized();

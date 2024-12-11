@@ -29,6 +29,7 @@ contract FolioFactoryTest is BaseTest {
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
+        vm.recordLogs();
         folio = Folio(
             folioFactory.createFolio(
                 "Test Folio",
@@ -43,6 +44,10 @@ contract FolioFactoryTest is BaseTest {
                 owner
             )
         );
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries[entries.length - 1].topics[0], keccak256("FolioCreated(address,address)"));
+        assertEq(address(uint160(uint256(entries[entries.length - 1].topics[1]))), address(folio));
+        // assertEq(address(uint160(uint256(entries[entries.length - 1].topics[2]))), address(folioAdmin));
 
         vm.stopPrank();
         assertEq(folio.name(), "Test Folio", "wrong name");

@@ -161,6 +161,78 @@ contract FolioTest is BaseTest {
         );
     }
 
+    function test_addToBasket() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.BasketTokenAdded(address(USDT));
+        folio.addToBasket(USDT);
+
+        (_assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 4, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+        assertEq(_assets[3], address(USDT), "wrong fourth asset");
+        vm.stopPrank();
+    }
+
+    function test_cannotAddToBasketIfNotOwner() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+
+        vm.startPrank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.addToBasket(USDT);
+        vm.stopPrank();
+    }
+
+    function test_removeFromBasket() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.BasketTokenRemoved(address(MEME));
+        folio.removeFromBasket(MEME);
+
+        (_assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 2, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        vm.stopPrank();
+    }
+
+    function test_cannotRemoveFromBasketIfNotOwner() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+
+        vm.startPrank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.removeFromBasket(MEME);
+        vm.stopPrank();
+    }
+
     function test_daoFee() public {
         uint256 supplyBefore = folio.totalSupply();
 
@@ -191,6 +263,10 @@ contract FolioTest is BaseTest {
         recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.05e18);
         recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.FeeRecipientSet(owner, 0.8e18);
+        emit IFolio.FeeRecipientSet(feeReceiver, 0.05e18);
+        emit IFolio.FeeRecipientSet(user1, 0.15e18);
         folio.setFeeRecipients(recipients);
 
         (address r1, uint256 bps1) = folio.feeRecipients(0);
@@ -234,6 +310,10 @@ contract FolioTest is BaseTest {
         recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.05e18);
         recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.FeeRecipientSet(owner, 0.8e18);
+        emit IFolio.FeeRecipientSet(feeReceiver, 0.05e18);
+        emit IFolio.FeeRecipientSet(user1, 0.15e18);
         folio.setFeeRecipients(recipients);
 
         assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
@@ -252,6 +332,8 @@ contract FolioTest is BaseTest {
         vm.startPrank(owner);
         assertEq(folio.folioFee(), MAX_FEE, "wrong folio fee");
         uint256 newFolioFee = MAX_FEE / 1000;
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.FolioFeeSet(newFolioFee);
         folio.setFolioFee(newFolioFee);
         assertEq(folio.folioFee(), newFolioFee, "wrong folio fee");
     }
@@ -259,15 +341,19 @@ contract FolioTest is BaseTest {
     function test_setTradeDelay() public {
         vm.startPrank(owner);
         assertEq(folio.tradeDelay(), MAX_TRADE_DELAY, "wrong trade delay");
-        uint256 newAuctionLength = 0;
-        folio.setTradeDelay(newAuctionLength);
-        assertEq(folio.tradeDelay(), newAuctionLength, "wrong trade delay");
+        uint256 newTradeDelay = 0;
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.TradeDelaySet(newTradeDelay);
+        folio.setTradeDelay(newTradeDelay);
+        assertEq(folio.tradeDelay(), newTradeDelay, "wrong trade delay");
     }
 
     function test_setAuctionLength() public {
         vm.startPrank(owner);
         assertEq(folio.auctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
         uint256 newAuctionLength = MIN_AUCTION_LENGTH;
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.AuctionLengthSet(newAuctionLength);
         folio.setAuctionLength(newAuctionLength);
         assertEq(folio.auctionLength(), newAuctionLength, "wrong auction length");
     }

@@ -68,6 +68,8 @@ contract FolioFactory is IFolioFactory, Versioned {
 
         newFolio.initialize(basicDetails, additionalDetails);
 
+        emit FolioCreated(address(newFolio), address(folioAdmin));
+
         return address(newFolio);
     }
 }
