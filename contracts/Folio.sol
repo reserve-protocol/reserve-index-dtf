@@ -115,6 +115,7 @@ contract Folio is
                 revert Folio__InvalidAssetAmount(basicDetails.assets[i]);
             }
 
+            emit BasketTokenAdded(basicDetails.assets[i]);
             basket.add(address(basicDetails.assets[i]));
         }
 
@@ -131,10 +132,12 @@ contract Folio is
 
     function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
         basket.add(address(token));
+        emit BasketTokenAdded(address(token));
     }
 
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
         basket.remove(address(token));
+        emit BasketTokenRemoved(address(token));
     }
 
     function setFolioFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -511,6 +514,7 @@ contract Folio is
         }
 
         folioFee = _newFee;
+        emit FolioFeeSet(folioFee);
     }
 
     function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
@@ -538,6 +542,7 @@ contract Folio is
 
             total += _feeRecipients[i].portion;
             feeRecipients.push(_feeRecipients[i]);
+            emit FeeRecipientSet(_feeRecipients[i].recipient, _feeRecipients[i].portion);
         }
 
         if (total != 1e18) {
@@ -549,8 +554,8 @@ contract Folio is
         if (_newDelay > MAX_TRADE_DELAY) {
             revert Folio__InvalidTradeDelay();
         }
-
         tradeDelay = _newDelay;
+        emit TradeDelaySet(tradeDelay);
     }
 
     function _setAuctionLength(uint256 _newLength) internal {
@@ -559,6 +564,7 @@ contract Folio is
         }
 
         auctionLength = _newLength;
+        emit AuctionLengthSet(auctionLength);
     }
 
     /// @dev After: pendingFeeShares is up-to-date
