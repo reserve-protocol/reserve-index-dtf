@@ -14,9 +14,9 @@ import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 import { MockBidder } from "utils/MockBidder.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
-import { FolioDeployer } from "@deployer/FolioDeployer.sol";
-import { FolioVersionRegistry } from "@deployer/FolioVersionRegistry.sol";
-import { IRoleRegistry, FolioDAOFeeRegistry } from "@src/FolioDAOFeeRegistry.sol";
+import { FolioDeployer } from "@folio/FolioDeployer.sol";
+import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
+import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 
 abstract contract BaseTest is Script, Test {
     // === Auth roles ===

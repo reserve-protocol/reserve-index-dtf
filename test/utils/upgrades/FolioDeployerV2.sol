@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { FolioDeployer } from "@src/deployer/FolioDeployer.sol";
+import { FolioDeployer } from "@src/folio/FolioDeployer.sol";
 
 contract FolioDeployerV2 is FolioDeployer {
     constructor(address _daoFeeRegistry, address _versionRegistry) FolioDeployer(_daoFeeRegistry, _versionRegistry) {}

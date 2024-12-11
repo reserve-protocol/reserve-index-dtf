@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { MAX_AUCTION_LENGTH, MAX_TRADE_DELAY } from "contracts/Folio.sol";
-import { FolioDeployer, IFolioDeployer } from "contracts/deployer/FolioDeployer.sol";
+import { FolioDeployer, IFolioDeployer } from "contracts/folio/FolioDeployer.sol";
 import "./base/BaseTest.sol";
 
 contract FolioDeployerTest is BaseTest {
