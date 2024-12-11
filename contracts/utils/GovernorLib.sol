@@ -22,7 +22,7 @@ library GovernorLib {
         Params calldata params,
         IVotes stToken,
         TimelockController timelockController
-    ) public returns (address governor) {
+    ) external returns (address governor) {
         governor = address(
             new FolioGovernor(
                 stToken,

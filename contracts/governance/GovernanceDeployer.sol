@@ -7,6 +7,7 @@ import { TimelockController } from "@openzeppelin/contracts/governance/TimelockC
 
 import { GovernorLib } from "@utils/GovernorLib.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
+import { StakingVaultLib } from "@staking/StakingVaultLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 /**
@@ -19,7 +20,7 @@ contract GovernanceDeployer is Versioned {
     /// BYOT (bring your own token)
     /// @return stToken A staking vault that can be used with multiple governors
     /// @return governor A timelocked governor that owns the staking vault
-    function deploySelfGovernedStakingToken(
+    function deployGovernedStakingToken(
         string memory name,
         string memory symbol,
         IERC20 underlying,
@@ -35,7 +36,13 @@ contract GovernanceDeployer is Versioned {
             address(this)
         );
 
-        stToken = address(new StakingVault(name, symbol, underlying, address(timelockController), REWARD_PERIOD));
+        stToken = StakingVaultLib.deployStakingVault(
+            name,
+            symbol,
+            underlying,
+            address(timelockController),
+            REWARD_PERIOD
+        );
 
         governor = GovernorLib.deployGovernor(govParams, IVotes(stToken), timelockController);
 

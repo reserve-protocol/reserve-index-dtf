@@ -23,7 +23,7 @@ contract FolioVersionRegistryTest is BaseTest {
         new FolioVersionRegistry(IRoleRegistry(address(0)));
     }
 
-    function test_getLatestVersion() public {
+    function test_getLatestVersion() public view {
         (bytes32 versionHash, string memory version, IFolioDeployer regfolioDeployer, bool deprecated) = versionRegistry
             .getLatestVersion();
 
