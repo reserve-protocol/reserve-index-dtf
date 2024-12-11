@@ -5,11 +5,12 @@ import { ERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import { ERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
 
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
+import { Time } from "@openzeppelin/contracts/utils/types/Time.sol";
 
 import { UD60x18, powu, ln } from "@prb/math/src/UD60x18.sol";
 
@@ -49,7 +50,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         address _initialOwner,
         uint256 rewardPeriod
     ) ERC4626(_underlying) ERC20(_name, _symbol) ERC20Permit(_name) Ownable(_initialOwner) {
-        setRewardRatio(rewardPeriod);
+        _setRewardRatio(rewardPeriod);
     }
 
     /**
@@ -97,10 +98,15 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     /**
      * Reward Accrual Logic
      */
-    function setRewardRatio(uint256 rewardHalfLife) public onlyOwner {
+    function setRewardRatio(uint256 rewardHalfLife) external onlyOwner {
+        _setRewardRatio(rewardHalfLife);
+    }
+
+    function _setRewardRatio(uint256 _rewardHalfLife) internal {
         // @todo sensible range for half life?
         // @todo this probably should also accrue rewards
-        rewardRatio = UD60x18.unwrap(ln(UD60x18.wrap(2e18)) / UD60x18.wrap(rewardHalfLife)) / 1e18;
+
+        rewardRatio = UD60x18.unwrap(ln(UD60x18.wrap(2e18)) / UD60x18.wrap(_rewardHalfLife)) / 1e18;
     }
 
     function poke() external accrueRewards(msg.sender, msg.sender) {}
@@ -177,7 +183,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         uint256 deltaIndex = rewardInfo.rewardIndex - userRewardTracker.lastRewardIndex;
 
         // Accumulate rewards by multiplying user tokens by index and adding on unclaimed
-        // {qRewardTok} = {qShare} * {qRewardTok} / {qShare}
+        // {qRewardTok} = D18{qShare} * {qRewardTok} / D18{qShare}
         uint256 supplierDelta = (balanceOf(_user) * deltaIndex) / uint256(10 ** decimals());
 
         console2.log("supplierDelta", supplierDelta);
@@ -204,5 +210,13 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
     function decimals() public view virtual override(ERC20, ERC4626) returns (uint8) {
         return super.decimals();
+    }
+
+    function clock() public view override returns (uint48) {
+        return Time.timestamp();
+    }
+
+    function CLOCK_MODE() public view override returns (string memory) {
+        return "mode=timestamp";
     }
 }
