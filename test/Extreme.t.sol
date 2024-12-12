@@ -15,22 +15,20 @@ contract ExtremeTest is BaseExtremeTest {
         // create folio
         vm.startPrank(owner);
         for (uint256 i = 0; i < _tokens.length; i++) {
-            IERC20(_tokens[i]).approve(address(folioFactory), type(uint256).max);
+            IERC20(_tokens[i]).approve(address(folioDeployer), type(uint256).max);
         }
         vm.startSnapshotGas(deployGasTag);
-        folio = Folio(
-            folioFactory.createFolio(
-                "Test Folio",
-                "TFOLIO",
-                MAX_TRADE_DELAY,
-                MAX_AUCTION_LENGTH,
-                _tokens,
-                _amounts,
-                initialSupply,
-                recipients,
-                100,
-                owner
-            )
+        folio = createFolio(
+            _tokens,
+            _amounts,
+            initialSupply,
+            MAX_TRADE_DELAY,
+            MAX_AUCTION_LENGTH,
+            recipients,
+            100,
+            owner,
+            dao,
+            priceCurator
         );
         vm.stopSnapshotGas(deployGasTag);
         vm.stopPrank();
