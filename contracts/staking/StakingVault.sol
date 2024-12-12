@@ -24,16 +24,16 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
     struct RewardInfo {
         uint256 payoutLastPaid; // {s}
-        uint256 rewardIndex;
+        uint256 rewardIndex; // {qRewardTok}
         //
-        uint256 balanceAccounted;
-        uint256 balanceLastKnown;
-        uint256 totalClaimed;
+        uint256 balanceAccounted; // {qRewardTok}
+        uint256 balanceLastKnown; // {qRewardTok}
+        uint256 totalClaimed; // {qRewardTok}
     }
 
     struct UserRewardInfo {
-        uint256 lastRewardIndex;
-        uint256 accruedRewards;
+        uint256 lastRewardIndex; // {qRewardTok}
+        uint256 accruedRewards; // {qRewardTok}
     }
 
     mapping(address token => RewardInfo rewardInfo) public rewardTrackers;
