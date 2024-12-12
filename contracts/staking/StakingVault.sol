@@ -178,7 +178,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         uint256 deltaIndex = rewardInfo.rewardIndex - userRewardTracker.lastRewardIndex;
 
         // Accumulate rewards by multiplying user tokens by index and adding on unclaimed
-        // {qRewardTok} = D18{qShare} * {qRewardTok} / D18{qShare}
+        // {rewardTok} = {share} * D18{rewardTok/share} / D18
         uint256 supplierDelta = (balanceOf(_user) * deltaIndex) / uint256(10 ** decimals());
 
         console2.log("supplierDelta", supplierDelta);
