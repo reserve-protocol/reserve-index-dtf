@@ -6,6 +6,7 @@ import "forge-std/Test.sol";
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 
+import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
@@ -15,6 +16,7 @@ import { MockBidder } from "utils/MockBidder.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioDeployer } from "@folio/FolioDeployer.sol";
+import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
 import { GovernanceDeployer } from "@gov/GovernanceDeployer.sol";
 import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
@@ -58,6 +60,9 @@ abstract contract BaseTest is Script, Test {
 
     GovernanceDeployer governanceDeployer;
 
+    address governorImplementation;
+    address timelockImplementation;
+
     function setUp() public {
         _testSetup();
         // _setUp();
@@ -79,9 +84,16 @@ abstract contract BaseTest is Script, Test {
         roleRegistry = new MockRoleRegistry();
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
-        folioDeployer = new FolioDeployer(address(daoFeeRegistry), address(0)); // @todo This needs to be set to test upgrades
 
-        governanceDeployer = new GovernanceDeployer();
+        governorImplementation = address(new FolioGovernor());
+        timelockImplementation = address(new TimelockControllerUpgradeable());
+        folioDeployer = new FolioDeployer(
+            address(daoFeeRegistry),
+            address(0),
+            governorImplementation,
+            timelockImplementation
+        );
+        governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
 
         // register version
         versionRegistry.registerVersion(folioDeployer);

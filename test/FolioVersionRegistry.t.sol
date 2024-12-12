@@ -44,7 +44,12 @@ contract FolioVersionRegistryTest is BaseTest {
 
     function test_registerVersion() public {
         // deploy and register new factory with new version
-        FolioDeployer newFactoryV2 = new FolioDeployerV2(address(daoFeeRegistry), address(versionRegistry));
+        FolioDeployer newFactoryV2 = new FolioDeployerV2(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            governorImplementation,
+            timelockImplementation
+        );
         versionRegistry.registerVersion(newFactoryV2);
 
         // get implementation for new version
@@ -66,13 +71,23 @@ contract FolioVersionRegistryTest is BaseTest {
         versionRegistry.registerVersion(folioDeployer);
 
         // attempt to register new factory with same version
-        FolioDeployer newFactory = new FolioDeployer(address(daoFeeRegistry), address(versionRegistry));
+        FolioDeployer newFactory = new FolioDeployer(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            governorImplementation,
+            timelockImplementation
+        );
         vm.expectRevert(abi.encodeWithSelector(IFolioVersionRegistry.VersionRegistry__InvalidRegistration.selector));
         versionRegistry.registerVersion(newFactory);
     }
 
     function test_cannotRegisterVersionIfNotOwner() public {
-        FolioDeployer newFactoryV2 = new FolioDeployerV2(address(daoFeeRegistry), address(versionRegistry));
+        FolioDeployer newFactoryV2 = new FolioDeployerV2(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            governorImplementation,
+            timelockImplementation
+        );
 
         vm.prank(user1);
         vm.expectRevert(IFolioVersionRegistry.VersionRegistry__InvalidCaller.selector);
