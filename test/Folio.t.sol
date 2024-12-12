@@ -879,9 +879,6 @@ contract FolioTest is BaseTest {
     }
 
     function test_cannotUpgradeToVersionNotInRegistry() public {
-        // Deploy new factory with version 2.0.0
-        FolioFactory newFactoryV2 = new FolioFactoryV2(address(daoFeeRegistry), address(versionRegistry));
-
         // Check current version
         assertEq(folio.version(), "1.0.0");
 
