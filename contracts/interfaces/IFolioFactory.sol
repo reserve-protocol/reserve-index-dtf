@@ -12,6 +12,7 @@ interface IFolioFactory {
         address folio;
         address proxyAdmin;
     }
+    event FolioCreated(address indexed folio, address indexed folioAdmin);
 
     function folioImplementation() external view returns (address);
 }

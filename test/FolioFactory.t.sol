@@ -29,6 +29,7 @@ contract FolioFactoryTest is BaseTest {
         vm.startPrank(owner);
         USDC.approve(address(folioFactory), type(uint256).max);
         DAI.approve(address(folioFactory), type(uint256).max);
+        vm.recordLogs();
         IFolioFactory.FolioDeploymentInfo memory deploymentInfo = folioFactory.createFolio(
             "Test Folio",
             "TFOLIO",
@@ -41,6 +42,13 @@ contract FolioFactoryTest is BaseTest {
             100,
             owner
         );
+
+        folio = Folio(deploymentInfo.folio);
+        proxyAdmin = FolioProxyAdmin(deploymentInfo.proxyAdmin);
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries[entries.length - 1].topics[0], keccak256("FolioCreated(address,address)"));
+        assertEq(address(uint160(uint256(entries[entries.length - 1].topics[1]))), address(folio));
+        assertEq(address(uint160(uint256(entries[entries.length - 1].topics[2]))), address(proxyAdmin));
 
         folio = Folio(deploymentInfo.folio);
         vm.stopPrank();

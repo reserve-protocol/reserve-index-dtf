@@ -28,6 +28,7 @@ uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
+uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 
 // TODO go through and see if we can remove any of the nonReentrant modifiers
 
@@ -115,6 +116,7 @@ contract Folio is
                 revert Folio__InvalidAssetAmount(basicDetails.assets[i]);
             }
 
+            emit BasketTokenAdded(basicDetails.assets[i]);
             basket.add(address(basicDetails.assets[i]));
         }
 
@@ -131,10 +133,12 @@ contract Folio is
 
     function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
         basket.add(address(token));
+        emit BasketTokenAdded(address(token));
     }
 
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
         basket.remove(address(token));
+        emit BasketTokenRemoved(address(token));
     }
 
     function setFolioFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -323,7 +327,9 @@ contract Folio is
             revert Folio__InvalidPrices();
         }
 
-        uint256 launchTimeout = ttl == type(uint256).max ? ttl : block.timestamp + ttl;
+        if (ttl > MAX_TTL) {
+            revert Folio__InvalidTradeTTL();
+        }
 
         trades.push(
             Trade({
@@ -334,7 +340,7 @@ contract Folio is
                 startPrice: startPrice,
                 endPrice: endPrice,
                 availableAt: block.timestamp + tradeDelay,
-                launchTimeout: launchTimeout,
+                launchTimeout: block.timestamp + ttl,
                 start: 0,
                 end: 0,
                 k: 0
@@ -511,6 +517,7 @@ contract Folio is
         }
 
         folioFee = _newFee;
+        emit FolioFeeSet(folioFee);
     }
 
     function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
@@ -538,6 +545,7 @@ contract Folio is
 
             total += _feeRecipients[i].portion;
             feeRecipients.push(_feeRecipients[i]);
+            emit FeeRecipientSet(_feeRecipients[i].recipient, _feeRecipients[i].portion);
         }
 
         if (total != 1e18) {
@@ -549,8 +557,8 @@ contract Folio is
         if (_newDelay > MAX_TRADE_DELAY) {
             revert Folio__InvalidTradeDelay();
         }
-
         tradeDelay = _newDelay;
+        emit TradeDelaySet(tradeDelay);
     }
 
     function _setAuctionLength(uint256 _newLength) internal {
@@ -559,6 +567,7 @@ contract Folio is
         }
 
         auctionLength = _newLength;
+        emit AuctionLengthSet(auctionLength);
     }
 
     /// @dev After: pendingFeeShares is up-to-date
