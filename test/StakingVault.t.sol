@@ -32,6 +32,10 @@ contract StakingVaultTest is Test {
         vm.label(ACTOR_BOB, "Bob");
     }
 
+    function _payoutRewards(uint256 cycles) internal {
+        vm.warp(block.timestamp + REWARD_HALF_LIFE * cycles);
+    }
+
     function _mintAndDepositFor(address receiver, uint256 amount) internal {
         token.mint(address(this), amount);
         token.approve(address(vault), amount);
@@ -106,12 +110,12 @@ contract StakingVaultTest is Test {
             }
 
             string memory gasTag1 = string.concat("poke(1, ", vm.toString(rewardTokens[i]), " tokens)");
-            vm.warp(block.timestamp + 3 days);
+            _payoutRewards(1);
             newVault.poke();
             vm.snapshotGasLastCall(gasTag1);
 
             string memory gasTag2 = string.concat("poke(2, ", vm.toString(rewardTokens[i]), " tokens)");
-            vm.warp(block.timestamp + 3 days);
+            _payoutRewards(1);
             newVault.poke();
             vm.snapshotGasLastCall(gasTag2);
         }
@@ -125,7 +129,7 @@ contract StakingVaultTest is Test {
         reward.mint(address(vault), 1000e18);
         vault.poke();
 
-        vm.warp(block.timestamp + REWARD_HALF_LIFE); // 50% of the rewards are paid out
+        _payoutRewards(1);
 
         _claimRewardsAs(ACTOR_ALICE);
         _claimRewardsAs(ACTOR_BOB);
@@ -133,7 +137,7 @@ contract StakingVaultTest is Test {
         assertEq(reward.balanceOf(ACTOR_ALICE), reward.balanceOf(ACTOR_BOB));
         assertApproxEqRel(reward.balanceOf(ACTOR_ALICE), 250e18, 0.001e18);
 
-        vm.warp(block.timestamp + REWARD_HALF_LIFE); // Another 50%
+        _payoutRewards(1);
         _claimRewardsAs(ACTOR_ALICE);
         _claimRewardsAs(ACTOR_BOB);
 
@@ -149,7 +153,7 @@ contract StakingVaultTest is Test {
         reward.mint(address(vault), 1000e18);
         vault.poke();
 
-        vm.warp(block.timestamp + REWARD_HALF_LIFE); // 50% of the rewards are paid out
+        _payoutRewards(1);
 
         _claimRewardsAs(ACTOR_ALICE);
         _claimRewardsAs(ACTOR_BOB);
@@ -157,7 +161,7 @@ contract StakingVaultTest is Test {
         assertApproxEqRel(reward.balanceOf(ACTOR_ALICE), 125e18, 0.001e18);
         assertApproxEqRel(reward.balanceOf(ACTOR_BOB), 375e18, 0.001e18);
 
-        vm.warp(block.timestamp + REWARD_HALF_LIFE); // Another 50%
+        _payoutRewards(1);
         _claimRewardsAs(ACTOR_ALICE);
         _claimRewardsAs(ACTOR_BOB);
 
@@ -172,7 +176,7 @@ contract StakingVaultTest is Test {
         reward.mint(address(vault), 1000e18);
         vault.poke();
 
-        vm.warp(block.timestamp + REWARD_HALF_LIFE); // 50% of the rewards are paid out
+        _payoutRewards(1);
 
         _withdrawAs(ACTOR_ALICE, 1000e18);
         _claimRewardsAs(ACTOR_ALICE);
@@ -181,11 +185,53 @@ contract StakingVaultTest is Test {
 
         _mintAndDepositFor(ACTOR_BOB, 1000e18);
 
-        vm.warp(block.timestamp + REWARD_HALF_LIFE);
+        _payoutRewards(1);
 
         _withdrawAs(ACTOR_BOB, 1000e18);
         _claimRewardsAs(ACTOR_BOB);
 
         assertApproxEqRel(reward.balanceOf(ACTOR_BOB), 250e18, 0.001e18);
+    }
+
+    function test__accrual_simpleTransferActors() public {
+        _mintAndDepositFor(ACTOR_ALICE, 1000e18);
+
+        vm.warp(block.timestamp + 1);
+        reward.mint(address(vault), 1000e18);
+        vault.poke();
+
+        _payoutRewards(1);
+
+        vm.prank(ACTOR_ALICE);
+        vault.transfer(ACTOR_BOB, 1000e18);
+
+        _payoutRewards(1);
+
+        _claimRewardsAs(ACTOR_ALICE);
+        _claimRewardsAs(ACTOR_BOB);
+
+        assertApproxEqRel(reward.balanceOf(ACTOR_ALICE), 500e18, 0.001e18);
+        assertApproxEqRel(reward.balanceOf(ACTOR_BOB), 250e18, 0.001e18);
+    }
+
+    function test__accrual_complexTransferActors() public {
+        _mintAndDepositFor(ACTOR_ALICE, 1000e18);
+
+        vm.warp(block.timestamp + 1);
+        reward.mint(address(vault), 1000e18);
+        vault.poke();
+
+        _payoutRewards(1);
+
+        vm.prank(ACTOR_ALICE);
+        vault.transfer(ACTOR_BOB, 500e18);
+
+        _payoutRewards(1);
+
+        _claimRewardsAs(ACTOR_ALICE);
+        _claimRewardsAs(ACTOR_BOB);
+
+        assertApproxEqRel(reward.balanceOf(ACTOR_ALICE), 625e18, 0.001e18);
+        assertApproxEqRel(reward.balanceOf(ACTOR_BOB), 125e18, 0.001e18);
     }
 }
