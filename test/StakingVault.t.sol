@@ -55,4 +55,6 @@ contract StakingVaultTest is Test {
 
         vault.poke();
     }
+
+    function testGas_pokeWithTokens() public {}
 }

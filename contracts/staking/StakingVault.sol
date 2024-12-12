@@ -61,22 +61,21 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
             revert Vault__InvalidRewardToken(_rewardToken);
         }
 
-        if (rewardTokens.contains(_rewardToken)) {
+        if (!rewardTokens.add(_rewardToken)) {
             revert Vault__RewardAlreadyRegistered();
         }
 
-        rewardTokens.add(_rewardToken);
-
         RewardInfo storage rewardInfo = rewardTrackers[_rewardToken];
+
         rewardInfo.payoutLastPaid = block.timestamp;
+        rewardInfo.balanceLastKnown = IERC20(_rewardToken).balanceOf(address(this));
+        // @todo This changes based on if we are "ejecting" or not during remove and readd.
     }
 
     function removeRewardToken(address _rewardToken) external onlyOwner {
-        if (!rewardTokens.contains(_rewardToken)) {
+        if (!rewardTokens.remove(_rewardToken)) {
             revert Vault__RewardNotRegistered();
         }
-
-        rewardTokens.remove(_rewardToken);
     }
 
     function claimRewards(address[] calldata _rewardTokens) external accrueRewards(msg.sender, msg.sender) {
@@ -122,7 +121,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
             for (uint256 i; i < _rewardTokensLength; i++) {
                 address rewardToken = _rewardTokens[i];
 
-                _accrueRewards(rewardToken, _accrueSingle(rewardToken));
+                _accrueRewards(rewardToken);
                 _accrueUser(_receiver, rewardToken);
 
                 // If a deposit/withdraw operation gets called for another user we should
@@ -136,47 +135,43 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         _;
     }
 
-    function _accrueSingle(address _rewardToken) internal returns (uint256 accrued) {
+    function _accrueRewards(address _rewardToken) internal {
         RewardInfo storage rewardInfo = rewardTrackers[_rewardToken];
 
         uint256 elapsed = block.timestamp - rewardInfo.payoutLastPaid;
         if (elapsed == 0) {
-            return 0;
+            return;
         }
 
         uint256 unaccountedBalance = rewardInfo.balanceLastKnown - rewardInfo.balanceAccounted;
         uint256 handoutPercentage = 1e18 - UD60x18.wrap(1e18 - rewardRatio).powu(elapsed).unwrap();
         uint256 tokensToHandout = (unaccountedBalance * handoutPercentage) / 1e18;
 
-        rewardInfo.balanceAccounted += tokensToHandout;
-        rewardInfo.balanceLastKnown = IERC20(_rewardToken).balanceOf(address(this)) + rewardInfo.totalClaimed;
-
-        return tokensToHandout;
-    }
-
-    function _accrueRewards(address _rewardToken, uint256 accrued) internal {
         uint256 supplyTokens = totalSupply();
         uint256 deltaIndex;
 
-        console2.log("supplyTokens", supplyTokens);
-
         if (supplyTokens != 0) {
             // {qRewardTok} = {qRewardTok} * {qShare} / {qShare}
-            deltaIndex = (accrued * uint256(10 ** decimals())) / supplyTokens;
+            deltaIndex = (tokensToHandout * uint256(10 ** decimals())) / supplyTokens;
+
             console2.log("deltaIndex", deltaIndex);
         } else {
             // @todo Come back to this.
-            // leftoverRewards[_rewardToken] += accrued;
+            // leftoverRewards[_rewardToken] += tokensToHandout;
         }
-
-        RewardInfo storage rewardInfo = rewardTrackers[_rewardToken];
 
         // {qRewardTok} += {qRewardTok}
         rewardInfo.rewardIndex += deltaIndex;
         rewardInfo.payoutLastPaid = block.timestamp;
+        rewardInfo.balanceAccounted += tokensToHandout;
+        rewardInfo.balanceLastKnown = IERC20(_rewardToken).balanceOf(address(this)) + rewardInfo.totalClaimed;
     }
 
     function _accrueUser(address _user, address _rewardToken) internal {
+        if (_user == address(0)) {
+            return;
+        }
+
         RewardInfo memory rewardInfo = rewardTrackers[_rewardToken];
         UserRewardInfo storage userRewardTracker = userRewardTrackers[_rewardToken][_user];
 
@@ -212,6 +207,9 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         return super.decimals();
     }
 
+    /**
+     * ERC5805 Clock
+     */
     function clock() public view override returns (uint48) {
         return Time.timestamp();
     }
