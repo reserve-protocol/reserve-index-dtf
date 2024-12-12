@@ -94,6 +94,10 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         }
     }
 
+    function getAllRewardTokens() external view returns (address[] memory) {
+        return rewardTokens.values();
+    }
+
     /**
      * Reward Accrual Logic
      */
@@ -111,27 +115,23 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     function poke() external accrueRewards(msg.sender, msg.sender) {}
 
     modifier accrueRewards(address _caller, address _receiver) {
-        uint256 supplyTokens = totalSupply();
+        console2.log("----------- accrue START");
+        address[] memory _rewardTokens = rewardTokens.values();
+        uint256 _rewardTokensLength = _rewardTokens.length;
 
-        if (supplyTokens != 0) {
-            console2.log("----------- accrue START");
-            address[] memory _rewardTokens = rewardTokens.values();
-            uint256 _rewardTokensLength = _rewardTokens.length;
+        for (uint256 i; i < _rewardTokensLength; i++) {
+            address rewardToken = _rewardTokens[i];
 
-            for (uint256 i; i < _rewardTokensLength; i++) {
-                address rewardToken = _rewardTokens[i];
+            _accrueRewards(rewardToken);
+            _accrueUser(_receiver, rewardToken);
 
-                _accrueRewards(rewardToken);
-                _accrueUser(_receiver, rewardToken);
-
-                // If a deposit/withdraw operation gets called for another user we should
-                // accrue for both of them to avoid potential issues
-                if (_receiver != _caller) {
-                    _accrueUser(_caller, rewardToken);
-                }
+            // If a deposit/withdraw operation gets called for another user we should
+            // accrue for both of them to avoid potential issues
+            if (_receiver != _caller) {
+                _accrueUser(_caller, rewardToken);
             }
-            console2.log("----------- accrue END");
         }
+        console2.log("----------- accrue END");
         _;
     }
 
@@ -214,7 +214,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         return Time.timestamp();
     }
 
-    function CLOCK_MODE() public view override returns (string memory) {
+    function CLOCK_MODE() public pure override returns (string memory) {
         return "mode=timestamp";
     }
 }
