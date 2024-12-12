@@ -20,20 +20,20 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     EnumerableSet.AddressSet private rewardTokens;
-    uint256 public rewardRatio;
+    uint256 public rewardRatio; // D18{1}
 
     struct RewardInfo {
         uint256 payoutLastPaid; // {s}
-        uint256 rewardIndex; // {qRewardTok}
+        uint256 rewardIndex; // D18{reward/share}
         //
-        uint256 balanceAccounted; // {qRewardTok}
-        uint256 balanceLastKnown; // {qRewardTok}
-        uint256 totalClaimed; // {qRewardTok}
+        uint256 balanceAccounted; // {reward}
+        uint256 balanceLastKnown; // {reward}
+        uint256 totalClaimed; // {reward}
     }
 
     struct UserRewardInfo {
-        uint256 lastRewardIndex; // {qRewardTok}
-        uint256 accruedRewards; // {qRewardTok}
+        uint256 lastRewardIndex; // D18{reward/share}
+        uint256 accruedRewards; // {reward}
     }
 
     mapping(address token => RewardInfo rewardInfo) public rewardTrackers;
@@ -145,13 +145,15 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
         uint256 unaccountedBalance = rewardInfo.balanceLastKnown - rewardInfo.balanceAccounted;
         uint256 handoutPercentage = 1e18 - UD60x18.wrap(1e18 - rewardRatio).powu(elapsed).unwrap();
+
+        // {reward} = {reward} * D18{1} / D18
         uint256 tokensToHandout = (unaccountedBalance * handoutPercentage) / 1e18;
 
         uint256 supplyTokens = totalSupply();
         uint256 deltaIndex;
 
         if (supplyTokens != 0) {
-            // {qRewardTok} = {qRewardTok} * {qShare} / {qShare}
+            // D18{reward/share} = {reward} * D18 / {share}
             deltaIndex = (tokensToHandout * uint256(10 ** decimals())) / supplyTokens;
 
             console2.log("deltaIndex", deltaIndex);
@@ -160,7 +162,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
             // leftoverRewards[_rewardToken] += tokensToHandout;
         }
 
-        // {qRewardTok} += {qRewardTok}
+        // D18{reward/share} += D18{reward/share}
         rewardInfo.rewardIndex += deltaIndex;
         rewardInfo.payoutLastPaid = block.timestamp;
         rewardInfo.balanceAccounted += tokensToHandout;
@@ -178,12 +180,12 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         uint256 deltaIndex = rewardInfo.rewardIndex - userRewardTracker.lastRewardIndex;
 
         // Accumulate rewards by multiplying user tokens by index and adding on unclaimed
-        // {rewardTok} = {share} * D18{rewardTok/share} / D18
+        // {reward} = {share} * D18{reward/share} / D18
         uint256 supplierDelta = (balanceOf(_user) * deltaIndex) / uint256(10 ** decimals());
 
         console2.log("supplierDelta", supplierDelta);
 
-        // {qRewardTok} += {qRewardTok}
+        // {reward} += {reward}
         userRewardTracker.accruedRewards += supplierDelta;
         userRewardTracker.lastRewardIndex = rewardInfo.rewardIndex;
     }
