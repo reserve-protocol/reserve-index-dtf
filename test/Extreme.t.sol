@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FEE } from "contracts/Folio.sol";
 import "./base/BaseExtremeTest.sol";
@@ -10,7 +11,15 @@ contract ExtremeTest is BaseExtremeTest {
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
-        string memory deployGasTag = string.concat("deployFolio(", vm.toString(_tokens.length), " tokens)");
+        string memory deployGasTag = string.concat(
+            "deployFolio(",
+            vm.toString(_tokens.length),
+            " tokens, ",
+            vm.toString(initialSupply),
+            " amount, ",
+            vm.toString(IERC20Metadata(_tokens[0]).decimals()),
+            " decimals)"
+        );
 
         // create folio
         vm.startPrank(owner);
