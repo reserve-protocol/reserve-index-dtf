@@ -30,8 +30,6 @@ uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 
-// TODO go through and see if we can remove any of the nonReentrant modifiers
-
 /**
  * @title Folio
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
@@ -64,7 +62,7 @@ contract Folio is
      * Fees
      */
     FeeRecipient[] public feeRecipients;
-    uint256 public folioFee; // D18{1} demurrage fee on AUM
+    uint256 public folioFee; // D18{1/s} demurrage fee on AUM
 
     /**
      * System
@@ -147,6 +145,7 @@ contract Folio is
         emit BasketTokenRemoved(address(token));
     }
 
+    /// @param _newFee D18{1/s} Fee per second on AUM
     function setFolioFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
@@ -160,10 +159,12 @@ contract Folio is
         _setFeeRecipients(_newRecipients);
     }
 
+    /// @param _newDelay {s} Delay after a trade has been approved before it can be permissionlessly opened
     function setTradeDelay(uint256 _newDelay) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setTradeDelay(_newDelay);
     }
 
+    /// @param _newLength {s} Length of an auction
     function setAuctionLength(uint256 _newLength) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setAuctionLength(_newLength);
     }
@@ -207,7 +208,6 @@ contract Folio is
 
             // {tok} = {share} * {tok} / {share}
             _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
-            // TODO +1 trick?
         }
     }
 
@@ -514,12 +514,11 @@ contract Folio is
         uint256 supply = super.totalSupply() + _pendingFeeShares;
         uint256 elapsed = block.timestamp - lastPoke;
 
-        // {share} = {share} * D18{1} / D18{1} - {share}
+        // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
         _pendingFeeShares += (supply * 1e18) / UD60x18.wrap(1e18 - folioFee).powu(elapsed).unwrap() - supply;
     }
 
     function _setFolioFee(uint256 _newFee) internal {
-        // TODO: make this in terms of half life and compute a fee based on that
         if (_newFee > MAX_FEE) {
             revert Folio__FeeTooHigh();
         }
