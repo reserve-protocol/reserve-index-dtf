@@ -11,7 +11,7 @@ import { IFolioVersionRegistry } from "@interfaces/IFolioVersionRegistry.sol";
  * @dev Custom ProxyAdmin for upgrade functionality.
  */
 contract FolioProxyAdmin is Ownable {
-    address immutable upgradeController; // @todo sync with version/upgrade manager
+    address public immutable upgradeController; // @todo sync with version/upgrade manager
 
     error VersionDeprecated();
 
