@@ -14,13 +14,17 @@ import { FolioDeployer } from "@folio/FolioDeployer.sol";
 import { GovernanceDeployer } from "@gov/GovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 
+string constant junkSeedPhrase = "test test test test test test test test test test test junk";
+
 contract DeployScript is Script {
-    string seedPhrase = vm.readFile(".seed");
+    string seedPhrase = block.chainid != 31337 ? vm.readFile(".seed") : junkSeedPhrase;
     uint256 privateKey = vm.deriveKey(seedPhrase, 0);
     address walletAddress = vm.rememberKey(privateKey);
 
     /// @dev This function should only be used during testing and local deployments!
     function run() external {
+        require(block.chainid == 31337, "test deployment only, please use runGenesisDeployment/runFollowupDeployment");
+
         MockRoleRegistry roleRegistry = new MockRoleRegistry();
 
         runGenesisDeployment(IRoleRegistry(address(roleRegistry)), address(1));
