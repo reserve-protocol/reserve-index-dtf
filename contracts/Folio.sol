@@ -122,8 +122,8 @@ contract Folio is
                 revert Folio__InvalidAssetAmount(_basicDetails.assets[i]);
             }
 
-            emit BasketTokenAdded(basicDetails.assets[i]);
-            basket.add(address(basicDetails.assets[i]));
+            emit BasketTokenAdded(_basicDetails.assets[i]);
+            basket.add(address(_basicDetails.assets[i]));
         }
 
         _poke();
