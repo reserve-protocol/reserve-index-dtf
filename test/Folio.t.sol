@@ -998,6 +998,25 @@ contract FolioTest is BaseTest {
         vm.stopSnapshotGas();
     }
 
+    function test_auctionCannotBidIfExceedsSlippage() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, true);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), amt, 0);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
+
+        vm.prank(priceCurator);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.TradeOpened(0, 1e18, 1e18, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        folio.openTrade(0, 1e18, 1e18);
+
+        // bid once at start time
+        vm.startPrank(user1);
+        USDT.approve(address(folio), amt);
+        vm.expectRevert(IFolio.Folio__SlippageExceeded.selector);
+        folio.bid(0, amt, 1, false, bytes(""));
+    }
+
     function test_auctionCannotApproveTradeWithInvalidId() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
