@@ -4,6 +4,10 @@ script = "script"
 src = "contracts"
 test = "test"
 
+# Gas/Memory
+gas_limit = '18446744073709551615'
+memory_limit = 1000000000 # 1 GB
+
 # Compiler Options
 evm_version = "paris"
 optimizer = true

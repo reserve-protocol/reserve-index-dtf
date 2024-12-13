@@ -83,7 +83,7 @@ abstract contract BaseTest is Script, Test {
 
     function _coreSetup() public {}
 
-    function _testSetupBefore() public {
+    function _testSetupBefore() public virtual {
         roleRegistry = new MockRoleRegistry();
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
@@ -107,7 +107,7 @@ abstract contract BaseTest is Script, Test {
         vm.roll(1);
     }
 
-    function _testSetupAfter() public {
+    function _testSetupAfter() public virtual {
         vm.label(address(priceCurator), "Price Curator");
         vm.label(address(dao), "DAO");
         vm.label(address(owner), "Owner");
