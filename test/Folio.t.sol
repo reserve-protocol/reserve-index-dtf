@@ -1030,6 +1030,47 @@ contract FolioTest is BaseTest {
         folio.approveTrade(0, USDC, USDT, amt, 0, 1, MAX_TTL);
     }
 
+    function test_auctionCannotOpenTradeWithInvalidPrices() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, true);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), amt, 1e18);
+        folio.approveTrade(0, USDC, USDT, amt, 1e18, 1e18, MAX_TTL);
+
+        //  Revert if tried to open (smaller start price)
+        vm.prank(priceCurator);
+        vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
+        folio.openTrade(0, 0.5e18, 1e18);
+
+        //  Revert if tried to open (smaller end price)
+        vm.prank(priceCurator);
+        vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
+        folio.openTrade(0, 1e18, 0.5e18);
+
+        //  Revert if tried to open (more than 100x start price)
+        vm.prank(priceCurator);
+        vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
+        folio.openTrade(0, 101e18, 50e18);
+
+        //  Revert if tried to open (start < end price)
+        vm.prank(priceCurator);
+        vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
+        folio.openTrade(0, 50e18, 55e18);
+    }
+
+    function test_auctionCannotOpenTradeWithZeroPrice() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, true);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), amt, 0);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
+
+        //  Revert if tried to open with zero price
+        vm.prank(priceCurator);
+        vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
+        folio.openTrade(0, 0, 0);
+    }
+
     function test_poke() public {
         uint256 prevBlockTimestamp = block.timestamp;
         assertEq(folio.lastPoke(), prevBlockTimestamp);
