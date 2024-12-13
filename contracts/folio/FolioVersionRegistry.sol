@@ -67,7 +67,10 @@ contract FolioVersionRegistry is IFolioVersionRegistry {
     {
         versionHash = latestVersion;
         folioDeployer = deployments[versionHash];
-        version = Versioned(address(folioDeployer)).version();
+
+        if (address(folioDeployer) != address(0)) {
+            version = Versioned(address(folioDeployer)).version();
+        }
         deprecated = isDeprecated[versionHash];
     }
 
