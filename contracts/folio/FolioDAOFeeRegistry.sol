@@ -29,6 +29,10 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
             revert FolioDAOFeeRegistry__InvalidRoleRegistry();
         }
 
+        if (address(_feeRecipient) == address(0)) {
+            revert FolioDAOFeeRegistry__InvalidFeeRecipient();
+        }
+
         roleRegistry = _roleRegistry;
         feeRecipient = _feeRecipient;
     }
