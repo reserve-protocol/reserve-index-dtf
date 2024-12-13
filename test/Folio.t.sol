@@ -799,6 +799,24 @@ contract FolioTest is BaseTest {
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
     }
 
+    function test_auctionNotOpenableTwice() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, true);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), amt, 0);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
+
+        vm.prank(priceCurator);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.TradeOpened(0, 1e18, 1e18, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        folio.openTrade(0, 1e18, 1e18);
+
+        // Revert if tried to reopen
+        vm.prank(priceCurator);
+        vm.expectRevert(IFolio.Folio__TradeCannotBeOpened.selector);
+        folio.openTrade(0, 1e18, 1e18);
+    }
+
     function test_auctionNotLaunchableAfterTimeout() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
