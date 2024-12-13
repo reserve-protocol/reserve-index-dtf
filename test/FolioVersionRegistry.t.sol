@@ -50,6 +50,8 @@ contract FolioVersionRegistryTest is BaseTest {
             governorImplementation,
             timelockImplementation
         );
+        vm.expectEmit(true, true, false, true);
+        emit IFolioVersionRegistry.VersionRegistered(keccak256("2.0.0"), newFactoryV2);
         versionRegistry.registerVersion(newFactoryV2);
 
         // get implementation for new version
@@ -109,6 +111,8 @@ contract FolioVersionRegistryTest is BaseTest {
         assertEq(deprecated, false);
 
         // deprecate version
+        vm.expectEmit(true, false, false, true);
+        emit IFolioVersionRegistry.VersionDeprecated(keccak256("1.0.0"));
         versionRegistry.deprecateVersion(keccak256("1.0.0"));
 
         // now its deprecated

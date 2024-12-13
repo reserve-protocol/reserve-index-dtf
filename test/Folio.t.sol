@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY, MAX_TTL } from "contracts/Folio.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import "./base/BaseTest.sol";
 
@@ -156,6 +156,78 @@ contract FolioTest is BaseTest {
         );
     }
 
+    function test_addToBasket() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.BasketTokenAdded(address(USDT));
+        folio.addToBasket(USDT);
+
+        (_assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 4, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+        assertEq(_assets[3], address(USDT), "wrong fourth asset");
+        vm.stopPrank();
+    }
+
+    function test_cannotAddToBasketIfNotOwner() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+
+        vm.startPrank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.addToBasket(USDT);
+        vm.stopPrank();
+    }
+
+    function test_removeFromBasket() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.BasketTokenRemoved(address(MEME));
+        folio.removeFromBasket(MEME);
+
+        (_assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 2, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        vm.stopPrank();
+    }
+
+    function test_cannotRemoveFromBasketIfNotOwner() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+
+        vm.startPrank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.removeFromBasket(MEME);
+        vm.stopPrank();
+    }
+
     function test_daoFee() public {
         uint256 supplyBefore = folio.totalSupply();
 
@@ -186,6 +258,10 @@ contract FolioTest is BaseTest {
         recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.05e18);
         recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.FeeRecipientSet(owner, 0.8e18);
+        emit IFolio.FeeRecipientSet(feeReceiver, 0.05e18);
+        emit IFolio.FeeRecipientSet(user1, 0.15e18);
         folio.setFeeRecipients(recipients);
 
         (address r1, uint256 bps1) = folio.feeRecipients(0);
@@ -229,6 +305,10 @@ contract FolioTest is BaseTest {
         recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.05e18);
         recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.FeeRecipientSet(owner, 0.8e18);
+        emit IFolio.FeeRecipientSet(feeReceiver, 0.05e18);
+        emit IFolio.FeeRecipientSet(user1, 0.15e18);
         folio.setFeeRecipients(recipients);
 
         assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
@@ -247,6 +327,8 @@ contract FolioTest is BaseTest {
         vm.startPrank(owner);
         assertEq(folio.folioFee(), MAX_FEE, "wrong folio fee");
         uint256 newFolioFee = MAX_FEE / 1000;
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.FolioFeeSet(newFolioFee);
         folio.setFolioFee(newFolioFee);
         assertEq(folio.folioFee(), newFolioFee, "wrong folio fee");
     }
@@ -254,15 +336,19 @@ contract FolioTest is BaseTest {
     function test_setTradeDelay() public {
         vm.startPrank(owner);
         assertEq(folio.tradeDelay(), MAX_TRADE_DELAY, "wrong trade delay");
-        uint256 newAuctionLength = 0;
-        folio.setTradeDelay(newAuctionLength);
-        assertEq(folio.tradeDelay(), newAuctionLength, "wrong trade delay");
+        uint256 newTradeDelay = 0;
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.TradeDelaySet(newTradeDelay);
+        folio.setTradeDelay(newTradeDelay);
+        assertEq(folio.tradeDelay(), newTradeDelay, "wrong trade delay");
     }
 
     function test_setAuctionLength() public {
         vm.startPrank(owner);
         assertEq(folio.auctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
         uint256 newAuctionLength = MIN_AUCTION_LENGTH;
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.AuctionLengthSet(newAuctionLength);
         folio.setAuctionLength(newAuctionLength);
         assertEq(folio.auctionLength(), newAuctionLength, "wrong auction length");
     }
@@ -401,7 +487,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 1e18, 1e18);
@@ -433,7 +519,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 1e18, 1e18);
@@ -473,7 +559,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
@@ -502,7 +588,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
@@ -539,7 +625,7 @@ contract FolioTest is BaseTest {
     function test_auctionKillTrade() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.startPrank(priceCurator);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
@@ -562,6 +648,13 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
         folio.bid(0, amt, amt, false, bytes(""));
         vm.stopPrank();
+    }
+
+    function test_auctionAboveMaxTTL() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidTradeTTL.selector);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL + 1);
     }
 
     function test_auctionNotOpenableUntilApproved() public {
@@ -589,7 +682,7 @@ contract FolioTest is BaseTest {
     function test_auctionNotAvailableBeforeOpen() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         // auction should not be biddable before openTrade
 
@@ -600,7 +693,7 @@ contract FolioTest is BaseTest {
     function test_auctionNotAvailableAfterEnd() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
@@ -616,7 +709,7 @@ contract FolioTest is BaseTest {
     function test_auctionOnlyPriceCuratorCanBypassDelay() public {
         uint256 amt = D6_TOKEN_1;
         vm.startPrank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 1, 1, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 1, 1, MAX_TTL);
 
         // dao should not be able to open trade because not price curator
 
@@ -639,7 +732,7 @@ contract FolioTest is BaseTest {
     function test_permissionlessAuctionNotAvailableForZeroPricedTrades() public {
         uint256 amt = D6_TOKEN_1;
         vm.startPrank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 1e18, 1e18, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 1e18, 1e18, MAX_TTL);
 
         // dao should not be able to open trade because not price curator
 
@@ -662,7 +755,7 @@ contract FolioTest is BaseTest {
     function test_auctionDishonestCallback() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 1e18, 1e18); // 1x
@@ -682,9 +775,9 @@ contract FolioTest is BaseTest {
         uint256 amt1 = USDC.balanceOf(address(folio));
         uint256 amt2 = DAI.balanceOf(address(folio));
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt1, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt1, 0, 0, MAX_TTL);
         vm.prank(dao);
-        folio.approveTrade(1, DAI, USDT, amt2, 0, 0, type(uint256).max);
+        folio.approveTrade(1, DAI, USDT, amt2, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
@@ -728,7 +821,7 @@ contract FolioTest is BaseTest {
             uint256 index = folio.nextTradeId();
 
             vm.prank(dao);
-            folio.approveTrade(index, MEME, USDC, amt, 0, 0, type(uint256).max);
+            folio.approveTrade(index, MEME, USDC, amt, 0, 0, MAX_TTL);
 
             // should not revert at top or bottom end
             vm.prank(priceCurator);
@@ -742,7 +835,7 @@ contract FolioTest is BaseTest {
     function test_priceCalculationGasCost() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, amt, 0, 0, type(uint256).max);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
         vm.prank(priceCurator);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x

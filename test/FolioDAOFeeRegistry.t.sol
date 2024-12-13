@@ -67,6 +67,8 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         (recipient, , ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(recipient, dao);
 
+        vm.expectEmit(true, true, false, true);
+        emit IFolioDAOFeeRegistry.FeeRecipientSet(user2);
         daoFeeRegistry.setFeeRecipient(user2);
 
         (recipient, , ) = daoFeeRegistry.getFeeDetails(address(folio));
@@ -94,6 +96,9 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 0);
 
+        vm.expectEmit(true, true, false, true);
+        emit IFolioDAOFeeRegistry.DefaultFeeNumeratorSet(0.1e18);
+
         daoFeeRegistry.setDefaultFeeNumerator(0.1e18);
 
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
@@ -116,6 +121,8 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 0);
 
+        vm.expectEmit(true, true, false, true);
+        emit IFolioDAOFeeRegistry.TokenFeeNumeratorSet(address(folio), 0.1e18, true);
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.1e18);
 
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
@@ -162,6 +169,8 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         assertEq(numerator, 0.1e18);
 
         // reset fee
+        vm.expectEmit(true, true, false, true);
+        emit IFolioDAOFeeRegistry.TokenFeeNumeratorSet(address(folio), 0, false);
         daoFeeRegistry.resetTokenFee(address(folio));
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 0);

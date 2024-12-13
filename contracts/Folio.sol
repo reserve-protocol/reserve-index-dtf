@@ -27,9 +27,15 @@ uint256 constant MAX_FEE = 21979552668; // D18{1/s} 50% annually
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
+uint256 constant MAX_FEE_RECIPIENTS = 64;
+uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 
 // TODO go through and see if we can remove any of the nonReentrant modifiers
 
+/**
+ * @title Folio
+ * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
+ */
 contract Folio is
     IFolio,
     Initializable,
@@ -116,7 +122,8 @@ contract Folio is
                 revert Folio__InvalidAssetAmount(_basicDetails.assets[i]);
             }
 
-            basket.add(address(_basicDetails.assets[i]));
+            emit BasketTokenAdded(basicDetails.assets[i]);
+            basket.add(address(basicDetails.assets[i]));
         }
 
         _poke();
@@ -132,10 +139,12 @@ contract Folio is
 
     function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
         basket.add(address(token));
+        emit BasketTokenAdded(address(token));
     }
 
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
         basket.remove(address(token));
+        emit BasketTokenRemoved(address(token));
     }
 
     function setFolioFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -273,7 +282,7 @@ contract Folio is
         pendingFeeShares = 0;
     }
 
-    // ==== Trading ====
+    // ==== Trading ====d
 
     function nextTradeId() external view returns (uint256) {
         return trades.length;
@@ -325,7 +334,9 @@ contract Folio is
             revert Folio__InvalidPrices();
         }
 
-        uint256 launchTimeout = ttl == type(uint256).max ? ttl : block.timestamp + ttl;
+        if (ttl > MAX_TTL) {
+            revert Folio__InvalidTradeTTL();
+        }
 
         trades.push(
             Trade({
@@ -336,7 +347,7 @@ contract Folio is
                 startPrice: startPrice,
                 endPrice: endPrice,
                 availableAt: block.timestamp + tradeDelay,
-                launchTimeout: launchTimeout,
+                launchTimeout: block.timestamp + ttl,
                 start: 0,
                 end: 0,
                 k: 0
@@ -354,6 +365,10 @@ contract Folio is
     ) external nonReentrant onlyRole(PRICE_CURATOR) {
         Trade storage trade = trades[tradeId];
 
+        // price curator can:
+        //   - raise starting price by up to 100x
+        //   - raise ending price arbitrarily (can cause auction not to clear)
+
         if (
             startPrice < trade.startPrice ||
             endPrice < trade.endPrice ||
@@ -364,6 +379,7 @@ contract Folio is
 
         trade.startPrice = startPrice;
         trade.endPrice = endPrice;
+        // more price checks in _openTrade()
 
         _openTrade(trade);
     }
@@ -372,6 +388,7 @@ contract Folio is
     function openTradePermissionlessly(uint256 tradeId) external nonReentrant {
         Trade storage trade = trades[tradeId];
 
+        // only open trades that have not timed out (ttl check)
         if (block.timestamp < trade.availableAt) {
             revert Folio__TradeCannotBeOpenedPermissionlesslyYet();
         }
@@ -406,23 +423,29 @@ contract Folio is
             revert Folio__SlippageExceeded();
         }
 
+        // deduct sellAmount from trade; special-case uint256.max
         if (trade.sellAmount != type(uint256).max) {
             trade.sellAmount -= sellAmount;
         }
 
+        // ensure buy token is in basket
         basket.add(address(trade.buy));
 
-        if (trade.sell.balanceOf(address(this)) == 0) {
-            basket.remove(address(trade.sell));
-        }
-
+        // ensure we have sufficient balance to pay bidder
         if (trade.sell.balanceOf(address(this)) < sellAmount) {
             revert Folio__InsufficientBalance();
         }
 
+        // pay bidder
         trade.sell.safeTransfer(msg.sender, sellAmount);
         emit Bid(tradeId, sellAmount, boughtAmt);
 
+        // remove token from the basket if we have sold all of it
+        if (trade.sell.balanceOf(address(this)) == 0) {
+            basket.remove(address(trade.sell));
+        }
+
+        // collect payment from bidder
         if (withCallback) {
             uint256 balBefore = trade.buy.balanceOf(address(this));
 
@@ -447,14 +470,17 @@ contract Folio is
     // ==== Internal ====
 
     function _openTrade(Trade storage trade) internal {
+        // only open APPROVED trades
         if (trade.start != 0 || trade.end != 0) {
             revert Folio__TradeCannotBeOpened();
         }
 
+        // do not open trades that have timed out from ttl
         if (block.timestamp > trade.launchTimeout) {
             revert Folio__TradeTimeout();
         }
 
+        // ensure valid price range (startPrice == endPrice is valid)
         if (trade.startPrice < trade.endPrice || trade.startPrice == 0 || trade.endPrice == 0) {
             revert Folio__InvalidPrices();
         }
@@ -465,17 +491,19 @@ contract Folio is
 
         // k = ln(P_0 / P_t) / t
         trade.k = UD60x18.wrap((trade.startPrice * 1e18) / trade.endPrice).ln().unwrap() / auctionLength;
+        // gas optimization to avoid recomputing k on every bid
     }
 
     /// @return D18{buyTok/sellTok}
     function _price(Trade storage trade, uint256 timestamp) internal view returns (uint256) {
+        // ensure auction is ongoing
         if (timestamp < trade.start || timestamp > trade.end || trade.sellAmount == 0) {
             revert Folio__TradeNotOngoing();
         }
 
         uint256 elapsed = timestamp - trade.start;
 
-        // TODO check exp() for overflow
+        // P_t = P_0 * e ^ -kt
         return (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / 1e18;
     }
 
@@ -486,6 +514,7 @@ contract Folio is
         uint256 supply = super.totalSupply() + _pendingFeeShares;
         uint256 elapsed = block.timestamp - lastPoke;
 
+        // {share} = {share} * D18{1} / D18{1} - {share}
         _pendingFeeShares += (supply * 1e18) / UD60x18.wrap(1e18 - folioFee).powu(elapsed).unwrap() - supply;
     }
 
@@ -496,6 +525,7 @@ contract Folio is
         }
 
         folioFee = _newFee;
+        emit FolioFeeSet(folioFee);
     }
 
     function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
@@ -508,6 +538,10 @@ contract Folio is
         // Add new items to the fee table
         uint256 total;
         len = _feeRecipients.length;
+        if (len > MAX_FEE_RECIPIENTS) {
+            revert Folio__TooManyFeeRecipients();
+        }
+
         for (uint256 i; i < len; i++) {
             if (_feeRecipients[i].recipient == address(0)) {
                 revert Folio__FeeRecipientInvalidAddress();
@@ -519,6 +553,7 @@ contract Folio is
 
             total += _feeRecipients[i].portion;
             feeRecipients.push(_feeRecipients[i]);
+            emit FeeRecipientSet(_feeRecipients[i].recipient, _feeRecipients[i].portion);
         }
 
         if (total != 1e18) {
@@ -530,8 +565,8 @@ contract Folio is
         if (_newDelay > MAX_TRADE_DELAY) {
             revert Folio__InvalidTradeDelay();
         }
-
         tradeDelay = _newDelay;
+        emit TradeDelaySet(tradeDelay);
     }
 
     function _setAuctionLength(uint256 _newLength) internal {
@@ -540,6 +575,7 @@ contract Folio is
         }
 
         auctionLength = _newLength;
+        emit AuctionLengthSet(auctionLength);
     }
 
     /// @dev After: pendingFeeShares is up-to-date
