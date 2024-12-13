@@ -1017,6 +1017,25 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt, 1, false, bytes(""));
     }
 
+    function test_auctionCannotBidWithInsufficientBalance() public {
+        uint256 amt = D6_TOKEN_10K;
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, true);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), amt + 1, 0);
+        folio.approveTrade(0, USDC, USDT, amt + 1, 0, 0, MAX_TTL);
+
+        vm.prank(priceCurator);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.TradeOpened(0, 1e18, 1e18, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        folio.openTrade(0, 1e18, 1e18);
+
+        // bid once at start time
+        vm.startPrank(user1);
+        USDT.approve(address(folio), amt + 1);
+        vm.expectRevert(IFolio.Folio__InsufficientBalance.selector);
+        folio.bid(0, amt + 1, amt + 1, false, bytes("")); // no balance
+    }
+
     function test_auctionCannotApproveTradeWithInvalidId() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
