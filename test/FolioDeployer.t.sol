@@ -7,17 +7,17 @@ import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FEE } from "contracts/Folio.sol";
 import { FolioDeployer, IFolioDeployer } from "contracts/folio/FolioDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
-import { FolioGovernorLib } from "@gov/FolioGovernorLib.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import "./base/BaseTest.sol";
 
 contract FolioDeployerTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
 
-    function test_constructor() public {
-        FolioDeployer folioDeployer = new FolioDeployer(address(daoFeeRegistry), address(0));
+    function test_constructor() public view {
         assertEq(address(folioDeployer.daoFeeRegistry()), address(daoFeeRegistry));
         assertNotEq(address(folioDeployer.folioImplementation()), address(0));
+        assertEq(address(folioDeployer.governorImplementation()), governorImplementation);
+        assertEq(address(folioDeployer.timelockImplementation()), timelockImplementation);
     }
 
     function test_createFolio() public {
@@ -35,7 +35,7 @@ contract FolioDeployerTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
         vm.startSnapshotGas("deployFolio()");
-        folio = createFolio(
+        (folio, proxyAdmin) = createFolio(
             tokens,
             amounts,
             INITIAL_SUPPLY,
@@ -284,7 +284,7 @@ contract FolioDeployerTest is BaseTest {
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            FolioGovernorLib.Params(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
+            IFolioDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
         );
 
         // Deploy Governed Folio
@@ -307,28 +307,30 @@ contract FolioDeployerTest is BaseTest {
         priceCurators[0] = priceCurator;
 
         vm.startSnapshotGas("deployGovernedFolio");
-        (address _folio, address _ownerGovernor, address _tradingGovernor) = folioDeployer.deployGovernedFolio(
-            IVotes(_stToken),
-            IFolio.FolioBasicDetails({
-                name: "Test Folio",
-                symbol: "TFOLIO",
-                assets: tokens,
-                amounts: amounts,
-                initialShares: INITIAL_SUPPLY
-            }),
-            IFolio.FolioAdditionalDetails({
-                tradeDelay: MAX_TRADE_DELAY,
-                auctionLength: MAX_AUCTION_LENGTH,
-                feeRecipients: recipients,
-                folioFee: MAX_FEE
-            }),
-            FolioGovernorLib.Params(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
-            FolioGovernorLib.Params(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
-            priceCurators
-        );
+        (address _folio, address _folioAdmin, address _ownerGovernor, address _tradingGovernor) = folioDeployer
+            .deployGovernedFolio(
+                IVotes(_stToken),
+                IFolio.FolioBasicDetails({
+                    name: "Test Folio",
+                    symbol: "TFOLIO",
+                    assets: tokens,
+                    amounts: amounts,
+                    initialShares: INITIAL_SUPPLY
+                }),
+                IFolio.FolioAdditionalDetails({
+                    tradeDelay: MAX_TRADE_DELAY,
+                    auctionLength: MAX_AUCTION_LENGTH,
+                    feeRecipients: recipients,
+                    folioFee: MAX_FEE
+                }),
+                IFolioDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
+                IFolioDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
+                priceCurators
+            );
         vm.stopSnapshotGas("deployGovernedFolio()");
         vm.stopPrank();
         folio = Folio(_folio);
+        proxyAdmin = FolioProxyAdmin(_folioAdmin);
 
         // Check Folio
 

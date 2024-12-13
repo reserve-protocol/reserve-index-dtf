@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
+import { IFolioDeployer } from "contracts/interfaces/IFolioDeployer.sol";
 import { IFolioDAOFeeRegistry } from "contracts/interfaces/IFolioDAOFeeRegistry.sol";
 import { FolioDAOFeeRegistry, FEE_DENOMINATOR, MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { MAX_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
@@ -31,7 +32,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
 
-        folio = createFolio(
+        (folio, proxyAdmin) = createFolio(
             tokens,
             amounts,
             INITIAL_SUPPLY,
@@ -67,6 +68,8 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         (recipient, , ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(recipient, dao);
 
+        vm.expectEmit(true, true, false, true);
+        emit IFolioDAOFeeRegistry.FeeRecipientSet(user2);
         daoFeeRegistry.setFeeRecipient(user2);
 
         (recipient, , ) = daoFeeRegistry.getFeeDetails(address(folio));
@@ -94,6 +97,9 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 0);
 
+        vm.expectEmit(true, true, false, true);
+        emit IFolioDAOFeeRegistry.DefaultFeeNumeratorSet(0.1e18);
+
         daoFeeRegistry.setDefaultFeeNumerator(0.1e18);
 
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
@@ -116,6 +122,8 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 0);
 
+        vm.expectEmit(true, true, false, true);
+        emit IFolioDAOFeeRegistry.TokenFeeNumeratorSet(address(folio), 0.1e18, true);
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.1e18);
 
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
@@ -162,6 +170,8 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         assertEq(numerator, 0.1e18);
 
         // reset fee
+        vm.expectEmit(true, true, false, true);
+        emit IFolioDAOFeeRegistry.TokenFeeNumeratorSet(address(folio), 0, false);
         daoFeeRegistry.resetTokenFee(address(folio));
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, 0);

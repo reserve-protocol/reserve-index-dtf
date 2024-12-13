@@ -6,6 +6,7 @@ import "forge-std/Test.sol";
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 
+import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
@@ -15,7 +16,9 @@ import { MockBidder } from "utils/MockBidder.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioDeployer } from "@folio/FolioDeployer.sol";
+import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
+import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { GovernanceDeployer } from "@gov/GovernanceDeployer.sol";
 import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 
@@ -23,6 +26,7 @@ abstract contract BaseTest is Script, Test {
     // === Auth roles ===
     bytes32 constant OWNER = keccak256("OWNER");
     bytes32 constant PRICE_ORACLE = keccak256("PRICE_ORACLE");
+    bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
     uint256 constant D6_TOKEN_1 = 1e6;
     uint256 constant D6_TOKEN_10K = 1e10; // 1e4 = 10K tokens with 6 decimals
@@ -54,9 +58,13 @@ abstract contract BaseTest is Script, Test {
     FolioDeployer folioDeployer;
     FolioDAOFeeRegistry daoFeeRegistry;
     FolioVersionRegistry versionRegistry;
+    FolioProxyAdmin proxyAdmin;
     MockRoleRegistry roleRegistry;
 
     GovernanceDeployer governanceDeployer;
+
+    address governorImplementation;
+    address timelockImplementation;
 
     function setUp() public {
         _testSetup();
@@ -79,9 +87,16 @@ abstract contract BaseTest is Script, Test {
         roleRegistry = new MockRoleRegistry();
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
-        folioDeployer = new FolioDeployer(address(daoFeeRegistry), address(0)); // @todo This needs to be set to test upgrades
 
-        governanceDeployer = new GovernanceDeployer();
+        governorImplementation = address(new FolioGovernor());
+        timelockImplementation = address(new TimelockControllerUpgradeable());
+        folioDeployer = new FolioDeployer(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            governorImplementation,
+            timelockImplementation
+        );
+        governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
@@ -173,12 +188,7 @@ abstract contract BaseTest is Script, Test {
         address _owner,
         address _tradeProposer,
         address _priceCurator
-    ) internal returns (Folio) {
-        address[] memory _tradeProposers = new address[](1);
-        _tradeProposers[0] = _tradeProposer;
-        address[] memory _priceCurators = new address[](1);
-        _priceCurators[0] = _priceCurator;
-
+    ) internal returns (Folio, FolioProxyAdmin) {
         IFolio.FolioBasicDetails memory _basicDetails = IFolio.FolioBasicDetails({
             name: "Test Folio",
             symbol: "TFOLIO",
@@ -194,9 +204,19 @@ abstract contract BaseTest is Script, Test {
             folioFee: _folioFee
         });
 
-        return
-            Folio(
-                folioDeployer.deployFolio(_basicDetails, _additionalDetails, _owner, _tradeProposers, _priceCurators)
-            );
+        address[] memory _tradeProposers = new address[](1);
+        _tradeProposers[0] = _tradeProposer;
+        address[] memory _priceCurators = new address[](1);
+        _priceCurators[0] = _priceCurator;
+
+        (address _folio, address _proxyAdmin) = folioDeployer.deployFolio(
+            _basicDetails,
+            _additionalDetails,
+            _owner,
+            _tradeProposers,
+            _priceCurators
+        );
+
+        return (Folio(_folio), FolioProxyAdmin(_proxyAdmin));
     }
 }

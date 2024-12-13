@@ -27,7 +27,7 @@ contract ExtremeTest is BaseExtremeTest {
             IERC20(_tokens[i]).approve(address(folioDeployer), type(uint256).max);
         }
         vm.startSnapshotGas(deployGasTag);
-        folio = createFolio(
+        (folio, proxyAdmin) = createFolio(
             _tokens,
             _amounts,
             initialSupply,
