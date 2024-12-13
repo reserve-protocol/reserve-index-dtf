@@ -237,9 +237,10 @@ contract StakingVaultTest is Test {
 
     function test_accrual_composesOverTime() public {
         _mintAndDepositFor(ACTOR_ALICE, 1000e18);
+        _mintAndDepositFor(ACTOR_BOB, 1000e18);
 
         vm.warp(block.timestamp + 1);
-        reward.mint(address(vault), 1000e18);
+        reward.mint(address(vault), 2000e18);
         vault.poke();
 
         // paying out 1 cycle 10 times should be the same as paying out 10 cycles once
@@ -247,7 +248,9 @@ contract StakingVaultTest is Test {
             _payoutRewards(1);
             _claimRewardsAs(ACTOR_ALICE);
         }
+        _claimRewardsAs(ACTOR_BOB);
 
         assertApproxEqRel(reward.balanceOf(ACTOR_ALICE), 999.02344e18, 0.0001e18);
+        assertApproxEqRel(reward.balanceOf(ACTOR_BOB), 999.02344e18, 0.0001e18);
     }
 }
