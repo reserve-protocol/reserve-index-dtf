@@ -35,7 +35,7 @@ contract FolioDeployerTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
         vm.startSnapshotGas("deployFolio()");
-        folio = createFolio(
+        (folio, proxyAdmin) = createFolio(
             tokens,
             amounts,
             INITIAL_SUPPLY,
@@ -307,28 +307,30 @@ contract FolioDeployerTest is BaseTest {
         priceCurators[0] = priceCurator;
 
         vm.startSnapshotGas("deployGovernedFolio");
-        (address _folio, address _ownerGovernor, address _tradingGovernor) = folioDeployer.deployGovernedFolio(
-            IVotes(_stToken),
-            IFolio.FolioBasicDetails({
-                name: "Test Folio",
-                symbol: "TFOLIO",
-                assets: tokens,
-                amounts: amounts,
-                initialShares: INITIAL_SUPPLY
-            }),
-            IFolio.FolioAdditionalDetails({
-                tradeDelay: MAX_TRADE_DELAY,
-                auctionLength: MAX_AUCTION_LENGTH,
-                feeRecipients: recipients,
-                folioFee: MAX_FEE
-            }),
-            IFolioDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
-            IFolioDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
-            priceCurators
-        );
+        (address _folio, address _folioAdmin, address _ownerGovernor, address _tradingGovernor) = folioDeployer
+            .deployGovernedFolio(
+                IVotes(_stToken),
+                IFolio.FolioBasicDetails({
+                    name: "Test Folio",
+                    symbol: "TFOLIO",
+                    assets: tokens,
+                    amounts: amounts,
+                    initialShares: INITIAL_SUPPLY
+                }),
+                IFolio.FolioAdditionalDetails({
+                    tradeDelay: MAX_TRADE_DELAY,
+                    auctionLength: MAX_AUCTION_LENGTH,
+                    feeRecipients: recipients,
+                    folioFee: MAX_FEE
+                }),
+                IFolioDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
+                IFolioDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
+                priceCurators
+            );
         vm.stopSnapshotGas("deployGovernedFolio()");
         vm.stopPrank();
         folio = Folio(_folio);
+        proxyAdmin = FolioProxyAdmin(_folioAdmin);
 
         // Check Folio
 

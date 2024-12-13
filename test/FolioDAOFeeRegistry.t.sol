@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
+import { IFolioDeployer } from "contracts/interfaces/IFolioDeployer.sol";
 import { IFolioDAOFeeRegistry } from "contracts/interfaces/IFolioDAOFeeRegistry.sol";
 import { FolioDAOFeeRegistry, FEE_DENOMINATOR, MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { MAX_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
@@ -31,7 +32,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
 
-        folio = createFolio(
+        (folio, proxyAdmin) = createFolio(
             tokens,
             amounts,
             INITIAL_SUPPLY,

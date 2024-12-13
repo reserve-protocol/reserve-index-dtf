@@ -11,16 +11,16 @@ import { IFolioVersionRegistry } from "@interfaces/IFolioVersionRegistry.sol";
  * @dev Custom ProxyAdmin for upgrade functionality.
  */
 contract FolioProxyAdmin is Ownable {
-    address public immutable upgradeController; // @todo sync with version/upgrade manager
+    address public immutable versionRegistry; // @todo sync with version/upgrade manager
 
     error VersionDeprecated();
 
-    constructor(address initialOwner, address _upgradeController) Ownable(initialOwner) {
-        upgradeController = _upgradeController;
+    constructor(address initialOwner, address _versionRegistry) Ownable(initialOwner) {
+        versionRegistry = _versionRegistry;
     }
 
     function upgradeToVersion(address proxyTarget, bytes32 versionHash) external onlyOwner {
-        IFolioVersionRegistry folioRegistry = IFolioVersionRegistry(upgradeController);
+        IFolioVersionRegistry folioRegistry = IFolioVersionRegistry(versionRegistry);
 
         if (folioRegistry.isDeprecated(versionHash)) {
             revert VersionDeprecated();

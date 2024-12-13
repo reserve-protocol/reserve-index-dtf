@@ -41,14 +41,15 @@ contract FolioDeployer is IFolioDeployer, Versioned {
     }
 
     /// Deploy a raw Folio instance with previously defined roles
-    /// @return The deployed Folio instance
+    /// @return folio_ The deployed Folio instance
+    /// @return folioAdmin_ The deployed FolioProxyAdmin instance
     function deployFolio(
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         address owner,
         address[] memory tradeProposers,
         address[] memory priceCurators
-    ) public returns (address) {
+    ) public returns (address folio_, address folioAdmin_) {
         // Checks
 
         if (basicDetails.assets.length != basicDetails.amounts.length) {
@@ -57,8 +58,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         // Deploy Folio
 
-        address folioAdmin = address(new FolioProxyAdmin(owner, versionRegistry));
-        Folio folio = Folio(address(new FolioProxy(folioImplementation, folioAdmin)));
+        folioAdmin_ = address(new FolioProxyAdmin(owner, versionRegistry));
+        Folio folio = Folio(address(new FolioProxy(folioImplementation, folioAdmin_)));
 
         for (uint256 i; i < basicDetails.assets.length; i++) {
             IERC20(basicDetails.assets[i]).safeTransferFrom(msg.sender, address(folio), basicDetails.amounts[i]);
@@ -82,11 +83,12 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         folio.renounceRole(folio.DEFAULT_ADMIN_ROLE(), address(this));
 
-        return address(folio);
+        folio_ = address(folio);
     }
 
     /// Deploy a Folio instance with brand new owner/trading governances
     /// @return folio The deployed Folio instance
+    /// @return proxyAdmin The deployed FolioProxyAdmin instance
     /// @return ownerGovernor The owner governor with attached timelock
     /// @return tradingGovernor The trading governor with attached timelock
     function deployGovernedFolio(
@@ -96,7 +98,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IFolioDeployer.GovParams calldata ownerGovParams,
         IFolioDeployer.GovParams calldata tradingGovParams,
         address[] memory priceCurators
-    ) external returns (address folio, address ownerGovernor, address tradingGovernor) {
+    ) external returns (address folio, address proxyAdmin, address ownerGovernor, address tradingGovernor) {
         // Deploy owner governor + timelock
 
         address ownerTimelock;
@@ -111,7 +113,13 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         address[] memory tradeProposers = new address[](1);
         tradeProposers[0] = tradingTimelock;
-        folio = deployFolio(basicDetails, additionalDetails, ownerTimelock, tradeProposers, priceCurators);
+        (folio, proxyAdmin) = deployFolio(
+            basicDetails,
+            additionalDetails,
+            ownerTimelock,
+            tradeProposers,
+            priceCurators
+        );
     }
 
     // ==== Internal ====

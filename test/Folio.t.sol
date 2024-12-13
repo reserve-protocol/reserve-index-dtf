@@ -4,8 +4,12 @@ pragma solidity 0.8.28;
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS } from "contracts/Folio.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { FolioProxyAdmin, FolioProxy } from "contracts/deployer/FolioProxy.sol";
+import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { ERC1967Utils } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import { FolioDeployerV2 } from "test/utils/upgrades/FolioDeployerV2.sol";
 import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
@@ -35,7 +39,7 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folioDeployer), type(uint256).max);
         MEME.approve(address(folioDeployer), type(uint256).max);
 
-        folio = createFolio(
+        (folio, proxyAdmin) = createFolio(
             tokens,
             amounts,
             INITIAL_SUPPLY,
@@ -56,6 +60,7 @@ contract FolioTest is BaseTest {
         assertEq(folio.decimals(), 18, "wrong decimals");
         assertEq(folio.totalSupply(), INITIAL_SUPPLY, "wrong total supply");
         assertEq(folio.balanceOf(owner), INITIAL_SUPPLY, "wrong owner balance");
+        assertTrue(folio.hasRole(DEFAULT_ADMIN_ROLE, owner), "wrong governor");
         (address[] memory _assets, ) = folio.totalAssets();
         assertEq(_assets.length, 3, "wrong assets length");
         assertEq(_assets[0], address(USDC), "wrong first asset");
@@ -97,23 +102,21 @@ contract FolioTest is BaseTest {
         IFolio.FolioBasicDetails memory basicDetails = IFolio.FolioBasicDetails({
             name: "Test Folio",
             symbol: "TFOLIO",
-            creator: msg.sender,
-            governor: owner,
             assets: tokens,
+            amounts: amounts,
             initialShares: INITIAL_SUPPLY
         });
 
         IFolio.FolioAdditionalDetails memory additionalDetails = IFolio.FolioAdditionalDetails({
             tradeDelay: MAX_TRADE_DELAY,
             auctionLength: MAX_AUCTION_LENGTH,
-            feeRegistry: address(daoFeeRegistry),
             feeRecipients: recipients,
             folioFee: MAX_FEE
         });
 
         // Attempt to initialize
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
-        newFolio.initialize(basicDetails, additionalDetails);
+        newFolio.initialize(basicDetails, additionalDetails, address(this), address(daoFeeRegistry));
     }
 
     function test_getFolio() public view {
@@ -993,6 +996,111 @@ contract FolioTest is BaseTest {
         vm.stopSnapshotGas();
     }
 
+    function test_upgrade() public {
+        // Deploy and register new factory with version 2.0.0
+        FolioDeployer newDeployerV2 = new FolioDeployerV2(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            governorImplementation,
+            timelockImplementation
+        );
+        versionRegistry.registerVersion(newDeployerV2);
+
+        // Check implementation for new version
+        bytes32 newVersion = keccak256("2.0.0");
+        address impl = versionRegistry.getImplementationForVersion(newVersion);
+        assertEq(impl, newDeployerV2.folioImplementation());
+
+        // Check current version
+        assertEq(folio.version(), "1.0.0");
+
+        // upgrade to V2 with owner
+        vm.prank(owner);
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+        assertEq(folio.version(), "2.0.0");
+    }
+
+    function test_cannotUpgradeToVersionNotInRegistry() public {
+        // Check current version
+        assertEq(folio.version(), "1.0.0");
+
+        // Attempt to upgrade to V2 (not registered)
+        vm.prank(owner);
+        vm.expectRevert();
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+
+        // still on old version
+        assertEq(folio.version(), "1.0.0");
+    }
+
+    function test_cannotUpgradeToDeprecatedVersion() public {
+        // Deploy and register new factory with version 2.0.0
+        FolioDeployer newDeployerV2 = new FolioDeployerV2(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            governorImplementation,
+            timelockImplementation
+        );
+        versionRegistry.registerVersion(newDeployerV2);
+
+        // deprecate version
+        versionRegistry.deprecateVersion(keccak256("2.0.0"));
+
+        // Check current version
+        assertEq(folio.version(), "1.0.0");
+
+        // Attempt to upgrade to V2 (deprecated)
+        vm.prank(owner);
+        vm.expectRevert(FolioProxyAdmin.VersionDeprecated.selector);
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+
+        // still on old version
+        assertEq(folio.version(), "1.0.0");
+    }
+
+    function test_cannotUpgradeIfNotOwnerOfProxyAdmin() public {
+        // Deploy and register new factory with version 2.0.0
+        FolioDeployer newDeployerV2 = new FolioDeployerV2(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            governorImplementation,
+            timelockImplementation
+        );
+        versionRegistry.registerVersion(newDeployerV2);
+
+        // Attempt to upgrade to V2 with random user
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user1));
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+    }
+
+    function test_cannotCallAnyOtherFunctionFromProxyAdmin() public {
+        // Attempt to call other functions in folio from ProxyAdmin
+        vm.prank(address(proxyAdmin));
+        vm.expectRevert(abi.encodeWithSelector(FolioProxy.ProxyDeniedAdminAccess.selector));
+        folio.version();
+    }
+
+    function test_cannotUpgradeFolioDirectly() public {
+        // Deploy and register new factory with version 2.0.0
+        FolioDeployer newDeployerV2 = new FolioDeployerV2(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            governorImplementation,
+            timelockImplementation
+        );
+        versionRegistry.registerVersion(newDeployerV2);
+
+        // Get implementation for new version
+        bytes32 newVersion = keccak256("2.0.0");
+        address impl = versionRegistry.getImplementationForVersion(newVersion);
+        assertEq(impl, newDeployerV2.folioImplementation());
+
+        // Attempt to upgrade to V2 directly on the proxy
+        vm.expectRevert();
+        ITransparentUpgradeableProxy(address(folio)).upgradeToAndCall(impl, "");
+    }
+
     function test_auctionCannotBidIfExceedsSlippage() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
@@ -1050,7 +1158,6 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotApproveTradeWithInvalidSellAmount() public {
-        uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidSellAmount.selector);
         folio.approveTrade(0, USDC, USDT, 0, 0, 0, MAX_TTL);
