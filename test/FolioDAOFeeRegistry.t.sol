@@ -2,9 +2,9 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { IFolioFactory } from "contracts/interfaces/IFolioFactory.sol";
+import { IFolioDeployer } from "contracts/interfaces/IFolioDeployer.sol";
 import { IFolioDAOFeeRegistry } from "contracts/interfaces/IFolioDAOFeeRegistry.sol";
-import { FolioDAOFeeRegistry, FEE_DENOMINATOR, MAX_DAO_FEE } from "contracts/FolioDAOFeeRegistry.sol";
+import { FolioDAOFeeRegistry, FEE_DENOMINATOR, MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { MAX_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
 import "./base/BaseTest.sol";
 
@@ -29,25 +29,21 @@ contract FolioDAOFeeRegistryTest is BaseTest {
 
         // 50% folio fee annually -- different from dao fee
         vm.startPrank(owner);
-        USDC.approve(address(folioFactory), type(uint256).max);
-        DAI.approve(address(folioFactory), type(uint256).max);
-        IFolioFactory.FolioDeploymentInfo memory deploymentInfo = folioFactory.createFolio(
-            "Test Folio",
-            "TFOLIO",
-            MAX_TRADE_DELAY,
-            MAX_AUCTION_LENGTH,
+        USDC.approve(address(folioDeployer), type(uint256).max);
+        DAI.approve(address(folioDeployer), type(uint256).max);
+
+        (folio, proxyAdmin) = createFolio(
             tokens,
             amounts,
             INITIAL_SUPPLY,
+            MAX_TRADE_DELAY,
+            MAX_AUCTION_LENGTH,
             recipients,
             MAX_FEE, // 50% annually
-            owner
+            owner,
+            dao,
+            priceCurator
         );
-        folio = Folio(deploymentInfo.folio);
-        folio.grantRole(folio.TRADE_PROPOSER(), owner);
-        folio.grantRole(folio.PRICE_CURATOR(), owner);
-        folio.grantRole(folio.TRADE_PROPOSER(), dao);
-        folio.grantRole(folio.PRICE_CURATOR(), priceCurator);
         vm.stopPrank();
     }
 

@@ -4,11 +4,6 @@ pragma solidity 0.8.28;
 import { Folio } from "@src/Folio.sol";
 
 contract FolioV2 is Folio {
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-
     function version() public pure override returns (string memory) {
         return "2.0.0";
     }

@@ -90,39 +90,45 @@ contract Folio is
     }
 
     function initialize(
-        FolioBasicDetails calldata basicDetails,
-        FolioAdditionalDetails calldata additionalDetails
+        FolioBasicDetails calldata _basicDetails,
+        FolioAdditionalDetails calldata _additionalDetails,
+        address _creator,
+        address _daoFeeRegistry
     ) external initializer {
-        __ERC20_init(basicDetails.name, basicDetails.symbol);
+        __ERC20_init(_basicDetails.name, _basicDetails.symbol);
         __AccessControlEnumerable_init();
         __AccessControl_init();
         __ReentrancyGuard_init();
 
-        _setFeeRecipients(additionalDetails.feeRecipients);
-        _setFolioFee(additionalDetails.folioFee);
-        _setTradeDelay(additionalDetails.tradeDelay);
-        _setAuctionLength(additionalDetails.auctionLength);
+        _setFeeRecipients(_additionalDetails.feeRecipients);
+        _setFolioFee(_additionalDetails.folioFee);
+        _setTradeDelay(_additionalDetails.tradeDelay);
+        _setAuctionLength(_additionalDetails.auctionLength);
 
-        daoFeeRegistry = IFolioDAOFeeRegistry(additionalDetails.feeRegistry);
+        daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 
-        uint256 assetLength = basicDetails.assets.length;
+        uint256 assetLength = _basicDetails.assets.length;
+        if (assetLength == 0) {
+            revert Folio__EmptyAssets();
+        }
+
         for (uint256 i; i < assetLength; i++) {
-            if (basicDetails.assets[i] == address(0)) {
+            if (_basicDetails.assets[i] == address(0)) {
                 revert Folio__InvalidAsset();
             }
 
-            uint256 assetBalance = IERC20(basicDetails.assets[i]).balanceOf(address(this));
+            uint256 assetBalance = IERC20(_basicDetails.assets[i]).balanceOf(address(this));
             if (assetBalance == 0) {
-                revert Folio__InvalidAssetAmount(basicDetails.assets[i]);
+                revert Folio__InvalidAssetAmount(_basicDetails.assets[i]);
             }
 
-            emit BasketTokenAdded(basicDetails.assets[i]);
-            basket.add(address(basicDetails.assets[i]));
+            emit BasketTokenAdded(_basicDetails.assets[i]);
+            basket.add(address(_basicDetails.assets[i]));
         }
 
         _poke();
-        _mint(basicDetails.creator, basicDetails.initialShares);
-        _grantRole(DEFAULT_ADMIN_ROLE, basicDetails.governor);
+        _mint(_creator, _basicDetails.initialShares);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function poke() external nonReentrant {
@@ -201,6 +207,7 @@ contract Folio is
 
             // {tok} = {share} * {tok} / {share}
             _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
+            // TODO +1 trick?
         }
     }
 
@@ -512,6 +519,7 @@ contract Folio is
     }
 
     function _setFolioFee(uint256 _newFee) internal {
+        // TODO: make this in terms of half life and compute a fee based on that
         if (_newFee > MAX_FEE) {
             revert Folio__FeeTooHigh();
         }

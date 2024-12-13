@@ -6,6 +6,7 @@ import "forge-std/Test.sol";
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 
+import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
@@ -13,11 +14,13 @@ import { MockERC20 } from "utils/MockERC20.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 import { MockBidder } from "utils/MockBidder.sol";
 
-import { Folio } from "contracts/Folio.sol";
-import { FolioFactory } from "@deployer/FolioFactory.sol";
-import { FolioVersionRegistry } from "contracts/deployer/FolioVersionRegistry.sol";
-import { FolioProxyAdmin } from "contracts/deployer/FolioProxy.sol";
-import { IRoleRegistry, FolioDAOFeeRegistry } from "contracts/FolioDAOFeeRegistry.sol";
+import { IFolio, Folio } from "@src/Folio.sol";
+import { FolioDeployer } from "@folio/FolioDeployer.sol";
+import { FolioGovernor } from "@gov/FolioGovernor.sol";
+import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
+import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
+import { GovernanceDeployer } from "@gov/GovernanceDeployer.sol";
+import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 
 abstract contract BaseTest is Script, Test {
     // === Auth roles ===
@@ -41,8 +44,8 @@ abstract contract BaseTest is Script, Test {
     uint256 constant YEAR_IN_SECONDS = 31536000;
 
     address priceCurator = 0x00000000000000000000000000000000000000cc; // has PRICE_CURATOR
-    address dao = 0xDA00000000000000000000000000000000000000; // has TRADE_PROPOSER and PRICE_CURATOR
-    address owner = 0xfF00000000000000000000000000000000000000; // has admin and TRADE_PROPOSER and PRICE_CURATOR
+    address dao = 0xDA00000000000000000000000000000000000000; // has TRADE_PROPOSER
+    address owner = 0xfF00000000000000000000000000000000000000; // has DEFAULT_ADMIN_ROLE
     address user1 = 0xaa00000000000000000000000000000000000000;
     address user2 = 0xbb00000000000000000000000000000000000000;
     address feeReceiver = 0xCc00000000000000000000000000000000000000;
@@ -52,11 +55,16 @@ abstract contract BaseTest is Script, Test {
     IERC20 USDT; // not in basket
 
     Folio folio;
-    FolioFactory folioFactory;
+    FolioDeployer folioDeployer;
     FolioDAOFeeRegistry daoFeeRegistry;
     FolioVersionRegistry versionRegistry;
     FolioProxyAdmin proxyAdmin;
     MockRoleRegistry roleRegistry;
+
+    GovernanceDeployer governanceDeployer;
+
+    address governorImplementation;
+    address timelockImplementation;
 
     function setUp() public {
         _testSetup();
@@ -79,10 +87,19 @@ abstract contract BaseTest is Script, Test {
         roleRegistry = new MockRoleRegistry();
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
-        folioFactory = new FolioFactory(address(daoFeeRegistry), address(versionRegistry));
+
+        governorImplementation = address(new FolioGovernor());
+        timelockImplementation = address(new TimelockControllerUpgradeable());
+        folioDeployer = new FolioDeployer(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            governorImplementation,
+            timelockImplementation
+        );
+        governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
 
         // register version
-        versionRegistry.registerVersion(folioFactory);
+        versionRegistry.registerVersion(folioDeployer);
 
         deployCoins();
         mintTokens();
@@ -156,5 +173,50 @@ abstract contract BaseTest is Script, Test {
         for (uint256 i = 0; i < _accounts.length; i++) {
             vm.deal(_accounts[i], _amounts[i]);
         }
+    }
+
+    // === Internal ===
+
+    function createFolio(
+        address[] memory _assets,
+        uint256[] memory _amounts,
+        uint256 _initialShares,
+        uint256 _tradeDelay,
+        uint256 _auctionLength,
+        IFolio.FeeRecipient[] memory _feeRecipients,
+        uint256 _folioFee,
+        address _owner,
+        address _tradeProposer,
+        address _priceCurator
+    ) internal returns (Folio, FolioProxyAdmin) {
+        IFolio.FolioBasicDetails memory _basicDetails = IFolio.FolioBasicDetails({
+            name: "Test Folio",
+            symbol: "TFOLIO",
+            assets: _assets,
+            amounts: _amounts,
+            initialShares: _initialShares
+        });
+
+        IFolio.FolioAdditionalDetails memory _additionalDetails = IFolio.FolioAdditionalDetails({
+            tradeDelay: _tradeDelay,
+            auctionLength: _auctionLength,
+            feeRecipients: _feeRecipients,
+            folioFee: _folioFee
+        });
+
+        address[] memory _tradeProposers = new address[](1);
+        _tradeProposers[0] = _tradeProposer;
+        address[] memory _priceCurators = new address[](1);
+        _priceCurators[0] = _priceCurator;
+
+        (address _folio, address _proxyAdmin) = folioDeployer.deployFolio(
+            _basicDetails,
+            _additionalDetails,
+            _owner,
+            _tradeProposers,
+            _priceCurators
+        );
+
+        return (Folio(_folio), FolioProxyAdmin(_proxyAdmin));
     }
 }
