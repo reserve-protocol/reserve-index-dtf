@@ -21,7 +21,9 @@ contract DeployScript is Script {
 
     /// @dev This function should only be used during testing and local deployments!
     function run() external {
-        runGenesisDeployment(IRoleRegistry(address(1)), address(1));
+        MockRoleRegistry roleRegistry = new MockRoleRegistry();
+
+        runGenesisDeployment(IRoleRegistry(address(roleRegistry)), address(1));
     }
 
     function runGenesisDeployment(IRoleRegistry roleRegistry, address feeRecipient) public {
@@ -40,12 +42,6 @@ contract DeployScript is Script {
         require(feeRecipient_ == feeRecipient, "wrong fee recipient");
 
         require(address(versionRegistry.roleRegistry()) == address(roleRegistry), "wrong role registry");
-        (bytes32 versionHash, string memory version, IFolioDeployer deployer, bool deprecated) = versionRegistry
-            .getLatestVersion();
-        require(versionHash == bytes32(0), "unexpected version hash");
-        require(bytes32(bytes(version)) == bytes32(bytes("")), "unexpected version");
-        require(address(deployer) == address(0), "unexpected deployer");
-        require(!deprecated, "unexpected deprecated");
 
         runFollowupDeployment(daoFeeRegistry, versionRegistry);
     }
