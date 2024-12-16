@@ -63,6 +63,11 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         new FolioDAOFeeRegistry(IRoleRegistry(address(0)), dao);
     }
 
+    function test_cannotCreateFeeRegistryWithInvalidFeeRecipient() public {
+        vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidFeeRecipient.selector);
+        new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), address(0));
+    }
+
     function test_setFeeRecipient() public {
         address recipient;
         (recipient, , ) = daoFeeRegistry.getFeeDetails(address(folio));

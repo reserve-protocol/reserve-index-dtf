@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import { StakingVault } from "contracts/staking/StakingVault.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 
 contract StakingVaultTest is Test {
@@ -54,6 +55,24 @@ contract StakingVaultTest is Test {
         rewardTokens[0] = address(reward);
         vault.claimRewards(rewardTokens);
         vm.stopPrank();
+    }
+
+    function test_deployment() public {
+        assertEq(vault.clock(), block.timestamp);
+        assertEq(vault.CLOCK_MODE(), "mode=timestamp");
+        assertEq(vault.totalSupply(), 0);
+        assertEq(vault.balanceOf(ACTOR_ALICE), 0);
+        assertEq(vault.balanceOf(ACTOR_BOB), 0);
+        assertEq(vault.nonces(ACTOR_ALICE), 0);
+        assertEq(vault.nonces(ACTOR_BOB), 0);
+        assertEq(vault.decimals(), 18);
+        assertEq(reward.balanceOf(address(vault)), 0);
+        assertEq(reward.balanceOf(ACTOR_ALICE), 0);
+        assertEq(reward.balanceOf(ACTOR_BOB), 0);
+
+        address[] memory _rewardTokens = vault.getAllRewardTokens();
+        assertEq(_rewardTokens.length, 1);
+        assertEq(_rewardTokens[0], address(reward));
     }
 
     // @todo Remove this later
@@ -252,5 +271,68 @@ contract StakingVaultTest is Test {
 
         assertApproxEqRel(reward.balanceOf(ACTOR_ALICE), 999.02344e18, 0.0001e18);
         assertApproxEqRel(reward.balanceOf(ACTOR_BOB), 999.02344e18, 0.0001e18);
+    }
+
+    function test_addRewardToken() public {
+        MockERC20 newReward = new MockERC20("New Reward Token", "NREWARD", 18);
+        vault.addRewardToken(address(newReward));
+
+        address[] memory _rewardTokens = vault.getAllRewardTokens();
+        assertEq(_rewardTokens.length, 2);
+        assertEq(_rewardTokens[0], address(reward));
+        assertEq(_rewardTokens[1], address(newReward));
+    }
+
+    function test_cannotAddRewardTokenIfNotOwner() public {
+        MockERC20 newReward = new MockERC20("New Reward Token", "NREWARD", 18);
+        vm.prank(ACTOR_ALICE);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, ACTOR_ALICE));
+        vault.addRewardToken(address(newReward));
+    }
+
+    function test_cannotAddRewardTokenIfInvalid() public {
+        vm.expectRevert();
+        vault.addRewardToken(address(0));
+
+        vm.expectRevert(abi.encodeWithSelector(StakingVault.Vault__InvalidRewardToken.selector, address(token)));
+        vault.addRewardToken(address(token));
+
+        vm.expectRevert(abi.encodeWithSelector(StakingVault.Vault__InvalidRewardToken.selector, address(vault)));
+        vault.addRewardToken(address(vault));
+    }
+
+    function test_cannotAddRewardTokenIfAlreadyRegistered() public {
+        vm.expectRevert(abi.encodeWithSelector(StakingVault.Vault__RewardAlreadyRegistered.selector));
+        vault.addRewardToken(address(reward));
+    }
+
+    function test_removeRewardToken() public {
+        vault.removeRewardToken(address(reward));
+        address[] memory _rewardTokens = vault.getAllRewardTokens();
+        assertEq(_rewardTokens.length, 0);
+    }
+
+    function test_cannotRemoRewardTokenIfNotOwner() public {
+        vm.prank(ACTOR_ALICE);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, ACTOR_ALICE));
+        vault.removeRewardToken(address(reward));
+    }
+
+    function test_cannotRemoRewardTokenIfNotRegistered() public {
+        MockERC20 newReward = new MockERC20("New Reward Token", "NREWARD", 18);
+        vm.expectRevert(abi.encodeWithSelector(StakingVault.Vault__RewardNotRegistered.selector));
+        vault.removeRewardToken(address(newReward));
+    }
+
+    function test_setRewardRatio() public {
+        uint256 rewardRatioPrev = vault.rewardRatio();
+        vault.setRewardRatio(REWARD_HALF_LIFE / 2);
+        assertEq(vault.rewardRatio(), rewardRatioPrev * 2);
+    }
+
+    function test_cannotSetRewardRatioIfNotOwner() public {
+        vm.prank(ACTOR_ALICE);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, ACTOR_ALICE));
+        vault.setRewardRatio(REWARD_HALF_LIFE / 2);
     }
 }
