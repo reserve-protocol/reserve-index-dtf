@@ -21,15 +21,16 @@ contract GovernanceTest is BaseTest {
         uint256 _quorumPercent, // e.g 4 for 4%
         uint256 _executionDelay // {s} for timelock
     ) internal returns (FolioGovernor _governor, TimelockControllerUpgradeable _timelock) {
-        address[] memory proposers = new address[](1);
-        proposers[0] = owner;
-        address[] memory executors = new address[](1); // add 0 address executor to enable permisionless execution
-
         _timelock = TimelockControllerUpgradeable(payable(Clones.clone(timelockImplementation)));
-        _timelock.initialize(_executionDelay, proposers, executors, address(this));
 
         _governor = FolioGovernor(payable(Clones.clone(governorImplementation)));
         _governor.initialize(_votingToken, _timelock, _votingDelay, _votingPeriod, _proposalThreshold, _quorumPercent);
+
+        address[] memory proposers = new address[](1);
+        proposers[0] = address(_governor);
+        address[] memory executors = new address[](1); // add 0 address executor to enable permisionless execution
+        _timelock.initialize(_executionDelay, proposers, executors, address(this));
+        _timelock.grantRole(_timelock.CANCELLER_ROLE(), owner); // set guardian
     }
 
     function _testSetup() public virtual override {
@@ -117,5 +118,130 @@ contract GovernanceTest is BaseTest {
         // uint256 pid = governor.propose(targets, values, calldatas, description);
         // assertGt(pid, 0);
         // vm.stopPrank();
+    }
+
+    function testGovernanceCycle() public {
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSelector(governor.setVotingDelay.selector, 2 days);
+        string memory description = "Update voting delay";
+
+        assertEq(governor.votingDelay(), 1 days);
+
+        // propose
+        vm.prank(address(owner));
+        votingToken.transfer(address(user1), 10e18);
+
+        // delegate (user1)
+        vm.prank(user1);
+        votingToken.delegate(user1);
+
+        skip(10);
+        vm.roll(block.number + 1);
+
+        vm.prank(user1);
+        uint256 pid = governor.propose(targets, values, calldatas, description);
+
+        // Not ready to vote yet
+        assertEq(uint8(governor.state(pid)), uint8(IGovernor.ProposalState.Pending));
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IGovernor.GovernorUnexpectedProposalState.selector,
+                pid,
+                IGovernor.ProposalState.Pending,
+                bytes32(1 << uint8(IGovernor.ProposalState.Active))
+            )
+        );
+        governor.castVote(pid, 1);
+
+        skip(2 days);
+        vm.roll(block.number + 1);
+
+        assertEq(votingToken.getPastVotes(address(user1), block.timestamp - 1), 10e18);
+        assertEq(uint8(governor.state(pid)), uint8(IGovernor.ProposalState.Active));
+
+        // vote
+        vm.prank(user1);
+        governor.castVote(pid, 1);
+        assertEq(governor.hasVoted(pid, user1), true);
+        assertEq(governor.hasVoted(pid, user2), false);
+        (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes) = governor.proposalVotes(pid);
+        assertEq(againstVotes, 0);
+        assertEq(forVotes, 10e18);
+        assertEq(abstainVotes, 0);
+        assertEq(uint256(governor.state(pid)), uint256(IGovernor.ProposalState.Active));
+
+        skip(1);
+        vm.roll(block.number + 1);
+
+        // cannot vote twice
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(IGovernor.GovernorAlreadyCastVote.selector, user1));
+        governor.castVote(pid, 2);
+
+        // no-op if voting with no weight
+        vm.prank(user2);
+        governor.castVote(pid, 2);
+        (againstVotes, forVotes, abstainVotes) = governor.proposalVotes(pid);
+        assertEq(againstVotes, 0);
+        assertEq(forVotes, 10e18);
+        assertEq(abstainVotes, 0);
+
+        // Advance post voting period
+        skip(7 days);
+        vm.roll(block.number + 1);
+        assertEq(uint8(governor.state(pid)), uint8(IGovernor.ProposalState.Succeeded));
+
+        // queue
+        assertEq(governor.proposalNeedsQueuing(pid), true);
+        governor.queue(targets, values, calldatas, keccak256(bytes(description)));
+        assertEq(uint8(governor.state(pid)), uint8(IGovernor.ProposalState.Queued));
+
+        // Advance time (required by timelock)
+        skip(2 days);
+        vm.roll(block.number + 1);
+
+        // execute
+        governor.execute(targets, values, calldatas, keccak256(bytes(description)));
+        assertEq(uint256(governor.state(pid)), uint256(IGovernor.ProposalState.Executed));
+        assertEq(governor.votingDelay(), 2 days);
+    }
+
+    function testCancelProposalByProposer() public {
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSelector(governor.setVotingDelay.selector, 2 days);
+        string memory description = "Update voting delay";
+
+        assertEq(governor.votingDelay(), 1 days);
+
+        // propose
+        vm.prank(address(owner));
+        votingToken.transfer(address(user1), 10e18);
+
+        // delegate (user1)
+        vm.prank(user1);
+        votingToken.delegate(user1);
+
+        skip(10);
+        vm.roll(block.number + 1);
+
+        vm.prank(user1);
+        uint256 pid = governor.propose(targets, values, calldatas, description);
+
+        // Proposer can cancel at this stage
+        vm.prank(user1);
+        governor.cancel(targets, values, calldatas, keccak256(bytes(description)));
+
+        // check final state
+        assertEq(uint256(governor.state(pid)), uint256(IGovernor.ProposalState.Canceled));
+        assertEq(governor.votingDelay(), 1 days); // no changes
     }
 }
