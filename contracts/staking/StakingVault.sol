@@ -127,6 +127,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
             // If a deposit/withdraw operation gets called for another user we should
             // accrue for both of them to avoid potential issues
+            // untestable: _receiver will always equal caller in this version
             if (_receiver != _caller) {
                 _accrueUser(_caller, rewardToken);
             }
