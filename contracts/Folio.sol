@@ -494,17 +494,26 @@ contract Folio is
         // gas optimization to avoid recomputing k on every bid
     }
 
-    /// @return D18{buyTok/sellTok}
-    function _price(Trade storage trade, uint256 timestamp) internal view returns (uint256) {
+    /// @return p D18{buyTok/sellTok}
+    function _price(Trade storage trade, uint256 timestamp) internal view returns (uint256 p) {
         // ensure auction is ongoing
         if (timestamp < trade.start || timestamp > trade.end || trade.sellAmount == 0) {
             revert Folio__TradeNotOngoing();
+        }
+        if (timestamp == trade.start) {
+            return trade.startPrice;
+        }
+        if (timestamp == trade.end) {
+            return trade.endPrice;
         }
 
         uint256 elapsed = timestamp - trade.start;
 
         // P_t = P_0 * e ^ -kt
-        return (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / 1e18;
+        p = (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / 1e18;
+        if (p == 0) {
+            p = trade.endPrice;
+        }
     }
 
     /// @return _pendingFeeShares {share}

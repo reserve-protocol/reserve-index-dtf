@@ -4,10 +4,17 @@ pragma solidity 0.8.28;
 import "./BaseTest.sol";
 
 abstract contract BaseExtremeTest is BaseTest {
-    struct TestParam {
+    struct MintRedeemTestParams {
         uint256 numTokens;
         uint8 decimals;
         uint256 amount;
+    }
+
+    struct TradingTestParams {
+        uint8 sellDecimals;
+        uint8 buyDecimals;
+        uint256 sellAmount; // {sellTok}
+        uint256 price; // D18{buyTok/sellTok}
     }
 
     // Test dimensions
@@ -15,7 +22,8 @@ abstract contract BaseExtremeTest is BaseTest {
     uint256[] internal testNumTokens = [1, 10, 50, 100, 500];
     uint256[] internal testAmounts = [1, 1e6, 1e18, 1e36];
 
-    TestParam[] internal testParameters;
+    MintRedeemTestParams[] internal mintRedeemTestParams;
+    TradingTestParams[] internal tradingTestParams;
 
     function _testSetupBefore() public override {
         roleRegistry = new MockRoleRegistry();
@@ -72,10 +80,33 @@ abstract contract BaseExtremeTest is BaseTest {
         for (uint256 i; i < testNumTokens.length; i++) {
             for (uint8 j; j < testDecimals.length; j++) {
                 for (uint256 k; k < testAmounts.length; k++) {
-                    testParameters.push(
-                        TestParam({ numTokens: testNumTokens[i], decimals: testDecimals[j], amount: testAmounts[k] })
+                    mintRedeemTestParams.push(
+                        MintRedeemTestParams({
+                            numTokens: testNumTokens[i],
+                            decimals: testDecimals[j],
+                            amount: testAmounts[k]
+                        })
                     );
                     index++;
+                }
+            }
+        }
+
+        index = 0;
+        for (uint256 i; i < testDecimals.length; i++) {
+            for (uint256 j; j < testDecimals.length; j++) {
+                for (uint256 k; k < testAmounts.length; k++) {
+                    for (uint256 l; l < testAmounts.length; l++) {
+                        tradingTestParams.push(
+                            TradingTestParams({
+                                sellDecimals: testDecimals[i],
+                                buyDecimals: testDecimals[j],
+                                sellAmount: testAmounts[k],
+                                price: testAmounts[l]
+                            })
+                        );
+                        index++;
+                    }
                 }
             }
         }
