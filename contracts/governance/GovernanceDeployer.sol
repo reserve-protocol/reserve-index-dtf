@@ -37,7 +37,7 @@ contract GovernanceDeployer is Versioned {
     ) external returns (address stToken, address governor) {
         address timelock = Clones.clone(timelockImplementation);
 
-        stToken = address(new StakingVault(name, symbol, underlying, timelock, REWARD_PERIOD));
+        stToken = address(new StakingVault(name, symbol, underlying, timelock, REWARD_PERIOD, 1 weeks));
 
         governor = Clones.clone(governorImplementation);
 
