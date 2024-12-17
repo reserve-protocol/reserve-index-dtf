@@ -485,6 +485,11 @@ contract Folio is
             revert Folio__InvalidPrices();
         }
 
+        // ensure price range does not exceed 1e9
+        if (trade.startPrice / trade.endPrice > 1e9) {
+            revert Folio__InvalidPrices();
+        }
+
         trade.start = block.timestamp;
         trade.end = block.timestamp + auctionLength;
         emit TradeOpened(trade.id, trade.startPrice, trade.endPrice, block.timestamp, block.timestamp + auctionLength);
