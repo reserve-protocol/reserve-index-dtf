@@ -21,13 +21,31 @@ contract DeployScript is Script {
     uint256 privateKey = vm.deriveKey(seedPhrase, 0);
     address walletAddress = vm.rememberKey(privateKey);
 
-    /// @dev This function should only be used during testing and local deployments!
+    struct DeploymentParams {
+        IRoleRegistry roleRegistry;
+        address feeRecipient;
+    }
+
+    mapping(uint256 chainId => DeploymentParams) public deploymentParams;
+
+    function setUp() external {
+        if (block.chainid == 31337) {
+            deploymentParams[31337] = DeploymentParams({
+                roleRegistry: IRoleRegistry(address(new MockRoleRegistry())), // Mock Registry for Local Networks
+                feeRecipient: address(1)
+            });
+        }
+
+        deploymentParams[8453] = DeploymentParams({
+            roleRegistry: IRoleRegistry(0xBc53d3e1C82F14cf40F69bF58fA4542b55091263), // Canonical Registry for Base
+            feeRecipient: address(1) // @todo Change this
+        });
+    }
+
     function run() external {
-        require(block.chainid == 31337, "test deployment only, please use runGenesisDeployment/runFollowupDeployment");
+        DeploymentParams memory params = deploymentParams[block.chainid];
 
-        MockRoleRegistry roleRegistry = new MockRoleRegistry();
-
-        runGenesisDeployment(IRoleRegistry(address(roleRegistry)), address(1));
+        runGenesisDeployment(params.roleRegistry, params.feeRecipient);
     }
 
     function runGenesisDeployment(IRoleRegistry roleRegistry, address feeRecipient) public {
@@ -67,10 +85,10 @@ contract DeployScript is Script {
         );
         GovernanceDeployer governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
 
+        vm.stopBroadcast();
+
         console.log("Folio Deployer: %s", address(folioDeployer));
         console.log("Governance Deployer: %s", address(governanceDeployer));
-
-        vm.stopBroadcast();
 
         require(folioDeployer.daoFeeRegistry() == address(daoFeeRegistry), "wrong dao fee registry");
         require(folioDeployer.versionRegistry() == address(versionRegistry), "wrong version registry");
