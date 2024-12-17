@@ -223,20 +223,18 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         uint256 tokensToHandout = (unaccountedBalance * handoutPercentage) / 1e18;
 
         uint256 supplyTokens = totalSupply();
-        uint256 deltaIndex;
 
         if (supplyTokens != 0) {
             // D18{reward/share} = {reward} * D18 / {share}
-            deltaIndex = (tokensToHandout * uint256(10 ** decimals())) / supplyTokens;
-        } else {
-            // @todo Come back to this.
-            // leftoverRewards[_rewardToken] += tokensToHandout;
-        }
+            uint256 deltaIndex = (tokensToHandout * uint256(10 ** decimals())) / supplyTokens;
 
-        // D18{reward/share} += D18{reward/share}
-        rewardInfo.rewardIndex += deltaIndex;
+            // D18{reward/share} += D18{reward/share}
+            rewardInfo.rewardIndex += deltaIndex;
+            rewardInfo.balanceAccounted += tokensToHandout;
+        }
+        // @todo Add a test case for when supplyTokens is 0 for a while, the reward are paid out correctly.
+
         rewardInfo.payoutLastPaid = block.timestamp;
-        rewardInfo.balanceAccounted += tokensToHandout;
         rewardInfo.balanceLastKnown = IERC20(_rewardToken).balanceOf(address(this)) + rewardInfo.totalClaimed;
     }
 
