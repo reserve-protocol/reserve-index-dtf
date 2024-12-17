@@ -320,7 +320,6 @@ contract FolioTest is BaseTest {
 
         // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
-
         uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
