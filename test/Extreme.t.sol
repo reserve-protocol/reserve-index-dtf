@@ -64,10 +64,10 @@ contract ExtremeTest is BaseExtremeTest {
         deployCoins();
 
         // Process all test combinations
-        uint256 snapshot = vm.snapshot();
+        uint256 snapshot = vm.snapshotState();
         for (uint256 i; i < feeTestParams.length; i++) {
             run_fees_scenario(feeTestParams[i]);
-            vm.revertTo(snapshot);
+            vm.revertToState(snapshot);
         }
     }
 
