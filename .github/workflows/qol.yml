@@ -50,7 +50,10 @@ jobs:
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: coverage
-          message: ${{ steps.cov_output.outputs.cx }}
+          message: |
+            ```
+            ${{ steps.cov_output.outputs.cx }}
+            ```
 
   size:
     if: github.event_name == 'pull_request'
@@ -90,4 +93,7 @@ jobs:
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: size
-          message: ${{ steps.cov_output.outputs.cx }}
+          message: |
+            ```
+            ${{ steps.cov_output.outputs.cx }}
+            ```
