@@ -511,7 +511,7 @@ contract Folio is
 
         // P_t = P_0 * e ^ -kt
         p = (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / 1e18;
-        if (p == 0) {
+        if (p < trade.endPrice) {
             p = trade.endPrice;
         }
     }
