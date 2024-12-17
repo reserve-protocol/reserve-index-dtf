@@ -63,7 +63,6 @@ contract UnstakingManager {
     function claimLock(uint256 lockId) external {
         Lock storage lock = locks[lockId];
 
-        require(lock.user == msg.sender, UnstakingManager__Unauthorized());
         require(lock.unlockTime <= block.timestamp, UnstakingManager__NotUnlockedYet());
         require(lock.claimedAt == 0, UnstakingManager__AlreadyClaimed());
 

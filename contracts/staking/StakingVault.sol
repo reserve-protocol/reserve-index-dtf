@@ -48,6 +48,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     error Vault__RewardAlreadyRegistered();
     error Vault__RewardNotRegistered();
     error Vault__InvalidUnstakingDelay();
+    error Vault__InvalidRewardsHalfLife();
 
     event UnstakingDelaySet(uint256 delay);
     event RewardTokenAdded(address rewardToken);
@@ -102,7 +103,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     }
 
     function _setUnstakingDelay(uint256 _delay) internal {
-        if (_delay > 14 days) {
+        if (_delay > 4 weeks) {
             revert Vault__InvalidUnstakingDelay();
         }
 
@@ -142,7 +143,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
             revert Vault__RewardNotRegistered();
         }
 
-        // @todo should do `delete rewardTrackers[_rewardToken]` here?
+        delete rewardTrackers[_rewardToken];
 
         emit RewardTokenRemoved(_rewardToken);
     }
@@ -177,7 +178,9 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     }
 
     function _setRewardRatio(uint256 _rewardHalfLife) internal accrueRewards(msg.sender, msg.sender) {
-        // @todo sensible range for half life?
+        if (_rewardHalfLife > 2 weeks) {
+            revert Vault__InvalidRewardsHalfLife();
+        }
 
         rewardRatio = UD60x18.unwrap(ln(UD60x18.wrap(2e18)) / UD60x18.wrap(_rewardHalfLife)) / 1e18;
 
