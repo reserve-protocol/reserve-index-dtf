@@ -1,0 +1,93 @@
+name: QoL
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  coverage:
+    if: github.event_name == 'pull_request'
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: yarn
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Install Dependencies
+        run: yarn --immutable
+
+      - name: Coverage
+        shell: bash
+        id: cov_output
+        run: |
+          cx=$(yarn coverage:summary)
+          cx="${cx//'%'/'%25'}"
+          cx="${cx//$'\n'/'%0A'}"
+          cx="${cx//$'\r'/'%0D'}"
+          echo "::set-output name=cx::$cx"
+
+      - name: Create Comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          message: ${{ steps.cov_output.outputs.cx }}
+
+  size:
+    if: github.event_name == 'pull_request'
+    name: Contract Size
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: yarn
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Install Dependencies
+        run: yarn --immutable
+
+      - name: Contract Size
+        shell: bash
+        id: cov_output
+        run: |
+          cx=$(yarn size)
+          cx="${cx//'%'/'%25'}"
+          cx="${cx//$'\n'/'%0A'}"
+          cx="${cx//$'\r'/'%0D'}"
+          echo "::set-output name=cx::$cx"
+
+      - name: Create Comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: size
+          message: ${{ steps.cov_output.outputs.cx }}

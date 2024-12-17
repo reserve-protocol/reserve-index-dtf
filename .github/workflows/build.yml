@@ -36,8 +36,3 @@ jobs:
       - name: Build Contracts
         run: |
           forge build
-
-      - name: Contract Size Check
-        continue-on-error: true
-        run: |
-          yarn size
