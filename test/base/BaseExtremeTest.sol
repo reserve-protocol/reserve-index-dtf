@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import "./BaseTest.sol";
+import { MAX_FEE, MAX_FEE_RECIPIENTS } from "@src/Folio.sol";
 
 abstract contract BaseExtremeTest is BaseTest {
     struct MintRedeemTestParams {
@@ -17,13 +18,26 @@ abstract contract BaseExtremeTest is BaseTest {
         uint256 price; // D18{buyTok/sellTok}
     }
 
+    struct FeeTestParams {
+        uint256 amount;
+        uint256 folioFee; // D18{1/s}
+        uint256 daoFee; // D18{1}
+        uint256 timeLapse; // {s}
+        uint256 numFeeRecipients;
+    }
+
     // Test dimensions
     uint8[] internal testDecimals = [6, 8, 18, 27];
     uint256[] internal testNumTokens = [1, 10, 50, 100, 500];
     uint256[] internal testAmounts = [1, 1e6, 1e18, 1e36];
+    uint256[] internal testFolioFees = [0, MAX_FEE / 4, MAX_FEE / 2, MAX_FEE];
+    uint256[] internal testDaoFees = [0, 0.01e18, 0.1e18, 0.15e18];
+    uint256[] internal testTimeLapse = [1, 12, 1 days, 30 days, 120 days, YEAR_IN_SECONDS];
+    uint256[] internal testNumFeeRecipients = [1, 5, 10, MAX_FEE_RECIPIENTS];
 
     MintRedeemTestParams[] internal mintRedeemTestParams;
     TradingTestParams[] internal tradingTestParams;
+    FeeTestParams[] internal feeTestParams;
 
     function _testSetupBefore() public override {
         roleRegistry = new MockRoleRegistry();
@@ -106,6 +120,28 @@ abstract contract BaseExtremeTest is BaseTest {
                             })
                         );
                         index++;
+                    }
+                }
+            }
+        }
+
+        index = 0;
+        for (uint256 i; i < testAmounts.length; i++) {
+            for (uint256 j; j < testFolioFees.length; j++) {
+                for (uint256 k; k < testDaoFees.length; k++) {
+                    for (uint256 l; l < testTimeLapse.length; l++) {
+                        for (uint256 m; m < testNumFeeRecipients.length; m++) {
+                            feeTestParams.push(
+                                FeeTestParams({
+                                    amount: testAmounts[i],
+                                    folioFee: testFolioFees[j],
+                                    daoFee: testDaoFees[k],
+                                    timeLapse: testTimeLapse[l],
+                                    numFeeRecipients: testNumFeeRecipients[m]
+                                })
+                            );
+                            index++;
+                        }
                     }
                 }
             }

@@ -7,10 +7,13 @@ import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FEE, MAX_TTL } from "co
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
-    function _deployTestFolio(address[] memory _tokens, uint256[] memory _amounts, uint256 initialSupply) public {
-        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
+    function _deployTestFolio(
+        address[] memory _tokens,
+        uint256[] memory _amounts,
+        uint256 initialSupply,
+        uint256 folioFee,
+        IFolio.FeeRecipient[] memory recipients
+    ) public {
         string memory deployGasTag = string.concat(
             "deployFolio(",
             vm.toString(_tokens.length),
@@ -34,7 +37,7 @@ contract ExtremeTest is BaseExtremeTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            100,
+            folioFee,
             owner,
             dao,
             priceCurator
@@ -54,6 +57,17 @@ contract ExtremeTest is BaseExtremeTest {
         // Process all test combinations
         for (uint256 i; i < tradingTestParams.length; i++) {
             run_trading_scenario(tradingTestParams[i]);
+        }
+    }
+
+    function test_fees_extreme() public {
+        deployCoins();
+
+        // Process all test combinations
+        uint256 snapshot = vm.snapshot();
+        for (uint256 i; i < feeTestParams.length; i++) {
+            run_fees_scenario(feeTestParams[i]);
+            vm.revertTo(snapshot);
         }
     }
 
@@ -90,7 +104,11 @@ contract ExtremeTest is BaseExtremeTest {
 
         // deploy folio
         uint256 initialSupply = p.amount * 1e18;
-        _deployTestFolio(tokens, amounts, initialSupply);
+        uint256 folioFee = MAX_FEE;
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
+        _deployTestFolio(tokens, amounts, initialSupply, folioFee, recipients);
 
         // check deployment
         assertEq(folio.totalSupply(), initialSupply, "wrong total supply");
@@ -190,7 +208,11 @@ contract ExtremeTest is BaseExtremeTest {
 
         // deploy folio
         uint256 initialSupply = p.sellAmount * 1e18;
-        _deployTestFolio(tokens, amounts, initialSupply);
+        uint256 folioFee = MAX_FEE;
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
+        _deployTestFolio(tokens, amounts, initialSupply, folioFee, recipients);
 
         // approveTrade
         vm.prank(dao);
@@ -225,5 +247,53 @@ contract ExtremeTest is BaseExtremeTest {
         // check bal differences
         assertEq(sell.balanceOf(address(folio)), 0, "wrong sell bal");
         assertEq(buy.balanceOf(address(folio)), buyAmount, "wrong buy bal");
+    }
+
+    function run_fees_scenario(FeeTestParams memory p) public {
+        // Create folio (tokens and decimals not relevant)
+        address[] memory tokens = new address[](3);
+        tokens[0] = address(USDC);
+        tokens[1] = address(DAI);
+        tokens[2] = address(MEME);
+        uint256[] memory amounts = new uint256[](tokens.length);
+        for (uint256 j = 0; j < tokens.length; j++) {
+            amounts[j] = p.amount;
+            mintTokens(tokens[j], getActors(), amounts[j]);
+        }
+        uint256 initialSupply = p.amount * 1e18;
+
+        // Populate recipients
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](p.numFeeRecipients);
+        uint96 feeReceiverShare = 1e18 / uint96(p.numFeeRecipients);
+        for (uint256 i = 0; i < p.numFeeRecipients; i++) {
+            recipients[i] = IFolio.FeeRecipient(vm.addr(i + 1), feeReceiverShare);
+        }
+        _deployTestFolio(tokens, amounts, initialSupply, p.folioFee, recipients);
+
+        // set dao fee
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), p.daoFee);
+
+        // fast forward, accumulate fees
+        vm.warp(block.timestamp + p.timeLapse);
+        vm.roll(block.number + 1000);
+        uint256 pendingFeeShares = folio.getPendingFeeShares();
+        folio.distributeFees();
+
+        // check receipient balances
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        console.log("dao fee numerator %s:", daoFeeNumerator);
+        uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        console.log("expected Dao Shares %s:", expectedDaoShares);
+
+        assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
+
+        uint256 remainingShares = pendingFeeShares - expectedDaoShares;
+        for (uint256 i = 0; i < recipients.length; i++) {
+            assertEq(
+                folio.balanceOf(recipients[i].recipient),
+                (remainingShares * feeReceiverShare) / 1e18,
+                "wrong receiver shares"
+            );
+        }
     }
 }

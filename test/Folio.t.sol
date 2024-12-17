@@ -302,6 +302,9 @@ contract FolioTest is BaseTest {
     }
 
     function test_daoFee() public {
+        // set dao fee to 0.15%
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.15e18);
+
         uint256 supplyBefore = folio.totalSupply();
 
         // fast forward, accumulate fees
@@ -317,6 +320,7 @@ contract FolioTest is BaseTest {
 
         // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+
         uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
