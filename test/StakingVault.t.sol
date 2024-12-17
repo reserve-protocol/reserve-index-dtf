@@ -344,7 +344,7 @@ contract StakingVaultTest is Test {
         vault.setRewardRatio(REWARD_HALF_LIFE / 2);
     }
 
-    function test_unstakingDelay() public {
+    function test_unstakingDelay_claimLock() public {
         StakingVault newVault = new StakingVault(
             "Staked Test Token",
             "sTEST",
@@ -372,5 +372,35 @@ contract StakingVaultTest is Test {
         manager.claimLock(0);
 
         assertEq(token.balanceOf(address(this)), 1000e18);
+    }
+
+    function test_unstakingDelay_cancelLock() public {
+        StakingVault newVault = new StakingVault(
+            "Staked Test Token",
+            "sTEST",
+            IERC20(address(token)),
+            address(this),
+            REWARD_HALF_LIFE,
+            14 days
+        );
+        UnstakingManager manager = newVault.unstakingManager();
+
+        console2.log(newVault.unstakingDelay());
+
+        token.mint(address(this), 1000e18);
+        token.approve(address(newVault), 1000e18);
+
+        newVault.deposit(1000e18, address(this));
+        newVault.redeem(1000e18, address(this), address(this));
+
+        assertEq(token.balanceOf(address(this)), 0);
+
+        vm.expectRevert();
+        manager.claimLock(0);
+
+        manager.cancelLock(0);
+
+        assertEq(token.balanceOf(address(this)), 0);
+        assertEq(newVault.balanceOf(address(this)), 1000e18);
     }
 }

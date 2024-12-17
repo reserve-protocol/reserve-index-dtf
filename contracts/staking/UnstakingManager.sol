@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import { IERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract UnstakingManager {
-    IERC20 immutable targetToken;
+    IERC20 public immutable targetToken;
+    IERC4626 public immutable vault;
 
     struct Lock {
         address user;
@@ -18,8 +20,8 @@ contract UnstakingManager {
     uint256 nextLockId;
     mapping(uint256 => Lock) public locks;
 
-    // @todo Expand events
-    event LockCreated(uint256 lockId);
+    event LockCreated(uint256 lockId, address user, uint256 amount, uint256 unlockTime);
+    event LockCancelled(uint256 lockId);
     event LockClaimed(uint256 lockId);
 
     error UnstakingManager__Unauthorized();
@@ -28,6 +30,7 @@ contract UnstakingManager {
 
     constructor(IERC20 _asset) {
         targetToken = _asset;
+        vault = IERC4626(msg.sender);
     }
 
     function createLock(address user, uint256 amount, uint256 unlockTime) external {
@@ -40,7 +43,21 @@ contract UnstakingManager {
         lock.amount = amount;
         lock.unlockTime = unlockTime;
 
-        emit LockCreated(lockId);
+        emit LockCreated(lockId, user, amount, unlockTime);
+    }
+
+    function cancelLock(uint256 lockId) external {
+        Lock storage lock = locks[lockId];
+
+        require(lock.user == msg.sender, UnstakingManager__Unauthorized());
+        require(lock.claimedAt == 0, UnstakingManager__AlreadyClaimed());
+
+        targetToken.approve(address(vault), lock.amount);
+        vault.deposit(lock.amount, lock.user);
+
+        emit LockCancelled(lockId);
+
+        delete locks[lockId];
     }
 
     function claimLock(uint256 lockId) external {
