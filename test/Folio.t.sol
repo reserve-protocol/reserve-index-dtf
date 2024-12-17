@@ -975,7 +975,7 @@ contract FolioTest is BaseTest {
 
             // should not revert at top or bottom end
             vm.prank(priceCurator);
-            folio.openTrade(index, i, 1);
+            folio.openTrade(index, i, (i + 1e9 - 1) / 1e9);
             (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(index);
             folio.getPrice(index, start);
             folio.getPrice(index, end);

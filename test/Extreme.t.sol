@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FEE } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FEE, MAX_TTL } from "contracts/Folio.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
@@ -45,12 +45,19 @@ contract ExtremeTest is BaseExtremeTest {
 
     function test_mint_redeem_extreme() public {
         // Process all test combinations
-        for (uint256 i; i < testParameters.length; i++) {
-            run_mint_redeem_scenario(testParameters[i]);
+        for (uint256 i; i < mintRedeemTestParams.length; i++) {
+            run_mint_redeem_scenario(mintRedeemTestParams[i]);
         }
     }
 
-    function run_mint_redeem_scenario(TestParam memory p) public {
+    function test_trading_extreme() public {
+        // Process all test combinations
+        for (uint256 i; i < tradingTestParams.length; i++) {
+            run_trading_scenario(tradingTestParams[i]);
+        }
+    }
+
+    function run_mint_redeem_scenario(MintRedeemTestParams memory p) public {
         string memory mintGasTag = string.concat(
             "mint(",
             vm.toString(p.numTokens),
@@ -167,5 +174,56 @@ contract ExtremeTest is BaseExtremeTest {
             );
         }
         vm.stopPrank();
+    }
+
+    function run_trading_scenario(TradingTestParams memory p) public {
+        IERC20 sell = deployCoin("Sell Token", "SELL", p.sellDecimals);
+        IERC20 buy = deployCoin("Buy Token", "BUY", p.buyDecimals);
+
+        // Create and mint tokens
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(sell);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = p.sellAmount;
+
+        mintTokens(tokens[0], getActors(), amounts[0]);
+
+        // deploy folio
+        uint256 initialSupply = p.sellAmount * 1e18;
+        _deployTestFolio(tokens, amounts, initialSupply);
+
+        // approveTrade
+        vm.prank(dao);
+        folio.approveTrade(0, sell, buy, p.sellAmount, 0, 0, MAX_TTL);
+
+        // openTrade
+        vm.prank(priceCurator);
+        folio.openTrade(0, p.price, (p.price + 1e9 - 1) / 1e9);
+
+        // sellAmount will be up to 1e36
+        // buyAmount will be up to 1e54 and down to 1
+
+        (, , , uint256 sellAmount, , , , , uint256 start, uint256 end, ) = folio.trades(0);
+
+        // getBidAmount should work at both ends of auction
+        folio.getBidAmount(0, sellAmount, start); // should not revert
+        uint256 buyAmount = folio.getBidAmount(0, sellAmount, end); // should not revert
+        assertGt(buyAmount, 0, "lot is free");
+
+        // console2.log("sellAmount", sellAmount);
+        // console2.log("highBuyAmount", folio.getBidAmount(0, sellAmount, start));
+        // console2.log("buyAmount", buyAmount);
+
+        // mint buy tokens to user1 and bid
+        vm.warp(end);
+        deal(address(buy), address(user1), buyAmount, true);
+        vm.startPrank(user1);
+        buy.approve(address(folio), buyAmount);
+        folio.bid(0, sellAmount, buyAmount, false, bytes(""));
+        vm.stopPrank();
+
+        // check bal differences
+        assertEq(sell.balanceOf(address(folio)), 0, "wrong sell bal");
+        assertEq(buy.balanceOf(address(folio)), buyAmount, "wrong buy bal");
     }
 }
