@@ -16,8 +16,6 @@ import { UD60x18, powu, ln } from "@prb/math/src/UD60x18.sol";
 
 import { UnstakingManager } from "./UnstakingManager.sol";
 
-import "forge-std/console2.sol";
-
 contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -42,12 +40,20 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     }
 
     mapping(address token => RewardInfo rewardInfo) public rewardTrackers;
+    mapping(address token => bool isDisallowed) public disallowedRewardTokens;
     mapping(address token => mapping(address user => UserRewardInfo userReward)) public userRewardTrackers;
 
     error Vault__InvalidRewardToken(address rewardToken);
+    error Vault__DisallowedRewardToken(address rewardToken);
     error Vault__RewardAlreadyRegistered();
     error Vault__RewardNotRegistered();
     error Vault__InvalidUnstakingDelay();
+
+    event UnstakingDelaySet(uint256 delay);
+    event RewardTokenAdded(address rewardToken);
+    event RewardTokenRemoved(address rewardToken);
+    event RewardsClaimed(address user, address rewardToken, uint256 amount);
+    event RewardRatioSet(uint256 rewardRatio, uint256 halfLife);
 
     constructor(
         string memory _name,
@@ -101,6 +107,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         }
 
         unstakingDelay = _delay;
+
+        emit UnstakingDelaySet(_delay);
     }
 
     /**
@@ -111,6 +119,10 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
             revert Vault__InvalidRewardToken(_rewardToken);
         }
 
+        if (disallowedRewardTokens[_rewardToken]) {
+            revert Vault__DisallowedRewardToken(_rewardToken);
+        }
+
         if (!rewardTokens.add(_rewardToken)) {
             revert Vault__RewardAlreadyRegistered();
         }
@@ -119,13 +131,20 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
         rewardInfo.payoutLastPaid = block.timestamp;
         rewardInfo.balanceLastKnown = IERC20(_rewardToken).balanceOf(address(this));
-        // @todo This changes based on if we are "ejecting" or not during remove and readd.
+
+        emit RewardTokenAdded(_rewardToken);
     }
 
     function removeRewardToken(address _rewardToken) external onlyOwner {
+        disallowedRewardTokens[_rewardToken] = true;
+
         if (!rewardTokens.remove(_rewardToken)) {
             revert Vault__RewardNotRegistered();
         }
+
+        // @todo should do `delete rewardTrackers[_rewardToken]` here?
+
+        emit RewardTokenRemoved(_rewardToken);
     }
 
     function claimRewards(address[] calldata _rewardTokens) external accrueRewards(msg.sender, msg.sender) {
@@ -141,6 +160,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
             rewardInfo.totalClaimed += claimableRewards;
 
             SafeERC20.safeTransfer(IERC20(_rewardToken), msg.sender, claimableRewards);
+
+            emit RewardsClaimed(msg.sender, _rewardToken, claimableRewards);
         }
     }
 
@@ -155,17 +176,17 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         _setRewardRatio(rewardHalfLife);
     }
 
-    function _setRewardRatio(uint256 _rewardHalfLife) internal {
+    function _setRewardRatio(uint256 _rewardHalfLife) internal accrueRewards(msg.sender, msg.sender) {
         // @todo sensible range for half life?
-        // @todo this probably should also accrue rewards
 
         rewardRatio = UD60x18.unwrap(ln(UD60x18.wrap(2e18)) / UD60x18.wrap(_rewardHalfLife)) / 1e18;
+
+        emit RewardRatioSet(rewardRatio, _rewardHalfLife);
     }
 
     function poke() external accrueRewards(msg.sender, msg.sender) {}
 
     modifier accrueRewards(address _caller, address _receiver) {
-        console2.log("----------- accrue START");
         address[] memory _rewardTokens = rewardTokens.values();
         uint256 _rewardTokensLength = _rewardTokens.length;
 
@@ -181,7 +202,6 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
                 _accrueUser(_caller, rewardToken);
             }
         }
-        console2.log("----------- accrue END");
         _;
     }
 
@@ -205,8 +225,6 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         if (supplyTokens != 0) {
             // D18{reward/share} = {reward} * D18 / {share}
             deltaIndex = (tokensToHandout * uint256(10 ** decimals())) / supplyTokens;
-
-            console2.log("deltaIndex", deltaIndex);
         } else {
             // @todo Come back to this.
             // leftoverRewards[_rewardToken] += tokensToHandout;
@@ -232,8 +250,6 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         // Accumulate rewards by multiplying user tokens by index and adding on unclaimed
         // {reward} = {share} * D18{reward/share} / D18
         uint256 supplierDelta = (balanceOf(_user) * deltaIndex) / uint256(10 ** decimals());
-
-        console2.log("supplierDelta", supplierDelta);
 
         // {reward} += {reward}
         userRewardTracker.accruedRewards += supplierDelta;
