@@ -302,6 +302,9 @@ contract FolioTest is BaseTest {
     }
 
     function test_daoFee() public {
+        // set dao fee to 0.15%
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.15e18);
+
         uint256 supplyBefore = folio.totalSupply();
 
         // fast forward, accumulate fees
