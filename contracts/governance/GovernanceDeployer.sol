@@ -37,7 +37,16 @@ contract GovernanceDeployer is Versioned {
     ) external returns (address stToken, address governor) {
         address timelock = Clones.clone(timelockImplementation);
 
-        stToken = address(new StakingVault(name, symbol, underlying, timelock, REWARD_PERIOD));
+        stToken = address(
+            new StakingVault(
+                name,
+                symbol,
+                underlying,
+                timelock,
+                REWARD_PERIOD,
+                0 // @todo What should be the default value for unstaking delay?
+            )
+        );
 
         governor = Clones.clone(governorImplementation);
 

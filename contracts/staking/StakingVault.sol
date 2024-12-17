@@ -14,6 +14,8 @@ import { Time } from "@openzeppelin/contracts/utils/types/Time.sol";
 
 import { UD60x18, powu, ln } from "@prb/math/src/UD60x18.sol";
 
+import { UnstakingManager } from "./UnstakingManager.sol";
+
 import "forge-std/console2.sol";
 
 contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
@@ -21,6 +23,9 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
     EnumerableSet.AddressSet private rewardTokens;
     uint256 public rewardRatio; // D18{1}
+
+    UnstakingManager public immutable unstakingManager;
+    uint256 public unstakingDelay;
 
     struct RewardInfo {
         uint256 payoutLastPaid; // {s}
@@ -42,15 +47,60 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     error Vault__InvalidRewardToken(address rewardToken);
     error Vault__RewardAlreadyRegistered();
     error Vault__RewardNotRegistered();
+    error Vault__InvalidUnstakingDelay();
 
     constructor(
         string memory _name,
         string memory _symbol,
         IERC20 _underlying,
         address _initialOwner,
-        uint256 rewardPeriod
+        uint256 rewardPeriod,
+        uint256 _unstakingDelay
     ) ERC4626(_underlying) ERC20(_name, _symbol) ERC20Permit(_name) Ownable(_initialOwner) {
         _setRewardRatio(rewardPeriod);
+        _setUnstakingDelay(_unstakingDelay);
+
+        unstakingManager = new UnstakingManager(_underlying);
+    }
+
+    /**
+     * Withdraw Logic
+     */
+    function _withdraw(
+        address _caller,
+        address _receiver,
+        address _owner,
+        uint256 _assets,
+        uint256 _shares
+    ) internal override {
+        if (unstakingDelay == 0) {
+            super._withdraw(_caller, _receiver, _owner, _assets, _shares);
+        } else {
+            // Since we can't use the builtin `_withdraw`, we need to take care of the entire flow here.
+            if (_caller != _owner) {
+                _spendAllowance(_owner, _caller, _shares);
+            }
+
+            // Burn the shares first.
+            _burn(_owner, _shares);
+
+            IERC20(asset()).approve(address(unstakingManager), _assets);
+            unstakingManager.createLock(_receiver, _assets, block.timestamp + unstakingDelay);
+
+            emit Withdraw(_caller, _receiver, _owner, _assets, _shares);
+        }
+    }
+
+    function setUnstakingDelay(uint256 _delay) external onlyOwner {
+        _setUnstakingDelay(_delay);
+    }
+
+    function _setUnstakingDelay(uint256 _delay) internal {
+        if (_delay > 14 days) {
+            revert Vault__InvalidUnstakingDelay();
+        }
+
+        unstakingDelay = _delay;
     }
 
     /**

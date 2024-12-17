@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import "forge-std/Test.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import { StakingVault } from "contracts/staking/StakingVault.sol";
+import { StakingVault, UnstakingManager } from "contracts/staking/StakingVault.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 
@@ -25,7 +25,14 @@ contract StakingVaultTest is Test {
         vm.label(address(token), "Test Token");
         vm.label(address(reward), "Reward Token");
 
-        vault = new StakingVault("Staked Test Token", "sTEST", IERC20(address(token)), address(this), REWARD_HALF_LIFE);
+        vault = new StakingVault(
+            "Staked Test Token",
+            "sTEST",
+            IERC20(address(token)),
+            address(this),
+            REWARD_HALF_LIFE,
+            0
+        );
 
         vault.addRewardToken(address(reward));
 
@@ -111,7 +118,8 @@ contract StakingVaultTest is Test {
                 "sTEST",
                 IERC20(address(token)),
                 address(this),
-                REWARD_HALF_LIFE
+                REWARD_HALF_LIFE,
+                0
             );
 
             token.mint(address(this), 1000 * 1e18);
@@ -334,5 +342,35 @@ contract StakingVaultTest is Test {
         vm.prank(ACTOR_ALICE);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, ACTOR_ALICE));
         vault.setRewardRatio(REWARD_HALF_LIFE / 2);
+    }
+
+    function test_unstakingDelay() public {
+        StakingVault newVault = new StakingVault(
+            "Staked Test Token",
+            "sTEST",
+            IERC20(address(token)),
+            address(this),
+            REWARD_HALF_LIFE,
+            14 days
+        );
+        UnstakingManager manager = newVault.unstakingManager();
+
+        console2.log(newVault.unstakingDelay());
+
+        token.mint(address(this), 1000e18);
+        token.approve(address(newVault), 1000e18);
+
+        newVault.deposit(1000e18, address(this));
+        newVault.redeem(1000e18, address(this), address(this));
+
+        assertEq(token.balanceOf(address(this)), 0);
+
+        vm.expectRevert();
+        manager.claimLock(0);
+
+        vm.warp(block.timestamp + 14 days);
+        manager.claimLock(0);
+
+        assertEq(token.balanceOf(address(this)), 1000e18);
     }
 }
