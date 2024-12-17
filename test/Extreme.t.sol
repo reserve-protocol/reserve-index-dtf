@@ -232,10 +232,6 @@ contract ExtremeTest is BaseExtremeTest {
         uint256 buyAmount = folio.getBidAmount(0, sellAmount, end); // should not revert
         assertGt(buyAmount, 0, "lot is free");
 
-        // console2.log("sellAmount", sellAmount);
-        // console2.log("highBuyAmount", folio.getBidAmount(0, sellAmount, start));
-        // console2.log("buyAmount", buyAmount);
-
         // mint buy tokens to user1 and bid
         vm.warp(end);
         deal(address(buy), address(user1), buyAmount, true);
@@ -281,9 +277,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
-        console.log("dao fee numerator %s:", daoFeeNumerator);
         uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
-        console.log("expected Dao Shares %s:", expectedDaoShares);
 
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
