@@ -451,6 +451,40 @@ contract StakingVaultTest is Test {
         assertEq(newVault.balanceOf(address(this)), 1000e18);
     }
 
+    function test__unstakingDelay_redeemOnBehalf() public {
+        StakingVault newVault = new StakingVault(
+            "Staked Test Token",
+            "sTEST",
+            IERC20(address(token)),
+            address(this),
+            REWARD_HALF_LIFE,
+            14 days
+        );
+        UnstakingManager manager = newVault.unstakingManager();
+
+        token.mint(address(this), 1000e18);
+        token.approve(address(newVault), 1000e18);
+        newVault.deposit(1000e18, address(this));
+
+        // Reedem on behalf
+        newVault.approve(ACTOR_ALICE, 1000e18);
+
+        vm.startPrank(ACTOR_ALICE);
+        vm.expectEmit(true, true, true, true);
+        emit UnstakingManager.LockCreated(0, address(this), 1000e18, block.timestamp + newVault.unstakingDelay());
+        newVault.redeem(1000e18, address(this), address(this));
+        vm.stopPrank();
+
+        assertEq(token.balanceOf(address(this)), 0);
+
+        vm.warp(block.timestamp + 14 days);
+        vm.expectEmit(true, false, false, true);
+        emit UnstakingManager.LockClaimed(0);
+        manager.claimLock(0);
+
+        assertEq(token.balanceOf(address(this)), 1000e18);
+    }
+
     function test_cannotCancelLockIfNotUser() public {
         StakingVault newVault = new StakingVault(
             "Staked Test Token",
