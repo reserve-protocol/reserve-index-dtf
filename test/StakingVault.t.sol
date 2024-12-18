@@ -101,7 +101,6 @@ contract StakingVaultTest is Test {
 
         address[] memory rewardTokens = new address[](1);
         rewardTokens[0] = address(reward);
-
         vault.claimRewards(rewardTokens);
 
         vm.warp(block.timestamp + 3 days);
