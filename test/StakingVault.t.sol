@@ -102,7 +102,6 @@ contract StakingVaultTest is Test {
         address[] memory rewardTokens = new address[](1);
         rewardTokens[0] = address(reward);
         vault.claimRewards(rewardTokens);
-        console2.log("balance %18e", reward.balanceOf(address(this)));
 
         vm.warp(block.timestamp + 3 days);
 
@@ -355,23 +354,29 @@ contract StakingVaultTest is Test {
         );
         UnstakingManager manager = newVault.unstakingManager();
 
-        console2.log(newVault.unstakingDelay());
-
         token.mint(address(this), 1000e18);
         token.approve(address(newVault), 1000e18);
 
         newVault.deposit(1000e18, address(this));
+        vm.expectEmit(true, true, true, true);
+        emit UnstakingManager.LockCreated(0, address(this), 1000e18, block.timestamp + newVault.unstakingDelay());
         newVault.redeem(1000e18, address(this), address(this));
 
         assertEq(token.balanceOf(address(this)), 0);
 
-        vm.expectRevert();
+        vm.expectRevert(UnstakingManager.UnstakingManager__NotUnlockedYet.selector);
         manager.claimLock(0);
 
         vm.warp(block.timestamp + 14 days);
+        vm.expectEmit(true, false, false, true);
+        emit UnstakingManager.LockClaimed(0);
         manager.claimLock(0);
 
         assertEq(token.balanceOf(address(this)), 1000e18);
+
+        // Cannot claim again
+        vm.expectRevert(UnstakingManager.UnstakingManager__AlreadyClaimed.selector);
+        manager.claimLock(0);
     }
 
     function test_unstakingDelay_cancelLock() public {
@@ -385,22 +390,90 @@ contract StakingVaultTest is Test {
         );
         UnstakingManager manager = newVault.unstakingManager();
 
-        console2.log(newVault.unstakingDelay());
+        token.mint(address(this), 1000e18);
+        token.approve(address(newVault), 1000e18);
+
+        newVault.deposit(1000e18, address(this));
+        vm.expectEmit(true, true, true, true);
+        emit UnstakingManager.LockCreated(0, address(this), 1000e18, block.timestamp + newVault.unstakingDelay());
+        newVault.redeem(1000e18, address(this), address(this));
+
+        assertEq(token.balanceOf(address(this)), 0);
+
+        vm.expectRevert(UnstakingManager.UnstakingManager__NotUnlockedYet.selector);
+        manager.claimLock(0);
+
+        vm.expectEmit(true, false, false, true);
+        emit UnstakingManager.LockCancelled(0);
+        manager.cancelLock(0);
+
+        assertEq(token.balanceOf(address(this)), 0);
+        assertEq(newVault.balanceOf(address(this)), 1000e18);
+    }
+
+    function test_cannotCancelLockIfNotUser() public {
+        StakingVault newVault = new StakingVault(
+            "Staked Test Token",
+            "sTEST",
+            IERC20(address(token)),
+            address(this),
+            REWARD_HALF_LIFE,
+            14 days
+        );
+        UnstakingManager manager = newVault.unstakingManager();
 
         token.mint(address(this), 1000e18);
         token.approve(address(newVault), 1000e18);
 
         newVault.deposit(1000e18, address(this));
+        vm.expectEmit(true, true, true, true);
+        emit UnstakingManager.LockCreated(0, address(this), 1000e18, block.timestamp + newVault.unstakingDelay());
         newVault.redeem(1000e18, address(this), address(this));
 
         assertEq(token.balanceOf(address(this)), 0);
 
-        vm.expectRevert();
-        manager.claimLock(0);
-
+        vm.prank(ACTOR_BOB);
+        vm.expectRevert(UnstakingManager.UnstakingManager__Unauthorized.selector);
         manager.cancelLock(0);
+    }
+
+    function test_cannotCancelLockIfAlreadyClaimed() public {
+        StakingVault newVault = new StakingVault(
+            "Staked Test Token",
+            "sTEST",
+            IERC20(address(token)),
+            address(this),
+            REWARD_HALF_LIFE,
+            14 days
+        );
+        UnstakingManager manager = newVault.unstakingManager();
+
+        token.mint(address(this), 1000e18);
+        token.approve(address(newVault), 1000e18);
+
+        newVault.deposit(1000e18, address(this));
+        vm.expectEmit(true, true, true, true);
+        emit UnstakingManager.LockCreated(0, address(this), 1000e18, block.timestamp + newVault.unstakingDelay());
+        newVault.redeem(1000e18, address(this), address(this));
 
         assertEq(token.balanceOf(address(this)), 0);
-        assertEq(newVault.balanceOf(address(this)), 1000e18);
+
+        vm.warp(block.timestamp + 14 days);
+        vm.expectEmit(true, false, false, true);
+        emit UnstakingManager.LockClaimed(0);
+        manager.claimLock(0);
+
+        assertEq(token.balanceOf(address(this)), 1000e18);
+
+        // Cannot cancel
+        vm.expectRevert(UnstakingManager.UnstakingManager__AlreadyClaimed.selector);
+        manager.cancelLock(0);
+    }
+
+    function test_cannotCreateLockIfNotVault() public {
+        UnstakingManager manager = vault.unstakingManager();
+
+        vm.expectRevert(UnstakingManager.UnstakingManager__Unauthorized.selector);
+        manager.createLock(ACTOR_ALICE, 100e18, 10000);
     }
 }
