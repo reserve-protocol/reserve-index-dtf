@@ -24,3 +24,9 @@ additional_compiler_profiles = [
 compilation_restrictions = [
   {paths = "test/**", via_ir = false},
 ]
+
+[rpc_endpoints]
+base = "https://base-mainnet.infura.io/v3/b6bf7d3508c941499b10025c0776eaf8"
+
+[etherscan]
+base = {url = "https://api.basescan.org/api", key = ""}

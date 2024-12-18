@@ -1,5 +1,6 @@
-# shhhh
+# Secrets
 .env
+.env.*
 .seed
 
 # Foundry

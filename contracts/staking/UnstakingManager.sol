@@ -34,6 +34,8 @@ contract UnstakingManager {
     }
 
     function createLock(address user, uint256 amount, uint256 unlockTime) external {
+        require(msg.sender == address(vault), UnstakingManager__Unauthorized());
+
         SafeERC20.safeTransferFrom(targetToken, msg.sender, address(this), amount);
 
         uint256 lockId = nextLockId++;
