@@ -25,8 +25,8 @@
     "test:extreme": "forge test --match-test extreme",
     "test:all": "forge test",
     "size": "forge compile --sizes",
-    "coverage": "forge coverage --report lcov",
-    "coverage:summary": "forge coverage --report summary",
+    "coverage": "forge coverage --report lcov --no-match-coverage '(script|test)'",
+    "coverage:summary": "forge coverage --report summary --no-match-coverage '(script|test)'",
     "deploy": "forge script script/Deploy.s.sol:DeployScript --broadcast --slow --skip-simulation",
     "anvil": "anvil --fork-url https://eth.public-rpc.com --chain-id 31337 --prune-history"
   },

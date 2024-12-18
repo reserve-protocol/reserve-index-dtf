@@ -16,6 +16,8 @@ import { UD60x18, powu, ln } from "@prb/math/src/UD60x18.sol";
 
 import { UnstakingManager } from "./UnstakingManager.sol";
 
+uint256 constant SCALAR = 1e18;
+
 contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -225,8 +227,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         uint256 supplyTokens = totalSupply();
 
         if (supplyTokens != 0) {
-            // D18{reward/share} = {reward} * D18 / {share}
-            uint256 deltaIndex = (tokensToHandout * uint256(10 ** decimals())) / supplyTokens;
+            // D18{reward} = {reward} * D18 * {share} / {share}
+            uint256 deltaIndex = (tokensToHandout * uint256(10 ** decimals()) * SCALAR) / supplyTokens;
 
             // D18{reward/share} += D18{reward/share}
             rewardInfo.rewardIndex += deltaIndex;
@@ -250,7 +252,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
         // Accumulate rewards by multiplying user tokens by index and adding on unclaimed
         // {reward} = {share} * D18{reward/share} / D18
-        uint256 supplierDelta = (balanceOf(_user) * deltaIndex) / uint256(10 ** decimals());
+        uint256 supplierDelta = (balanceOf(_user) * deltaIndex) / uint256(10 ** decimals()) / SCALAR;
 
         // {reward} += {reward}
         userRewardTracker.accruedRewards += supplierDelta;
