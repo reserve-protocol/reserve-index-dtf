@@ -30,6 +30,8 @@ uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 
+uint256 constant SCALAR = 1e18; // D18
+
 /**
  * @title Folio
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
@@ -265,7 +267,6 @@ contract Folio is
         (address recipient, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(
             address(this)
         );
-        // {share} = {share} * D18{1} / D18
         uint256 daoFee = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
         _mint(recipient, daoFee);
         pendingFeeShares -= daoFee;
@@ -274,7 +275,7 @@ contract Folio is
         uint256 len = feeRecipients.length;
         for (uint256 i; i < len; i++) {
             // {share} = {share} * D18{1} / D18
-            uint256 shares = (pendingFeeShares * feeRecipients[i].portion) / 1e18;
+            uint256 shares = (pendingFeeShares * feeRecipients[i].portion) / SCALAR;
 
             _mint(feeRecipients[i].recipient, shares);
         }
@@ -297,7 +298,7 @@ contract Folio is
     function getBidAmount(uint256 tradeId, uint256 amount, uint256 timestamp) external view returns (uint256) {
         uint256 price = _price(trades[tradeId], timestamp);
         // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
-        return (amount * price + 1e18 - 1) / 1e18;
+        return (amount * price + SCALAR - 1) / SCALAR;
     }
 
     /// @param tradeId Use to ensure expected ordering
@@ -418,7 +419,7 @@ contract Folio is
         uint256 price = _price(trade, block.timestamp);
 
         // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
-        boughtAmt = (sellAmount * price + 1e18 - 1) / 1e18;
+        boughtAmt = (sellAmount * price + SCALAR - 1) / SCALAR;
         if (boughtAmt > maxBuyAmount) {
             revert Folio__SlippageExceeded();
         }
@@ -490,7 +491,7 @@ contract Folio is
         emit TradeOpened(trade.id, trade.startPrice, trade.endPrice, block.timestamp, block.timestamp + auctionLength);
 
         // k = ln(P_0 / P_t) / t
-        trade.k = UD60x18.wrap((trade.startPrice * 1e18) / trade.endPrice).ln().unwrap() / auctionLength;
+        trade.k = UD60x18.wrap((trade.startPrice * SCALAR) / trade.endPrice).ln().unwrap() / auctionLength;
         // gas optimization to avoid recomputing k on every bid
     }
 
@@ -510,7 +511,7 @@ contract Folio is
         uint256 elapsed = timestamp - trade.start;
 
         // P_t = P_0 * e ^ -kt
-        p = (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / 1e18;
+        p = (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / SCALAR;
         if (p < trade.endPrice) {
             p = trade.endPrice;
         }
@@ -524,7 +525,7 @@ contract Folio is
         uint256 elapsed = block.timestamp - lastPoke;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
-        _pendingFeeShares += (supply * 1e18) / UD60x18.wrap(1e18 - folioFee).powu(elapsed).unwrap() - supply;
+        _pendingFeeShares += (supply * SCALAR) / UD60x18.wrap(SCALAR - folioFee).powu(elapsed).unwrap() - supply;
     }
 
     function _setFolioFee(uint256 _newFee) internal {
