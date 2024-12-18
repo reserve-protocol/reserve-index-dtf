@@ -10,9 +10,9 @@ TRADE_PROPOSER is expected to be the timelock of the fast-moving governor associ
 
 PRICE_CURATOR is expected to be a semi-trusted EOA or multisig: they can open trades within the bounds set by governance, hopefully adding precision. If they are offline, the trade can be opened permissionlessly after a preset delay. If they are evil, at-best they can prevent a Folio from rebalancing by killing trades, but they cannot access the backing directly.
 
-## Architecture
+### Architecture
 
-### 1. **Folio Contracts**
+#### 1. **Folio Contracts**
 
 - **Folio.sol**: The primary contract in the system. Represents a portfolio of ERC20 assets, and contains all trading logic
 - **FolioDeployer.sol**: Manages the deployment of new Folio instances
@@ -22,18 +22,18 @@ PRICE_CURATOR is expected to be a semi-trusted EOA or multisig: they can open tr
 
 While not included directly, FolioVersionRegistry and FolioDAOFeeRegistry also depend on a pre-existing `RoleRegistry` instance. This contract must adhere to the [contracts/interfaces/IRoleRegistry.sol](contracts/interfaces/IRoleRegistry.sol) interface.
 
-### 2. **Governance**
+#### 2. **Governance**
 
 - **GovernanceDeployer.sol**: Deploys staking tokens and governing systems
 - **FolioGovernor.sol**: Canonical governor in the system, time-based
 
-### 3. **Staking**
+#### 3. **Staking**
 
 - **StakingVault.sol**: A vault contract that holds staked tokens and allows users to earn rewards simultaneously in multiple reward tokens. Central voting token for all types of governance
 
-## Roles
+### Roles
 
-### Folio
+##### Folio
 
 A Folio has 3 roles:
 
@@ -48,20 +48,97 @@ A Folio has 3 roles:
    - Expected: EOA or multisig
    - Can open and kill trades
 
-### StakingVault
+##### StakingVault
 
 The staking vault has ONLY a single owner:
 
 - Expected: Community Timelocked Governor
 - Can add/remove reward tokens, set reward half-life, and set unstaking delay
 
-## Fee Structure
+### Trading
 
-- Folios maintain a governance-controlled `folioFee`, representing the % of the total value of a Folio that should be extracted as a fee
-- Within the `folioFee`, the DAO takes a cut based on `FolioDAOFeeRegistry.getFeeDetails()`
-- The remaining portion is distributed prorata to `feeRecipients[]` based on their configured portions
+##### Trade Lifecycle
 
-## Future Work / Not Implemented Yet
+1. Trade is approved by governance, including an initial price range
+2. Trade is opened, starting a dutch auction
+   a. ...either by the price curator (immediately)
+   b. ...or permissionlessly (after a delay)
+3. Bids occur
+4. Auction expires
+
+##### Auction pricing
+
+There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the TRADE_PROPOSER:
+
+1. can provide `[0, 0]` to _fully_ defer to the price curator for pricing. In this mode the auction CANNOT be opened permissionlessly. Loss can arise either due to the price curator setting `startPrice` too low, or due to precision issues from traversing too large a range.
+2. can provide `[startPrice, 0]` to defer to the price curator for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
+3. can provide `[startPrice, endPrice]` to defer to the price curator for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Loss is minimal.
+
+##### Auction pricing
+
+Standard exponential decay (over time):
+
+![alt text](auction.png "Auction Curve")
+
+Note: The first block may not have a price of exactly `startPrice`, if it does not occur on the `start` timestamp.
+
+### Fee Structure
+
+Folios maintain a governance-controlled `folioFee`, representing the % of the total value of a Folio that should be extracted as a fee.
+
+Within the `folioFee`, the DAO takes a cut based on `FolioDAOFeeRegistry.getFeeDetails()`
+
+The remaining portion is distributed prorata to `feeRecipients[]` based on their configured portions.
+
+### Units
+
+Units are documented with curly brackets (`{}`) throughout the codebase with the additional `D18` prefix being used to denote when 18 additional decimals of precision have been applied, for example in the case of a ratio.
+
+Units:
+
+- `{tok}` OR `{share}` OR `{reward}`: token balances
+- `D18`: 1e18
+- `D18{tok}`: a ratio of two token balances with 18 decimals of added precision
+- `D18{1}`: a percentage value with 18 decimals of added precision
+- `D18{tok1/tok2}`: a ratio of two token balances with 18 decimals of added precision
+- `{s}`: seconds
+
+Example:
+
+```
+    // {share} = {share} * D18{1} / D18
+    uint256 shares = (pendingFeeShares * feeRecipients[i].portion) / SCALAR;
+```
+
+### Valid Ranges
+
+Tokens are assumed to be within the following ranges:
+
+|              | Folio collateral | StakingVault underlying/rewards |
+| ------------ | ---------------- | ------------------------------- |
+| **Supply**   | 1e36             | 1e36                            |
+| **Decimals** | 27               | 21                              |
+
+### Weird ERC20s
+
+Some ERC20s are NOT supported
+
+| Weirdness                      | Folio | StakingVault |
+| ------------------------------ | ----- | ------------ |
+| Multiple-entry addresses       | ❌    | ❌           |
+| Pausable / blocklist           | ❌    | ❌           |
+| ERC777 / callback              | ✅    | ❌           |
+| Downward-rebasing              | ✅    | ❌           |
+| Upward-rebasing                | ✅    | ✅           |
+| Fee-on-transfer                | ✅    | ✅           |
+| Revert on zero-value transfers | ✅    | ✅           |
+| Flash mint                     | ✅    | ✅           |
+| Missing return values          | ✅    | ✅           |
+| No revert on failure           | ✅    | ✅           |
+
+Note: while the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol are still possible.
+
+### Future Work / Not Implemented Yet
 
 1. **delegatecall functionality / way to claim rewards**
    currently there is no way to claim rewards, for example to claim AERO as a result of holding a staked Aerodrome position. An autocompounding layer such as beefy or yearn would be required in order to put this kind of position into a Folio
