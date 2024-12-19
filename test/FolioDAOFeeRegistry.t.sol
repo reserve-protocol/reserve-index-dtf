@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { IFolioDeployer } from "contracts/interfaces/IFolioDeployer.sol";
 import { IFolioDAOFeeRegistry } from "contracts/interfaces/IFolioDAOFeeRegistry.sol";
-import { FolioDAOFeeRegistry, FEE_DENOMINATOR, MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
+import { FolioDAOFeeRegistry, MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { MAX_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
 import "./base/BaseTest.sol";
 
@@ -55,7 +55,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         );
         assertEq(recipient, dao);
         assertEq(feeNumerator, 0); // no fee numerator set yet
-        assertEq(feeDenominator, FEE_DENOMINATOR);
+        assertEq(feeDenominator, folioDAOFeeRegistry.FEE_DENOMINATOR());
     }
 
     function test_cannotCreateFeeRegistryWithInvalidRoleRegistry() public {

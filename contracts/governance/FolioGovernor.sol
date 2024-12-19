@@ -8,6 +8,11 @@ import "@openzeppelin/contracts-upgradeable/governance/extensions/GovernorVotesU
 import "@openzeppelin/contracts-upgradeable/governance/extensions/GovernorVotesQuorumFractionUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/governance/extensions/GovernorTimelockControlUpgradeable.sol";
 
+/**
+ * @title FolioGovernor
+ * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
+ * @notice A Governor with a dynamic proposal threshold based on the supply of the voting token
+ */
 contract FolioGovernor is
     GovernorUpgradeable,
     GovernorSettingsUpgradeable,

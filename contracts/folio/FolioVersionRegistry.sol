@@ -8,7 +8,9 @@ import { IFolioVersionRegistry } from "@interfaces/IFolioVersionRegistry.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 /**
- * @title VersionRegistry for Reserve Folio
+ * @title FolioVersionRegistry
+ * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
+ * @notice FolioVersionRegistry tracks Folio deployments by their version string
  */
 contract FolioVersionRegistry is IFolioVersionRegistry {
     IRoleRegistry public immutable roleRegistry;

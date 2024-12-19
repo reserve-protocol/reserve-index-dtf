@@ -6,15 +6,19 @@ import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/Saf
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
+/**
+ * @title UnstakingManager
+ * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
+ */
 contract UnstakingManager {
     IERC20 public immutable targetToken;
     IERC4626 public immutable vault;
 
     struct Lock {
         address user;
-        uint256 amount;
-        uint256 unlockTime;
-        uint256 claimedAt;
+        uint256 amount; // {targetToken}
+        uint256 unlockTime; // {s}
+        uint256 claimedAt; // {s}
     }
 
     uint256 nextLockId;
@@ -33,6 +37,8 @@ contract UnstakingManager {
         vault = IERC4626(msg.sender);
     }
 
+    /// @param amount {targetToken}
+    /// @param unlockTime {s}
     function createLock(address user, uint256 amount, uint256 unlockTime) external {
         require(msg.sender == address(vault), UnstakingManager__Unauthorized());
 

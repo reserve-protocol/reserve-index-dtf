@@ -13,6 +13,7 @@ import { Versioned } from "@utils/Versioned.sol";
 
 /**
  * @title GovernanceDeployer
+ * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 contract GovernanceDeployer is Versioned {
     uint256 constant REWARD_PERIOD = (60 * 60 * 24 * 7) / 2; // 3.5 days
