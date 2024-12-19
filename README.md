@@ -74,6 +74,8 @@ There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the TRADE_P
 2. can provide `[startPrice, 0]` to defer to the price curator for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
 3. can provide `[startPrice, endPrice]` to defer to the price curator for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Loss is minimal.
 
+The PRICE_CURATOR can choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
+
 ##### Auction pricing
 
 Standard exponential decay (over time):
