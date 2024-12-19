@@ -26,6 +26,8 @@ interface IFolio {
 
     // === Errors ===
 
+    error Folio__Unauthorized();
+
     error Folio__BasketAlreadyInitialized();
     error Folio__EmptyAssets();
 

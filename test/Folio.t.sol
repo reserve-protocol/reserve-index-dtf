@@ -751,17 +751,63 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_auctionKillTrade() public {
+    function test_auctionKillTradeByTradeProposer() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
         vm.expectEmit(true, true, true, true);
         emit IFolio.TradeApproved(0, address(USDC), address(USDT), amt, 0);
         folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
 
-        vm.startPrank(priceCurator);
+        vm.prank(priceCurator);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeOpened(0, 10e18, 1e18, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+
+        // killTrade should not be callable by just anyone
+        vm.expectRevert(IFolio.Folio__Unauthorized.selector);
+        folio.killTrade(0);
+
+        vm.startPrank(dao);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.TradeKilled(0);
+        folio.killTrade(0);
+
+        // next auction index should revert
+
+        vm.expectRevert();
+        folio.killTrade(1); // index out of bounds
+
+        (, , , , , , , , , uint256 end, ) = folio.trades(0);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+
+        vm.warp(end);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+
+        vm.warp(end + 1);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+        vm.stopPrank();
+    }
+
+    function test_auctionKillTradeByPriceCurator() public {
+        uint256 amt = D6_TOKEN_1;
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, true);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), amt, 0);
+        folio.approveTrade(0, USDC, USDT, amt, 0, 0, MAX_TTL);
+
+        vm.prank(priceCurator);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.TradeOpened(0, 10e18, 1e18, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        folio.openTrade(0, 10e18, 1e18); // 10x -> 1x
+
+        // killTrade should not be callable by just anyone
+        vm.expectRevert(IFolio.Folio__Unauthorized.selector);
+        folio.killTrade(0);
+
+        vm.startPrank(priceCurator);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeKilled(0);
         folio.killTrade(0);
