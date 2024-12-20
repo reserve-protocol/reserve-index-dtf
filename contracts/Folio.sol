@@ -187,7 +187,8 @@ contract Folio is
 
     /// @dev Contains all pending fee shares
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
-        return super.totalSupply() + getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
     // {} -> ({tokAddress}, D18{tok/share})
