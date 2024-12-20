@@ -2,7 +2,8 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FOLIO_FEE, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_MINTING_FEE } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FOLIO_FEE, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_MINTING_FEE, MIN_DAO_MINTING_FEE } from "contracts/Folio.sol";
+import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -147,8 +148,6 @@ contract FolioTest is BaseTest {
         assertEq(_amounts[2], D27_TOKEN_1 / 2, "wrong third amount");
     }
 
-    // TODO new mint testcase for nonzero mintingFee
-
     function test_mint() public {
         assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
         uint256 startingUSDCBalance = USDC.balanceOf(address(folio));
@@ -178,6 +177,149 @@ contract FolioTest is BaseTest {
             1e9,
             "wrong folio meme balance"
         );
+    }
+
+    function test_mintWithFeeNoDAOCut() public {
+        assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
+        uint256 startingUSDCBalance = USDC.balanceOf(address(folio));
+        uint256 startingDAIBalance = DAI.balanceOf(address(folio));
+        uint256 startingMEMEBalance = MEME.balanceOf(address(folio));
+
+        // set mintingFee to 10%
+        vm.prank(owner);
+        folio.setMintingFee(MAX_MINTING_FEE);
+        // DAO cut is still 0% at this point
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+
+        uint256 amt = 1e22;
+        folio.mint(amt, user1);
+        assertEq(folio.balanceOf(user1), amt, "wrong user1 balance");
+        assertApproxEqAbs(
+            USDC.balanceOf(address(folio)),
+            startingUSDCBalance + D6_TOKEN_10K + D6_TOKEN_10K / 10, // 10% minting fee
+            1,
+            "wrong folio usdc balance"
+        );
+        assertApproxEqAbs(
+            DAI.balanceOf(address(folio)),
+            startingDAIBalance + D18_TOKEN_10K + D18_TOKEN_10K / 10, // 10% minting fee
+            1,
+            "wrong folio dai balance"
+        );
+        assertApproxEqAbs(
+            MEME.balanceOf(address(folio)),
+            startingMEMEBalance + D27_TOKEN_10K + D27_TOKEN_10K / 10, // 10% minting fee
+            1e9,
+            "wrong folio meme balance"
+        );
+
+        // minting fee should be manifested in total supply and both streams of fee shares
+        assertEq(folio.totalSupply(), amt * 2 + amt / 10); // genesis supply + new mint + 10% increase
+        uint256 daoPendingFeeShares = (amt * MIN_DAO_MINTING_FEE) / 1e18;
+        assertEq(folio.daoPendingFeeShares(), daoPendingFeeShares, "wrong dao pending fee shares"); // only 5 bps
+        assertEq(
+            folio.feeRecipientsPendingFeeShares(),
+            amt / 10 - daoPendingFeeShares,
+            "wrong fee recipients pending fee shares"
+        );
+    }
+
+    function test_mintWithFeeDAOCut() public {
+        assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
+        uint256 startingUSDCBalance = USDC.balanceOf(address(folio));
+        uint256 startingDAIBalance = DAI.balanceOf(address(folio));
+        uint256 startingMEMEBalance = MEME.balanceOf(address(folio));
+
+        // set mintingFee to 10%
+        vm.prank(owner);
+        folio.setMintingFee(MAX_MINTING_FEE);
+        daoFeeRegistry.setDefaultFeeNumerator(MAX_DAO_FEE); // DAO fee 50%
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+
+        uint256 amt = 1e22;
+        folio.mint(amt, user1);
+        assertEq(folio.balanceOf(user1), amt, "wrong user1 balance");
+        assertApproxEqAbs(
+            USDC.balanceOf(address(folio)),
+            startingUSDCBalance + D6_TOKEN_10K + D6_TOKEN_10K / 10, // 10% minting fee
+            1,
+            "wrong folio usdc balance"
+        );
+        assertApproxEqAbs(
+            DAI.balanceOf(address(folio)),
+            startingDAIBalance + D18_TOKEN_10K + D18_TOKEN_10K / 10, // 10% minting fee
+            1,
+            "wrong folio dai balance"
+        );
+        assertApproxEqAbs(
+            MEME.balanceOf(address(folio)),
+            startingMEMEBalance + D27_TOKEN_10K + D27_TOKEN_10K / 10, // 10% minting fee
+            1e9,
+            "wrong folio meme balance"
+        );
+
+        // minting fee should be manifested in total supply and both streams of fee shares
+        assertEq(folio.totalSupply(), amt * 2 + amt / 10); // genesis supply + new mint + 10% increase
+        uint256 daoPendingFeeShares = (amt / 10) / 2;
+        assertEq(folio.daoPendingFeeShares(), daoPendingFeeShares, "wrong dao pending fee shares"); // only 5 bps
+        assertEq(
+            folio.feeRecipientsPendingFeeShares(),
+            amt / 10 - daoPendingFeeShares,
+            "wrong fee recipients pending fee shares"
+        );
+    }
+
+    function test_mintWithFeeDAOCutFloor() public {
+        // in this testcase the fee recipients receive 0 even though a folioFee is nonzero
+        assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
+        uint256 startingUSDCBalance = USDC.balanceOf(address(folio));
+        uint256 startingDAIBalance = DAI.balanceOf(address(folio));
+        uint256 startingMEMEBalance = MEME.balanceOf(address(folio));
+
+        // set mintingFee to MIN_DAO_MINTING_FEE, 5 bps
+        vm.prank(owner);
+        folio.setMintingFee(MIN_DAO_MINTING_FEE);
+        // leave daoFeeRegistry fee at 0 (default)
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+
+        uint256 amt = 1e22;
+        folio.mint(amt, user1);
+        assertEq(folio.balanceOf(user1), amt, "wrong user1 balance");
+        assertApproxEqAbs(
+            USDC.balanceOf(address(folio)),
+            startingUSDCBalance + D6_TOKEN_10K + (D6_TOKEN_10K * MIN_DAO_MINTING_FEE) / 1e18,
+            1,
+            "wrong folio usdc balance"
+        );
+        assertApproxEqAbs(
+            DAI.balanceOf(address(folio)),
+            startingDAIBalance + D18_TOKEN_10K + (D18_TOKEN_10K * MIN_DAO_MINTING_FEE) / 1e18,
+            1,
+            "wrong folio dai balance"
+        );
+        assertApproxEqAbs(
+            MEME.balanceOf(address(folio)),
+            startingMEMEBalance + D27_TOKEN_10K + (D27_TOKEN_10K * MIN_DAO_MINTING_FEE) / 1e18,
+            1e9,
+            "wrong folio meme balance"
+        );
+
+        // minting fee should be manifested in total supply and ONLY the DAO's side of the stream
+        assertEq(folio.totalSupply(), amt * 2 + (amt * MIN_DAO_MINTING_FEE) / 1e18);
+        assertEq(folio.daoPendingFeeShares(), (amt * MIN_DAO_MINTING_FEE) / 1e18, "wrong dao pending fee shares");
+        assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
     }
 
     function test_redeem() public {

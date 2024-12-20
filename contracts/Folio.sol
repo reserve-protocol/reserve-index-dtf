@@ -295,7 +295,7 @@ contract Folio is
 
     // === Fee Shares ===
 
-    /// @dev totalSupply() already contains pending fee shares
+    /// @dev EXCLUDES daoPendingFeeShares and feeRecipientsPendingFeeShares
     /// @return {share} Quantity of fee shares currently pending to be split by the fee recipients and the DAO
     function getPendingFeeShares() public view returns (uint256) {
         return _getPendingFeeShares();
