@@ -5,7 +5,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
 
-uint256 constant MAX_DAO_FEE = 0.15e18; // D18{1} 15%
+uint256 constant MAX_DAO_FEE = 0.5e18; // D18{1} 50%
 
 /**
  * @title Folio

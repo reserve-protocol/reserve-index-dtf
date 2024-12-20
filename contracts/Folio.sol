@@ -23,12 +23,14 @@ interface IBidderCallee {
     function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
 }
 
-uint256 constant MAX_FEE = 21979552668; // D18{1/s} 50% annually
+uint256 constant MAX_FOLIO_FEE = 21979552668; // D18{1/s} 50% annually
+uint256 constant MAX_MINTING_FEE = 0.1e18; // D18{1} 10%
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
+uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
 
 uint256 constant SCALAR = 1e18; // D18
 
@@ -65,12 +67,14 @@ contract Folio is
      */
     FeeRecipient[] public feeRecipients;
     uint256 public folioFee; // D18{1/s} demurrage fee on AUM
+    uint256 public mintingFee; // D18{1} fee on mint
 
     /**
      * System
      */
     uint256 public lastPoke; // {s}
-    uint256 public pendingFeeShares; // {share} virtual shares part of supply; use getPendingFeeShares() externally
+    uint256 public daoPendingFeeShares; // {share} shares pending to be distributed ONLY to the DAO
+    uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
 
     /**
      * Trading
@@ -102,6 +106,7 @@ contract Folio is
 
         _setFeeRecipients(_additionalDetails.feeRecipients);
         _setFolioFee(_additionalDetails.folioFee);
+        _setMintingFee(_additionalDetails.mintingFee);
         _setTradeDelay(_additionalDetails.tradeDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
 
@@ -154,6 +159,13 @@ contract Folio is
         _setFolioFee(_newFee);
     }
 
+    /// @param _newFee D18{1} Fee on mint
+    function setMintingFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        distributeFees();
+
+        _setMintingFee(_newFee);
+    }
+
     /// _newRecipients.portion must sum to 1e18
     function setFeeRecipients(FeeRecipient[] memory _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
@@ -173,9 +185,10 @@ contract Folio is
 
     // ==== Share + Asset Accounting ====
 
-    /// @dev Contains pending fee shares
+    /// @dev Contains all pending fee shares
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
-        return super.totalSupply() + _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
     // {} -> ({tokAddress}, D18{tok/share})
@@ -214,11 +227,35 @@ contract Folio is
     }
 
     // {share} -> ({tokAddress}, {tok})
+    /// @dev Minting has 3 share-portions: (i) receiver shares, (ii) DAO fee shares, (iii) fee recipients shares
     function mint(
         uint256 shares,
         address receiver
     ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
         _poke();
+
+        // === Calculate fee shares ===
+
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(this));
+
+        // {share} = {share} * D18{1} / D18
+        uint256 totalFeeShares = (shares * mintingFee + SCALAR - 1) / SCALAR;
+
+        // {share} = {share} * D18{1} / D18{1}
+        uint256 daoFeeShares = (totalFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
+
+        // ensure DAO's portion of fees is at least MIN_DAO_MINTING_FEE
+        uint256 minDaoShares = (shares * MIN_DAO_MINTING_FEE + SCALAR - 1) / SCALAR;
+        if (daoFeeShares < minDaoShares) {
+            daoFeeShares = minDaoShares;
+        }
+
+        // 100% to DAO, if necessary
+        if (totalFeeShares < daoFeeShares) {
+            totalFeeShares = daoFeeShares;
+        }
+
+        // === Transfer assets in ===
 
         (_assets, _amounts) = toAssets(shares, Math.Rounding.Ceil);
 
@@ -229,7 +266,13 @@ contract Folio is
             }
         }
 
-        _mint(receiver, shares);
+        // === Mint shares ===
+
+        _mint(receiver, shares - totalFeeShares);
+
+        // defer fee handouts until distributeFees()
+        daoPendingFeeShares += daoFeeShares;
+        feeRecipientsPendingFeeShares += totalFeeShares - daoFeeShares;
     }
 
     // {share} -> ({tokAddress}, {tok})
@@ -253,34 +296,32 @@ contract Folio is
 
     // === Fee Shares ===
 
-    /// @dev totalSupply() already contains pending fee shares
-    /// @return {share} Quantity of fee shares currently pending
+    /// @return {share} Up-to-date sum of DAO and fee recipients pending fee shares
     function getPendingFeeShares() public view returns (uint256) {
-        return _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+        return _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
     function distributeFees() public nonReentrant {
         _poke();
         // pendingFeeShares is up-to-date
 
-        // collect dao fee off the top
-        (address recipient, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(
-            address(this)
-        );
-        uint256 daoFee = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
-        _mint(recipient, daoFee);
-        pendingFeeShares -= daoFee;
+        // DAO
+        (address recipient, , ) = daoFeeRegistry.getFeeDetails(address(this));
+        _mint(recipient, daoPendingFeeShares);
+        daoPendingFeeShares = 0;
 
-        // distribute the rest of the folioFee
+        // Fee recipients
+        uint256 _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
+        feeRecipientsPendingFeeShares = 0;
+
         uint256 len = feeRecipients.length;
         for (uint256 i; i < len; i++) {
             // {share} = {share} * D18{1} / D18
-            uint256 shares = (pendingFeeShares * feeRecipients[i].portion) / SCALAR;
+            uint256 shares = (_feeRecipientsPendingFeeShares * feeRecipients[i].portion) / SCALAR;
 
             _mint(feeRecipients[i].recipient, shares);
         }
-
-        pendingFeeShares = 0;
     }
 
     // ==== Trading ====d
@@ -517,24 +558,46 @@ contract Folio is
         }
     }
 
-    /// @return _pendingFeeShares {share}
-    function _getPendingFeeShares() internal view returns (uint256 _pendingFeeShares) {
-        _pendingFeeShares = pendingFeeShares;
+    /// @return _daoPendingFeeShares {share}
+    /// @return _feeRecipientsPendingFeeShares {share}
+    function _getPendingFeeShares()
+        internal
+        view
+        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares)
+    {
+        _daoPendingFeeShares = daoPendingFeeShares;
+        _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
 
-        uint256 supply = super.totalSupply() + _pendingFeeShares;
+        uint256 supply = super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
         uint256 elapsed = block.timestamp - lastPoke;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
-        _pendingFeeShares += (supply * SCALAR) / UD60x18.wrap(SCALAR - folioFee).powu(elapsed).unwrap() - supply;
+        uint256 feeShares = (supply * SCALAR) / UD60x18.wrap(SCALAR - folioFee).powu(elapsed).unwrap() - supply;
+
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(this));
+
+        // {share} = {share} * D18{1} / D18{1}
+        uint256 daoShares = (feeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
+        _daoPendingFeeShares += daoShares;
+        _feeRecipientsPendingFeeShares += feeShares - daoShares;
     }
 
     function _setFolioFee(uint256 _newFee) internal {
-        if (_newFee > MAX_FEE) {
-            revert Folio__FeeTooHigh();
+        if (_newFee > MAX_FOLIO_FEE) {
+            revert Folio__FolioFeeTooHigh();
         }
 
         folioFee = _newFee;
         emit FolioFeeSet(folioFee);
+    }
+
+    function _setMintingFee(uint256 _newFee) internal {
+        if (_newFee > MAX_MINTING_FEE) {
+            revert Folio__MintingFeeTooHigh();
+        }
+
+        mintingFee = _newFee;
+        emit MintingFeeSet(mintingFee);
     }
 
     function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
@@ -593,7 +656,7 @@ contract Folio is
             return;
         }
 
-        pendingFeeShares = _getPendingFeeShares();
+        (daoPendingFeeShares, feeRecipientsPendingFeeShares) = _getPendingFeeShares();
         lastPoke = block.timestamp;
     }
 }

@@ -90,11 +90,19 @@ Note: The first block may not have a price of exactly `startPrice`, if it does n
 
 ### Fee Structure
 
-Folios maintain a governance-controlled `folioFee`, representing the % of the total value of a Folio that should be extracted as a fee.
+Folios support 2 types of fee
 
-Within the `folioFee`, the DAO takes a cut based on `FolioDAOFeeRegistry.getFeeDetails()`
+##### `folioFee`
 
-The remaining portion is distributed prorata to `feeRecipients[]` based on their configured portions.
+Per-unit time fee on AUM
+
+The DAO takes a cut
+
+##### `mintingFee`
+
+Fee on mints
+
+The DAO takes a cut with a minimum floor of 5 bps. The DAO always receives at least 5 bps of the value of the mint. Note this is NOT 5 bps of the minting fee, that portion is still initially calculated based on the `FolioDAOFeeRegistry`.
 
 ### Units
 
