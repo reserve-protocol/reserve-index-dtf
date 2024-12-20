@@ -23,12 +23,14 @@ interface IBidderCallee {
     function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
 }
 
-uint256 constant MAX_FEE = 21979552668; // D18{1/s} 50% annually
+uint256 constant MAX_FOLIO_FEE = 21979552668; // D18{1/s} 50% annually
+uint256 constant MAX_MINTING_FEE = 0.1e18; // D18{1} 10%
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
+uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
 
 uint256 constant SCALAR = 1e18; // D18
 
@@ -65,12 +67,14 @@ contract Folio is
      */
     FeeRecipient[] public feeRecipients;
     uint256 public folioFee; // D18{1/s} demurrage fee on AUM
+    uint256 public mintingFee; // D18{1} fee on mint
 
     /**
      * System
      */
     uint256 public lastPoke; // {s}
-    uint256 public pendingFeeShares; // {share} virtual shares part of supply; use getPendingFeeShares() externally
+    uint256 public pendingFeeShares; // {share} shares pending to be split with the DAO
+    uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
 
     /**
      * Trading
@@ -102,6 +106,7 @@ contract Folio is
 
         _setFeeRecipients(_additionalDetails.feeRecipients);
         _setFolioFee(_additionalDetails.folioFee);
+        _setMintingFee(_additionalDetails.mintingFee);
         _setTradeDelay(_additionalDetails.tradeDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
 
@@ -154,6 +159,13 @@ contract Folio is
         _setFolioFee(_newFee);
     }
 
+    /// @param _newFee D18{1} Fee on mint
+    function setMintingFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        distributeFees();
+
+        _setMintingFee(_newFee);
+    }
+
     /// _newRecipients.portion must sum to 1e18
     function setFeeRecipients(FeeRecipient[] memory _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
@@ -175,12 +187,12 @@ contract Folio is
 
     /// @dev Contains pending fee shares
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
-        return super.totalSupply() + _getPendingFeeShares();
+        return super.totalSupply() + _getPendingFeeShares() + feeRecipientsPendingFeeShares;
     }
 
     // {} -> ({tokAddress}, D18{tok/share})
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return toAssets(10 ** decimals(), Math.Rounding.Floor);
+        return _toAssets(10 ** decimals(), Math.Rounding.Floor);
     }
 
     // {} -> ({tokAddress}, {tok})
@@ -195,32 +207,57 @@ contract Folio is
     }
 
     // {share} -> ({tokAddress}, {tok})
+    /// @param shares {share}
+    /// @param includeMintingFee If true, minting fee is included in the assets
     function toAssets(
         uint256 shares,
-        Math.Rounding rounding
-    ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
-        uint256 _totalSupply = totalSupply();
+        bool includeMintingFee
+    ) external view returns (address[] memory _assets, uint256[] memory _amounts) {
+        if (includeMintingFee) {
+            (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(this));
 
-        _assets = basket.values();
-
-        uint256 len = _assets.length;
-        _amounts = new uint256[](len);
-        for (uint256 i; i < len; i++) {
-            uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
-
-            // {tok} = {share} * {tok} / {share}
-            _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
+            // {share} = {share} * D18{1} / D18{1}
+            uint256 feeShares = (shares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
+            return _toAssets(shares + feeShares, Math.Rounding.Ceil);
         }
+
+        return _toAssets(shares, Math.Rounding.Floor);
     }
 
     // {share} -> ({tokAddress}, {tok})
+    /// @dev Minting has 3 share-portions: (i) receiver shares, (ii) DAO fee shares, (iii) fee recipients shares
     function mint(
         uint256 shares,
         address receiver
     ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
         _poke();
 
-        (_assets, _amounts) = toAssets(shares, Math.Rounding.Ceil);
+        // === Calculate fee shares ===
+
+        (address daoRecipient, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(
+            address(this)
+        );
+
+        // {share} = {share} * D18{1} / D18
+        uint256 totalFeeShares = (shares * mintingFee + SCALAR - 1) / SCALAR;
+
+        // {share} = {share} * D18{1} / D18{1}
+        uint256 daoFeeShares = (totalFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
+
+        // ensure DAO's portion of fees is at least MIN_DAO_MINTING_FEE
+        uint256 minDaoShares = (shares * MIN_DAO_MINTING_FEE + SCALAR - 1) / SCALAR;
+        if (daoFeeShares < minDaoShares) {
+            daoFeeShares = minDaoShares;
+
+            // 100% to DAO
+            if (totalFeeShares < daoFeeShares) {
+                totalFeeShares = daoFeeShares;
+            }
+        }
+
+        // === Transfer assets in ===
+
+        (_assets, _amounts) = _toAssets(shares + totalFeeShares, Math.Rounding.Ceil);
 
         uint256 assetLength = _assets.length;
         for (uint256 i; i < assetLength; i++) {
@@ -229,6 +266,11 @@ contract Folio is
             }
         }
 
+        // === Mint shares ===
+
+        // defer feeRecipients handout until next distributeFees()
+        feeRecipientsPendingFeeShares += totalFeeShares - daoFeeShares;
+        _mint(daoRecipient, daoFeeShares);
         _mint(receiver, shares);
     }
 
@@ -239,7 +281,7 @@ contract Folio is
     ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
         _poke();
 
-        (_assets, _amounts) = toAssets(shares, Math.Rounding.Floor);
+        (_assets, _amounts) = _toAssets(shares, Math.Rounding.Floor);
 
         _burn(msg.sender, shares);
 
@@ -267,20 +309,22 @@ contract Folio is
         (address recipient, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(
             address(this)
         );
-        uint256 daoFee = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        uint256 daoFee = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
         _mint(recipient, daoFee);
-        pendingFeeShares -= daoFee;
 
-        // distribute the rest of the folioFee
+        // add-in feeRecipientsPendingFeeShares
+        uint256 feeShares = pendingFeeShares - daoFee + feeRecipientsPendingFeeShares;
+        feeRecipientsPendingFeeShares = 0;
+        pendingFeeShares = 0;
+
+        // distribute both fees to the feeRecipients
         uint256 len = feeRecipients.length;
         for (uint256 i; i < len; i++) {
             // {share} = {share} * D18{1} / D18
-            uint256 shares = (pendingFeeShares * feeRecipients[i].portion) / SCALAR;
+            uint256 shares = (feeShares * feeRecipients[i].portion) / SCALAR;
 
             _mint(feeRecipients[i].recipient, shares);
         }
-
-        pendingFeeShares = 0;
     }
 
     // ==== Trading ====d
@@ -517,6 +561,25 @@ contract Folio is
         }
     }
 
+    // {share} -> ({tokAddress}, {tok})
+    function _toAssets(
+        uint256 shares,
+        Math.Rounding rounding
+    ) internal view returns (address[] memory _assets, uint256[] memory _amounts) {
+        uint256 _totalSupply = totalSupply();
+
+        _assets = basket.values();
+
+        uint256 len = _assets.length;
+        _amounts = new uint256[](len);
+        for (uint256 i; i < len; i++) {
+            uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
+
+            // {tok} = {share} * {tok} / {share}
+            _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
+        }
+    }
+
     /// @return _pendingFeeShares {share}
     function _getPendingFeeShares() internal view returns (uint256 _pendingFeeShares) {
         _pendingFeeShares = pendingFeeShares;
@@ -529,12 +592,21 @@ contract Folio is
     }
 
     function _setFolioFee(uint256 _newFee) internal {
-        if (_newFee > MAX_FEE) {
-            revert Folio__FeeTooHigh();
+        if (_newFee > MAX_FOLIO_FEE) {
+            revert Folio__FolioFeeTooHigh();
         }
 
         folioFee = _newFee;
         emit FolioFeeSet(folioFee);
+    }
+
+    function _setMintingFee(uint256 _newFee) internal {
+        if (_newFee > MAX_MINTING_FEE) {
+            revert Folio__MintingFeeTooHigh();
+        }
+
+        mintingFee = _newFee;
+        emit MintingFeeSet(mintingFee);
     }
 
     function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
