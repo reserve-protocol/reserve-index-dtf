@@ -8,7 +8,8 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IFolioVersionRegistry } from "@interfaces/IFolioVersionRegistry.sol";
 
 /**
- * @dev Custom ProxyAdmin for upgrade functionality.
+ * @title FolioProxyAdmin
+ * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 contract FolioProxyAdmin is Ownable {
     address public immutable versionRegistry; // @todo sync with version/upgrade manager
@@ -33,6 +34,8 @@ contract FolioProxyAdmin is Ownable {
 }
 
 /**
+ * @title FolioProxy
+ * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  * @dev This is an alternate implementation of the TransparentUpgradeableProxy contract, please read through
  *      their considerations and limitations before using this contract.
  */

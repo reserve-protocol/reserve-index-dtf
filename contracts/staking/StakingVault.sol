@@ -12,12 +12,24 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
 import { Time } from "@openzeppelin/contracts/utils/types/Time.sol";
 
-import { UD60x18, powu, ln } from "@prb/math/src/UD60x18.sol";
+import { UD60x18, powu } from "@prb/math/src/UD60x18.sol";
 
 import { UnstakingManager } from "./UnstakingManager.sol";
 
-uint256 constant SCALAR = 1e18;
+uint256 constant MAX_UNSTAKING_DELAY = 4 weeks; // {s}
+uint256 constant MAX_REWARD_HALF_LIFE = 2 weeks; // {s}
 
+uint256 constant LN_2 = 0.693147180559945309e18; // D18{1} ln(2e18)
+
+uint256 constant SCALAR = 1e18; // D18
+
+/**
+ * @title StakingVault
+ * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
+ * @notice StakingVault is a transferrable 1:1 wrapping of an underlying token that uses the ERC4626 interface.
+ *         It earns the holder a claimable stream of multi rewards and enables them to vote in governance.
+ *         Unstaking is gated by a delay, implemented by an UnstakingManager.
+ */
 contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -25,11 +37,11 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     uint256 public rewardRatio; // D18{1}
 
     UnstakingManager public immutable unstakingManager;
-    uint256 public unstakingDelay;
+    uint256 public unstakingDelay; // {s}
 
     struct RewardInfo {
         uint256 payoutLastPaid; // {s}
-        uint256 rewardIndex; // D18{reward/share}
+        uint256 rewardIndex; // D18{reward}
         //
         uint256 balanceAccounted; // {reward}
         uint256 balanceLastKnown; // {reward}
@@ -37,7 +49,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     }
 
     struct UserRewardInfo {
-        uint256 lastRewardIndex; // D18{reward/share}
+        uint256 lastRewardIndex; // D18{reward}
         uint256 accruedRewards; // {reward}
     }
 
@@ -58,15 +70,21 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     event RewardsClaimed(address user, address rewardToken, uint256 amount);
     event RewardRatioSet(uint256 rewardRatio, uint256 halfLife);
 
+    /// @param _name Name of the vault
+    /// @param _symbol Symbol of the vault
+    /// @param _underlying Underlying token deposited during staking
+    /// @param _initialOwner Initial owner of the vault
+    /// @param _rewardPeriod {s} Half life of the reward handout rate
+    /// @param _unstakingDelay {s} Delay after unstaking before user receives their deposit
     constructor(
         string memory _name,
         string memory _symbol,
         IERC20 _underlying,
         address _initialOwner,
-        uint256 rewardPeriod,
+        uint256 _rewardPeriod,
         uint256 _unstakingDelay
     ) ERC4626(_underlying) ERC20(_name, _symbol) ERC20Permit(_name) Ownable(_initialOwner) {
-        _setRewardRatio(rewardPeriod);
+        _setRewardRatio(_rewardPeriod);
         _setUnstakingDelay(_unstakingDelay);
 
         unstakingManager = new UnstakingManager(_underlying);
@@ -100,12 +118,14 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         }
     }
 
+    /// @param _delay {s} New unstaking delay
     function setUnstakingDelay(uint256 _delay) external onlyOwner {
         _setUnstakingDelay(_delay);
     }
 
+    /// @param _delay {s} New unstaking delay
     function _setUnstakingDelay(uint256 _delay) internal {
-        if (_delay > 4 weeks) {
+        if (_delay > MAX_UNSTAKING_DELAY) {
             revert Vault__InvalidUnstakingDelay();
         }
 
@@ -117,6 +137,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     /**
      * Reward Management Logic
      */
+    /// @param _rewardToken Reward token to add
     function addRewardToken(address _rewardToken) external onlyOwner {
         if (_rewardToken == address(this) || _rewardToken == asset()) {
             revert Vault__InvalidRewardToken(_rewardToken);
@@ -138,6 +159,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         emit RewardTokenAdded(_rewardToken);
     }
 
+    /// @param _rewardToken Reward token to remove
     function removeRewardToken(address _rewardToken) external onlyOwner {
         disallowedRewardTokens[_rewardToken] = true;
 
@@ -150,6 +172,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         emit RewardTokenRemoved(_rewardToken);
     }
 
+    /// @param _rewardTokens Array of reward tokens to claim
     function claimRewards(address[] calldata _rewardTokens) external accrueRewards(msg.sender, msg.sender) {
         for (uint256 i; i < _rewardTokens.length; i++) {
             address _rewardToken = _rewardTokens[i];
@@ -159,10 +182,13 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
             uint256 claimableRewards = userRewardTracker.accruedRewards;
 
-            userRewardTracker.accruedRewards = 0;
+            // {reward} += {reward}
             rewardInfo.totalClaimed += claimableRewards;
+            userRewardTracker.accruedRewards = 0;
 
-            SafeERC20.safeTransfer(IERC20(_rewardToken), msg.sender, claimableRewards);
+            if (claimableRewards != 0) {
+                SafeERC20.safeTransfer(IERC20(_rewardToken), msg.sender, claimableRewards);
+            }
 
             emit RewardsClaimed(msg.sender, _rewardToken, claimableRewards);
         }
@@ -175,16 +201,19 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     /**
      * Reward Accrual Logic
      */
+    /// @param rewardHalfLife {s}
     function setRewardRatio(uint256 rewardHalfLife) external onlyOwner {
         _setRewardRatio(rewardHalfLife);
     }
 
+    /// @param _rewardHalfLife {s}
     function _setRewardRatio(uint256 _rewardHalfLife) internal accrueRewards(msg.sender, msg.sender) {
-        if (_rewardHalfLife > 2 weeks) {
+        if (_rewardHalfLife > MAX_REWARD_HALF_LIFE) {
             revert Vault__InvalidRewardsHalfLife();
         }
 
-        rewardRatio = UD60x18.unwrap(ln(UD60x18.wrap(2e18)) / UD60x18.wrap(_rewardHalfLife)) / 1e18;
+        // D18{1/s} = D18{1} / {s}
+        rewardRatio = LN_2 / _rewardHalfLife;
 
         emit RewardRatioSet(rewardRatio, _rewardHalfLife);
     }
@@ -227,17 +256,18 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         uint256 supplyTokens = totalSupply();
 
         if (supplyTokens != 0) {
-            // D18{reward} = {reward} * D18 * {share} / {share}
-            uint256 deltaIndex = (tokensToHandout * uint256(10 ** decimals()) * SCALAR) / supplyTokens;
+            // D18{reward} = D18 * {reward} * {share} / {share}
+            uint256 deltaIndex = (SCALAR * tokensToHandout * uint256(10 ** decimals())) / supplyTokens;
 
-            // D18{reward/share} += D18{reward/share}
+            // D18{reward} += D18{reward}
             rewardInfo.rewardIndex += deltaIndex;
             rewardInfo.balanceAccounted += tokensToHandout;
         }
         // @todo Add a test case for when supplyTokens is 0 for a while, the reward are paid out correctly.
 
-        rewardInfo.payoutLastPaid = block.timestamp;
+        // {reward} = {reward} + {reward}
         rewardInfo.balanceLastKnown = IERC20(_rewardToken).balanceOf(address(this)) + rewardInfo.totalClaimed;
+        rewardInfo.payoutLastPaid = block.timestamp;
     }
 
     function _accrueUser(address _user, address _rewardToken) internal {
@@ -248,10 +278,11 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         RewardInfo memory rewardInfo = rewardTrackers[_rewardToken];
         UserRewardInfo storage userRewardTracker = userRewardTrackers[_rewardToken][_user];
 
+        // D18{reward}
         uint256 deltaIndex = rewardInfo.rewardIndex - userRewardTracker.lastRewardIndex;
 
         // Accumulate rewards by multiplying user tokens by index and adding on unclaimed
-        // {reward} = {share} * D18{reward/share} / D18
+        // {reward} = {share} * D18{reward} / {share} / D18
         uint256 supplierDelta = (balanceOf(_user) * deltaIndex) / uint256(10 ** decimals()) / SCALAR;
 
         // {reward} += {reward}

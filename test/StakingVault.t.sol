@@ -64,7 +64,7 @@ contract StakingVaultTest is Test {
         vm.stopPrank();
     }
 
-    function test_deployment() public {
+    function test_deployment() public view {
         assertEq(vault.clock(), block.timestamp);
         assertEq(vault.CLOCK_MODE(), "mode=timestamp");
         assertEq(vault.totalSupply(), 0);

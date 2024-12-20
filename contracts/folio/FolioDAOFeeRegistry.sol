@@ -5,16 +5,22 @@ import { IFolio } from "@interfaces/IFolio.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
 
-uint256 constant MAX_DAO_FEE = 0.15e18; // D18{1} 15%
-uint256 constant FEE_DENOMINATOR = 1e18;
+uint256 constant MAX_DAO_FEE = 0.5e18; // D18{1} 50%
 
+/**
+ * @title Folio
+ * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
+ * @notice FolioDAOFeeRegistry tracks the DAO fee that should be applied to each Folio
+ */
 contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
+    uint256 public constant FEE_DENOMINATOR = 1e18;
+
     IRoleRegistry public immutable roleRegistry;
 
     address private feeRecipient;
-    uint256 private defaultFeeNumerator; // 0%
+    uint256 private defaultFeeNumerator; // D18{1}
 
-    mapping(address => uint256) private fTokenFeeNumerator;
+    mapping(address => uint256) private fTokenFeeNumerator; // D18{1}
     mapping(address => bool) private fTokenFeeSet;
 
     modifier onlyOwner() {
@@ -35,6 +41,7 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
 
         roleRegistry = _roleRegistry;
         feeRecipient = _feeRecipient;
+        // defaultFeeNumerator = 0;
     }
 
     // === External ===
@@ -51,6 +58,7 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
         emit FeeRecipientSet(feeRecipient_);
     }
 
+    /// @param feeNumerator_ {1} New default fee numerator
     function setDefaultFeeNumerator(uint256 feeNumerator_) external onlyOwner {
         if (feeNumerator_ > MAX_DAO_FEE) {
             revert FolioDAOFeeRegistry__InvalidFeeNumerator();
@@ -72,6 +80,8 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
         _setTokenFee(fToken, 0, false);
     }
 
+    /// @param feeNumerator D18{1}
+    /// @param feeDenominator D18{1}
     function getFeeDetails(
         address fToken
     ) external view returns (address recipient, uint256 feeNumerator, uint256 feeDenominator) {

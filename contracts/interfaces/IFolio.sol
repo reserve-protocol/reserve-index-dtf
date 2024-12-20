@@ -20,6 +20,7 @@ interface IFolio {
     event BasketTokenAdded(address indexed token);
     event BasketTokenRemoved(address indexed token);
     event FolioFeeSet(uint256 newFee);
+    event MintingFeeSet(uint256 newFee);
     event FeeRecipientSet(address indexed recipient, uint96 portion);
     event TradeDelaySet(uint256 newTradeDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
@@ -34,7 +35,8 @@ interface IFolio {
     error Folio__FeeRecipientInvalidAddress();
     error Folio__FeeRecipientInvalidFeeShare();
     error Folio__BadFeeTotal();
-    error Folio__FeeTooHigh();
+    error Folio__FolioFeeTooHigh();
+    error Folio__MintingFeeTooHigh();
 
     error Folio__InvalidAsset();
     error Folio__InvalidAssetAmount(address asset);
@@ -61,20 +63,21 @@ interface IFolio {
         string name;
         string symbol;
         address[] assets;
-        uint256[] amounts;
-        uint256 initialShares;
+        uint256[] amounts; // {tok}
+        uint256 initialShares; // {share}
     }
 
     struct FolioAdditionalDetails {
-        uint256 tradeDelay;
-        uint256 auctionLength;
+        uint256 tradeDelay; // {s}
+        uint256 auctionLength; // {s}
         FeeRecipient[] feeRecipients;
-        uint256 folioFee;
+        uint256 folioFee; // D18{1/s}
+        uint256 mintingFee; // D18{1}
     }
 
     struct FeeRecipient {
         address recipient;
-        uint96 portion; // D18{1} <= 1e18
+        uint96 portion; // D18{1}
     }
 
     /// Trade states:
@@ -96,5 +99,5 @@ interface IFolio {
         uint256 k; // {1} price = startPrice * e ^ -kt
     }
 
-    function distributeFees() external; // @audit Review, needs to be called from FolioDAOFeeRegistry
+    function distributeFees() external;
 }

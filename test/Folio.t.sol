@@ -2,7 +2,8 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FEE, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FOLIO_FEE, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_MINTING_FEE, MIN_DAO_MINTING_FEE } from "contracts/Folio.sol";
+import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -46,7 +47,8 @@ contract FolioTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FEE,
+            MAX_FOLIO_FEE,
+            0,
             owner,
             dao,
             priceCurator
@@ -69,7 +71,7 @@ contract FolioTest is BaseTest {
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
         assertEq(MEME.balanceOf(address(folio)), D27_TOKEN_10K, "wrong folio meme balance");
-        assertEq(folio.folioFee(), MAX_FEE, "wrong folio fee");
+        assertEq(folio.folioFee(), MAX_FOLIO_FEE, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 0.9e18, "wrong first recipient bps");
@@ -111,7 +113,8 @@ contract FolioTest is BaseTest {
             tradeDelay: MAX_TRADE_DELAY,
             auctionLength: MAX_AUCTION_LENGTH,
             feeRecipients: recipients,
-            folioFee: MAX_FEE
+            folioFee: MAX_FOLIO_FEE,
+            mintingFee: 0
         });
 
         // Attempt to initialize
@@ -155,7 +158,7 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
         folio.mint(1e22, user1);
-        assertEq(folio.balanceOf(user1), 1e22, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), 1e22 - 1e22 / 2000, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
             startingUSDCBalance + D6_TOKEN_10K,
@@ -176,6 +179,149 @@ contract FolioTest is BaseTest {
         );
     }
 
+    function test_mintWithFeeNoDAOCut() public {
+        assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
+        uint256 startingUSDCBalance = USDC.balanceOf(address(folio));
+        uint256 startingDAIBalance = DAI.balanceOf(address(folio));
+        uint256 startingMEMEBalance = MEME.balanceOf(address(folio));
+
+        // set mintingFee to 10%
+        vm.prank(owner);
+        folio.setMintingFee(MAX_MINTING_FEE);
+        // DAO cut is still 0% at this point
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+
+        uint256 amt = 1e22;
+        folio.mint(amt, user1);
+        assertEq(folio.balanceOf(user1), amt - amt / 10, "wrong user1 balance");
+        assertApproxEqAbs(
+            USDC.balanceOf(address(folio)),
+            startingUSDCBalance + D6_TOKEN_10K,
+            1,
+            "wrong folio usdc balance"
+        );
+        assertApproxEqAbs(
+            DAI.balanceOf(address(folio)),
+            startingDAIBalance + D18_TOKEN_10K,
+            1,
+            "wrong folio dai balance"
+        );
+        assertApproxEqAbs(
+            MEME.balanceOf(address(folio)),
+            startingMEMEBalance + D27_TOKEN_10K,
+            1e9,
+            "wrong folio meme balance"
+        );
+
+        // minting fee should be manifested in total supply and both streams of fee shares
+        assertEq(folio.totalSupply(), amt * 2, "total supply off"); // genesis supply + new mint + 10% increase
+        uint256 daoPendingFeeShares = (amt * MIN_DAO_MINTING_FEE) / 1e18;
+        assertEq(folio.daoPendingFeeShares(), daoPendingFeeShares, "wrong dao pending fee shares"); // only 5 bps
+        assertEq(
+            folio.feeRecipientsPendingFeeShares(),
+            amt / 10 - daoPendingFeeShares,
+            "wrong fee recipients pending fee shares"
+        );
+    }
+
+    function test_mintWithFeeDAOCut() public {
+        assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
+        uint256 startingUSDCBalance = USDC.balanceOf(address(folio));
+        uint256 startingDAIBalance = DAI.balanceOf(address(folio));
+        uint256 startingMEMEBalance = MEME.balanceOf(address(folio));
+
+        // set mintingFee to 10%
+        vm.prank(owner);
+        folio.setMintingFee(MAX_MINTING_FEE);
+        daoFeeRegistry.setDefaultFeeNumerator(MAX_DAO_FEE); // DAO fee 50%
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+
+        uint256 amt = 1e22;
+        folio.mint(amt, user1);
+        assertEq(folio.balanceOf(user1), amt - amt / 10, "wrong user1 balance");
+        assertApproxEqAbs(
+            USDC.balanceOf(address(folio)),
+            startingUSDCBalance + D6_TOKEN_10K,
+            1,
+            "wrong folio usdc balance"
+        );
+        assertApproxEqAbs(
+            DAI.balanceOf(address(folio)),
+            startingDAIBalance + D18_TOKEN_10K,
+            1,
+            "wrong folio dai balance"
+        );
+        assertApproxEqAbs(
+            MEME.balanceOf(address(folio)),
+            startingMEMEBalance + D27_TOKEN_10K,
+            1e9,
+            "wrong folio meme balance"
+        );
+
+        // minting fee should be manifested in total supply and both streams of fee shares
+        assertEq(folio.totalSupply(), amt * 2, "total supply off"); // genesis supply + new mint + 10% increase
+        uint256 daoPendingFeeShares = (amt / 10) / 2;
+        assertEq(folio.daoPendingFeeShares(), daoPendingFeeShares, "wrong dao pending fee shares"); // only 5 bps
+        assertEq(
+            folio.feeRecipientsPendingFeeShares(),
+            amt / 10 - daoPendingFeeShares,
+            "wrong fee recipients pending fee shares"
+        );
+    }
+
+    function test_mintWithFeeDAOCutFloor() public {
+        // in this testcase the fee recipients receive 0 even though a folioFee is nonzero
+        assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
+        uint256 startingUSDCBalance = USDC.balanceOf(address(folio));
+        uint256 startingDAIBalance = DAI.balanceOf(address(folio));
+        uint256 startingMEMEBalance = MEME.balanceOf(address(folio));
+
+        // set mintingFee to MIN_DAO_MINTING_FEE, 5 bps
+        vm.prank(owner);
+        folio.setMintingFee(MIN_DAO_MINTING_FEE);
+        // leave daoFeeRegistry fee at 0 (default)
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+
+        uint256 amt = 1e22;
+        folio.mint(amt, user1);
+        assertEq(folio.balanceOf(user1), amt - (amt * MIN_DAO_MINTING_FEE) / 1e18, "wrong user1 balance");
+        assertApproxEqAbs(
+            USDC.balanceOf(address(folio)),
+            startingUSDCBalance + D6_TOKEN_10K,
+            1,
+            "wrong folio usdc balance"
+        );
+        assertApproxEqAbs(
+            DAI.balanceOf(address(folio)),
+            startingDAIBalance + D18_TOKEN_10K,
+            1,
+            "wrong folio dai balance"
+        );
+        assertApproxEqAbs(
+            MEME.balanceOf(address(folio)),
+            startingMEMEBalance + D27_TOKEN_10K,
+            1e9,
+            "wrong folio meme balance"
+        );
+
+        // minting fee should be manifested in total supply and ONLY the DAO's side of the stream
+        assertEq(folio.totalSupply(), amt * 2, "total supply off");
+        assertEq(folio.daoPendingFeeShares(), (amt * MIN_DAO_MINTING_FEE) / 1e18, "wrong dao pending fee shares");
+        assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
+    }
+
     function test_redeem() public {
         assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
         vm.startPrank(user1);
@@ -183,7 +329,7 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
         folio.mint(1e22, user1);
-        assertEq(folio.balanceOf(user1), 1e22);
+        assertEq(folio.balanceOf(user1), 1e22 - 1e22 / 2000, "wrong user1 balance");
         uint256 startingUSDCBalanceFolio = USDC.balanceOf(address(folio));
         uint256 startingDAIBalanceFolio = DAI.balanceOf(address(folio));
         uint256 startingMEMEBalanceFolio = MEME.balanceOf(address(folio));
@@ -387,7 +533,8 @@ contract FolioTest is BaseTest {
         emit IFolio.FeeRecipientSet(user1, 0.15e18);
         folio.setFeeRecipients(recipients);
 
-        assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
+        assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
+        assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
 
         // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
@@ -401,8 +548,8 @@ contract FolioTest is BaseTest {
 
     function test_setFolioFee() public {
         vm.startPrank(owner);
-        assertEq(folio.folioFee(), MAX_FEE, "wrong folio fee");
-        uint256 newFolioFee = MAX_FEE / 1000;
+        assertEq(folio.folioFee(), MAX_FOLIO_FEE, "wrong folio fee");
+        uint256 newFolioFee = MAX_FOLIO_FEE / 1000;
         vm.expectEmit(true, true, false, true);
         emit IFolio.FolioFeeSet(newFolioFee);
         folio.setFolioFee(newFolioFee);
@@ -429,9 +576,39 @@ contract FolioTest is BaseTest {
         assertEq(folio.auctionLength(), newAuctionLength, "wrong auction length");
     }
 
+    function test_setMintingFee() public {
+        vm.startPrank(owner);
+        assertEq(folio.mintingFee(), 0, "wrong minting fee");
+        uint256 newMintingFee = MAX_MINTING_FEE;
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.MintingFeeSet(newMintingFee);
+        folio.setMintingFee(newMintingFee);
+        assertEq(folio.mintingFee(), newMintingFee, "wrong minting fee");
+    }
+
+    function test_cannotSetMintingFeeIfNotOwner() public {
+        vm.startPrank(user1);
+        uint256 newMintingFee = MAX_MINTING_FEE;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.setMintingFee(newMintingFee);
+    }
+
+    function test_setMintingFee_InvalidFee() public {
+        vm.startPrank(owner);
+        uint256 newMintingFee = MAX_MINTING_FEE + 1;
+        vm.expectRevert(IFolio.Folio__MintingFeeTooHigh.selector);
+        folio.setMintingFee(newMintingFee);
+    }
+
     function test_cannotSetFolioFeeIfNotOwner() public {
         vm.startPrank(user1);
-        uint256 newFolioFee = MAX_FEE / 1000;
+        uint256 newFolioFee = MAX_FOLIO_FEE / 1000;
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector,
@@ -452,10 +629,11 @@ contract FolioTest is BaseTest {
         uint256 initialDaoShares = folio.balanceOf(dao);
 
         vm.startPrank(owner);
-        uint256 newFolioFee = MAX_FEE / 1000;
+        uint256 newFolioFee = MAX_FOLIO_FEE / 1000;
         folio.setFolioFee(newFolioFee);
 
-        assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
+        assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
+        assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
 
         // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
@@ -469,8 +647,8 @@ contract FolioTest is BaseTest {
 
     function test_setFolioFee_InvalidFee() public {
         vm.startPrank(owner);
-        uint256 newFolioFee = MAX_FEE + 1;
-        vm.expectRevert(IFolio.Folio__FeeTooHigh.selector);
+        uint256 newFolioFee = MAX_FOLIO_FEE + 1;
+        vm.expectRevert(IFolio.Folio__FolioFeeTooHigh.selector);
         folio.setFolioFee(newFolioFee);
     }
 
@@ -564,7 +742,10 @@ contract FolioTest is BaseTest {
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.05e18);
 
         // check receipient balances
-        expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        expectedDaoShares =
+            initialDaoShares +
+            (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) /
+            daoFeeDenominator;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares, 2nd change");
         remainingShares = pendingFeeShares - expectedDaoShares;
         assertEq(
@@ -1268,13 +1449,18 @@ contract FolioTest is BaseTest {
         vm.warp(block.timestamp + YEAR_IN_SECONDS);
         vm.roll(block.number + 1000000);
         uint256 pendingFeeShares = folio.getPendingFeeShares();
-        assertEq(folio.pendingFeeShares(), 0); // not updated yet
+
+        assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
+        assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
 
         // call poke
         folio.poke();
         assertEq(folio.lastPoke(), block.timestamp);
         assertGt(block.timestamp, prevBlockTimestamp);
-        assertEq(folio.pendingFeeShares(), pendingFeeShares); // updated after poke
+
+        // after pokme
+        assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
+        assertEq(folio.feeRecipientsPendingFeeShares(), pendingFeeShares, "wrong fee recipients pending fee shares");
 
         // no-op if already poked
         folio.poke(); // collect shares

@@ -15,6 +15,7 @@ import { Versioned } from "@utils/Versioned.sol";
 
 /**
  * @title FolioDeployer
+ * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 contract FolioDeployer is IFolioDeployer, Versioned {
     using SafeERC20 for IERC20;

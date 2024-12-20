@@ -185,6 +185,7 @@ abstract contract BaseTest is Script, Test {
         uint256 _auctionLength,
         IFolio.FeeRecipient[] memory _feeRecipients,
         uint256 _folioFee,
+        uint256 _mintingFee,
         address _owner,
         address _tradeProposer,
         address _priceCurator
@@ -201,7 +202,8 @@ abstract contract BaseTest is Script, Test {
             tradeDelay: _tradeDelay,
             auctionLength: _auctionLength,
             feeRecipients: _feeRecipients,
-            folioFee: _folioFee
+            folioFee: _folioFee,
+            mintingFee: _mintingFee
         });
 
         address[] memory _tradeProposers = new address[](1);
