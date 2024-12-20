@@ -142,21 +142,21 @@ contract ExtremeTest is BaseExtremeTest {
         vm.stopPrank();
 
         // check balances
-        assertEq(folio.balanceOf(user1), mintAmount, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), mintAmount - mintAmount / 2000, "wrong user1 balance");
         for (uint256 j = 0; j < tokens.length; j++) {
             IERC20 _token = IERC20(tokens[j]);
 
             uint256 tolerance = (p.decimals > 18) ? 10 ** (p.decimals - 18) : 1;
             assertApproxEqAbs(
                 _token.balanceOf(address(folio)),
-                startingBalancesFolio[j] + amounts[j] + amounts[j] / 2000, // 5 bps minting fee
+                startingBalancesFolio[j] + amounts[j],
                 tolerance,
                 "wrong folio token balance"
             );
 
             assertApproxEqAbs(
                 _token.balanceOf(address(user1)),
-                startingBalancesUser[j] - amounts[j] - amounts[j] / 2000, // 5 bps minting fee
+                startingBalancesUser[j] - amounts[j],
                 tolerance,
                 "wrong user1 token balance"
             );
@@ -173,7 +173,7 @@ contract ExtremeTest is BaseExtremeTest {
         vm.stopSnapshotGas(redeemGasTag);
 
         // check balances
-        assertEq(folio.balanceOf(user1), mintAmount / 2, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), mintAmount / 2 - mintAmount / 2000, "wrong user1 balance");
         for (uint256 j = 0; j < tokens.length; j++) {
             IERC20 _token = IERC20(tokens[j]);
 
