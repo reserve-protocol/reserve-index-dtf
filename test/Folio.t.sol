@@ -533,7 +533,8 @@ contract FolioTest is BaseTest {
         emit IFolio.FeeRecipientSet(user1, 0.15e18);
         folio.setFeeRecipients(recipients);
 
-        assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
+        assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
+        assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
 
         // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
@@ -631,7 +632,8 @@ contract FolioTest is BaseTest {
         uint256 newFolioFee = MAX_FOLIO_FEE / 1000;
         folio.setFolioFee(newFolioFee);
 
-        assertEq(folio.pendingFeeShares(), 0, "wrong pending fee shares, after");
+        assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
+        assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
 
         // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
@@ -1401,13 +1403,18 @@ contract FolioTest is BaseTest {
         vm.warp(block.timestamp + YEAR_IN_SECONDS);
         vm.roll(block.number + 1000000);
         uint256 pendingFeeShares = folio.getPendingFeeShares();
-        assertEq(folio.pendingFeeShares(), 0); // not updated yet
+
+        assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
+        assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
 
         // call poke
         folio.poke();
         assertEq(folio.lastPoke(), block.timestamp);
         assertGt(block.timestamp, prevBlockTimestamp);
-        assertEq(folio.pendingFeeShares(), pendingFeeShares); // updated after poke
+
+        // after pokme
+        assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
+        assertEq(folio.feeRecipientsPendingFeeShares(), pendingFeeShares, "wrong fee recipients pending fee shares");
 
         // no-op if already poked
         folio.poke(); // collect shares
