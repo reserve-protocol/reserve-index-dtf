@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FEE, MAX_TTL } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_TTL } from "contracts/Folio.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
@@ -12,6 +12,7 @@ contract ExtremeTest is BaseExtremeTest {
         uint256[] memory _amounts,
         uint256 initialSupply,
         uint256 folioFee,
+        uint256 mintingFee,
         IFolio.FeeRecipient[] memory recipients
     ) public {
         string memory deployGasTag = string.concat(
@@ -38,6 +39,7 @@ contract ExtremeTest is BaseExtremeTest {
             MAX_AUCTION_LENGTH,
             recipients,
             folioFee,
+            mintingFee,
             owner,
             dao,
             priceCurator
@@ -104,11 +106,11 @@ contract ExtremeTest is BaseExtremeTest {
 
         // deploy folio
         uint256 initialSupply = p.amount * 1e18;
-        uint256 folioFee = MAX_FEE;
+        uint256 folioFee = MAX_FOLIO_FEE;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
-        _deployTestFolio(tokens, amounts, initialSupply, folioFee, recipients);
+        _deployTestFolio(tokens, amounts, initialSupply, folioFee, 0, recipients);
 
         // check deployment
         assertEq(folio.totalSupply(), initialSupply, "wrong total supply");
@@ -208,11 +210,11 @@ contract ExtremeTest is BaseExtremeTest {
 
         // deploy folio
         uint256 initialSupply = p.sellAmount * 1e18;
-        uint256 folioFee = MAX_FEE;
+        uint256 folioFee = MAX_FOLIO_FEE;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
-        _deployTestFolio(tokens, amounts, initialSupply, folioFee, recipients);
+        _deployTestFolio(tokens, amounts, initialSupply, folioFee, 0, recipients);
 
         // approveTrade
         vm.prank(dao);
@@ -266,7 +268,7 @@ contract ExtremeTest is BaseExtremeTest {
         for (uint256 i = 0; i < p.numFeeRecipients; i++) {
             recipients[i] = IFolio.FeeRecipient(vm.addr(i + 1), feeReceiverShare);
         }
-        _deployTestFolio(tokens, amounts, initialSupply, p.folioFee, recipients);
+        _deployTestFolio(tokens, amounts, initialSupply, p.folioFee, 0, recipients);
 
         // set dao fee
         daoFeeRegistry.setTokenFeeNumerator(address(folio), p.daoFee);
