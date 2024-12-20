@@ -193,7 +193,7 @@ contract Folio is
 
     // {} -> ({tokAddress}, D18{tok/share})
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return _toAssets(10 ** decimals(), Math.Rounding.Floor);
+        return toAssets(10 ** decimals(), Math.Rounding.Floor);
     }
 
     // {} -> ({tokAddress}, {tok})
@@ -208,21 +208,22 @@ contract Folio is
     }
 
     // {share} -> ({tokAddress}, {tok})
-    /// @param shares {share}
-    /// @param includeMintingFee If true, minting fee is included in the assets
     function toAssets(
         uint256 shares,
-        bool includeMintingFee
-    ) external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        if (includeMintingFee) {
-            (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(this));
+        Math.Rounding rounding
+    ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
+        uint256 _totalSupply = totalSupply();
 
-            // {share} = {share} * D18{1} / D18{1}
-            uint256 feeShares = (shares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
-            return _toAssets(shares + feeShares, Math.Rounding.Ceil);
+        _assets = basket.values();
+
+        uint256 len = _assets.length;
+        _amounts = new uint256[](len);
+        for (uint256 i; i < len; i++) {
+            uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
+
+            // {tok} = {share} * {tok} / {share}
+            _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
         }
-
-        return _toAssets(shares, Math.Rounding.Floor);
     }
 
     // {share} -> ({tokAddress}, {tok})
@@ -247,16 +248,16 @@ contract Folio is
         uint256 minDaoShares = (shares * MIN_DAO_MINTING_FEE + SCALAR - 1) / SCALAR;
         if (daoFeeShares < minDaoShares) {
             daoFeeShares = minDaoShares;
+        }
 
-            // 100% to DAO
-            if (totalFeeShares < daoFeeShares) {
-                totalFeeShares = daoFeeShares;
-            }
+        // 100% to DAO, if necessary
+        if (totalFeeShares < daoFeeShares) {
+            totalFeeShares = daoFeeShares;
         }
 
         // === Transfer assets in ===
 
-        (_assets, _amounts) = _toAssets(shares + totalFeeShares, Math.Rounding.Ceil);
+        (_assets, _amounts) = toAssets(shares, Math.Rounding.Ceil);
 
         uint256 assetLength = _assets.length;
         for (uint256 i; i < assetLength; i++) {
@@ -267,7 +268,7 @@ contract Folio is
 
         // === Mint shares ===
 
-        _mint(receiver, shares);
+        _mint(receiver, shares - totalFeeShares);
 
         // defer fee handouts until distributeFees()
         daoPendingFeeShares += daoFeeShares;
@@ -281,7 +282,7 @@ contract Folio is
     ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
         _poke();
 
-        (_assets, _amounts) = _toAssets(shares, Math.Rounding.Floor);
+        (_assets, _amounts) = toAssets(shares, Math.Rounding.Floor);
 
         _burn(msg.sender, shares);
 
@@ -559,25 +560,6 @@ contract Folio is
         p = (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / SCALAR;
         if (p < trade.endPrice) {
             p = trade.endPrice;
-        }
-    }
-
-    // {share} -> ({tokAddress}, {tok})
-    function _toAssets(
-        uint256 shares,
-        Math.Rounding rounding
-    ) internal view returns (address[] memory _assets, uint256[] memory _amounts) {
-        uint256 _totalSupply = totalSupply();
-
-        _assets = basket.values();
-
-        uint256 len = _assets.length;
-        _amounts = new uint256[](len);
-        for (uint256 i; i < len; i++) {
-            uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
-
-            // {tok} = {share} * {tok} / {share}
-            _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
         }
     }
 

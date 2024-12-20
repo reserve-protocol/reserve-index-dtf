@@ -136,7 +136,7 @@ contract FolioTest is BaseTest {
     }
 
     function test_toAssets() public view {
-        (address[] memory _assets, uint256[] memory _amounts) = folio.toAssets(0.5e18, false);
+        (address[] memory _assets, uint256[] memory _amounts) = folio.toAssets(0.5e18, Math.Rounding.Floor);
         assertEq(_assets.length, 3, "wrong assets length");
         assertEq(_assets[0], address(USDC), "wrong first asset");
         assertEq(_assets[1], address(DAI), "wrong second asset");
@@ -158,22 +158,22 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
         folio.mint(1e22, user1);
-        assertEq(folio.balanceOf(user1), 1e22, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), 1e22 - 1e22 / 2000, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
-            startingUSDCBalance + D6_TOKEN_10K + D6_TOKEN_10K / 2000, // 5 bps
+            startingUSDCBalance + D6_TOKEN_10K,
             1,
             "wrong folio usdc balance"
         );
         assertApproxEqAbs(
             DAI.balanceOf(address(folio)),
-            startingDAIBalance + D18_TOKEN_10K + D18_TOKEN_10K / 2000, // 5 bps
+            startingDAIBalance + D18_TOKEN_10K,
             1,
             "wrong folio dai balance"
         );
         assertApproxEqAbs(
             MEME.balanceOf(address(folio)),
-            startingMEMEBalance + D27_TOKEN_10K + D27_TOKEN_10K / 2000, // 5 bps
+            startingMEMEBalance + D27_TOKEN_10K,
             1e9,
             "wrong folio meme balance"
         );
@@ -197,28 +197,28 @@ contract FolioTest is BaseTest {
 
         uint256 amt = 1e22;
         folio.mint(amt, user1);
-        assertEq(folio.balanceOf(user1), amt, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), amt - amt / 10, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
-            startingUSDCBalance + D6_TOKEN_10K + D6_TOKEN_10K / 10, // 10% minting fee
+            startingUSDCBalance + D6_TOKEN_10K,
             1,
             "wrong folio usdc balance"
         );
         assertApproxEqAbs(
             DAI.balanceOf(address(folio)),
-            startingDAIBalance + D18_TOKEN_10K + D18_TOKEN_10K / 10, // 10% minting fee
+            startingDAIBalance + D18_TOKEN_10K,
             1,
             "wrong folio dai balance"
         );
         assertApproxEqAbs(
             MEME.balanceOf(address(folio)),
-            startingMEMEBalance + D27_TOKEN_10K + D27_TOKEN_10K / 10, // 10% minting fee
+            startingMEMEBalance + D27_TOKEN_10K,
             1e9,
             "wrong folio meme balance"
         );
 
         // minting fee should be manifested in total supply and both streams of fee shares
-        assertEq(folio.totalSupply(), amt * 2 + amt / 10); // genesis supply + new mint + 10% increase
+        assertEq(folio.totalSupply(), amt * 2, "total supply off"); // genesis supply + new mint + 10% increase
         uint256 daoPendingFeeShares = (amt * MIN_DAO_MINTING_FEE) / 1e18;
         assertEq(folio.daoPendingFeeShares(), daoPendingFeeShares, "wrong dao pending fee shares"); // only 5 bps
         assertEq(
@@ -246,28 +246,28 @@ contract FolioTest is BaseTest {
 
         uint256 amt = 1e22;
         folio.mint(amt, user1);
-        assertEq(folio.balanceOf(user1), amt, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), amt - amt / 10, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
-            startingUSDCBalance + D6_TOKEN_10K + D6_TOKEN_10K / 10, // 10% minting fee
+            startingUSDCBalance + D6_TOKEN_10K,
             1,
             "wrong folio usdc balance"
         );
         assertApproxEqAbs(
             DAI.balanceOf(address(folio)),
-            startingDAIBalance + D18_TOKEN_10K + D18_TOKEN_10K / 10, // 10% minting fee
+            startingDAIBalance + D18_TOKEN_10K,
             1,
             "wrong folio dai balance"
         );
         assertApproxEqAbs(
             MEME.balanceOf(address(folio)),
-            startingMEMEBalance + D27_TOKEN_10K + D27_TOKEN_10K / 10, // 10% minting fee
+            startingMEMEBalance + D27_TOKEN_10K,
             1e9,
             "wrong folio meme balance"
         );
 
         // minting fee should be manifested in total supply and both streams of fee shares
-        assertEq(folio.totalSupply(), amt * 2 + amt / 10); // genesis supply + new mint + 10% increase
+        assertEq(folio.totalSupply(), amt * 2, "total supply off"); // genesis supply + new mint + 10% increase
         uint256 daoPendingFeeShares = (amt / 10) / 2;
         assertEq(folio.daoPendingFeeShares(), daoPendingFeeShares, "wrong dao pending fee shares"); // only 5 bps
         assertEq(
@@ -296,28 +296,28 @@ contract FolioTest is BaseTest {
 
         uint256 amt = 1e22;
         folio.mint(amt, user1);
-        assertEq(folio.balanceOf(user1), amt, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), amt - (amt * MIN_DAO_MINTING_FEE) / 1e18, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
-            startingUSDCBalance + D6_TOKEN_10K + (D6_TOKEN_10K * MIN_DAO_MINTING_FEE) / 1e18,
+            startingUSDCBalance + D6_TOKEN_10K,
             1,
             "wrong folio usdc balance"
         );
         assertApproxEqAbs(
             DAI.balanceOf(address(folio)),
-            startingDAIBalance + D18_TOKEN_10K + (D18_TOKEN_10K * MIN_DAO_MINTING_FEE) / 1e18,
+            startingDAIBalance + D18_TOKEN_10K,
             1,
             "wrong folio dai balance"
         );
         assertApproxEqAbs(
             MEME.balanceOf(address(folio)),
-            startingMEMEBalance + D27_TOKEN_10K + (D27_TOKEN_10K * MIN_DAO_MINTING_FEE) / 1e18,
+            startingMEMEBalance + D27_TOKEN_10K,
             1e9,
             "wrong folio meme balance"
         );
 
         // minting fee should be manifested in total supply and ONLY the DAO's side of the stream
-        assertEq(folio.totalSupply(), amt * 2 + (amt * MIN_DAO_MINTING_FEE) / 1e18);
+        assertEq(folio.totalSupply(), amt * 2, "total supply off");
         assertEq(folio.daoPendingFeeShares(), (amt * MIN_DAO_MINTING_FEE) / 1e18, "wrong dao pending fee shares");
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
     }
@@ -329,7 +329,7 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
         folio.mint(1e22, user1);
-        assertEq(folio.balanceOf(user1), 1e22);
+        assertEq(folio.balanceOf(user1), 1e22 - 1e22 / 2000, "wrong user1 balance");
         uint256 startingUSDCBalanceFolio = USDC.balanceOf(address(folio));
         uint256 startingDAIBalanceFolio = DAI.balanceOf(address(folio));
         uint256 startingMEMEBalanceFolio = MEME.balanceOf(address(folio));
