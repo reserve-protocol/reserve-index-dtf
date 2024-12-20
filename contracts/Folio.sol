@@ -585,7 +585,7 @@ contract Folio is
     function _getPendingFeeShares() internal view returns (uint256 _pendingFeeShares) {
         _pendingFeeShares = pendingFeeShares;
 
-        uint256 supply = super.totalSupply() + _pendingFeeShares;
+        uint256 supply = super.totalSupply() + _pendingFeeShares + daoPendingFeeShares + feeRecipientsPendingFeeShares;
         uint256 elapsed = block.timestamp - lastPoke;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
