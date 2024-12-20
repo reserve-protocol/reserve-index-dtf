@@ -101,7 +101,7 @@ contract ExtremeTest is BaseExtremeTest {
                 deployCoin(string(abi.encodePacked("Token", j)), string(abi.encodePacked("TKN", j)), p.decimals)
             );
             amounts[j] = p.amount;
-            mintTokens(tokens[j], getActors(), amounts[j]);
+            mintTokens(tokens[j], getActors(), amounts[j] * 2);
         }
 
         // deploy folio
@@ -149,14 +149,14 @@ contract ExtremeTest is BaseExtremeTest {
             uint256 tolerance = (p.decimals > 18) ? 10 ** (p.decimals - 18) : 1;
             assertApproxEqAbs(
                 _token.balanceOf(address(folio)),
-                startingBalancesFolio[j] + amounts[j],
+                startingBalancesFolio[j] + amounts[j] + amounts[j] / 2000, // 5 bps minting fee
                 tolerance,
                 "wrong folio token balance"
             );
 
             assertApproxEqAbs(
                 _token.balanceOf(address(user1)),
-                startingBalancesUser[j] - amounts[j],
+                startingBalancesUser[j] - amounts[j] - amounts[j] / 2000, // 5 bps minting fee
                 tolerance,
                 "wrong user1 token balance"
             );
@@ -281,7 +281,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
-        uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
 
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 

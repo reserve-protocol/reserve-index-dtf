@@ -73,7 +73,8 @@ contract Folio is
      * System
      */
     uint256 public lastPoke; // {s}
-    uint256 public pendingFeeShares; // {share} shares pending to be split with the DAO
+    uint256 public pendingFeeShares; // {share} shares pending to be split between fee recipients AND the DAO
+    uint256 public daoPendingFeeShares; // {share} shares pending to be distributed ONLY to the DAO
     uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
 
     /**
@@ -185,9 +186,9 @@ contract Folio is
 
     // ==== Share + Asset Accounting ====
 
-    /// @dev Contains pending fee shares
+    /// @dev Contains all pending fee shares
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
-        return super.totalSupply() + _getPendingFeeShares() + feeRecipientsPendingFeeShares;
+        return super.totalSupply() + _getPendingFeeShares() + daoPendingFeeShares + feeRecipientsPendingFeeShares;
     }
 
     // {} -> ({tokAddress}, D18{tok/share})
@@ -234,9 +235,7 @@ contract Folio is
 
         // === Calculate fee shares ===
 
-        (address daoRecipient, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(
-            address(this)
-        );
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(this));
 
         // {share} = {share} * D18{1} / D18
         uint256 totalFeeShares = (shares * mintingFee + SCALAR - 1) / SCALAR;
@@ -268,10 +267,11 @@ contract Folio is
 
         // === Mint shares ===
 
-        // defer feeRecipients handout until next distributeFees()
-        feeRecipientsPendingFeeShares += totalFeeShares - daoFeeShares;
-        _mint(daoRecipient, daoFeeShares);
         _mint(receiver, shares);
+
+        // defer fee handouts until distributeFees()
+        daoPendingFeeShares += daoFeeShares;
+        feeRecipientsPendingFeeShares += totalFeeShares - daoFeeShares;
     }
 
     // {share} -> ({tokAddress}, {tok})
@@ -296,7 +296,7 @@ contract Folio is
     // === Fee Shares ===
 
     /// @dev totalSupply() already contains pending fee shares
-    /// @return {share} Quantity of fee shares currently pending
+    /// @return {share} Quantity of fee shares currently pending to be split by the fee recipients and the DAO
     function getPendingFeeShares() public view returns (uint256) {
         return _getPendingFeeShares();
     }
@@ -310,7 +310,8 @@ contract Folio is
             address(this)
         );
         uint256 daoFee = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
-        _mint(recipient, daoFee);
+        _mint(recipient, daoFee + daoPendingFeeShares);
+        daoPendingFeeShares = 0;
 
         // add-in feeRecipientsPendingFeeShares
         uint256 feeShares = pendingFeeShares - daoFee + feeRecipientsPendingFeeShares;
