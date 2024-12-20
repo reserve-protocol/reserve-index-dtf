@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FOLIO_FEE, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FOLIO_FEE, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_MINTING_FEE } from "contracts/Folio.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -431,6 +431,36 @@ contract FolioTest is BaseTest {
         emit IFolio.AuctionLengthSet(newAuctionLength);
         folio.setAuctionLength(newAuctionLength);
         assertEq(folio.auctionLength(), newAuctionLength, "wrong auction length");
+    }
+
+    function test_setMintingFee() public {
+        vm.startPrank(owner);
+        assertEq(folio.mintingFee(), 0, "wrong minting fee");
+        uint256 newMintingFee = MAX_MINTING_FEE;
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.MintingFeeSet(newMintingFee);
+        folio.setMintingFee(newMintingFee);
+        assertEq(folio.mintingFee(), newMintingFee, "wrong minting fee");
+    }
+
+    function test_cannotSetMintingFeeIfNotOwner() public {
+        vm.startPrank(user1);
+        uint256 newMintingFee = MAX_MINTING_FEE;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.setMintingFee(newMintingFee);
+    }
+
+    function test_setMintingFee_InvalidFee() public {
+        vm.startPrank(owner);
+        uint256 newMintingFee = MAX_MINTING_FEE + 1;
+        vm.expectRevert(IFolio.Folio__MintingFeeTooHigh.selector);
+        folio.setMintingFee(newMintingFee);
     }
 
     function test_cannotSetFolioFeeIfNotOwner() public {
