@@ -2,34 +2,37 @@
 
 ## Overview
 
-The Reserve Folio protocol is a platform for creating and managing portfolios of onchain, ERC20-compliant assets. Folios are designed to be used as a single-source of truth for asset allocations, enabling the composability of complex, multi-asset portfolios.
+Reserve Folio is a protocol for creating and managing portfolios of ERC20-compliant assets entirely onchain. Folios are designed to be used as a single-source of truth for asset allocations, enabling composability of complex, multi-asset portfolios.
 
-Folios support rebalancing trades via dutch auction over an exponential decay curve between two prices. Control flow over the trade is shared between two parties, with a TRADE_PROPOSER approving trades and a PRICE_CURATOR opening them.
+Folios support rebalancing trades via Dutch Auction over an exponential decay curve between two prices. Control flow over the trade is shared between two parties, with a `TRADE_PROPOSER` approving trades and a `PRICE_CURATOR` opening them.
 
-TRADE_PROPOSER is expected to be the timelock of the fast-moving governor associated with the Folio.
+`TRADE_PROPOSER` is expected to be the timelock of the fast-moving trade governor associated with the Folio.
 
-PRICE_CURATOR is expected to be a semi-trusted EOA or multisig: they can open trades within the bounds set by governance, hopefully adding precision. If they are offline, the trade can be opened permissionlessly after a preset delay. If they are evil, at-best they can prevent a Folio from rebalancing by killing trades, but they cannot access the backing directly.
+`PRICE_CURATOR` is expected to be a semi-trusted EOA or multisig; They can open trades within the bounds set by governance, hopefully adding precision. If they are offline, the trade can be opened permissionlessly after a preset delay. If they are evil, at-best they can prevent a Folio from rebalancing by killing trades, but they cannot access the backing directly.
 
 ### Architecture
 
+#### 0. **DAO Contracts**
+
+- **FolioDAOFeeRegistry.sol**: Handles the fees associated with the broader ecosystem DAO that Folios pay into.
+- **FolioVersionRegistry.sol**: Keeps track of various versions of `FolioDeployer`, owned by the DAO.
+
+While not included directly, `FolioVersionRegistry` and `FolioDAOFeeRegistry` also depend on an existing `RoleRegistry` instance. This contract must adhere to the [contracts/interfaces/IRoleRegistry.sol](contracts/interfaces/IRoleRegistry.sol) interface.
+
 #### 1. **Folio Contracts**
 
-- **Folio.sol**: The primary contract in the system. Represents a portfolio of ERC20 assets, and contains all trading logic
-- **FolioDeployer.sol**: Manages the deployment of new Folio instances
-- **FolioVersionRegistry.sol**: Keeps track of various versions of FolioDeployer
-- **FolioProxy.sol**: A proxy contract for delegating calls to a Folio implementation that checks upgrades with FolioVersionRegistry
-- **FolioDAOFeeRegistry.sol**: Handles the fees associated with the broader ecosystem DAO that Folios pay into
-
-While not included directly, FolioVersionRegistry and FolioDAOFeeRegistry also depend on a pre-existing `RoleRegistry` instance. This contract must adhere to the [contracts/interfaces/IRoleRegistry.sol](contracts/interfaces/IRoleRegistry.sol) interface.
+- **Folio.sol**: The primary contract in the system. Represents a portfolio of ERC20 assets, and contains all trading logic.
+- **FolioDeployer.sol**: Manages the deployment of new Folio instances.
+- **FolioProxy.sol**: A proxy contract for delegating calls to a Folio implementation that checks upgrades with `FolioVersionRegistry`.
 
 #### 2. **Governance**
 
-- **GovernanceDeployer.sol**: Deploys staking tokens and governing systems
-- **FolioGovernor.sol**: Canonical governor in the system, time-based
+- **FolioGovernor.sol**: Canonical governor in the system, time-based.
+- **GovernanceDeployer.sol**: Deploys staking tokens and governing systems.
 
 #### 3. **Staking**
 
-- **StakingVault.sol**: A vault contract that holds staked tokens and allows users to earn rewards simultaneously in multiple reward tokens. Central voting token for all types of governance
+- **StakingVault.sol**: A vault contract that holds staked tokens and allows users to earn rewards simultaneously in multiple reward tokens. Central voting token for all types of governance.
 
 ### Roles
 
@@ -37,14 +40,15 @@ While not included directly, FolioVersionRegistry and FolioDAOFeeRegistry also d
 
 A Folio has 3 roles:
 
-1. DEFAULT_ADMIN_ROLE
-   - Expected: Slow Timelocked Folio Governor
+1. `DEFAULT_ADMIN_ROLE`
+   - Expected: Timelock of Slow Folio Governor
    - Can add/remove assets, set fees, configure auction length, and set the trade delay
-   - Can configure the TRADE_PROPOSER / PRICE_CURATOR
-2. TRADE_PROPOSER
-   - Expected: Fast Timelocked Folio Governor
+   - Can configure the `TRADE_PROPOSER`/ `PRICE_CURATOR`
+   - Primary owner of the Folio
+2. `TRADE_PROPOSER`
+   - Expected: Timelock of Fast Folio Governor
    - Can approve trades
-3. PRICE_CURATOR
+3. `PRICE_CURATOR`
    - Expected: EOA or multisig
    - Can open and kill trades
 
@@ -52,7 +56,7 @@ A Folio has 3 roles:
 
 The staking vault has ONLY a single owner:
 
-- Expected: Community Timelocked Governor
+- Expected: Timelock of Community Governor
 - Can add/remove reward tokens, set reward half-life, and set unstaking delay
 
 ### Trading
@@ -68,13 +72,13 @@ The staking vault has ONLY a single owner:
 
 ##### Auction pricing
 
-There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the TRADE_PROPOSER:
+There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `TRADE_PROPOSER`:
 
-1. can provide `[0, 0]` to _fully_ defer to the price curator for pricing. In this mode the auction CANNOT be opened permissionlessly. Loss can arise either due to the price curator setting `startPrice` too low, or due to precision issues from traversing too large a range.
-2. can provide `[startPrice, 0]` to defer to the price curator for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
-3. can provide `[startPrice, endPrice]` to defer to the price curator for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Loss is minimal.
+1. Can provide `[0, 0]` to _fully_ defer to the price curator for pricing. In this mode the auction CANNOT be opened permissionlessly. Loss can arise either due to the price curator setting `startPrice` too low, or due to precision issues from traversing too large a range.
+2. Can provide `[startPrice, 0]` to defer to the price curator for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
+3. Can provide `[startPrice, endPrice]` to defer to the price curator for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Loss is minimal.
 
-The PRICE_CURATOR can choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
+The `PRICE_CURATOR` can choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
 
 ##### Auction pricing
 
@@ -116,7 +120,7 @@ Example:
 
 Tokens are assumed to be within the following ranges:
 
-|              | Folio collateral | StakingVault underlying/rewards |
+|              | Folio Collateral | StakingVault underlying/rewards |
 | ------------ | ---------------- | ------------------------------- |
 | **Supply**   | 1e36             | 1e36                            |
 | **Decimals** | 27               | 21                              |
@@ -127,22 +131,22 @@ Some ERC20s are NOT supported
 
 | Weirdness                      | Folio | StakingVault |
 | ------------------------------ | ----- | ------------ |
-| Multiple-entry addresses       | ❌    | ❌           |
-| Pausable / blocklist           | ❌    | ❌           |
-| ERC777 / callback              | ✅    | ❌           |
+| Multiple Entrypoints           | ❌    | ❌           |
+| Pausable / Blocklist           | ❌    | ❌           |
+| ERC777 / Callback              | ✅    | ❌           |
 | Downward-rebasing              | ✅    | ❌           |
-| Upward-rebasing                | ✅    | ✅           |
-| Fee-on-transfer                | ✅    | ✅           |
+| Upward-rebasing                | ✅    | ❌           |
+| Fee-on-transfer                | ✅    | ❌           |
 | Revert on zero-value transfers | ✅    | ✅           |
 | Flash mint                     | ✅    | ✅           |
 | Missing return values          | ✅    | ✅           |
 | No revert on failure           | ✅    | ✅           |
 
-Note: while the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol are still possible.
+Note: While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible.
 
 ### Future Work / Not Implemented Yet
 
-1. **delegatecall functionality / way to claim rewards**
+1. **`delegatecall` functionality / way to claim rewards**
    currently there is no way to claim rewards, for example to claim AERO as a result of holding a staked Aerodrome position. An autocompounding layer such as beefy or yearn would be required in order to put this kind of position into a Folio
 2. **alternative communiuty governance systems**
    currently only bring-your-own-erc20 governance is supported but we would like to add alternatives in the future such as (i) NFT-based governance; and (ii) an ERC20 fair launch system
