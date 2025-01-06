@@ -169,7 +169,7 @@ contract ExtremeTest is BaseExtremeTest {
         // Redeem
         vm.startPrank(user1);
         vm.startSnapshotGas(redeemGasTag);
-        folio.redeem(mintAmount / 2, user1);
+        folio.redeem(mintAmount / 2, user1, tokens, new uint256[](tokens.length));
         vm.stopSnapshotGas(redeemGasTag);
 
         // check balances
