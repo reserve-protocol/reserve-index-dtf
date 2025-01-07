@@ -75,6 +75,7 @@ contract Folio is
     uint256 public lastPoke; // {s}
     uint256 public daoPendingFeeShares; // {share} shares pending to be distributed ONLY to the DAO
     uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
+    bool public isKilled; // {bool} If true, Folio goes into redemption-only mode
 
     /**
      * Trading
@@ -83,7 +84,6 @@ contract Folio is
      *   - Multiple bids can be executed against the same trade
      *   - All trades are dutch auctions, but it's possible to pass startPrice = endPrice
      */
-
     uint256 public auctionLength; // {s}
     uint256 public tradeDelay; // {s}
     Trade[] public trades;
@@ -183,6 +183,12 @@ contract Folio is
         _setAuctionLength(_newLength);
     }
 
+    function killFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        isKilled = true;
+
+        emit FolioKilled();
+    }
+
     // ==== Share + Asset Accounting ====
 
     /// @dev Contains all pending fee shares
@@ -232,6 +238,8 @@ contract Folio is
         uint256 shares,
         address receiver
     ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
+        require(!isKilled, Folio__FolioKilled());
+
         _poke();
 
         // === Calculate fee shares ===
@@ -360,6 +368,8 @@ contract Folio is
         uint256 endPrice,
         uint256 ttl
     ) external nonReentrant onlyRole(TRADE_PROPOSER) {
+        require(!isKilled, Folio__FolioKilled());
+
         if (trades.length != tradeId) {
             revert Folio__InvalidTradeId();
         }
