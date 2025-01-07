@@ -128,10 +128,12 @@ Example:
 
 Tokens are assumed to be within the following ranges:
 
-|              | Folio Collateral | StakingVault underlying/rewards |
-| ------------ | ---------------- | ------------------------------- |
-| **Supply**   | 1e36             | 1e36                            |
-| **Decimals** | 27               | 21                              |
+|              | Folio | Folio Collateral | StakingVault | StakingVault underlying/rewards |
+| ------------ | ----- | ---------------- | ------------ | ------------------------------- |
+| **Supply**   | 1e36  | 1e36             | 1e36         | 1e36                            |
+| **Decimals** |       | 27               |              | 21                              |
+
+It is the job of governance to ensure the Folio supply does not grow beyond 1e36.
 
 ### Weird ERC20s
 
