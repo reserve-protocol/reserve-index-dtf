@@ -142,44 +142,44 @@ contract Folio is
 
     // ==== Governance ====
 
-    function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function addToBasket(IERC20 token) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         basket.add(address(token));
         emit BasketTokenAdded(address(token));
     }
 
-    function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function removeFromBasket(IERC20 token) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         basket.remove(address(token));
         emit BasketTokenRemoved(address(token));
     }
 
     /// @param _newFee D18{1/s} Fee per second on AUM
-    function setFolioFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFolioFee(uint256 _newFee) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
         _setFolioFee(_newFee);
     }
 
     /// @param _newFee D18{1} Fee on mint
-    function setMintingFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setMintingFee(uint256 _newFee) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
         _setMintingFee(_newFee);
     }
 
     /// _newRecipients.portion must sum to 1e18
-    function setFeeRecipients(FeeRecipient[] memory _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFeeRecipients(FeeRecipient[] memory _newRecipients) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
         _setFeeRecipients(_newRecipients);
     }
 
     /// @param _newDelay {s} Delay after a trade has been approved before it can be permissionlessly opened
-    function setTradeDelay(uint256 _newDelay) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setTradeDelay(uint256 _newDelay) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         _setTradeDelay(_newDelay);
     }
 
     /// @param _newLength {s} Length of an auction
-    function setAuctionLength(uint256 _newLength) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setAuctionLength(uint256 _newLength) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         _setAuctionLength(_newLength);
     }
 
