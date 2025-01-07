@@ -18,6 +18,7 @@ import { UnstakingManager } from "./UnstakingManager.sol";
 
 uint256 constant MAX_UNSTAKING_DELAY = 4 weeks; // {s}
 uint256 constant MAX_REWARD_HALF_LIFE = 2 weeks; // {s}
+uint256 constant MIN_REWARD_HALF_LIFE = 1 days; // {s}
 
 uint256 constant LN_2 = 0.693147180559945309e18; // D18{1} ln(2e18)
 
@@ -208,7 +209,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
     /// @param _rewardHalfLife {s}
     function _setRewardRatio(uint256 _rewardHalfLife) internal accrueRewards(msg.sender, msg.sender) {
-        if (_rewardHalfLife > MAX_REWARD_HALF_LIFE) {
+        if (_rewardHalfLife > MAX_REWARD_HALF_LIFE || _rewardHalfLife < MIN_REWARD_HALF_LIFE) {
             revert Vault__InvalidRewardsHalfLife();
         }
 
