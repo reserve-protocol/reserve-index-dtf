@@ -60,7 +60,7 @@ contract UnstakingManager {
         require(lock.user == msg.sender, UnstakingManager__Unauthorized());
         require(lock.claimedAt == 0, UnstakingManager__AlreadyClaimed());
 
-        targetToken.approve(address(vault), lock.amount);
+        SafeERC20.forceApprove(targetToken, address(vault), lock.amount);
         vault.deposit(lock.amount, lock.user);
 
         emit LockCancelled(lockId);

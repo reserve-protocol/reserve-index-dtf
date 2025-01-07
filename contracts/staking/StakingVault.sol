@@ -111,7 +111,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
             // Burn the shares first.
             _burn(_owner, _shares);
 
-            IERC20(asset()).approve(address(unstakingManager), _assets);
+            SafeERC20.forceApprove(IERC20(asset()), address(unstakingManager), _assets);
             unstakingManager.createLock(_receiver, _assets, block.timestamp + unstakingDelay);
 
             emit Withdraw(_caller, _receiver, _owner, _assets, _shares);
