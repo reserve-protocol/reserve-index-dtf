@@ -152,22 +152,25 @@ contract Folio is
         emit BasketTokenRemoved(address(token));
     }
 
+    /// @dev Non-reentrant via distributeFees()
     /// @param _newFee D18{1/s} Fee per second on AUM
-    function setFolioFee(uint256 _newFee) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFolioFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
         _setFolioFee(_newFee);
     }
 
+    /// @dev Non-reentrant via distributeFees()
     /// @param _newFee D18{1} Fee on mint
-    function setMintingFee(uint256 _newFee) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setMintingFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
         _setMintingFee(_newFee);
     }
 
-    /// _newRecipients.portion must sum to 1e18
-    function setFeeRecipients(FeeRecipient[] memory _newRecipients) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+    /// @dev Non-reentrant via distributeFees()
+    /// @param _newRecipients.portion must sum to 1e18
+    function setFeeRecipients(FeeRecipient[] memory _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
         _setFeeRecipients(_newRecipients);
