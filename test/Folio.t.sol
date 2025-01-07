@@ -1246,7 +1246,7 @@ contract FolioTest is BaseTest {
 
         // upgrade to V2 with owner
         vm.prank(owner);
-        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"), "");
         assertEq(folio.version(), "2.0.0");
     }
 
@@ -1257,7 +1257,7 @@ contract FolioTest is BaseTest {
         // Attempt to upgrade to V2 (not registered)
         vm.prank(owner);
         vm.expectRevert();
-        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"), "");
 
         // still on old version
         assertEq(folio.version(), "1.0.0");
@@ -1282,7 +1282,7 @@ contract FolioTest is BaseTest {
         // Attempt to upgrade to V2 (deprecated)
         vm.prank(owner);
         vm.expectRevert(FolioProxyAdmin.VersionDeprecated.selector);
-        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"), "");
 
         // still on old version
         assertEq(folio.version(), "1.0.0");
@@ -1301,7 +1301,7 @@ contract FolioTest is BaseTest {
         // Attempt to upgrade to V2 with random user
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user1));
-        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"), "");
     }
 
     function test_cannotCallAnyOtherFunctionFromProxyAdmin() public {

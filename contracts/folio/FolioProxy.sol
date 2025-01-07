@@ -15,21 +15,25 @@ contract FolioProxyAdmin is Ownable {
     address public immutable versionRegistry; // @todo sync with version/upgrade manager
 
     error VersionDeprecated();
+    error InvalidVersion();
 
     constructor(address initialOwner, address _versionRegistry) Ownable(initialOwner) {
         versionRegistry = _versionRegistry;
     }
 
-    function upgradeToVersion(address proxyTarget, bytes32 versionHash) external onlyOwner {
+    function upgradeToVersion(address proxyTarget, bytes32 versionHash, bytes memory data) external onlyOwner {
         IFolioVersionRegistry folioRegistry = IFolioVersionRegistry(versionRegistry);
 
         if (folioRegistry.isDeprecated(versionHash)) {
             revert VersionDeprecated();
         }
+        if (address(folioRegistry.deployments(versionHash)) == address(0)) {
+            revert InvalidVersion();
+        }
 
         address folioImpl = folioRegistry.getImplementationForVersion(versionHash);
 
-        ITransparentUpgradeableProxy(proxyTarget).upgradeToAndCall(folioImpl, "");
+        ITransparentUpgradeableProxy(proxyTarget).upgradeToAndCall(folioImpl, data);
     }
 }
 

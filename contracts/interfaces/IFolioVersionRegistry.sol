@@ -15,4 +15,6 @@ interface IFolioVersionRegistry {
     function getImplementationForVersion(bytes32 versionHash) external view returns (address folio);
 
     function isDeprecated(bytes32 versionHash) external view returns (bool);
+
+    function deployments(bytes32 versionHash) external view returns (IFolioDeployer);
 }
