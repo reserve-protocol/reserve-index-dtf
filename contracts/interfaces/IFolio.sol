@@ -24,9 +24,11 @@ interface IFolio {
     event FeeRecipientSet(address indexed recipient, uint96 portion);
     event TradeDelaySet(uint256 newTradeDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
+    event FolioKilled();
 
     // === Errors ===
 
+    error Folio__FolioKilled();
     error Folio__Unauthorized();
 
     error Folio__EmptyAssets();
