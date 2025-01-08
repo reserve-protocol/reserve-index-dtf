@@ -7,7 +7,6 @@ interface IFolioDAOFeeRegistry {
     error FolioDAOFeeRegistry__InvalidFeeNumerator();
     error FolioDAOFeeRegistry__InvalidRoleRegistry();
     error FolioDAOFeeRegistry__InvalidCaller();
-    error FolioDAOFeeRegistry__RTokenAlreadySet();
 
     event FeeRecipientSet(address indexed feeRecipient);
     event DefaultFeeNumeratorSet(uint256 defaultFeeNumerator);

@@ -29,8 +29,8 @@ interface IFolio {
 
     error Folio__Unauthorized();
 
-    error Folio__BasketAlreadyInitialized();
     error Folio__EmptyAssets();
+    error Folio__BasketModificationFailed();
 
     error Folio__FeeRecipientInvalidAddress();
     error Folio__FeeRecipientInvalidFeeShare();

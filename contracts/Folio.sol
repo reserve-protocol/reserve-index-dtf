@@ -143,12 +143,14 @@ contract Folio is
     // ==== Governance ====
 
     function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        basket.add(address(token));
+        require(basket.add(address(token)), Folio__BasketModificationFailed());
+
         emit BasketTokenAdded(address(token));
     }
 
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        basket.remove(address(token));
+        require(basket.remove(address(token)), Folio__BasketModificationFailed());
+
         emit BasketTokenRemoved(address(token));
     }
 
@@ -364,7 +366,7 @@ contract Folio is
             revert Folio__InvalidTradeId();
         }
 
-        if (address(sell) == address(0) || address(buy) == address(0)) {
+        if (address(sell) == address(0) || address(buy) == address(0) || address(sell) == address(buy)) {
             revert Folio__InvalidTradeTokens();
         }
 
@@ -593,7 +595,7 @@ contract Folio is
         }
 
         folioFee = _newFee;
-        emit FolioFeeSet(folioFee);
+        emit FolioFeeSet(_newFee);
     }
 
     function _setMintingFee(uint256 _newFee) internal {
@@ -602,7 +604,7 @@ contract Folio is
         }
 
         mintingFee = _newFee;
-        emit MintingFeeSet(mintingFee);
+        emit MintingFeeSet(_newFee);
     }
 
     function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
@@ -643,7 +645,7 @@ contract Folio is
             revert Folio__InvalidTradeDelay();
         }
         tradeDelay = _newDelay;
-        emit TradeDelaySet(tradeDelay);
+        emit TradeDelaySet(_newDelay);
     }
 
     function _setAuctionLength(uint256 _newLength) internal {
