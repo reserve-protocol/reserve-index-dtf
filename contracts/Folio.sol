@@ -554,7 +554,7 @@ contract Folio is
         uint256 maxBuyBal = Math.mulDiv(trade.buyLimit, _totalSupply, SCALAR, Math.Rounding.Floor);
 
         // ensure post-bid buy balance is below maximum
-        if (trade.buy.balanceOf(address(this)) > maxBuyBal) {
+        if (trade.buy.balanceOf(address(this)) >= maxBuyBal) {
             revert Folio__ExcessiveBid();
         }
     }
