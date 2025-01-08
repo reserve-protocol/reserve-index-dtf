@@ -131,7 +131,7 @@ contract Folio is
             basket.add(address(_basicDetails.assets[i]));
         }
 
-        _poke();
+        lastPoke = block.timestamp;
         _mint(_creator, _basicDetails.initialShares);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
