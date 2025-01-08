@@ -14,7 +14,7 @@ contract FolioVersionRegistryTest is BaseTest {
         assertEq(address(folioVersionRegistry.roleRegistry()), address(roleRegistry));
 
         // getLatestVersion() reverts until a version is registered
-        vm.expectRevert();
+        vm.expectRevert(IFolioVersionRegistry.VersionRegistry__Unconfigured.selector);
         folioVersionRegistry.getLatestVersion();
     }
 
