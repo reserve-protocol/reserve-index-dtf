@@ -154,6 +154,13 @@ Some ERC20s are NOT supported
 
 Note: While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible.
 
+### Governance Guidelines
+
+- After governors remove a token from the basket via `Folio.removeFromBasket()`, users have a limited amount of time to claim rewards. Removal should only be used if the reward token has become malicious or otherwise compromised.
+-
+
+TODO
+
 ### Future Work / Not Implemented Yet
 
 1. **`delegatecall` functionality / way to claim rewards**
