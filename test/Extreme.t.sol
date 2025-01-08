@@ -266,7 +266,7 @@ contract ExtremeTest is BaseExtremeTest {
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](p.numFeeRecipients);
         uint96 feeReceiverShare = 1e18 / uint96(p.numFeeRecipients);
         for (uint256 i = 0; i < p.numFeeRecipients; i++) {
-            recipients[i] = IFolio.FeeRecipient(vm.addr(i + 1), feeReceiverShare);
+            recipients[i] = IFolio.FeeRecipient(address(uint160(i + 1)), feeReceiverShare);
         }
         _deployTestFolio(tokens, amounts, initialSupply, p.folioFee, 0, recipients);
 
