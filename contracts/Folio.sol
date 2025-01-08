@@ -222,18 +222,11 @@ contract Folio is
         uint256 shares,
         Math.Rounding rounding
     ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
-        uint256 _totalSupply = totalSupply();
-
-        _assets = basket.values();
-
-        uint256 len = _assets.length;
-        _amounts = new uint256[](len);
-        for (uint256 i; i < len; i++) {
-            uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
-
-            // {tok} = {share} * {tok} / {share}
-            _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
+        if (_reentrancyGuardEntered()) {
+            revert ReentrancyGuardReentrantCall();
         }
+
+        return _toAssets(shares, rounding);
     }
 
     // {share} -> ({tokAddress}, {tok})
@@ -269,7 +262,7 @@ contract Folio is
 
         // === Transfer assets in ===
 
-        (_assets, _amounts) = toAssets(shares, Math.Rounding.Ceil);
+        (_assets, _amounts) = _toAssets(shares, Math.Rounding.Ceil);
 
         uint256 assetLength = _assets.length;
         for (uint256 i; i < assetLength; i++) {
@@ -300,7 +293,7 @@ contract Folio is
         _poke();
 
         address[] memory _assets;
-        (_assets, _amounts) = toAssets(shares, Math.Rounding.Floor);
+        (_assets, _amounts) = _toAssets(shares, Math.Rounding.Floor);
 
         _burn(msg.sender, shares);
 
@@ -549,6 +542,25 @@ contract Folio is
     }
 
     // ==== Internal ====
+
+    // {share} -> ({tokAddress}, {tok})
+    function _toAssets(
+        uint256 shares,
+        Math.Rounding rounding
+    ) internal view returns (address[] memory _assets, uint256[] memory _amounts) {
+        uint256 _totalSupply = totalSupply();
+
+        _assets = basket.values();
+
+        uint256 len = _assets.length;
+        _amounts = new uint256[](len);
+        for (uint256 i; i < len; i++) {
+            uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
+
+            // {tok} = {share} * {tok} / {share}
+            _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
+        }
+    }
 
     function _openTrade(Trade storage trade) internal {
         // only open APPROVED trades
