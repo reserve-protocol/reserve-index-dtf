@@ -145,7 +145,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         address[] memory proposers = new address[](1);
         proposers[0] = governor;
         address[] memory executors = new address[](1);
-        // executors[0] = address(0);
+        executors[0] = governor;
 
         TimelockControllerUpgradeable timelockController = TimelockControllerUpgradeable(payable(timelock));
 
