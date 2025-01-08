@@ -41,7 +41,8 @@ contract GovernanceDeployerTest is BaseTest {
         assertFalse(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), user1), "wrong admin role");
         assertFalse(timelock.hasRole(timelock.PROPOSER_ROLE(), address(0)), "wrong proposer role");
         assertTrue(timelock.hasRole(timelock.PROPOSER_ROLE(), _governor), "wrong proposer role");
-        assertTrue(timelock.hasRole(timelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
+        assertTrue(timelock.hasRole(timelock.EXECUTOR_ROLE(), _governor), "wrong executor role");
+        assertFalse(timelock.hasRole(timelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
         assertTrue(timelock.hasRole(timelock.CANCELLER_ROLE(), user1), "wrong canceler role");
     }
 }

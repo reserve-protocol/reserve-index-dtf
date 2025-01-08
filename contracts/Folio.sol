@@ -169,6 +169,7 @@ contract Folio is
     }
 
     /// _newRecipients.portion must sum to 1e18
+    /// @dev Fee recipients must be unique and sorted by address
     function setFeeRecipients(FeeRecipient[] memory _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
@@ -631,8 +632,10 @@ contract Folio is
             revert Folio__TooManyFeeRecipients();
         }
 
+        address previousRecipient;
+
         for (uint256 i; i < len; i++) {
-            if (_feeRecipients[i].recipient == address(0)) {
+            if (_feeRecipients[i].recipient <= previousRecipient) {
                 revert Folio__FeeRecipientInvalidAddress();
             }
 
@@ -641,6 +644,7 @@ contract Folio is
             }
 
             total += _feeRecipients[i].portion;
+            previousRecipient = _feeRecipients[i].recipient;
             feeRecipients.push(_feeRecipients[i]);
             emit FeeRecipientSet(_feeRecipients[i].recipient, _feeRecipients[i].portion);
         }
