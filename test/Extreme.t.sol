@@ -209,7 +209,7 @@ contract ExtremeTest is BaseExtremeTest {
         mintTokens(tokens[0], getActors(), amounts[0]);
 
         // deploy folio
-        uint256 initialSupply = p.sellAmount * 1e18;
+        uint256 initialSupply = p.sellAmount;
         uint256 folioFee = MAX_FOLIO_FEE;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
@@ -218,7 +218,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // approveTrade
         vm.prank(dao);
-        folio.approveTrade(0, sell, buy, p.sellAmount, 0, 0, MAX_TTL);
+        folio.approveTrade(0, sell, buy, 0, type(uint192).max, 0, 0, MAX_TTL);
 
         // openTrade
         vm.prank(priceCurator);
@@ -228,8 +228,9 @@ contract ExtremeTest is BaseExtremeTest {
         // sellAmount will be up to 1e36
         // buyAmount will be up to 1e54 and down to 1
 
-        (, , , uint256 sellAmount, , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
 
+        uint256 sellAmount = folio.getSellAmount(0);
         // getBidAmount should work at both ends of auction
         uint256 highBuyAmount = folio.getBidAmount(0, sellAmount, start); // should not revert
         assertLe(folio.getBidAmount(0, sellAmount, start + 1), highBuyAmount, "buyAmount should be non-increasing");
