@@ -31,6 +31,7 @@ uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
+uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 
 uint256 constant SCALAR = 1e18; // D18
 
@@ -541,7 +542,12 @@ contract Folio is
         }
 
         // ensure valid price range (startPrice == endPrice is valid)
-        if (trade.startPrice < trade.endPrice || trade.startPrice == 0 || trade.endPrice == 0) {
+        if (
+            trade.startPrice < trade.endPrice ||
+            trade.startPrice == 0 ||
+            trade.endPrice == 0 ||
+            trade.startPrice / trade.endPrice > MAX_PRICE_RANGE
+        ) {
             revert Folio__InvalidPrices();
         }
 

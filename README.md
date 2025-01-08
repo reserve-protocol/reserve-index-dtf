@@ -70,7 +70,7 @@ The staking vault has ONLY a single owner:
 3. Bids occur
 4. Auction expires
 
-##### Auction pricing
+##### Auction Usage
 
 There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `TRADE_PROPOSER`:
 
@@ -80,13 +80,15 @@ There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `TRADE_
 
 The `PRICE_CURATOR` can choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
 
-##### Auction pricing
+The price range (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues.
+
+##### Auction Curve
 
 Standard exponential decay (over time):
 
 ![alt text](auction.png "Auction Curve")
 
-Note: The first block may not have a price of exactly `startPrice`, if it does not occur on the `start` timestamp.
+Note: The first block may not have a price of exactly `startPrice`, if it does not occur on the `start` timestamp. Similarly, the `endPrice` may not be exactly `endPrice` in the final block if it does not occur on the `end` timestamp.
 
 ### Fee Structure
 

@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_TTL } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_TTL, MAX_PRICE_RANGE } from "contracts/Folio.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
@@ -222,7 +222,8 @@ contract ExtremeTest is BaseExtremeTest {
 
         // openTrade
         vm.prank(priceCurator);
-        folio.openTrade(0, p.price, 1);
+        uint256 endPrice = p.price / MAX_PRICE_RANGE;
+        folio.openTrade(0, p.price, endPrice > p.price ? endPrice : p.price);
 
         // sellAmount will be up to 1e36
         // buyAmount will be up to 1e54 and down to 1
