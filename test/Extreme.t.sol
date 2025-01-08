@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_TTL, MAX_PRICE_RANGE } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_TTL, MAX_PRICE_RANGE, MAX_EXCHANGE_RATE } from "contracts/Folio.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
@@ -218,7 +218,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // approveTrade
         vm.prank(dao);
-        folio.approveTrade(0, sell, buy, 0, type(uint192).max, 0, 0, MAX_TTL);
+        folio.approveTrade(0, sell, buy, 0, MAX_EXCHANGE_RATE, 0, 0, MAX_TTL);
 
         // openTrade
         vm.prank(priceCurator);
@@ -230,13 +230,15 @@ contract ExtremeTest is BaseExtremeTest {
 
         (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
 
-        uint256 sellAmount = folio.getSellAmount(0);
+        uint256 sellAmount = folio.getSellAmount(0, start);
         // getBidAmount should work at both ends of auction
-        uint256 highBuyAmount = folio.getBidAmount(0, sellAmount, start); // should not revert
-        assertLe(folio.getBidAmount(0, sellAmount, start + 1), highBuyAmount, "buyAmount should be non-increasing");
-        uint256 buyAmount = folio.getBidAmount(0, sellAmount, end); // should not revert
+        uint256 highBuyAmount = folio.getBidAmount(0, start, sellAmount); // should not revert
+        assertLe(folio.getBidAmount(0, start + 1, sellAmount), highBuyAmount, "buyAmount should be non-increasing");
+
+        sellAmount = folio.getSellAmount(0, end);
+        uint256 buyAmount = folio.getBidAmount(0, end, sellAmount); // should not revert
         assertGt(buyAmount, 0, "lot is free");
-        assertGe(folio.getBidAmount(0, sellAmount, end - 1), buyAmount, "buyAmount should be non-increasing");
+        assertGe(folio.getBidAmount(0, end - 1, sellAmount), buyAmount, "buyAmount should be non-increasing");
 
         // mint buy tokens to user1 and bid
         vm.warp(end);

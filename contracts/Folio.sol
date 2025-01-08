@@ -31,6 +31,7 @@ uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
+uint256 constant MAX_EXCHANGE_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 
 uint256 constant SCALAR = 1e18; // D18
@@ -359,14 +360,29 @@ contract Folio is
         return trades.length;
     }
 
-    /// @return {sellTok} The amount on sale in the auction
-    function getSellAmount(uint256 tradeId) external view returns (uint256) {
+    /// @return {sellTok} The amount on sale in the auction at a given timestamp
+    function getSellAmount(uint256 tradeId, uint256 timestamp) external view returns (uint256) {
         Trade storage trade = trades[tradeId];
+
+        uint256 _totalSupply = totalSupply();
         uint256 sellBal = trade.sell.balanceOf(address(this));
+        uint256 buyBal = trade.buy.balanceOf(address(this));
 
         // {sellTok} = D18{sellTok/share} * {share} / D18
-        uint256 minSellBal = Math.mulDiv(trade.sellLimit, totalSupply(), SCALAR, Math.Rounding.Ceil);
-        return sellBal > minSellBal ? sellBal - minSellBal : 0;
+        uint256 minSellBal = Math.mulDiv(trade.sellLimit, _totalSupply, SCALAR, Math.Rounding.Ceil);
+        uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
+
+        // {buyTok} = D18{buyTok/share} * {share} / D18
+        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit, _totalSupply, SCALAR, Math.Rounding.Floor);
+        uint256 buyAvailable = buyBal < maxBuyBal ? maxBuyBal - buyBal : 0;
+
+        if (buyAvailable > 1e36) {
+            return sellAvailable;
+        }
+
+        // {sellTok} = {buyTok} * D18{buyTok/sellTok} / D18
+        uint256 sellAllowed = Math.mulDiv(buyAvailable, _price(trade, timestamp), SCALAR, Math.Rounding.Floor);
+        return Math.min(sellAvailable, sellAllowed);
     }
 
     /// @return D18{buyTok/sellTok} The price at the given timestamp as an 18-decimal fixed point
@@ -374,19 +390,22 @@ contract Folio is
         return _price(trades[tradeId], timestamp);
     }
 
+    /// @param sellAmount {sellTok} The amount of sell tokens the bidder is offering the protocol
     /// @return {buyTok} The amount of buy tokens required to bid in the auction at a given timestamp
-    function getBidAmount(uint256 tradeId, uint256 amount, uint256 timestamp) external view returns (uint256) {
+    function getBidAmount(uint256 tradeId, uint256 timestamp, uint256 sellAmount) external view returns (uint256) {
         uint256 price = _price(trades[tradeId], timestamp);
+
         // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
-        return (amount * price + SCALAR - 1) / SCALAR;
+        return (sellAmount * price + SCALAR - 1) / SCALAR;
     }
 
     /// @param tradeId Use to ensure expected ordering
     /// @param sell The token to sell, from the perspective of the Folio
     /// @param buy The token to buy, from the perspective of the Folio
-    /// @param sellLimit D18{sellTok/share} min ratio of sell token to shares allowed, inclusive
-    /// @param buyLimit D18{buyTok/share} max balance-ratio to shares allowed, exclusive
-    /// @param endPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator
+    /// @param sellLimit D18{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
+    /// @param buyLimit D18{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
+    /// @param startPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator, 1e54 max
+    /// @param endPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator, 1e54 max
     /// @param ttl {s} How long a trade can exist in an APPROVED state until it can no longer be OPENED
     ///     (once opened, it always finishes). Accepts type(uint256).max .
     ///     Must be longer than tradeDelay if intended to be permissionlessly available.
@@ -394,8 +413,8 @@ contract Folio is
         uint256 tradeId,
         IERC20 sell,
         IERC20 buy,
-        uint192 sellLimit,
-        uint192 buyLimit,
+        uint256 sellLimit,
+        uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice,
         uint256 ttl
@@ -410,7 +429,11 @@ contract Folio is
             revert Folio__InvalidTradeTokens();
         }
 
-        if (buyLimit == 0) {
+        if (sellLimit > MAX_EXCHANGE_RATE) {
+            revert Folio__InvalidSellLimit();
+        }
+
+        if (buyLimit == 0 || buyLimit > MAX_EXCHANGE_RATE) {
             revert Folio__InvalidBuyLimit();
         }
 
@@ -441,8 +464,8 @@ contract Folio is
         emit TradeApproved(tradeId, address(sell), address(buy), startPrice, sellLimit, buyLimit);
     }
 
-    /// @param startPrice D18{buyTok/sellTok}
-    /// @param endPrice D18{buyTok/sellTok}
+    /// @param startPrice D18{buyTok/sellTok} 1e54 max
+    /// @param endPrice D18{buyTok/sellTok} 1e54 max
     function openTrade(
         uint256 tradeId,
         uint256 startPrice,
@@ -554,7 +577,7 @@ contract Folio is
         uint256 maxBuyBal = Math.mulDiv(trade.buyLimit, _totalSupply, SCALAR, Math.Rounding.Floor);
 
         // ensure post-bid buy balance is below maximum
-        if (trade.buy.balanceOf(address(this)) >= maxBuyBal) {
+        if (trade.buy.balanceOf(address(this)) > maxBuyBal) {
             revert Folio__ExcessiveBid();
         }
     }
@@ -567,7 +590,7 @@ contract Folio is
             revert Folio__Unauthorized();
         }
 
-        /// do not revert, to prevent griefing
+        // do not revert, to prevent griefing
 
         Trade storage trade = trades[tradeId];
         trade.end = 1;
@@ -620,6 +643,7 @@ contract Folio is
             trade.startPrice < trade.endPrice ||
             trade.startPrice == 0 ||
             trade.endPrice == 0 ||
+            trade.startPrice > MAX_EXCHANGE_RATE ||
             trade.startPrice / trade.endPrice > MAX_PRICE_RANGE
         ) {
             revert Folio__InvalidPrices();

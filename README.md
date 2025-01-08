@@ -82,13 +82,19 @@ The `PRICE_CURATOR` can choose to raise `startPrice` within a limit of 100x, and
 
 The price range (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues.
 
-##### Auction Curve
+##### Auction Dynamics
 
-Standard exponential decay (over time):
+###### Price Curve
 
 ![alt text](auction.png "Auction Curve")
 
 Note: The first block may not have a price of exactly `startPrice`, if it does not occur on the `start` timestamp. Similarly, the `endPrice` may not be exactly `endPrice` in the final block if it does not occur on the `end` timestamp.
+
+###### Lot Size
+
+The amount on sale in an auction is dynamic. As an auction progresses, this quantity _increases_ steadily over time and decreases in discrete steps as bids come in.
+
+See `Folio.getSellAmount(tradeId, timestamp) external view returns (uint256)` for more details.
 
 ### Fee Structure
 
@@ -135,7 +141,9 @@ Tokens are assumed to be within the following ranges:
 | **Supply**   | 1e36  | 1e36             | 1e36         | 1e36                            |
 | **Decimals** |       | 27               |              | 21                              |
 
-It is the job of governance to ensure the Folio supply does not grow beyond 1e36.
+It is the job of governance to ensure the Folio supply does not grow beyond 1e36 supply.
+
+Exchange rates / prices are assumed to be up to 1e54.
 
 ### Weird ERC20s
 
