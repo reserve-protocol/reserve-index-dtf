@@ -65,7 +65,7 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
         }
 
         defaultFeeNumerator = feeNumerator_;
-        emit DefaultFeeNumeratorSet(defaultFeeNumerator);
+        emit DefaultFeeNumeratorSet(feeNumerator_);
     }
 
     function setTokenFeeNumerator(address fToken, uint256 feeNumerator_) external onlyOwner {

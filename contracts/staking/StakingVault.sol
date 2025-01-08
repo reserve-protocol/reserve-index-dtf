@@ -18,6 +18,7 @@ import { UnstakingManager } from "./UnstakingManager.sol";
 
 uint256 constant MAX_UNSTAKING_DELAY = 4 weeks; // {s}
 uint256 constant MAX_REWARD_HALF_LIFE = 2 weeks; // {s}
+uint256 constant MIN_REWARD_HALF_LIFE = 1 days; // {s}
 
 uint256 constant LN_2 = 0.693147180559945309e18; // D18{1} ln(2e18)
 
@@ -111,7 +112,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
             // Burn the shares first.
             _burn(_owner, _shares);
 
-            IERC20(asset()).approve(address(unstakingManager), _assets);
+            SafeERC20.forceApprove(IERC20(asset()), address(unstakingManager), _assets);
             unstakingManager.createLock(_receiver, _assets, block.timestamp + unstakingDelay);
 
             emit Withdraw(_caller, _receiver, _owner, _assets, _shares);
@@ -167,8 +168,6 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
             revert Vault__RewardNotRegistered();
         }
 
-        delete rewardTrackers[_rewardToken];
-
         emit RewardTokenRemoved(_rewardToken);
     }
 
@@ -208,7 +207,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
     /// @param _rewardHalfLife {s}
     function _setRewardRatio(uint256 _rewardHalfLife) internal accrueRewards(msg.sender, msg.sender) {
-        if (_rewardHalfLife > MAX_REWARD_HALF_LIFE) {
+        if (_rewardHalfLife > MAX_REWARD_HALF_LIFE || _rewardHalfLife < MIN_REWARD_HALF_LIFE) {
             revert Vault__InvalidRewardsHalfLife();
         }
 
@@ -242,13 +241,16 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     function _accrueRewards(address _rewardToken) internal {
         RewardInfo storage rewardInfo = rewardTrackers[_rewardToken];
 
+        uint256 balanceLastKnown = rewardInfo.balanceLastKnown;
+        rewardInfo.balanceLastKnown = IERC20(_rewardToken).balanceOf(address(this)) + rewardInfo.totalClaimed;
+
         uint256 elapsed = block.timestamp - rewardInfo.payoutLastPaid;
         if (elapsed == 0) {
             return;
         }
 
-        uint256 unaccountedBalance = rewardInfo.balanceLastKnown - rewardInfo.balanceAccounted;
-        uint256 handoutPercentage = 1e18 - UD60x18.wrap(1e18 - rewardRatio).powu(elapsed).unwrap();
+        uint256 unaccountedBalance = balanceLastKnown - rewardInfo.balanceAccounted;
+        uint256 handoutPercentage = 1e18 - UD60x18.wrap(1e18 - rewardRatio).powu(elapsed).unwrap() - 1; // rounds down
 
         // {reward} = {reward} * D18{1} / D18
         uint256 tokensToHandout = (unaccountedBalance * handoutPercentage) / 1e18;
@@ -265,8 +267,6 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         }
         // @todo Add a test case for when supplyTokens is 0 for a while, the reward are paid out correctly.
 
-        // {reward} = {reward} + {reward}
-        rewardInfo.balanceLastKnown = IERC20(_rewardToken).balanceOf(address(this)) + rewardInfo.totalClaimed;
         rewardInfo.payoutLastPaid = block.timestamp;
     }
 
@@ -281,13 +281,15 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         // D18{reward}
         uint256 deltaIndex = rewardInfo.rewardIndex - userRewardTracker.lastRewardIndex;
 
-        // Accumulate rewards by multiplying user tokens by index and adding on unclaimed
-        // {reward} = {share} * D18{reward} / {share} / D18
-        uint256 supplierDelta = (balanceOf(_user) * deltaIndex) / uint256(10 ** decimals()) / SCALAR;
+        if (deltaIndex != 0) {
+            // Accumulate rewards by multiplying user tokens by index and adding on unclaimed
+            // {reward} = {share} * D18{reward} / {share} / D18
+            uint256 supplierDelta = (balanceOf(_user) * deltaIndex) / uint256(10 ** decimals()) / SCALAR;
 
-        // {reward} += {reward}
-        userRewardTracker.accruedRewards += supplierDelta;
-        userRewardTracker.lastRewardIndex = rewardInfo.rewardIndex;
+            // {reward} += {reward}
+            userRewardTracker.accruedRewards += supplierDelta;
+            userRewardTracker.lastRewardIndex = rewardInfo.rewardIndex;
+        }
     }
 
     /**

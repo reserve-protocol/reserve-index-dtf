@@ -31,6 +31,7 @@ uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
+uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 
 uint256 constant SCALAR = 1e18; // D18
 
@@ -75,6 +76,7 @@ contract Folio is
     uint256 public lastPoke; // {s}
     uint256 public daoPendingFeeShares; // {share} shares pending to be distributed ONLY to the DAO
     uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
+    bool public isKilled; // {bool} If true, Folio goes into redemption-only mode
 
     /**
      * Trading
@@ -83,7 +85,6 @@ contract Folio is
      *   - Multiple bids can be executed against the same trade
      *   - All trades are dutch auctions, but it's possible to pass startPrice = endPrice
      */
-
     uint256 public auctionLength; // {s}
     uint256 public tradeDelay; // {s}
     Trade[] public trades;
@@ -131,7 +132,7 @@ contract Folio is
             basket.add(address(_basicDetails.assets[i]));
         }
 
-        _poke();
+        lastPoke = block.timestamp;
         _mint(_creator, _basicDetails.initialShares);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -142,13 +143,16 @@ contract Folio is
 
     // ==== Governance ====
 
-    function addToBasket(IERC20 token) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
-        basket.add(address(token));
+
+    function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(basket.add(address(token)), Folio__BasketModificationFailed());
+
         emit BasketTokenAdded(address(token));
     }
 
-    function removeFromBasket(IERC20 token) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
-        basket.remove(address(token));
+    function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(basket.remove(address(token)), Folio__BasketModificationFailed());
+
         emit BasketTokenRemoved(address(token));
     }
 
@@ -170,6 +174,7 @@ contract Folio is
 
     /// @dev Non-reentrant via distributeFees()
     /// @param _newRecipients.portion must sum to 1e18
+    /// @dev Fee recipients must be unique and sorted by address
     function setFeeRecipients(FeeRecipient[] memory _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
@@ -184,6 +189,12 @@ contract Folio is
     /// @param _newLength {s} Length of an auction
     function setAuctionLength(uint256 _newLength) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         _setAuctionLength(_newLength);
+    }
+
+    function killFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        isKilled = true;
+
+        emit FolioKilled();
     }
 
     // ==== Share + Asset Accounting ====
@@ -215,18 +226,11 @@ contract Folio is
         uint256 shares,
         Math.Rounding rounding
     ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
-        uint256 _totalSupply = totalSupply();
-
-        _assets = basket.values();
-
-        uint256 len = _assets.length;
-        _amounts = new uint256[](len);
-        for (uint256 i; i < len; i++) {
-            uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
-
-            // {tok} = {share} * {tok} / {share}
-            _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
+        if (_reentrancyGuardEntered()) {
+            revert ReentrancyGuardReentrantCall();
         }
+
+        return _toAssets(shares, rounding);
     }
 
     // {share} -> ({tokAddress}, {tok})
@@ -235,6 +239,8 @@ contract Folio is
         uint256 shares,
         address receiver
     ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
+        require(!isKilled, Folio__FolioKilled());
+
         _poke();
 
         // === Calculate fee shares ===
@@ -260,7 +266,7 @@ contract Folio is
 
         // === Transfer assets in ===
 
-        (_assets, _amounts) = toAssets(shares, Math.Rounding.Ceil);
+        (_assets, _amounts) = _toAssets(shares, Math.Rounding.Ceil);
 
         uint256 assetLength = _assets.length;
         for (uint256 i; i < assetLength; i++) {
@@ -278,19 +284,37 @@ contract Folio is
         feeRecipientsPendingFeeShares += totalFeeShares - daoFeeShares;
     }
 
-    // {share} -> ({tokAddress}, {tok})
+    /// @param shares {share} Amount of shares to redeem
+    /// @param assets Assets to receive, must match basket exactly
+    /// @param minAmountsOut {tok} Minimum amounts of each asset to receive
+    /// @return _amounts {tok} Actual amounts transferred of each asset
     function redeem(
         uint256 shares,
-        address receiver
-    ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
+        address receiver,
+        address[] calldata assets,
+        uint256[] calldata minAmountsOut
+    ) external nonReentrant returns (uint256[] memory _amounts) {
         _poke();
 
-        (_assets, _amounts) = toAssets(shares, Math.Rounding.Floor);
+        address[] memory _assets;
+        (_assets, _amounts) = _toAssets(shares, Math.Rounding.Floor);
 
         _burn(msg.sender, shares);
 
         uint256 len = _assets.length;
+        if (len != assets.length || len != minAmountsOut.length) {
+            revert Folio__InvalidArrayLengths();
+        }
+
         for (uint256 i; i < len; i++) {
+            if (_assets[i] != assets[i]) {
+                revert Folio__InvalidAsset();
+            }
+
+            if (_amounts[i] < minAmountsOut[i]) {
+                revert Folio__InvalidAssetAmount(_assets[i]);
+            }
+
             if (_amounts[i] != 0) {
                 SafeERC20.safeTransfer(IERC20(_assets[i]), receiver, _amounts[i]);
             }
@@ -309,25 +333,27 @@ contract Folio is
         _poke();
         // pendingFeeShares is up-to-date
 
-        // DAO
-        (address recipient, , ) = daoFeeRegistry.getFeeDetails(address(this));
-        _mint(recipient, daoPendingFeeShares);
-        daoPendingFeeShares = 0;
-
         // Fee recipients
         uint256 _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
         feeRecipientsPendingFeeShares = 0;
+        uint256 feeRecipientsTotal;
 
         uint256 len = feeRecipients.length;
         for (uint256 i; i < len; i++) {
             // {share} = {share} * D18{1} / D18
             uint256 shares = (_feeRecipientsPendingFeeShares * feeRecipients[i].portion) / SCALAR;
+            feeRecipientsTotal += shares;
 
             _mint(feeRecipients[i].recipient, shares);
         }
+
+        // DAO
+        (address recipient, , ) = daoFeeRegistry.getFeeDetails(address(this));
+        _mint(recipient, daoPendingFeeShares + _feeRecipientsPendingFeeShares - feeRecipientsTotal);
+        daoPendingFeeShares = 0;
     }
 
-    // ==== Trading ====d
+    // ==== Trading ====
 
     function nextTradeId() external view returns (uint256) {
         return trades.length;
@@ -363,11 +389,13 @@ contract Folio is
         uint256 endPrice,
         uint256 ttl
     ) external nonReentrant onlyRole(TRADE_PROPOSER) {
+        require(!isKilled, Folio__FolioKilled());
+
         if (trades.length != tradeId) {
             revert Folio__InvalidTradeId();
         }
 
-        if (address(sell) == address(0) || address(buy) == address(0)) {
+        if (address(sell) == address(0) || address(buy) == address(0) || address(sell) == address(buy)) {
             revert Folio__InvalidTradeTokens();
         }
 
@@ -519,6 +547,25 @@ contract Folio is
 
     // ==== Internal ====
 
+    // {share} -> ({tokAddress}, {tok})
+    function _toAssets(
+        uint256 shares,
+        Math.Rounding rounding
+    ) internal view returns (address[] memory _assets, uint256[] memory _amounts) {
+        uint256 _totalSupply = totalSupply();
+
+        _assets = basket.values();
+
+        uint256 len = _assets.length;
+        _amounts = new uint256[](len);
+        for (uint256 i; i < len; i++) {
+            uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
+
+            // {tok} = {share} * {tok} / {share}
+            _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
+        }
+    }
+
     function _openTrade(Trade storage trade) internal {
         // only open APPROVED trades
         if (trade.start != 0 || trade.end != 0) {
@@ -531,7 +578,12 @@ contract Folio is
         }
 
         // ensure valid price range (startPrice == endPrice is valid)
-        if (trade.startPrice < trade.endPrice || trade.startPrice == 0 || trade.endPrice == 0) {
+        if (
+            trade.startPrice < trade.endPrice ||
+            trade.startPrice == 0 ||
+            trade.endPrice == 0 ||
+            trade.startPrice / trade.endPrice > MAX_PRICE_RANGE
+        ) {
             revert Folio__InvalidPrices();
         }
 
@@ -596,7 +648,7 @@ contract Folio is
         }
 
         folioFee = _newFee;
-        emit FolioFeeSet(folioFee);
+        emit FolioFeeSet(_newFee);
     }
 
     function _setMintingFee(uint256 _newFee) internal {
@@ -605,7 +657,7 @@ contract Folio is
         }
 
         mintingFee = _newFee;
-        emit MintingFeeSet(mintingFee);
+        emit MintingFeeSet(_newFee);
     }
 
     function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
@@ -622,8 +674,10 @@ contract Folio is
             revert Folio__TooManyFeeRecipients();
         }
 
+        address previousRecipient;
+
         for (uint256 i; i < len; i++) {
-            if (_feeRecipients[i].recipient == address(0)) {
+            if (_feeRecipients[i].recipient <= previousRecipient) {
                 revert Folio__FeeRecipientInvalidAddress();
             }
 
@@ -632,6 +686,7 @@ contract Folio is
             }
 
             total += _feeRecipients[i].portion;
+            previousRecipient = _feeRecipients[i].recipient;
             feeRecipients.push(_feeRecipients[i]);
             emit FeeRecipientSet(_feeRecipients[i].recipient, _feeRecipients[i].portion);
         }
@@ -646,7 +701,7 @@ contract Folio is
             revert Folio__InvalidTradeDelay();
         }
         tradeDelay = _newDelay;
-        emit TradeDelaySet(tradeDelay);
+        emit TradeDelaySet(_newDelay);
     }
 
     function _setAuctionLength(uint256 _newLength) internal {
