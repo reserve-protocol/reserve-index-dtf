@@ -336,22 +336,24 @@ contract Folio is
         _poke();
         // pendingFeeShares is up-to-date
 
-        // DAO
-        (address recipient, , ) = daoFeeRegistry.getFeeDetails(address(this));
-        _mint(recipient, daoPendingFeeShares);
-        daoPendingFeeShares = 0;
-
         // Fee recipients
         uint256 _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
         feeRecipientsPendingFeeShares = 0;
+        uint256 feeRecipientsTotal;
 
         uint256 len = feeRecipients.length;
         for (uint256 i; i < len; i++) {
             // {share} = {share} * D18{1} / D18
             uint256 shares = (_feeRecipientsPendingFeeShares * feeRecipients[i].portion) / SCALAR;
+            feeRecipientsTotal += shares;
 
             _mint(feeRecipients[i].recipient, shares);
         }
+
+        // DAO
+        (address recipient, , ) = daoFeeRegistry.getFeeDetails(address(this));
+        _mint(recipient, daoPendingFeeShares + _feeRecipientsPendingFeeShares - feeRecipientsTotal);
+        daoPendingFeeShares = 0;
     }
 
     // ==== Trading ====

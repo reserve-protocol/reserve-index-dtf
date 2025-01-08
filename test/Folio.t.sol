@@ -545,11 +545,15 @@ contract FolioTest is BaseTest {
 
         // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
-        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
+        assertEq(
+            folio.balanceOf(owner),
+            initialOwnerShares + (remainingShares * 0.9e18) / 1e18 + 1,
+            "wrong owner shares"
+        );
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
     }
 
@@ -644,11 +648,15 @@ contract FolioTest is BaseTest {
 
         // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
-        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
+        assertEq(
+            folio.balanceOf(owner),
+            initialOwnerShares + (remainingShares * 0.9e18) / 1e18 + 1,
+            "wrong owner shares"
+        );
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
     }
 
@@ -720,12 +728,12 @@ contract FolioTest is BaseTest {
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.1e18);
 
         // check receipient balances
-        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares, 1st change");
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
         assertEq(
             folio.balanceOf(owner),
-            initialOwnerShares + (remainingShares * 0.9e18) / 1e18,
+            initialOwnerShares + (remainingShares * 0.9e18) / 1e18 + 1,
             "wrong owner shares, 1st change"
         );
         assertEq(
@@ -752,12 +760,13 @@ contract FolioTest is BaseTest {
         expectedDaoShares =
             initialDaoShares +
             (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) /
-            daoFeeDenominator;
+            daoFeeDenominator +
+            1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares, 2nd change");
         remainingShares = pendingFeeShares - expectedDaoShares;
         assertEq(
             folio.balanceOf(owner),
-            initialOwnerShares + (remainingShares * 0.9e18) / 1e18,
+            initialOwnerShares + (remainingShares * 0.9e18) / 1e18 + 1,
             "wrong owner shares, 2nd change"
         );
         assertEq(
@@ -1491,7 +1500,7 @@ contract FolioTest is BaseTest {
         assertEq(folio.lastPoke(), block.timestamp);
         assertGt(block.timestamp, prevBlockTimestamp);
 
-        // after pokme
+        // after poke
         assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
         assertEq(folio.feeRecipientsPendingFeeShares(), pendingFeeShares, "wrong fee recipients pending fee shares");
 

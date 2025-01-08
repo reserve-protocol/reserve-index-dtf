@@ -284,7 +284,7 @@ contract ExtremeTest is BaseExtremeTest {
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
         uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
 
-        assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
+        assertApproxEqAbs(folio.balanceOf(address(dao)), expectedDaoShares, p.numFeeRecipients, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
         for (uint256 i = 0; i < recipients.length; i++) {
