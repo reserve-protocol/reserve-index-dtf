@@ -405,7 +405,8 @@ contract FolioDeployerTest is BaseTest {
         assertFalse(ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), user2), "wrong admin role");
         assertFalse(ownerTimelock.hasRole(ownerTimelock.PROPOSER_ROLE(), address(0)), "wrong proposer role");
         assertTrue(ownerTimelock.hasRole(ownerTimelock.PROPOSER_ROLE(), _ownerGovernor), "wrong proposer role");
-        assertTrue(ownerTimelock.hasRole(ownerTimelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
+        assertTrue(ownerTimelock.hasRole(ownerTimelock.EXECUTOR_ROLE(), _ownerGovernor), "wrong executor role");
+        assertFalse(ownerTimelock.hasRole(ownerTimelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
         assertTrue(ownerTimelock.hasRole(ownerTimelock.CANCELLER_ROLE(), user2), "wrong canceler role");
 
         // Check trading governor + trading timelock
@@ -434,7 +435,8 @@ contract FolioDeployerTest is BaseTest {
         assertFalse(tradingTimelock.hasRole(tradingTimelock.DEFAULT_ADMIN_ROLE(), user1), "wrong admin role");
         assertFalse(tradingTimelock.hasRole(tradingTimelock.PROPOSER_ROLE(), address(0)), "wrong proposer role");
         assertTrue(tradingTimelock.hasRole(tradingTimelock.PROPOSER_ROLE(), _tradingGovernor), "wrong proposer role");
-        assertTrue(tradingTimelock.hasRole(tradingTimelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
+        assertTrue(tradingTimelock.hasRole(tradingTimelock.EXECUTOR_ROLE(), _tradingGovernor), "wrong executor role");
+        assertFalse(tradingTimelock.hasRole(tradingTimelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
         assertTrue(tradingTimelock.hasRole(tradingTimelock.CANCELLER_ROLE(), user1), "wrong canceler role");
     }
 }

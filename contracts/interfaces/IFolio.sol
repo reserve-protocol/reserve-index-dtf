@@ -24,13 +24,15 @@ interface IFolio {
     event FeeRecipientSet(address indexed recipient, uint96 portion);
     event TradeDelaySet(uint256 newTradeDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
+    event FolioKilled();
 
     // === Errors ===
 
+    error Folio__FolioKilled();
     error Folio__Unauthorized();
 
-    error Folio__BasketAlreadyInitialized();
     error Folio__EmptyAssets();
+    error Folio__BasketModificationFailed();
 
     error Folio__FeeRecipientInvalidAddress();
     error Folio__FeeRecipientInvalidFeeShare();
@@ -56,6 +58,7 @@ interface IFolio {
     error Folio__InvalidTradeDelay();
     error Folio__InvalidTradeTTL();
     error Folio__TooManyFeeRecipients();
+    error Folio__InvalidArrayLengths();
 
     // === Structures ===
 

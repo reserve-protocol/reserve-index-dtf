@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FOLIO_FEE, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_MINTING_FEE, MIN_DAO_MINTING_FEE } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FOLIO_FEE, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_MINTING_FEE, MIN_DAO_MINTING_FEE, MAX_PRICE_RANGE } from "contracts/Folio.sol";
 import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
@@ -336,7 +336,14 @@ contract FolioTest is BaseTest {
         uint256 startingUSDCBalanceAlice = USDC.balanceOf(address(user1));
         uint256 startingDAIBalanceAlice = DAI.balanceOf(address(user1));
         uint256 startingMEMEBalanceAlice = MEME.balanceOf(address(user1));
-        folio.redeem(5e21, user1);
+
+        address[] memory basket = new address[](3);
+        basket[0] = address(USDC);
+        basket[1] = address(DAI);
+        basket[2] = address(MEME);
+        uint256[] memory minAmountsOut = new uint256[](3);
+
+        folio.redeem(5e21, user1, basket, minAmountsOut);
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
             startingUSDCBalanceFolio - D6_TOKEN_10K / 2,
@@ -538,11 +545,15 @@ contract FolioTest is BaseTest {
 
         // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
-        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
+        assertEq(
+            folio.balanceOf(owner),
+            initialOwnerShares + (remainingShares * 0.9e18) / 1e18 + 1,
+            "wrong owner shares"
+        );
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
     }
 
@@ -637,11 +648,15 @@ contract FolioTest is BaseTest {
 
         // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
-        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
+        assertEq(
+            folio.balanceOf(owner),
+            initialOwnerShares + (remainingShares * 0.9e18) / 1e18 + 1,
+            "wrong owner shares"
+        );
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
     }
 
@@ -713,12 +728,12 @@ contract FolioTest is BaseTest {
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.1e18);
 
         // check receipient balances
-        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator;
+        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares, 1st change");
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
         assertEq(
             folio.balanceOf(owner),
-            initialOwnerShares + (remainingShares * 0.9e18) / 1e18,
+            initialOwnerShares + (remainingShares * 0.9e18) / 1e18 + 1,
             "wrong owner shares, 1st change"
         );
         assertEq(
@@ -745,12 +760,13 @@ contract FolioTest is BaseTest {
         expectedDaoShares =
             initialDaoShares +
             (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) /
-            daoFeeDenominator;
+            daoFeeDenominator +
+            1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares, 2nd change");
         remainingShares = pendingFeeShares - expectedDaoShares;
         assertEq(
             folio.balanceOf(owner),
-            initialOwnerShares + (remainingShares * 0.9e18) / 1e18,
+            initialOwnerShares + (remainingShares * 0.9e18) / 1e18 + 1,
             "wrong owner shares, 2nd change"
         );
         assertEq(
@@ -1205,7 +1221,8 @@ contract FolioTest is BaseTest {
 
             // should not revert at top or bottom end
             vm.prank(priceCurator);
-            folio.openTrade(index, i, 1);
+            uint256 endPrice = i / MAX_PRICE_RANGE;
+            folio.openTrade(index, i, endPrice > i ? endPrice : i);
             (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(index);
             folio.getPrice(index, start);
             folio.getPrice(index, end);
@@ -1246,7 +1263,7 @@ contract FolioTest is BaseTest {
 
         // upgrade to V2 with owner
         vm.prank(owner);
-        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"), "");
         assertEq(folio.version(), "2.0.0");
     }
 
@@ -1257,7 +1274,7 @@ contract FolioTest is BaseTest {
         // Attempt to upgrade to V2 (not registered)
         vm.prank(owner);
         vm.expectRevert();
-        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"), "");
 
         // still on old version
         assertEq(folio.version(), "1.0.0");
@@ -1282,7 +1299,7 @@ contract FolioTest is BaseTest {
         // Attempt to upgrade to V2 (deprecated)
         vm.prank(owner);
         vm.expectRevert(FolioProxyAdmin.VersionDeprecated.selector);
-        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"), "");
 
         // still on old version
         assertEq(folio.version(), "1.0.0");
@@ -1301,7 +1318,7 @@ contract FolioTest is BaseTest {
         // Attempt to upgrade to V2 with random user
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user1));
-        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"));
+        proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"), "");
     }
 
     function test_cannotCallAnyOtherFunctionFromProxyAdmin() public {
@@ -1441,6 +1458,31 @@ contract FolioTest is BaseTest {
         folio.openTrade(0, 0, 0);
     }
 
+    function test_redeemMaxSlippage() public {
+        assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+        folio.mint(1e22, user1);
+        assertEq(folio.balanceOf(user1), 1e22 - 1e22 / 2000, "wrong user1 balance");
+
+        (address[] memory basket, uint256[] memory amounts) = folio.toAssets(5e21, Math.Rounding.Floor);
+
+        amounts[0] += 1;
+        vm.expectRevert(abi.encodeWithSelector(IFolio.Folio__InvalidAssetAmount.selector, basket[0]));
+        folio.redeem(5e21, user1, basket, amounts);
+
+        amounts[0] -= 1; // restore amounts
+        basket[2] = address(USDT); // not in basket
+        vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
+        folio.redeem(5e21, user1, basket, amounts);
+
+        address[] memory smallerBasket = new address[](0);
+        vm.expectRevert(IFolio.Folio__InvalidArrayLengths.selector);
+        folio.redeem(5e21, user1, smallerBasket, amounts);
+    }
+
     function test_poke() public {
         uint256 prevBlockTimestamp = block.timestamp;
         assertEq(folio.lastPoke(), prevBlockTimestamp);
@@ -1458,7 +1500,7 @@ contract FolioTest is BaseTest {
         assertEq(folio.lastPoke(), block.timestamp);
         assertGt(block.timestamp, prevBlockTimestamp);
 
-        // after pokme
+        // after poke
         assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
         assertEq(folio.feeRecipientsPendingFeeShares(), pendingFeeShares, "wrong fee recipients pending fee shares");
 

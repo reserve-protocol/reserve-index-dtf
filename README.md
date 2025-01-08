@@ -70,7 +70,7 @@ The staking vault has ONLY a single owner:
 3. Bids occur
 4. Auction expires
 
-##### Auction pricing
+##### Auction Usage
 
 There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `TRADE_PROPOSER`:
 
@@ -80,13 +80,15 @@ There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `TRADE_
 
 The `PRICE_CURATOR` can choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
 
-##### Auction pricing
+The price range (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues.
+
+##### Auction Curve
 
 Standard exponential decay (over time):
 
 ![alt text](auction.png "Auction Curve")
 
-Note: The first block may not have a price of exactly `startPrice`, if it does not occur on the `start` timestamp.
+Note: The first block may not have a price of exactly `startPrice`, if it does not occur on the `start` timestamp. Similarly, the `endPrice` may not be exactly `endPrice` in the final block if it does not occur on the `end` timestamp.
 
 ### Fee Structure
 
@@ -128,10 +130,12 @@ Example:
 
 Tokens are assumed to be within the following ranges:
 
-|              | Folio Collateral | StakingVault underlying/rewards |
-| ------------ | ---------------- | ------------------------------- |
-| **Supply**   | 1e36             | 1e36                            |
-| **Decimals** | 27               | 21                              |
+|              | Folio | Folio Collateral | StakingVault | StakingVault underlying/rewards |
+| ------------ | ----- | ---------------- | ------------ | ------------------------------- |
+| **Supply**   | 1e36  | 1e36             | 1e36         | 1e36                            |
+| **Decimals** |       | 27               |              | 21                              |
+
+It is the job of governance to ensure the Folio supply does not grow beyond 1e36.
 
 ### Weird ERC20s
 
@@ -141,16 +145,23 @@ Some ERC20s are NOT supported
 | ------------------------------ | ----- | ------------ |
 | Multiple Entrypoints           | ❌    | ❌           |
 | Pausable / Blocklist           | ❌    | ❌           |
+| Fee-on-transfer                | ❌    | ❌           |
 | ERC777 / Callback              | ✅    | ❌           |
 | Downward-rebasing              | ✅    | ❌           |
 | Upward-rebasing                | ✅    | ❌           |
-| Fee-on-transfer                | ✅    | ❌           |
 | Revert on zero-value transfers | ✅    | ✅           |
 | Flash mint                     | ✅    | ✅           |
 | Missing return values          | ✅    | ✅           |
 | No revert on failure           | ✅    | ✅           |
 
 Note: While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible.
+
+### Governance Guidelines
+
+- After governors remove a token from the basket via `Folio.removeFromBasket()`, users have a limited amount of time to claim rewards. Removal should only be used if the reward token has become malicious or otherwise compromised.
+-
+
+TODO
 
 ### Future Work / Not Implemented Yet
 

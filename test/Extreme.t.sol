@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_TTL } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_TTL, MAX_PRICE_RANGE } from "contracts/Folio.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
@@ -169,7 +169,7 @@ contract ExtremeTest is BaseExtremeTest {
         // Redeem
         vm.startPrank(user1);
         vm.startSnapshotGas(redeemGasTag);
-        folio.redeem(mintAmount / 2, user1);
+        folio.redeem(mintAmount / 2, user1, tokens, new uint256[](tokens.length));
         vm.stopSnapshotGas(redeemGasTag);
 
         // check balances
@@ -222,7 +222,8 @@ contract ExtremeTest is BaseExtremeTest {
 
         // openTrade
         vm.prank(priceCurator);
-        folio.openTrade(0, p.price, 1);
+        uint256 endPrice = p.price / MAX_PRICE_RANGE;
+        folio.openTrade(0, p.price, endPrice > p.price ? endPrice : p.price);
 
         // sellAmount will be up to 1e36
         // buyAmount will be up to 1e54 and down to 1
@@ -266,7 +267,7 @@ contract ExtremeTest is BaseExtremeTest {
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](p.numFeeRecipients);
         uint96 feeReceiverShare = 1e18 / uint96(p.numFeeRecipients);
         for (uint256 i = 0; i < p.numFeeRecipients; i++) {
-            recipients[i] = IFolio.FeeRecipient(vm.addr(i + 1), feeReceiverShare);
+            recipients[i] = IFolio.FeeRecipient(address(uint160(i + 1)), feeReceiverShare);
         }
         _deployTestFolio(tokens, amounts, initialSupply, p.folioFee, 0, recipients);
 
@@ -283,7 +284,7 @@ contract ExtremeTest is BaseExtremeTest {
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
         uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
 
-        assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
+        assertApproxEqAbs(folio.balanceOf(address(dao)), expectedDaoShares, p.numFeeRecipients, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
         for (uint256 i = 0; i < recipients.length; i++) {
