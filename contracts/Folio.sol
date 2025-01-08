@@ -88,7 +88,7 @@ contract Folio is
     uint256 public auctionLength; // {s}
     uint256 public tradeDelay; // {s}
     Trade[] public trades;
-    EnumerableSet.AddressSet private tokensOnTrade;
+    mapping(address => uint256) public tradeEnds; // {s}
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -531,8 +531,10 @@ contract Folio is
 
         // QoL feature: close auction and eject token from basket if we have sold all of it
         if (trade.sell.balanceOf(address(this)) == 0) {
-            trade.end = block.timestamp;
             basket.remove(address(trade.sell));
+            trade.end = block.timestamp;
+            tradeEnds[address(trade.sell)] = block.timestamp;
+            tradeEnds[address(trade.buy)] = block.timestamp;
         }
 
         // collect payment from bidder
@@ -566,7 +568,11 @@ contract Folio is
         }
 
         /// do not revert, to prevent griefing
-        trades[tradeId].end = 1;
+
+        Trade storage trade = trades[tradeId];
+        trade.end = 1;
+        tradeEnds[address(trade.sell)] = block.timestamp;
+        tradeEnds[address(trade.buy)] = block.timestamp;
         emit TradeKilled(tradeId);
     }
 
@@ -603,11 +609,11 @@ contract Folio is
         }
 
         // ensure no conflicting trades
-        if (tokensOnTrade.contains(address(trade.sell)) || tokensOnTrade.contains(address(trade.buy))) {
+        if (block.timestamp <= tradeEnds[address(trade.sell)] || block.timestamp <= tradeEnds[address(trade.buy)]) {
             revert Folio__TradeCollision();
         }
-        tokensOnTrade.add(address(trade.sell));
-        tokensOnTrade.add(address(trade.buy));
+        tradeEnds[address(trade.sell)] = trade.end;
+        tradeEnds[address(trade.buy)] = trade.end;
 
         // ensure valid price range (startPrice == endPrice is valid)
         if (
