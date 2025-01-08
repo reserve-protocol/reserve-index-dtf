@@ -336,7 +336,14 @@ contract FolioTest is BaseTest {
         uint256 startingUSDCBalanceAlice = USDC.balanceOf(address(user1));
         uint256 startingDAIBalanceAlice = DAI.balanceOf(address(user1));
         uint256 startingMEMEBalanceAlice = MEME.balanceOf(address(user1));
-        folio.redeem(5e21, user1);
+
+        address[] memory basket = new address[](3);
+        basket[0] = address(USDC);
+        basket[1] = address(DAI);
+        basket[2] = address(MEME);
+        uint256[] memory minAmountsOut = new uint256[](3);
+
+        folio.redeem(5e21, user1, basket, minAmountsOut);
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
             startingUSDCBalanceFolio - D6_TOKEN_10K / 2,
@@ -1440,6 +1447,31 @@ contract FolioTest is BaseTest {
         vm.prank(priceCurator);
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
         folio.openTrade(0, 0, 0);
+    }
+
+    function test_redeemMaxSlippage() public {
+        assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+        folio.mint(1e22, user1);
+        assertEq(folio.balanceOf(user1), 1e22 - 1e22 / 2000, "wrong user1 balance");
+
+        (address[] memory basket, uint256[] memory amounts) = folio.toAssets(5e21, Math.Rounding.Floor);
+
+        amounts[0] += 1;
+        vm.expectRevert(abi.encodeWithSelector(IFolio.Folio__InvalidAssetAmount.selector, basket[0]));
+        folio.redeem(5e21, user1, basket, amounts);
+
+        amounts[0] -= 1; // restore amounts
+        basket[2] = address(USDT); // not in basket
+        vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
+        folio.redeem(5e21, user1, basket, amounts);
+
+        address[] memory smallerBasket = new address[](0);
+        vm.expectRevert(IFolio.Folio__InvalidArrayLengths.selector);
+        folio.redeem(5e21, user1, smallerBasket, amounts);
     }
 
     function test_poke() public {

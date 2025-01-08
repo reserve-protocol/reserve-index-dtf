@@ -287,19 +287,37 @@ contract Folio is
         feeRecipientsPendingFeeShares += totalFeeShares - daoFeeShares;
     }
 
-    // {share} -> ({tokAddress}, {tok})
+    /// @param shares {share} Amount of shares to redeem
+    /// @param assets Assets to receive, must match basket exactly
+    /// @param minAmountsOut {tok} Minimum amounts of each asset to receive
+    /// @return _amounts {tok} Actual amounts transferred of each asset
     function redeem(
         uint256 shares,
-        address receiver
-    ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
+        address receiver,
+        address[] calldata assets,
+        uint256[] calldata minAmountsOut
+    ) external nonReentrant returns (uint256[] memory _amounts) {
         _poke();
 
+        address[] memory _assets;
         (_assets, _amounts) = toAssets(shares, Math.Rounding.Floor);
 
         _burn(msg.sender, shares);
 
         uint256 len = _assets.length;
+        if (len != assets.length || len != minAmountsOut.length) {
+            revert Folio__InvalidArrayLengths();
+        }
+
         for (uint256 i; i < len; i++) {
+            if (_assets[i] != assets[i]) {
+                revert Folio__InvalidAsset();
+            }
+
+            if (_amounts[i] < minAmountsOut[i]) {
+                revert Folio__InvalidAssetAmount(_assets[i]);
+            }
+
             if (_amounts[i] != 0) {
                 SafeERC20.safeTransfer(IERC20(_assets[i]), receiver, _amounts[i]);
             }
@@ -336,7 +354,7 @@ contract Folio is
         }
     }
 
-    // ==== Trading ====d
+    // ==== Trading ====
 
     function nextTradeId() external view returns (uint256) {
         return trades.length;

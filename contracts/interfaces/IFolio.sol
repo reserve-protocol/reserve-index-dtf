@@ -58,6 +58,7 @@ interface IFolio {
     error Folio__InvalidTradeDelay();
     error Folio__InvalidTradeTTL();
     error Folio__TooManyFeeRecipients();
+    error Folio__InvalidArrayLengths();
 
     // === Structures ===
 
