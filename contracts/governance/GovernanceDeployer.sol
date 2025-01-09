@@ -92,7 +92,10 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
             address(this)
         );
 
-        timelockController.grantRole(timelockController.CANCELLER_ROLE(), govParams.guardian);
+        if (govParams.guardian != address(0)) {
+            timelockController.grantRole(timelockController.CANCELLER_ROLE(), govParams.guardian);
+        }
+
         timelockController.renounceRole(timelockController.DEFAULT_ADMIN_ROLE(), address(this));
 
         emit DeployedGovernance(address(stToken), governor, timelock);
