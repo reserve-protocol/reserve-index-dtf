@@ -378,7 +378,7 @@ contract Folio is
         uint256 buyAvailable = buyBal < maxBuyBal ? maxBuyBal - buyBal : 0;
 
         // avoid overflow
-        if (buyAvailable > 1e36) {
+        if (buyAvailable > MAX_EXCHANGE_RATE) {
             return sellAvailable;
         }
 
@@ -386,7 +386,8 @@ contract Folio is
         uint256 price = _price(trade, timestamp);
 
         // {sellTok} = {buyTok} * D18 / D18{buyTok/sellTok}
-        sellAmount = Math.min(sellAvailable, Math.mulDiv(buyAvailable, SCALAR, price, Math.Rounding.Floor));
+        uint256 sellAvailableFromBuy = (buyAvailable * SCALAR) / price;
+        sellAmount = Math.min(sellAvailable, sellAvailableFromBuy);
     }
 
     /// @return D18{buyTok/sellTok} The price at the given timestamp as an 18-decimal fixed point
@@ -400,7 +401,7 @@ contract Folio is
         uint256 price = _price(trades[tradeId], timestamp);
 
         // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
-        bidAmount = (sellAmount * price + SCALAR - 1) / SCALAR;
+        bidAmount = Math.mulDiv(sellAmount, SCALAR, price, Math.Rounding.Ceil);
     }
 
     /// @param tradeId Use to ensure expected ordering
@@ -531,7 +532,7 @@ contract Folio is
         uint256 price = _price(trade, block.timestamp);
 
         // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
-        boughtAmt = (sellAmount * price + SCALAR - 1) / SCALAR;
+        boughtAmt = Math.mulDiv(sellAmount, SCALAR, price, Math.Rounding.Ceil);
         if (boughtAmt > maxBuyAmount) {
             revert Folio__SlippageExceeded();
         }
