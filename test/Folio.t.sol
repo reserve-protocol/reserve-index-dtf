@@ -799,9 +799,9 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt / 2, amt / 2, false, bytes(""));
 
         (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
-        assertEq(folio.getBidAmount(0, start, amt), amt, "wrong start bid amount"); // 1x
-        assertEq(folio.getBidAmount(0, (start + end) / 2, amt), amt, "wrong mid bid amount"); // 1x
-        assertEq(folio.getBidAmount(0, end, amt), amt, "wrong end bid amount"); // 1x
+        assertEq(folio.getBid(0, start, amt), amt, "wrong start bid amount"); // 1x
+        assertEq(folio.getBid(0, (start + end) / 2, amt), amt, "wrong mid bid amount"); // 1x
+        assertEq(folio.getBid(0, end, amt), amt, "wrong end bid amount"); // 1x
 
         // bid a 2nd time for the rest of the volume, at end time
         vm.warp(end);
@@ -812,7 +812,7 @@ contract FolioTest is BaseTest {
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         vm.stopPrank();
 
-        assertEq(folio.getSellAmount(0, block.timestamp), 0, "auction should be empty");
+        assertEq(folio.lot(0, block.timestamp), 0, "auction should be empty");
     }
 
     function test_atomicBidWithCallback() public {
@@ -841,9 +841,9 @@ contract FolioTest is BaseTest {
         assertEq(USDT.balanceOf(address(mockBidder)), 0, "wrong mock bidder balance");
 
         (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
-        assertEq(folio.getBidAmount(0, start, amt), amt, "wrong start bid amount"); // 1x
-        assertEq(folio.getBidAmount(0, (start + end) / 2, amt), amt, "wrong mid bid amount"); // 1x
-        assertEq(folio.getBidAmount(0, end, amt), amt, "wrong end bid amount"); // 1x
+        assertEq(folio.getBid(0, start, amt), amt, "wrong start bid amount"); // 1x
+        assertEq(folio.getBid(0, (start + end) / 2, amt), amt, "wrong mid bid amount"); // 1x
+        assertEq(folio.getBid(0, end, amt), amt, "wrong end bid amount"); // 1x
 
         // bid a 2nd time for the rest of the volume, at end time
 
@@ -859,7 +859,7 @@ contract FolioTest is BaseTest {
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         vm.stopPrank();
 
-        assertEq(folio.getSellAmount(0, block.timestamp), 0, "auction should be empty");
+        assertEq(folio.lot(0, block.timestamp), 0, "auction should be empty");
     }
 
     function test_auctionBidWithoutCallback() public {
@@ -885,9 +885,9 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt / 2, amt * 5, false, bytes(""));
 
         (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
-        assertEq(folio.getBidAmount(0, start, amt), amt * 10, "wrong start bid amount"); // 10x
-        assertEq(folio.getBidAmount(0, (start + end) / 2, amt), 31622776602, "wrong mid bid amount"); // ~3.16x
-        assertEq(folio.getBidAmount(0, end, amt), amt, "wrong end bid amount"); // 1x
+        assertEq(folio.getBid(0, start, amt), amt * 10, "wrong start bid amount"); // 10x
+        assertEq(folio.getBid(0, (start + end) / 2, amt), 31622776602, "wrong mid bid amount"); // ~3.16x
+        assertEq(folio.getBid(0, end, amt), amt, "wrong end bid amount"); // 1x
         vm.warp(end);
 
         // bid a 2nd time for the rest of the volume, at end time
@@ -927,9 +927,9 @@ contract FolioTest is BaseTest {
         // check prices
 
         (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
-        assertEq(folio.getBidAmount(0, start, amt), amt * 10, "wrong start bid amount"); // 10x
-        assertEq(folio.getBidAmount(0, (start + end) / 2, amt), 31622776602, "wrong mid bid amount"); // ~3.16x
-        assertEq(folio.getBidAmount(0, end, amt), amt, "wrong end bid amount"); // 1x
+        assertEq(folio.getBid(0, start, amt), amt * 10, "wrong start bid amount"); // 10x
+        assertEq(folio.getBid(0, (start + end) / 2, amt), 31622776602, "wrong mid bid amount"); // ~3.16x
+        assertEq(folio.getBid(0, end, amt), amt, "wrong end bid amount"); // 1x
 
         // bid a 2nd time for the rest of the volume, at end time
 
@@ -1195,8 +1195,8 @@ contract FolioTest is BaseTest {
 
         // auctions are over, should have no USDC + DAI left
 
-        assertEq(folio.getSellAmount(0, end), 0, "unfinished auction 1");
-        assertEq(folio.getSellAmount(1, start + (end - start) / 2), 0, "unfinished auction 2");
+        assertEq(folio.lot(0, end), 0, "unfinished auction 1");
+        assertEq(folio.lot(1, start + (end - start) / 2), 0, "unfinished auction 2");
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         assertEq(DAI.balanceOf(address(folio)), 0, "wrong dai balance");
     }

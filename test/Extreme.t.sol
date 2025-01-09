@@ -230,15 +230,15 @@ contract ExtremeTest is BaseExtremeTest {
 
         (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
 
-        uint256 sellAmount = folio.getSellAmount(0, start);
-        // getBidAmount should work at both ends of auction
-        uint256 highBuyAmount = folio.getBidAmount(0, start, sellAmount); // should not revert
-        assertLe(folio.getBidAmount(0, start + 1, sellAmount), highBuyAmount, "buyAmount should be non-increasing");
+        uint256 sellAmount = folio.lot(0, start);
+        // getBid should work at both ends of auction
+        uint256 highBuyAmount = folio.getBid(0, start, sellAmount); // should not revert
+        assertLe(folio.getBid(0, start + 1, sellAmount), highBuyAmount, "buyAmount should be non-increasing");
 
-        sellAmount = folio.getSellAmount(0, end);
-        uint256 buyAmount = folio.getBidAmount(0, end, sellAmount); // should not revert
+        sellAmount = folio.lot(0, end);
+        uint256 buyAmount = folio.getBid(0, end, sellAmount); // should not revert
         assertGt(buyAmount, 0, "lot is free");
-        assertGe(folio.getBidAmount(0, end - 1, sellAmount), buyAmount, "buyAmount should be non-increasing");
+        assertGe(folio.getBid(0, end - 1, sellAmount), buyAmount, "buyAmount should be non-increasing");
 
         // mint buy tokens to user1 and bid
         vm.warp(end);

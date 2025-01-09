@@ -360,8 +360,9 @@ contract Folio is
         return trades.length;
     }
 
-    /// @return {sellTok} The amount on sale in the auction at a given timestamp
-    function getSellAmount(uint256 tradeId, uint256 timestamp) external view returns (uint256) {
+    /// The amount on sale in an auction, dynamically increasing over time
+    /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
+    function lot(uint256 tradeId, uint256 timestamp) external view returns (uint256 sellAmount) {
         Trade storage trade = trades[tradeId];
 
         uint256 _totalSupply = totalSupply();
@@ -376,13 +377,16 @@ contract Folio is
         uint256 maxBuyBal = Math.mulDiv(trade.buyLimit, _totalSupply, SCALAR, Math.Rounding.Floor);
         uint256 buyAvailable = buyBal < maxBuyBal ? maxBuyBal - buyBal : 0;
 
+        // avoid overflow
         if (buyAvailable > 1e36) {
             return sellAvailable;
         }
 
+        // D18{buyTok/sellTok}
+        uint256 price = _price(trade, timestamp);
+
         // {sellTok} = {buyTok} * D18{buyTok/sellTok} / D18
-        uint256 sellAllowed = Math.mulDiv(buyAvailable, _price(trade, timestamp), SCALAR, Math.Rounding.Floor);
-        return Math.min(sellAvailable, sellAllowed);
+        sellAmount = Math.min(sellAvailable, Math.mulDiv(buyAvailable, price, SCALAR, Math.Rounding.Floor));
     }
 
     /// @return D18{buyTok/sellTok} The price at the given timestamp as an 18-decimal fixed point
@@ -391,12 +395,12 @@ contract Folio is
     }
 
     /// @param sellAmount {sellTok} The amount of sell tokens the bidder is offering the protocol
-    /// @return {buyTok} The amount of buy tokens required to bid in the auction at a given timestamp
-    function getBidAmount(uint256 tradeId, uint256 timestamp, uint256 sellAmount) external view returns (uint256) {
+    /// @return bidAmount {buyTok} The amount of buy tokens required to bid in the auction at a given timestamp
+    function getBid(uint256 tradeId, uint256 timestamp, uint256 sellAmount) external view returns (uint256 bidAmount) {
         uint256 price = _price(trades[tradeId], timestamp);
 
         // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
-        return (sellAmount * price + SCALAR - 1) / SCALAR;
+        bidAmount = (sellAmount * price + SCALAR - 1) / SCALAR;
     }
 
     /// @param tradeId Use to ensure expected ordering
@@ -508,11 +512,11 @@ contract Folio is
     ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
     ///   If withCallback is false, caller must have provided an allowance in advance
     /// @dev Permissionless
-    /// @param sellAmount {sellTok} Token the bidder receives, sold from the point of view of the Folio
-    /// @param maxBuyAmount {buyTok} Token the bidder provides, bought from the point of view of the Folio
+    /// @param sellAmount {sellTok} Sell token, the token the bidder receives
+    /// @param maxBuyAmount {buyTok} Max buy token, the token the bidder provides
     /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
     /// @param data Arbitrary data to pass to the callback
-    /// @return boughtAmt {buyTok} The amount bidder received
+    /// @return boughtAmt {buyTok} The amount bidder receives
     function bid(
         uint256 tradeId,
         uint256 sellAmount,
@@ -545,7 +549,7 @@ contract Folio is
             revert Folio__InsufficientBalance();
         }
 
-        // ensure buy token is in basket
+        // put buy token in basket
         basket.add(address(trade.buy));
 
         // pay bidder
@@ -576,7 +580,7 @@ contract Folio is
         // D18{buyTok/share} = D18{buyTok/share} * {share} / D18
         uint256 maxBuyBal = Math.mulDiv(trade.buyLimit, _totalSupply, SCALAR, Math.Rounding.Floor);
 
-        // ensure post-bid buy balance is below maximum
+        // ensure post-bid buy balance does not exceed max
         if (trade.buy.balanceOf(address(this)) > maxBuyBal) {
             revert Folio__ExcessiveBid();
         }
