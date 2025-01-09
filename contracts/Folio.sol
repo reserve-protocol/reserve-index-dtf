@@ -699,6 +699,7 @@ contract Folio is
             trade.id,
             trade.startPrice,
             trade.endPrice,
+            trade.sellLimit.spot,
             trade.buyLimit.spot,
             block.timestamp,
             block.timestamp + auctionLength

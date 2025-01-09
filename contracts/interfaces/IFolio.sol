@@ -23,6 +23,7 @@ interface IFolio {
         uint256 indexed tradeId,
         uint256 startPrice,
         uint256 endPrice,
+        uint256 sellLimit,
         uint256 buyLimit,
         uint256 start,
         uint256 end
