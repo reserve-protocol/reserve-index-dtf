@@ -352,7 +352,8 @@ contract FolioDeployerTest is BaseTest {
                 }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
-                priceCurators
+                priceCurators,
+                new address[](0)
             );
         vm.stopSnapshotGas("deployGovernedFolio()");
         vm.stopPrank();

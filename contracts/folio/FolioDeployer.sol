@@ -44,7 +44,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         address owner,
         address[] memory tradeProposers,
-        address[] memory priceCurators
+        address[] memory priceCurators,
+        address[] memory vibesOfficers
     ) public returns (address folio_, address folioAdmin_) {
         if (basicDetails.assets.length != basicDetails.amounts.length) {
             revert FolioDeployer__LengthMismatch();
@@ -69,6 +70,9 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         for (uint256 i; i < priceCurators.length; i++) {
             folio.grantRole(folio.PRICE_CURATOR(), priceCurators[i]);
         }
+        for (uint256 i; i < vibesOfficers.length; i++) {
+            folio.grantRole(folio.VIBES_OFFICER(), vibesOfficers[i]);
+        }
 
         // Renounce Ownership
         folio.renounceRole(folio.DEFAULT_ADMIN_ROLE(), address(this));
@@ -91,7 +95,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         IGovernanceDeployer.GovParams calldata ownerGovParams,
         IGovernanceDeployer.GovParams calldata tradingGovParams,
-        address[] memory priceCurators
+        address[] memory priceCurators,
+        address[] memory vibesOfficers
     )
         external
         returns (
@@ -117,7 +122,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             additionalDetails,
             ownerTimelock,
             tradeProposers,
-            priceCurators
+            priceCurators,
+            vibesOfficers
         );
 
         emit GovernedFolioDeployed(

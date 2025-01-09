@@ -211,7 +211,8 @@ abstract contract BaseTest is Script, Test {
             _additionalDetails,
             _owner,
             _tradeProposers,
-            _priceCurators
+            _priceCurators,
+            new address[](0)
         );
 
         return (Folio(_folio), FolioProxyAdmin(_proxyAdmin));
