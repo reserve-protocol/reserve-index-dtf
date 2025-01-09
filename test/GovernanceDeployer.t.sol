@@ -2,23 +2,25 @@
 pragma solidity 0.8.28;
 
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
-import { IFolioDeployer } from "contracts/interfaces/IFolioDeployer.sol";
+import { IGovernanceDeployer } from "contracts/interfaces/IGovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import "./base/BaseTest.sol";
 
 contract GovernanceDeployerTest is BaseTest {
     function test_deployGovernedStakingToken() public {
+        address[] memory guardians = new address[](1);
+        guardians[0] = user1;
+
         vm.startSnapshotGas("deployGovernedStakingToken()");
-        (address _stToken, address _governor) = governanceDeployer.deployGovernedStakingToken(
+        (StakingVault stToken, address _stToken, address _governor) = governanceDeployer.deployGovernedStakingToken(
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IFolioDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians)
         );
         vm.stopSnapshotGas();
 
-        StakingVault stToken = StakingVault(_stToken);
         vm.startPrank(user1);
         MEME.approve(address(stToken), type(uint256).max);
         stToken.deposit(D18_TOKEN_1, user1);

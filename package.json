@@ -10,9 +10,9 @@
     "forge-std": "github:foundry-rs/forge-std#v1.9.4"
   },
   "devDependencies": {
-    "prettier": "^3.4.1",
-    "prettier-plugin-solidity": "^1.4.1",
-    "solhint": "^5.0.3",
+    "prettier": "^3.4.2",
+    "prettier-plugin-solidity": "^1.4.2",
+    "solhint": "^5.0.4",
     "solhint-plugin-prettier": "^0.1.0"
   },
   "scripts": {

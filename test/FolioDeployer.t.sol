@@ -6,6 +6,7 @@ import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_MINTING_FEE } from "contracts/Folio.sol";
 import { FolioDeployer, IFolioDeployer } from "contracts/folio/FolioDeployer.sol";
+import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import "./base/BaseTest.sol";
@@ -16,8 +17,7 @@ contract FolioDeployerTest is BaseTest {
     function test_constructor() public view {
         assertEq(address(folioDeployer.daoFeeRegistry()), address(daoFeeRegistry));
         assertNotEq(address(folioDeployer.folioImplementation()), address(0));
-        assertEq(address(folioDeployer.governorImplementation()), governorImplementation);
-        assertEq(address(folioDeployer.timelockImplementation()), timelockImplementation);
+        assertEq(address(folioDeployer.governanceDeployer()), address(governanceDeployer));
     }
 
     function test_createFolio() public {
@@ -300,11 +300,14 @@ contract FolioDeployerTest is BaseTest {
     function test_createGovernedFolio() public {
         // Deploy Community Governor
 
-        (address _stToken, ) = governanceDeployer.deployGovernedStakingToken(
+        address[] memory guardians = new address[](1);
+        guardians[0] = user1;
+
+        (StakingVault _stToken, , ) = governanceDeployer.deployGovernedStakingToken(
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IFolioDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians)
         );
 
         // Deploy Governed Folio
@@ -326,9 +329,20 @@ contract FolioDeployerTest is BaseTest {
         address[] memory priceCurators = new address[](1);
         priceCurators[0] = priceCurator;
 
+        address[] memory guardians1 = new address[](1);
+        priceCurators[0] = user1;
+        address[] memory guardians2 = new address[](1);
+        priceCurators[0] = user2;
+
         vm.startSnapshotGas("deployGovernedFolio");
-        (address _folio, address _folioAdmin, address _ownerGovernor, address _tradingGovernor) = folioDeployer
-            .deployGovernedFolio(
+        (
+            address _folio,
+            address _folioAdmin,
+            address _ownerGovernor,
+            address _ownerTimelock,
+            address _tradingGovernor,
+            address _tradingTimelock
+        ) = folioDeployer.deployGovernedFolio(
                 IVotes(_stToken),
                 IFolio.FolioBasicDetails({
                     name: "Test Folio",
@@ -344,8 +358,8 @@ contract FolioDeployerTest is BaseTest {
                     folioFee: MAX_FOLIO_FEE,
                     mintingFee: MAX_MINTING_FEE
                 }),
-                IFolioDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
-                IFolioDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
+                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, guardians2),
+                IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, guardians1),
                 priceCurators
             );
         vm.stopSnapshotGas("deployGovernedFolio()");

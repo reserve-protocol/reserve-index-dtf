@@ -6,7 +6,7 @@ import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 
-import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
+import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import { Versioned } from "@utils/Versioned.sol";
@@ -15,8 +15,17 @@ import { Versioned } from "@utils/Versioned.sol";
  * @title GovernanceDeployer
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
-contract GovernanceDeployer is Versioned {
-    uint256 constant REWARD_PERIOD = (60 * 60 * 24 * 7) / 2; // 3.5 days
+contract GovernanceDeployer is IGovernanceDeployer, Versioned {
+    uint256 constant DEFAULT_REWARD_PERIOD = 3.5 days;
+    uint256 constant DEFAULT_UNSTAKING_DELAY = 1 weeks;
+
+    event DeployedGovernedStakingToken(
+        address indexed underlying,
+        address indexed stToken,
+        address governor,
+        address timelock
+    );
+    event DeployedGovernance(address indexed stToken, address governor, address timelock);
 
     address public immutable governorImplementation;
     address public immutable timelockImplementation;
@@ -26,24 +35,45 @@ contract GovernanceDeployer is Versioned {
         timelockImplementation = _timelockImplementation;
     }
 
-    /// Deploy a staking vault and timelocked governor that owns it
-    /// BYOT (bring your own token)
+    /// Deploys a StakingVault owned by a Governor with Timelock
+    /// @param name Name of the staking vault
+    /// @param symbol Symbol of the staking vault
+    /// @param underlying Underlying token for the staking vault
+    /// @param govParams Governance parameters for the governor
     /// @return stToken A staking vault that can be used with multiple governors
-    /// @return governor A timelocked governor that owns the staking vault
+    /// @return governor A governor responsible for the staking vault
+    /// @return timelock Timelock for the governor, owns staking vault
     function deployGovernedStakingToken(
         string memory name,
         string memory symbol,
         IERC20 underlying,
-        IFolioDeployer.GovParams calldata govParams
-    ) external returns (address stToken, address governor) {
-        address timelock = Clones.clone(timelockImplementation);
+        IGovernanceDeployer.GovParams calldata govParams
+    ) external returns (StakingVault stToken, address governor, address timelock) {
+        stToken = new StakingVault(
+            name,
+            symbol,
+            underlying,
+            address(this),
+            DEFAULT_REWARD_PERIOD,
+            DEFAULT_UNSTAKING_DELAY
+        );
 
-        stToken = address(new StakingVault(name, symbol, underlying, timelock, REWARD_PERIOD, 1 weeks));
+        (governor, timelock) = deployGovernanceWithTimelock(govParams, IVotes(stToken));
 
+        stToken.transferOwnership(timelock);
+
+        emit DeployedGovernedStakingToken(address(underlying), address(stToken), governor, timelock);
+    }
+
+    function deployGovernanceWithTimelock(
+        IGovernanceDeployer.GovParams calldata govParams,
+        IVotes stToken
+    ) public returns (address governor, address timelock) {
         governor = Clones.clone(governorImplementation);
+        timelock = Clones.clone(timelockImplementation);
 
         FolioGovernor(payable(governor)).initialize(
-            IVotes(stToken),
+            stToken,
             TimelockControllerUpgradeable(payable(timelock)),
             govParams.votingDelay,
             govParams.votingPeriod,
@@ -51,19 +81,23 @@ contract GovernanceDeployer is Versioned {
             govParams.quorumPercent
         );
 
-        address[] memory proposers = new address[](1);
-        proposers[0] = governor;
-        address[] memory executors = new address[](1);
-        executors[0] = governor;
+        address[] memory proposersAndExecutors = new address[](1);
+        proposersAndExecutors[0] = governor;
 
         TimelockControllerUpgradeable timelockController = TimelockControllerUpgradeable(payable(timelock));
+        timelockController.initialize(
+            govParams.timelockDelay,
+            proposersAndExecutors, // Proposer Role
+            proposersAndExecutors, // Executor Role
+            address(this)
+        );
 
-        timelockController.initialize(govParams.timelockDelay, proposers, executors, address(this));
-
-        if (govParams.guardian != address(0)) {
-            timelockController.grantRole(timelockController.CANCELLER_ROLE(), govParams.guardian);
+        for (uint256 i; i < govParams.guardians.length; i++) {
+            timelockController.grantRole(timelockController.CANCELLER_ROLE(), govParams.guardians[i]);
         }
 
         timelockController.renounceRole(timelockController.DEFAULT_ADMIN_ROLE(), address(this));
+
+        emit DeployedGovernance(address(stToken), governor, timelock);
     }
 }

@@ -1248,8 +1248,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            governorImplementation,
-            timelockImplementation
+            governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -1285,8 +1284,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            governorImplementation,
-            timelockImplementation
+            governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -1310,8 +1308,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            governorImplementation,
-            timelockImplementation
+            governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -1333,8 +1330,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            governorImplementation,
-            timelockImplementation
+            governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
 
