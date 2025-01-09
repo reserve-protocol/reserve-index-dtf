@@ -43,7 +43,7 @@ abstract contract BaseTest is Script, Test {
 
     uint256 constant YEAR_IN_SECONDS = 31536000;
 
-    address priceCurator = 0x00000000000000000000000000000000000000cc; // has BASKET_CURATOR
+    address curator = 0x00000000000000000000000000000000000000cc; // has BASKET_CURATOR
     address dao = 0xDA00000000000000000000000000000000000000; // has TRADE_PROPOSER
     address owner = 0xCc00000000000000000000000000000000000000; // has DEFAULT_ADMIN_ROLE
     address user1 = 0xfF00000000000000000000000000000000000000;
@@ -108,7 +108,7 @@ abstract contract BaseTest is Script, Test {
     }
 
     function _testSetupAfter() public virtual {
-        vm.label(address(priceCurator), "Price Curator");
+        vm.label(address(curator), "Price Curator");
         vm.label(address(dao), "DAO");
         vm.label(address(owner), "Owner");
         vm.label(address(user1), "User 1");

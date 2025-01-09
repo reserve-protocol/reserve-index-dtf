@@ -44,7 +44,7 @@ contract ExtremeTest is BaseExtremeTest {
             mintingFee,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopSnapshotGas(deployGasTag);
         vm.stopPrank();
@@ -223,7 +223,7 @@ contract ExtremeTest is BaseExtremeTest {
         folio.approveTrade(0, sell, buy, 0, FULL_BUY, 0, 0, MAX_TTL);
 
         // openTrade
-        vm.prank(priceCurator);
+        vm.prank(curator);
         uint256 endPrice = p.price / MAX_PRICE_RANGE;
         folio.openTrade(0, MAX_RATE, p.price, endPrice > p.price ? endPrice : p.price);
 

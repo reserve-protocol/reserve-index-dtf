@@ -46,7 +46,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_MINTING_FEE,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopSnapshotGas();
         vm.stopPrank();
@@ -97,7 +97,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopPrank();
     }
@@ -111,19 +111,7 @@ contract FolioDeployerTest is BaseTest {
 
         vm.startPrank(owner);
         vm.expectRevert(IFolio.Folio__EmptyAssets.selector);
-        createFolio(
-            tokens,
-            amounts,
-            1,
-            MAX_TRADE_DELAY,
-            MAX_AUCTION_LENGTH,
-            recipients,
-            100,
-            0,
-            owner,
-            dao,
-            priceCurator
-        );
+        createFolio(tokens, amounts, 1, MAX_TRADE_DELAY, MAX_AUCTION_LENGTH, recipients, 100, 0, owner, dao, curator);
         vm.stopPrank();
     }
 
@@ -152,7 +140,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopPrank();
     }
@@ -182,7 +170,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopPrank();
     }
@@ -209,7 +197,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopPrank();
 
@@ -229,7 +217,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopPrank();
     }
@@ -247,7 +235,7 @@ contract FolioDeployerTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector); // below min
-        createFolio(tokens, amounts, INITIAL_SUPPLY, MAX_TRADE_DELAY, 1, recipients, 100, 0, owner, dao, priceCurator);
+        createFolio(tokens, amounts, INITIAL_SUPPLY, MAX_TRADE_DELAY, 1, recipients, 100, 0, owner, dao, curator);
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector); // above max
         createFolio(
@@ -261,7 +249,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
 
         vm.stopPrank();
@@ -291,7 +279,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
 
         vm.stopPrank();
@@ -324,7 +312,7 @@ contract FolioDeployerTest is BaseTest {
         DAI.approve(address(folioDeployer), type(uint256).max);
 
         address[] memory priceCurators = new address[](1);
-        priceCurators[0] = priceCurator;
+        priceCurators[0] = curator;
 
         vm.startSnapshotGas("deployGovernedFolio");
         (address _folio, address _folioAdmin, address _ownerGovernor, address _tradingGovernor) = folioDeployer
