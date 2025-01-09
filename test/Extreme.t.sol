@@ -7,6 +7,7 @@ import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_TTL, MAX
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
+    IFolio.Range internal FULL_SELL = IFolio.Range(0, 0, MAX_RATE);
     IFolio.Range internal FULL_BUY = IFolio.Range(MAX_RATE, MAX_RATE, MAX_RATE);
 
     function _deployTestFolio(
@@ -220,12 +221,12 @@ contract ExtremeTest is BaseExtremeTest {
 
         // approveTrade
         vm.prank(dao);
-        folio.approveTrade(0, sell, buy, 0, FULL_BUY, 0, 0, MAX_TTL);
+        folio.approveTrade(0, sell, buy, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
         // openTrade
         vm.prank(curator);
         uint256 endPrice = p.price / MAX_PRICE_RANGE;
-        folio.openTrade(0, MAX_RATE, p.price, endPrice > p.price ? endPrice : p.price);
+        folio.openTrade(0, 0, MAX_RATE, p.price, endPrice > p.price ? endPrice : p.price);
 
         // sellAmount will be up to 1e36
         // buyAmount will be up to 1e54 and down to 1

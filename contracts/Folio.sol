@@ -369,7 +369,7 @@ contract Folio is
         uint256 buyBal = trade.buy.balanceOf(address(this));
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(trade.sellLimit, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 minSellBal = Math.mulDiv(trade.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // {buyTok} = D27{buyTok/share} * {share} / D27
@@ -417,7 +417,7 @@ contract Folio is
         uint256 tradeId,
         IERC20 sell,
         IERC20 buy,
-        uint256 sellLimit,
+        Range calldata sellLimit,
         Range calldata buyLimit,
         uint256 startPrice,
         uint256 endPrice,
@@ -433,7 +433,12 @@ contract Folio is
             revert Folio__InvalidTradeTokens();
         }
 
-        if (sellLimit > MAX_RATE) {
+        if (
+            sellLimit.spot > MAX_RATE ||
+            sellLimit.high > MAX_RATE ||
+            sellLimit.low > sellLimit.spot ||
+            sellLimit.high < sellLimit.spot
+        ) {
             revert Folio__InvalidSellLimit();
         }
 
@@ -477,7 +482,9 @@ contract Folio is
             address(buy),
             startPrice,
             endPrice,
-            sellLimit,
+            sellLimit.spot,
+            sellLimit.low,
+            sellLimit.high,
             buyLimit.spot,
             buyLimit.low,
             buyLimit.high
@@ -485,11 +492,13 @@ contract Folio is
     }
 
     /// Open a trade as the basket curator by providing a buy limit and price range
+    /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param startPrice D27{buyTok/sellTok} 1e54 max
     /// @param endPrice D27{buyTok/sellTok} 1e54 max
     function openTrade(
         uint256 tradeId,
+        uint256 sellLimit,
         uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice
@@ -499,6 +508,7 @@ contract Folio is
         // basket curator can:
         //   - raise starting price by up to 100x
         //   - raise ending price arbitrarily (can cause auction not to clear)
+        //   - select a sell limit within the approved range
         //   - select a buy limit within the approved range
 
         if (
@@ -509,10 +519,15 @@ contract Folio is
             revert Folio__InvalidPrices();
         }
 
+        if (sellLimit < trade.sellLimit.low || sellLimit > trade.sellLimit.high) {
+            revert Folio__InvalidSellLimit();
+        }
+
         if (buyLimit < trade.buyLimit.low || buyLimit > trade.buyLimit.high) {
             revert Folio__InvalidBuyLimit();
         }
 
+        trade.sellLimit.spot = sellLimit;
         trade.buyLimit.spot = buyLimit;
         trade.startPrice = startPrice;
         trade.endPrice = endPrice;
@@ -566,7 +581,7 @@ contract Folio is
         uint256 sellBal = trade.sell.balanceOf(address(this));
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(trade.sellLimit, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 minSellBal = Math.mulDiv(trade.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // ensure auction is large enough to cover bid

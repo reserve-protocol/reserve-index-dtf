@@ -12,8 +12,10 @@ interface IFolio {
         address indexed to,
         uint256 startPrice,
         uint256 endPrice,
-        uint256 sellLimit,
-        uint256 buyLimit,
+        uint256 sellLimitSpot,
+        uint256 sellLimitLow,
+        uint256 sellLimitHigh,
+        uint256 buyLimitSpot,
         uint256 buyLimitLow,
         uint256 buyLimitHigh
     );
@@ -111,7 +113,7 @@ interface IFolio {
         uint256 id;
         IERC20 sell;
         IERC20 buy;
-        uint256 sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
+        Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
         Range buyLimit; // D27{buyTok/share} min ratio of sell token to shares allowed, exclusive
         uint256 startPrice; // D27{buyTok/sellTok}
         uint256 endPrice; // D27{buyTok/sellTok}

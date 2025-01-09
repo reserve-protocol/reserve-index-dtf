@@ -72,6 +72,20 @@ The staking vault has ONLY a single owner:
 
 ##### Auction Usage
 
+###### Buy/Sell limits
+
+Governance configures a range for the buy and sell limits, including a spot estimate:
+
+```solidity
+struct Range {
+  uint256 spot; // D27{buyTok/share}
+  uint256 low; // D27{buyTok/share} inclusive
+  uint256 high; // D27{buyTok/share} inclusive
+}
+```
+
+During `openTrade` the `BASKET_CURATOR` can set the buy and sell limits within the approved ranges provided by governance. If the trade is opened permissionlessly instead, the buy limit will use the governance pre-approved spot estimates.
+
 ###### Price
 
 There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `TRADE_PROPOSER`:
@@ -83,20 +97,6 @@ There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `TRADE_
 The `BASKET_CURATOR` can choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
 
 The price range (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues.
-
-###### Buy limit
-
-Governance configures a range for the buy limit, including a spot estimate:
-
-```solidity
-struct Range {
-  uint256 spot; // D27{buyTok/share}
-  uint256 low; // D27{buyTok/share} inclusive
-  uint256 high; // D27{buyTok/share} inclusive
-}
-```
-
-During `openTrade` the `BASKET_CURATOR` can set the buy limit within the approved range provided by governance. If the trade is opened permissionlessly instead, the buy limit will use the governance pre-approved spot estimate.
 
 ##### Auction Dynamics
 
