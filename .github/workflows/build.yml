@@ -1,4 +1,4 @@
-name: Build Process
+name: Build
 
 on:
   push:
@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  build:
+  compile:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,9 +33,9 @@ jobs:
       - name: Install Dependencies
         run: yarn --immutable
 
-      - name: Build Contracts
+      - name: Compile Contracts
         run: |
-          forge build
+          forge compile
 
   size:
     runs-on: ubuntu-latest
@@ -58,7 +58,7 @@ jobs:
       - name: Install Dependencies
         run: yarn --immutable
 
-      - name: Build Contracts
+      - name: Compile Contracts
         run: |
           forge build
 

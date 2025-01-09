@@ -1494,6 +1494,7 @@ contract FolioTest is BaseTest {
         // call poke
         folio.poke();
         assertEq(folio.lastPoke(), block.timestamp);
+        console2.log("enter");
         assertGt(block.timestamp, prevBlockTimestamp);
 
         // after poke

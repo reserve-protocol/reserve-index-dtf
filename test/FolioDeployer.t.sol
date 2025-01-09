@@ -300,14 +300,11 @@ contract FolioDeployerTest is BaseTest {
     function test_createGovernedFolio() public {
         // Deploy Community Governor
 
-        address[] memory guardians = new address[](1);
-        guardians[0] = user1;
-
-        (StakingVault _stToken, , ) = governanceDeployer.deployGovernedStakingToken(
+        (StakingVault stToken, , ) = governanceDeployer.deployGovernedStakingToken(
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians)
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
         );
 
         // Deploy Governed Folio
@@ -329,11 +326,6 @@ contract FolioDeployerTest is BaseTest {
         address[] memory priceCurators = new address[](1);
         priceCurators[0] = priceCurator;
 
-        address[] memory guardians1 = new address[](1);
-        priceCurators[0] = user1;
-        address[] memory guardians2 = new address[](1);
-        priceCurators[0] = user2;
-
         vm.startSnapshotGas("deployGovernedFolio");
         (
             address _folio,
@@ -343,7 +335,7 @@ contract FolioDeployerTest is BaseTest {
             address _tradingGovernor,
             address _tradingTimelock
         ) = folioDeployer.deployGovernedFolio(
-                IVotes(_stToken),
+                stToken,
                 IFolio.FolioBasicDetails({
                     name: "Test Folio",
                     symbol: "TFOLIO",
@@ -358,8 +350,8 @@ contract FolioDeployerTest is BaseTest {
                     folioFee: MAX_FOLIO_FEE,
                     mintingFee: MAX_MINTING_FEE
                 }),
-                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, guardians2),
-                IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, guardians1),
+                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
+                IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
                 priceCurators
             );
         vm.stopSnapshotGas("deployGovernedFolio()");
@@ -390,7 +382,6 @@ contract FolioDeployerTest is BaseTest {
         assertEq(bps2, 0.1e18, "wrong second recipient bps");
 
         // Check owner governor + owner timelock
-        StakingVault stToken = StakingVault(_stToken);
         vm.startPrank(user1);
         MEME.approve(address(stToken), type(uint256).max);
         stToken.deposit(D18_TOKEN_1, user1);

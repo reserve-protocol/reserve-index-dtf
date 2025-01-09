@@ -9,15 +9,12 @@ import "./base/BaseTest.sol";
 
 contract GovernanceDeployerTest is BaseTest {
     function test_deployGovernedStakingToken() public {
-        address[] memory guardians = new address[](1);
-        guardians[0] = user1;
-
         vm.startSnapshotGas("deployGovernedStakingToken()");
-        (StakingVault stToken, address _stToken, address _governor) = governanceDeployer.deployGovernedStakingToken(
+        (StakingVault stToken, address _governor, address _timelock) = governanceDeployer.deployGovernedStakingToken(
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians)
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
         );
         vm.stopSnapshotGas();
 
@@ -28,7 +25,7 @@ contract GovernanceDeployerTest is BaseTest {
         vm.warp(block.timestamp + 1);
 
         FolioGovernor governor = FolioGovernor(payable(_governor));
-        TimelockController timelock = TimelockController(payable(governor.timelock()));
+        TimelockController timelock = TimelockController(payable(_timelock));
 
         assertEq(governor.votingDelay(), 1 days, "wrong voting delay");
         assertEq(governor.votingPeriod(), 1 weeks, "wrong voting period");
