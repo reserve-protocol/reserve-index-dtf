@@ -154,7 +154,7 @@ Tokens are assumed to be within the following ranges:
 
 It is the job of governance to ensure the Folio supply does not grow beyond 1e36 supply.
 
-Exchange rates / prices are assumed to be up to 1e54.
+Exchange rates / prices are permitted to be up to 1e54.
 
 ### Weird ERC20s
 

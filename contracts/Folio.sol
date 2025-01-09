@@ -385,8 +385,8 @@ contract Folio is
         // D18{buyTok/sellTok}
         uint256 price = _price(trade, timestamp);
 
-        // {sellTok} = {buyTok} * D18{buyTok/sellTok} / D18
-        sellAmount = Math.min(sellAvailable, Math.mulDiv(buyAvailable, price, SCALAR, Math.Rounding.Floor));
+        // {sellTok} = {buyTok} * D18 / D18{buyTok/sellTok}
+        sellAmount = Math.min(sellAvailable, Math.mulDiv(buyAvailable, SCALAR, price, Math.Rounding.Floor));
     }
 
     /// @return D18{buyTok/sellTok} The price at the given timestamp as an 18-decimal fixed point
