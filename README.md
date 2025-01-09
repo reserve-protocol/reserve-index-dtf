@@ -125,11 +125,12 @@ The DAO takes a cut with a minimum floor of 5 bps. The DAO always receives at le
 
 ### Units
 
-Units are documented with curly brackets (`{}`) throughout the codebase with the additional `D18` prefix being used to denote when 18 additional decimals of precision have been applied, for example in the case of a ratio.
+Units are documented with curly brackets (`{}`) throughout the codebase with the additional `D18` or `D27` prefixes being used to denote when additional decimals of precision have been applied, for example in the case of a ratio.
 
 Units:
 
 - `{tok}` OR `{share}` OR `{reward}`: token balances
+- `D27`: 1e27
 - `D18`: 1e18
 - `D18{tok}`: a ratio of two token balances with 18 decimals of added precision
 - `D18{1}`: a percentage value with 18 decimals of added precision
@@ -154,7 +155,7 @@ Tokens are assumed to be within the following ranges:
 
 It is the job of governance to ensure the Folio supply does not grow beyond 1e36 supply.
 
-Exchange rates / prices are permitted to be up to 1e54.
+Exchange rates / prices are permitted to be up to 1e54, and are 27 decimal fixed point numbers instead of 18.
 
 ### Weird ERC20s
 
