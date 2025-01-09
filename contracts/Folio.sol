@@ -31,7 +31,7 @@ uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
-uint256 constant MAX_EXCHANGE_RATE = 1e54; // D18{buyTok/sellTok}
+uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 
 uint256 constant D18 = 1e18; // D18
@@ -58,7 +58,7 @@ contract Folio is
      * Roles
      */
     bytes32 public constant TRADE_PROPOSER = keccak256("TRADE_PROPOSER"); // expected to be trading governance's timelock
-    bytes32 public constant PRICE_CURATOR = keccak256("PRICE_CURATOR"); // optional: EOA or multisig
+    bytes32 public constant BASKET_CURATOR = keccak256("BASKET_CURATOR"); // optional: EOA or multisig
 
     /**
      * Basket
@@ -82,7 +82,7 @@ contract Folio is
 
     /**
      * Trading
-     *   - Trades have a delay before they can be opened, that PRICE_CURATOR can bypass
+     *   - Trades have a delay before they can be opened, that BASKET_CURATOR can bypass
      *   - Multiple trades can be open at once
      *   - Multiple bids can be executed against the same trade
      *   - All trades are dutch auctions, but it's possible to pass startPrice = endPrice
@@ -373,11 +373,11 @@ contract Folio is
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // {buyTok} = D27{buyTok/share} * {share} / D27
-        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit, _totalSupply, D27, Math.Rounding.Floor);
+        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
         uint256 buyAvailable = buyBal < maxBuyBal ? maxBuyBal - buyBal : 0;
 
         // avoid overflow
-        if (buyAvailable > MAX_EXCHANGE_RATE) {
+        if (buyAvailable > MAX_RATE) {
             return sellAvailable;
         }
 
@@ -408,8 +408,8 @@ contract Folio is
     /// @param buy The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
-    /// @param startPrice D27{buyTok/sellTok} Provide 0 to defer pricing to price curator, 1e54 max
-    /// @param endPrice D27{buyTok/sellTok} Provide 0 to defer pricing to price curator, 1e54 max
+    /// @param startPrice D27{buyTok/sellTok} Provide 0 to defer pricing to basket curator, 1e54 max
+    /// @param endPrice D27{buyTok/sellTok} Provide 0 to defer pricing to basket curator, 1e54 max
     /// @param ttl {s} How long a trade can exist in an APPROVED state until it can no longer be OPENED
     ///     (once opened, it always finishes). Accepts type(uint256).max .
     ///     Must be longer than tradeDelay if intended to be permissionlessly available.
@@ -418,7 +418,7 @@ contract Folio is
         IERC20 sell,
         IERC20 buy,
         uint256 sellLimit,
-        uint256 buyLimit,
+        Range calldata buyLimit,
         uint256 startPrice,
         uint256 endPrice,
         uint256 ttl
@@ -433,11 +433,17 @@ contract Folio is
             revert Folio__InvalidTradeTokens();
         }
 
-        if (sellLimit > MAX_EXCHANGE_RATE) {
+        if (sellLimit > MAX_RATE) {
             revert Folio__InvalidSellLimit();
         }
 
-        if (buyLimit == 0 || buyLimit > MAX_EXCHANGE_RATE) {
+        if (
+            buyLimit.spot == 0 ||
+            buyLimit.spot > MAX_RATE ||
+            buyLimit.high > MAX_RATE ||
+            buyLimit.low > buyLimit.spot ||
+            buyLimit.high < buyLimit.spot
+        ) {
             revert Folio__InvalidBuyLimit();
         }
 
@@ -465,19 +471,31 @@ contract Folio is
                 k: 0
             })
         );
-        emit TradeApproved(tradeId, address(sell), address(buy), startPrice, sellLimit, buyLimit);
+        emit TradeApproved(
+            tradeId,
+            address(sell),
+            address(buy),
+            startPrice,
+            endPrice,
+            sellLimit,
+            buyLimit.spot,
+            buyLimit.low,
+            buyLimit.high
+        );
     }
 
+    /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param startPrice D27{buyTok/sellTok} 1e54 max
     /// @param endPrice D27{buyTok/sellTok} 1e54 max
     function openTrade(
         uint256 tradeId,
+        uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice
-    ) external nonReentrant onlyRole(PRICE_CURATOR) {
+    ) external nonReentrant onlyRole(BASKET_CURATOR) {
         Trade storage trade = trades[tradeId];
 
-        // price curator can:
+        // basket curator can:
         //   - raise starting price by up to 100x
         //   - raise ending price arbitrarily (can cause auction not to clear)
 
@@ -489,6 +507,11 @@ contract Folio is
             revert Folio__InvalidPrices();
         }
 
+        if (buyLimit < trade.buyLimit.low || buyLimit > trade.buyLimit.high) {
+            revert Folio__InvalidBuyLimit();
+        }
+
+        trade.buyLimit.spot = buyLimit;
         trade.startPrice = startPrice;
         trade.endPrice = endPrice;
         // more price checks in _openTrade()
@@ -578,7 +601,7 @@ contract Folio is
         }
 
         // D27{buyTok/share} = D27{buyTok/share} * {share} / D27
-        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit, _totalSupply, D27, Math.Rounding.Floor);
+        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
 
         // ensure post-bid buy balance does not exceed max
         if (trade.buy.balanceOf(address(this)) > maxBuyBal) {
@@ -588,9 +611,9 @@ contract Folio is
 
     /// Kill a trade
     /// A trade can be killed anywhere in its lifecycle, and cannot be restarted
-    /// @dev Callable by TRADE_PROPOSER or PRICE_CURATOR
+    /// @dev Callable by TRADE_PROPOSER or BASKET_CURATOR
     function killTrade(uint256 tradeId) external nonReentrant {
-        if (!hasRole(TRADE_PROPOSER, msg.sender) && !hasRole(PRICE_CURATOR, msg.sender)) {
+        if (!hasRole(TRADE_PROPOSER, msg.sender) && !hasRole(BASKET_CURATOR, msg.sender)) {
             revert Folio__Unauthorized();
         }
 
@@ -647,7 +670,7 @@ contract Folio is
             trade.startPrice < trade.endPrice ||
             trade.startPrice == 0 ||
             trade.endPrice == 0 ||
-            trade.startPrice > MAX_EXCHANGE_RATE ||
+            trade.startPrice > MAX_RATE ||
             trade.startPrice / trade.endPrice > MAX_PRICE_RANGE
         ) {
             revert Folio__InvalidPrices();

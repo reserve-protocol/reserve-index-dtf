@@ -4,11 +4,11 @@
 
 Reserve Folio is a protocol for creating and managing portfolios of ERC20-compliant assets entirely onchain. Folios are designed to be used as a single-source of truth for asset allocations, enabling composability of complex, multi-asset portfolios.
 
-Folios support rebalancing trades via Dutch Auction over an exponential decay curve between two prices. Control flow over the trade is shared between two parties, with a `TRADE_PROPOSER` approving trades and a `PRICE_CURATOR` opening them.
+Folios support rebalancing trades via Dutch Auction over an exponential decay curve between two prices. Control flow over the trade is shared between two parties, with a `TRADE_PROPOSER` approving trades and a `BASKET_CURATOR` opening them.
 
 `TRADE_PROPOSER` is expected to be the timelock of the fast-moving trade governor associated with the Folio.
 
-`PRICE_CURATOR` is expected to be a semi-trusted EOA or multisig; They can open trades within the bounds set by governance, hopefully adding precision. If they are offline, the trade can be opened permissionlessly after a preset delay. If they are evil, at-best they can prevent a Folio from rebalancing by killing trades, but they cannot access the backing directly.
+`BASKET_CURATOR` is expected to be a semi-trusted EOA or multisig; They can open trades within the bounds set by governance, hopefully adding precision. If they are offline, the trade can be opened permissionlessly after a preset delay. If they are evil, at-best they can prevent a Folio from rebalancing by killing trades, but they cannot access the backing directly.
 
 ### Architecture
 
@@ -43,12 +43,12 @@ A Folio has 3 roles:
 1. `DEFAULT_ADMIN_ROLE`
    - Expected: Timelock of Slow Folio Governor
    - Can add/remove assets, set fees, configure auction length, and set the trade delay
-   - Can configure the `TRADE_PROPOSER`/ `PRICE_CURATOR`
+   - Can configure the `TRADE_PROPOSER`/ `BASKET_CURATOR`
    - Primary owner of the Folio
 2. `TRADE_PROPOSER`
    - Expected: Timelock of Fast Folio Governor
    - Can approve trades
-3. `PRICE_CURATOR`
+3. `BASKET_CURATOR`
    - Expected: EOA or multisig
    - Can open and kill trades
 
@@ -65,22 +65,38 @@ The staking vault has ONLY a single owner:
 
 1. Trade is approved by governance, including an initial price range
 2. Trade is opened, starting a dutch auction
-   a. ...either by the price curator (immediately)
+   a. ...either by the basket curator (immediately)
    b. ...or permissionlessly (after a delay)
 3. Bids occur
 4. Auction expires
 
 ##### Auction Usage
 
+###### Price
+
 There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `TRADE_PROPOSER`:
 
-1. Can provide `[0, 0]` to _fully_ defer to the price curator for pricing. In this mode the auction CANNOT be opened permissionlessly. Loss can arise either due to the price curator setting `startPrice` too low, or due to precision issues from traversing too large a range.
-2. Can provide `[startPrice, 0]` to defer to the price curator for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
-3. Can provide `[startPrice, endPrice]` to defer to the price curator for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Loss is minimal.
+1. Can provide `[0, 0]` to _fully_ defer to the basket curator for pricing. In this mode the auction CANNOT be opened permissionlessly. Loss can arise either due to the basket curator setting `startPrice` too low, or due to precision issues from traversing too large a range.
+2. Can provide `[startPrice, 0]` to defer to the basket curator for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
+3. Can provide `[startPrice, endPrice]` to defer to the basket curator for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Loss is minimal.
 
-The `PRICE_CURATOR` can choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
+The `BASKET_CURATOR` can choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
 
 The price range (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues.
+
+###### Buy limit
+
+Governance configures a range for the buy limit, including a spot estimate:
+
+```solidity
+struct Range {
+  uint256 spot; // D27{buyTok/share}
+  uint256 low; // D27{buyTok/share} inclusive
+  uint256 high; // D27{buyTok/share} inclusive
+}
+```
+
+During `openTrade` the `BASKET_CURATOR` can set the buy limit within the approved range provided by governance. If the trade is opened permissionlessly instead, the buy limit will use the governance pre-approved spot estimate.
 
 ##### Auction Dynamics
 

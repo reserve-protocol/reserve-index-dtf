@@ -77,7 +77,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         }
 
         for (uint256 i; i < priceCurators.length; i++) {
-            folio.grantRole(folio.PRICE_CURATOR(), priceCurators[i]);
+            folio.grantRole(folio.BASKET_CURATOR(), priceCurators[i]);
         }
 
         // Renounce adminship
