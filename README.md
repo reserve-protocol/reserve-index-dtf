@@ -8,7 +8,7 @@ Folios support rebalancing trades via Dutch Auction over an exponential decay cu
 
 `TRADE_PROPOSER` is expected to be the timelock of the fast-moving trade governor associated with the Folio.
 
-`BASKET_CURATOR` is expected to be a semi-trusted EOA or multisig; They can open trades within the bounds set by governance, hopefully adding precision. If they are offline, the trade can be opened permissionlessly after a preset delay. If they are evil, at-best they can prevent a Folio from rebalancing by killing trades, but they cannot access the backing directly.
+`BASKET_CURATOR` is expected to be a semi-trusted EOA or multisig; They can open trades within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the trade can be opened permissionlessly after a preset delay. If they are evil, at-best they can deviate trading within the governance-granted range, or prevent a Folio from rebalancing entirely by killing trades. They cannot access the backing directly.
 
 ### Architecture
 
