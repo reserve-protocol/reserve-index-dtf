@@ -13,17 +13,10 @@ evm_version = "paris"
 optimizer = true
 optimizer_runs = 200
 solc_version = "0.8.28"
+via_ir = true
 
 # Permissions
 fs_permissions = [{access = "read-write", path = "./"}]
-
-additional_compiler_profiles = [
-  {name = "test", via_ir = false},
-]
-
-compilation_restrictions = [
-  {paths = "test/**", via_ir = false},
-]
 
 [rpc_endpoints]
 base = "https://base-mainnet.infura.io/v3/b6bf7d3508c941499b10025c0776eaf8"

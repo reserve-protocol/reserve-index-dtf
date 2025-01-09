@@ -77,24 +77,21 @@ contract DeployScript is Script {
         address governorImplementation = address(new FolioGovernor());
         address timelockImplementation = address(new TimelockControllerUpgradeable());
 
+        GovernanceDeployer governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
         FolioDeployer folioDeployer = new FolioDeployer(
             address(daoFeeRegistry),
             address(versionRegistry),
-            governorImplementation,
-            timelockImplementation
+            governanceDeployer
         );
-        GovernanceDeployer governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
 
         vm.stopBroadcast();
 
-        console.log("Folio Deployer: %s", address(folioDeployer));
         console.log("Governance Deployer: %s", address(governanceDeployer));
+        console.log("Folio Deployer: %s", address(folioDeployer));
 
         require(folioDeployer.daoFeeRegistry() == address(daoFeeRegistry), "wrong dao fee registry");
         require(folioDeployer.versionRegistry() == address(versionRegistry), "wrong version registry");
-        require(folioDeployer.governorImplementation() == governorImplementation, "wrong governor implementation");
-        require(folioDeployer.timelockImplementation() == timelockImplementation, "wrong timelock implementation");
-
+        require(folioDeployer.governanceDeployer() == governanceDeployer, "wrong version registry");
         require(governanceDeployer.governorImplementation() == governorImplementation, "wrong governor implementation");
         require(governanceDeployer.timelockImplementation() == timelockImplementation, "wrong timelock implementation");
     }

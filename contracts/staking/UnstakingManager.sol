@@ -4,8 +4,6 @@ pragma solidity 0.8.28;
 import { IERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-
 /**
  * @title UnstakingManager
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
@@ -21,7 +19,7 @@ contract UnstakingManager {
         uint256 claimedAt; // {s}
     }
 
-    uint256 nextLockId;
+    uint256 private nextLockId;
     mapping(uint256 => Lock) public locks;
 
     event LockCreated(uint256 lockId, address user, uint256 amount, uint256 unlockTime);
