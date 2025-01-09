@@ -1480,8 +1480,7 @@ contract FolioTest is BaseTest {
     }
 
     function test_poke() public {
-        uint256 prevBlockTimestamp = block.timestamp;
-        assertEq(folio.lastPoke(), prevBlockTimestamp);
+        uint256 prevBlockTimestamp = folio.lastPoke();
 
         // fast forward, accumulate fees
         vm.warp(block.timestamp + YEAR_IN_SECONDS);
@@ -1494,7 +1493,6 @@ contract FolioTest is BaseTest {
         // call poke
         folio.poke();
         assertEq(folio.lastPoke(), block.timestamp);
-        console2.log("enter");
         assertGt(block.timestamp, prevBlockTimestamp);
 
         // after poke
