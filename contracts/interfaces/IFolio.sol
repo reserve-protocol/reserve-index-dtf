@@ -105,7 +105,7 @@ interface IFolio {
         IERC20 sell;
         IERC20 buy;
         uint256 sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
-        Range buyLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
+        Range buyLimit; // D27{sellTok/share} min ratio of sell token to shares allowed (as a range)
         uint256 startPrice; // D27{buyTok/sellTok}
         uint256 endPrice; // D27{buyTok/sellTok}
         uint256 availableAt; // {s} inclusive

@@ -484,6 +484,7 @@ contract Folio is
         );
     }
 
+    /// Open a trade as the basket curator by providing a buy limit and price range
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param startPrice D27{buyTok/sellTok} 1e54 max
     /// @param endPrice D27{buyTok/sellTok} 1e54 max
@@ -498,6 +499,7 @@ contract Folio is
         // basket curator can:
         //   - raise starting price by up to 100x
         //   - raise ending price arbitrarily (can cause auction not to clear)
+        //   - select a buy limit within the approved range
 
         if (
             startPrice < trade.startPrice ||
