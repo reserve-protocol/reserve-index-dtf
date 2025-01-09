@@ -75,7 +75,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         folio_ = address(folio);
 
-        emit FolioDeployed(folio_, folioAdmin_);
+        emit FolioDeployed(owner, folio_, folioAdmin_);
     }
 
     /// Deploy a Folio instance with brand new owner + trading governors
@@ -120,6 +120,13 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             priceCurators
         );
 
-        emit GovernedFolioDeployed(folio, ownerGovernor, ownerTimelock, tradingGovernor, tradingTimelock);
+        emit GovernedFolioDeployed(
+            address(stToken),
+            folio,
+            ownerGovernor,
+            ownerTimelock,
+            tradingGovernor,
+            tradingTimelock
+        );
     }
 }
