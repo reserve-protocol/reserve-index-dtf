@@ -108,7 +108,7 @@ abstract contract BaseTest is Script, Test {
     }
 
     function _testSetupAfter() public virtual {
-        vm.label(address(curator), "Price Curator");
+        vm.label(address(curator), "Curator");
         vm.label(address(dao), "DAO");
         vm.label(address(owner), "Owner");
         vm.label(address(user1), "User 1");

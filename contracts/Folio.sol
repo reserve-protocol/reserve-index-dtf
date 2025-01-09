@@ -680,7 +680,14 @@ contract Folio is
 
         trade.start = block.timestamp;
         trade.end = block.timestamp + auctionLength;
-        emit TradeOpened(trade.id, trade.startPrice, trade.endPrice, block.timestamp, block.timestamp + auctionLength);
+        emit TradeOpened(
+            trade.id,
+            trade.startPrice,
+            trade.endPrice,
+            trade.buyLimit.spot,
+            block.timestamp,
+            block.timestamp + auctionLength
+        );
 
         // D18{1}
         // k = ln(P_0 / P_t) / t
