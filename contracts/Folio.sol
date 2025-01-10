@@ -58,10 +58,9 @@ contract Folio is
      * Roles
      */
     bytes32 public constant TRADE_PROPOSER = keccak256("TRADE_PROPOSER"); // expected to be trading governance's timelock
-    bytes32 public constant BASKET_CURATOR = keccak256("BASKET_CURATOR"); // optional: EOA or multisig
+    bytes32 public constant CURATOR = keccak256("CURATOR"); // optional: EOA or multisig
 
     /**
-     * Basket
      */
     EnumerableSet.AddressSet private basket;
 
@@ -82,7 +81,7 @@ contract Folio is
 
     /**
      * Trading
-     *   - Trades have a delay before they can be opened, that BASKET_CURATOR can bypass
+     *   - Trades have a delay before they can be opened, that CURATOR can bypass
      *   - Multiple trades can be open at once
      *   - Multiple bids can be executed against the same trade
      *   - All trades are dutch auctions, but it's possible to pass startPrice = endPrice
@@ -408,8 +407,8 @@ contract Folio is
     /// @param buy The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
-    /// @param startPrice D27{buyTok/sellTok} Provide 0 to defer pricing to basket curator, 1e54 max
-    /// @param endPrice D27{buyTok/sellTok} Provide 0 to defer pricing to basket curator, 1e54 max
+    /// @param startPrice D27{buyTok/sellTok} Provide 0 to defer pricing to curator, 1e54 max
+    /// @param endPrice D27{buyTok/sellTok} Provide 0 to defer pricing to curator, 1e54 max
     /// @param ttl {s} How long a trade can exist in an APPROVED state until it can no longer be OPENED
     ///     (once opened, it always finishes). Accepts type(uint256).max .
     ///     Must be longer than tradeDelay if intended to be permissionlessly available.
@@ -491,7 +490,7 @@ contract Folio is
         );
     }
 
-    /// Open a trade as the basket curator by providing a buy limit and price range
+    /// Open a trade as the curator by providing a buy limit and price range
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param startPrice D27{buyTok/sellTok} 1e54 max
@@ -502,10 +501,10 @@ contract Folio is
         uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice
-    ) external nonReentrant onlyRole(BASKET_CURATOR) {
+    ) external nonReentrant onlyRole(CURATOR) {
         Trade storage trade = trades[tradeId];
 
-        // basket curator can:
+        // curator can:
         //   - raise starting price by up to 100x
         //   - raise ending price arbitrarily (can cause auction not to clear)
         //   - select a sell limit within the approved range
@@ -628,9 +627,9 @@ contract Folio is
 
     /// Kill a trade
     /// A trade can be killed anywhere in its lifecycle, and cannot be restarted
-    /// @dev Callable by TRADE_PROPOSER or BASKET_CURATOR
+    /// @dev Callable by TRADE_PROPOSER or CURATOR
     function killTrade(uint256 tradeId) external nonReentrant {
-        if (!hasRole(TRADE_PROPOSER, msg.sender) && !hasRole(BASKET_CURATOR, msg.sender)) {
+        if (!hasRole(TRADE_PROPOSER, msg.sender) && !hasRole(CURATOR, msg.sender)) {
             revert Folio__Unauthorized();
         }
 

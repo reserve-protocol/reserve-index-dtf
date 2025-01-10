@@ -1126,14 +1126,10 @@ contract FolioTest is BaseTest {
         vm.startPrank(dao);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 1, 1, MAX_TTL);
 
-        // dao should not be able to open trade because not basket curator
+        // dao should not be able to open trade because not curator
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                dao,
-                folio.BASKET_CURATOR()
-            )
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, dao, folio.CURATOR())
         );
         folio.openTrade(0, 0, MAX_RATE, 1, 1); // 10x -> 1x
 
@@ -1152,14 +1148,10 @@ contract FolioTest is BaseTest {
         vm.startPrank(dao);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 1e27, 1e27, MAX_TTL);
 
-        // dao should not be able to open trade because not basket curator
+        // dao should not be able to open trade because not curator
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                dao,
-                folio.BASKET_CURATOR()
-            )
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, dao, folio.CURATOR())
         );
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
