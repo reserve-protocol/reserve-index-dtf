@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 import { FolioDeployerV2 } from "./utils/upgrades/FolioDeployerV2.sol";
+import { FolioV2 } from "./utils/upgrades/FolioV2.sol";
 import { IFolioVersionRegistry } from "contracts/interfaces/IFolioVersionRegistry.sol";
 import { FolioVersionRegistry } from "contracts/folio/FolioVersionRegistry.sol";
 import "./base/BaseTest.sol";
@@ -43,8 +44,11 @@ contract FolioVersionRegistryTest is BaseTest {
     }
 
     function test_registerVersion() public {
+        FolioV2 newImplementation = new FolioV2();
+
         // deploy and register new factory with new version
         FolioDeployer newFactoryV2 = new FolioDeployerV2(
+            address(newImplementation),
             address(daoFeeRegistry),
             address(versionRegistry),
             governanceDeployer
@@ -82,7 +86,10 @@ contract FolioVersionRegistryTest is BaseTest {
     }
 
     function test_cannotRegisterVersionIfNotOwner() public {
+        FolioV2 newImplementation = new FolioV2();
+
         FolioDeployer newFactoryV2 = new FolioDeployerV2(
+            address(newImplementation),
             address(daoFeeRegistry),
             address(versionRegistry),
             governanceDeployer

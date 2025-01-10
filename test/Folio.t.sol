@@ -11,6 +11,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { ERC1967Utils } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import { FolioDeployerV2 } from "test/utils/upgrades/FolioDeployerV2.sol";
+import { FolioV2 } from "test/utils/upgrades/FolioV2.sol";
 import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
@@ -1244,8 +1245,11 @@ contract FolioTest is BaseTest {
     }
 
     function test_upgrade() public {
+        FolioV2 newImplementation = new FolioV2();
+
         // Deploy and register new factory with version 2.0.0
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
+            address(newImplementation),
             address(daoFeeRegistry),
             address(versionRegistry),
             governanceDeployer
@@ -1280,8 +1284,11 @@ contract FolioTest is BaseTest {
     }
 
     function test_cannotUpgradeToDeprecatedVersion() public {
+        FolioV2 newImplementation = new FolioV2();
+
         // Deploy and register new factory with version 2.0.0
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
+            address(newImplementation),
             address(daoFeeRegistry),
             address(versionRegistry),
             governanceDeployer
@@ -1304,8 +1311,11 @@ contract FolioTest is BaseTest {
     }
 
     function test_cannotUpgradeIfNotOwnerOfProxyAdmin() public {
+        FolioV2 newImplementation = new FolioV2();
+
         // Deploy and register new factory with version 2.0.0
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
+            address(newImplementation),
             address(daoFeeRegistry),
             address(versionRegistry),
             governanceDeployer
@@ -1326,8 +1336,11 @@ contract FolioTest is BaseTest {
     }
 
     function test_cannotUpgradeFolioDirectly() public {
+        FolioV2 newImplementation = new FolioV2();
+
         // Deploy and register new factory with version 2.0.0
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
+            address(newImplementation),
             address(daoFeeRegistry),
             address(versionRegistry),
             governanceDeployer
