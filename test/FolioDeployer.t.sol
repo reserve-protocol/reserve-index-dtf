@@ -355,7 +355,7 @@ contract FolioDeployerTest is BaseTest {
                 priceCurators,
                 new address[](0)
             );
-        vm.stopSnapshotGas("deployGovernedFolio()");
+        vm.stopSnapshotGas("deployGovernedFolio");
         vm.stopPrank();
         folio = Folio(_folio);
         proxyAdmin = FolioProxyAdmin(_folioAdmin);
@@ -396,6 +396,7 @@ contract FolioDeployerTest is BaseTest {
         assertEq(ownerGovernor.proposalThreshold(), 0.02e18, "wrong proposal threshold");
         assertEq(ownerGovernor.quorumNumerator(), 8, "wrong quorum numerator");
         assertEq(ownerGovernor.quorumDenominator(), 100, "wrong quorum denominator");
+        assertEq(ownerGovernor.timelock(), _ownerTimelock, "wrong timelock");
         assertEq(ownerTimelock.getMinDelay(), 2 days, "wrong timelock min delay");
         assertTrue(
             ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), address(ownerTimelock)),
@@ -424,6 +425,7 @@ contract FolioDeployerTest is BaseTest {
         assertEq(tradingGovernor.proposalThreshold(), 0.01e18, "wrong proposal threshold");
         assertEq(tradingGovernor.quorumNumerator(), 4, "wrong quorum numerator");
         assertEq(tradingGovernor.quorumDenominator(), 100, "wrong quorum denominator");
+        assertEq(tradingGovernor.timelock(), _tradingTimelock, "wrong trading timelock");
         assertEq(tradingTimelock.getMinDelay(), 1 days, "wrong timelock min delay");
         assertTrue(
             tradingTimelock.hasRole(tradingTimelock.DEFAULT_ADMIN_ROLE(), address(tradingTimelock)),
@@ -444,5 +446,126 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(tradingTimelock.hasRole(tradingTimelock.EXECUTOR_ROLE(), _tradingGovernor), "wrong executor role");
         assertFalse(tradingTimelock.hasRole(tradingTimelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
         assertTrue(tradingTimelock.hasRole(tradingTimelock.CANCELLER_ROLE(), user1), "wrong canceler role");
+    }
+
+    function test_createGovernedFolioFromExistingTradeApprovers() public {
+        // Deploy Community Governor
+
+        (StakingVault stToken, , ) = governanceDeployer.deployGovernedStakingToken(
+            "Test Staked MEME Token",
+            "STKMEME",
+            MEME,
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
+        );
+
+        // Deploy Governed Folio
+
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(DAI);
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = D6_TOKEN_10K;
+        amounts[1] = D18_TOKEN_10K;
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
+
+        vm.startPrank(owner);
+        USDC.approve(address(folioDeployer), type(uint256).max);
+        DAI.approve(address(folioDeployer), type(uint256).max);
+
+        address[] memory priceCurators = new address[](1);
+        priceCurators[0] = priceCurator;
+
+        address[] memory tradeApprovers = new address[](1);
+        tradeApprovers[0] = user2;
+
+        vm.startSnapshotGas("deployGovernedFolioFromExistingTradeApprovers");
+        (address _folio, address _folioAdmin, address _ownerGovernor, address _ownerTimelock) = folioDeployer
+            .deployGovernedFolioFromExistingTradeApprovers(
+                stToken,
+                IFolio.FolioBasicDetails({
+                    name: "Test Folio",
+                    symbol: "TFOLIO",
+                    assets: tokens,
+                    amounts: amounts,
+                    initialShares: INITIAL_SUPPLY
+                }),
+                IFolio.FolioAdditionalDetails({
+                    tradeDelay: MAX_TRADE_DELAY,
+                    auctionLength: MAX_AUCTION_LENGTH,
+                    feeRecipients: recipients,
+                    folioFee: MAX_FOLIO_FEE,
+                    mintingFee: MAX_MINTING_FEE
+                }),
+                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
+                tradeApprovers,
+                priceCurators,
+                new address[](0)
+            );
+        vm.stopSnapshotGas("deployGovernedFolioFromExistingTradeApprovers");
+        vm.stopPrank();
+        folio = Folio(_folio);
+        proxyAdmin = FolioProxyAdmin(_folioAdmin);
+
+        // Check Folio
+
+        assertEq(folio.name(), "Test Folio", "wrong name");
+        assertEq(folio.symbol(), "TFOLIO", "wrong symbol");
+        assertEq(folio.decimals(), 18, "wrong decimals");
+        assertEq(folio.auctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
+        assertEq(folio.totalSupply(), 1e18 * 10000, "wrong total supply");
+        assertEq(folio.balanceOf(owner), 1e18 * 10000, "wrong owner balance");
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 2, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
+        assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
+        assertEq(folio.folioFee(), MAX_FOLIO_FEE, "wrong folio fee");
+        (address r1, uint256 bps1) = folio.feeRecipients(0);
+        assertEq(r1, owner, "wrong first recipient");
+        assertEq(bps1, 0.9e18, "wrong first recipient bps");
+        (address r2, uint256 bps2) = folio.feeRecipients(1);
+        assertEq(r2, feeReceiver, "wrong second recipient");
+        assertEq(bps2, 0.1e18, "wrong second recipient bps");
+
+        // Check owner governor + owner timelock
+        vm.startPrank(user1);
+        MEME.approve(address(stToken), type(uint256).max);
+        stToken.deposit(D18_TOKEN_1, user1);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 1);
+
+        FolioGovernor ownerGovernor = FolioGovernor(payable(_ownerGovernor));
+        TimelockController ownerTimelock = TimelockController(payable(ownerGovernor.timelock()));
+        assertEq(ownerGovernor.votingDelay(), 2 seconds, "wrong voting delay");
+        assertEq(ownerGovernor.votingPeriod(), 2 weeks, "wrong voting period");
+        assertEq(ownerGovernor.proposalThreshold(), 0.02e18, "wrong proposal threshold");
+        assertEq(ownerGovernor.quorumNumerator(), 8, "wrong quorum numerator");
+        assertEq(ownerGovernor.quorumDenominator(), 100, "wrong quorum denominator");
+        assertEq(ownerGovernor.timelock(), _ownerTimelock, "wrong owner timelock");
+        assertEq(ownerTimelock.getMinDelay(), 2 days, "wrong timelock min delay");
+        assertTrue(
+            ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), address(ownerTimelock)),
+            "wrong admin role"
+        );
+        assertFalse(ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), _ownerGovernor), "wrong admin role");
+        assertFalse(
+            ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), address(folioDeployer)),
+            "wrong admin role"
+        );
+        assertFalse(ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), _ownerGovernor), "wrong admin role");
+        assertFalse(ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), owner), "wrong admin role");
+        assertFalse(ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), user2), "wrong admin role");
+        assertFalse(ownerTimelock.hasRole(ownerTimelock.PROPOSER_ROLE(), address(0)), "wrong proposer role");
+        assertTrue(ownerTimelock.hasRole(ownerTimelock.PROPOSER_ROLE(), _ownerGovernor), "wrong proposer role");
+        assertTrue(ownerTimelock.hasRole(ownerTimelock.EXECUTOR_ROLE(), _ownerGovernor), "wrong executor role");
+        assertFalse(ownerTimelock.hasRole(ownerTimelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
+        assertTrue(ownerTimelock.hasRole(ownerTimelock.CANCELLER_ROLE(), user2), "wrong canceler role");
+
+        // Check trading role
+
+        assertTrue(folio.hasRole(folio.TRADE_PROPOSER(), tradeApprovers[0]), "wrong trade proposer role");
     }
 }

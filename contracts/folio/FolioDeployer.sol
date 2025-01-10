@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
@@ -79,7 +80,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         folio_ = address(folio);
 
-        emit FolioDeployed(owner, folio_, folioAdmin_);
+        emit FolioDeployed(folio_, folioAdmin_, owner);
     }
 
     /// Deploy a Folio instance with brand new owner + trading governors
@@ -108,31 +109,56 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             address tradingTimelock
         )
     {
-        // Deploy Owner Governance
-        (ownerGovernor, ownerTimelock) = governanceDeployer.deployGovernanceWithTimelock(ownerGovParams, stToken);
-
         // Deploy Trading Governance
         (tradingGovernor, tradingTimelock) = governanceDeployer.deployGovernanceWithTimelock(tradingGovParams, stToken);
+        emit GovernanceDeployed(
+            Folio(folioImplementation).TRADE_PROPOSER(),
+            address(stToken),
+            tradingGovernor,
+            tradingTimelock
+        );
 
-        // Deploy Folio
-        address[] memory tradeProposers = new address[](1);
-        tradeProposers[0] = tradingTimelock;
+        address[] memory tradeApprovers = new address[](1);
+        tradeApprovers[0] = tradingTimelock;
+
+        // Deploy Folio + Owner Governance
+        (folio, proxyAdmin, ownerGovernor, ownerTimelock) = deployGovernedFolioFromExistingTradeApprovers(
+            stToken,
+            basicDetails,
+            additionalDetails,
+            ownerGovParams,
+            tradeApprovers,
+            priceCurators,
+            vibesOfficers
+        );
+    }
+
+    function deployGovernedFolioFromExistingTradeApprovers(
+        IVotes stToken,
+        IFolio.FolioBasicDetails calldata basicDetails,
+        IFolio.FolioAdditionalDetails calldata additionalDetails,
+        IGovernanceDeployer.GovParams calldata ownerGovParams,
+        address[] memory tradeApprovers,
+        address[] memory priceCurators,
+        address[] memory vibesOfficers
+    ) public returns (address folio, address proxyAdmin, address ownerGovernor, address ownerTimelock) {
+        // Deploy owner governor + timelock
+        (ownerGovernor, ownerTimelock) = governanceDeployer.deployGovernanceWithTimelock(ownerGovParams, stToken);
+        emit GovernanceDeployed(
+            Folio(folioImplementation).DEFAULT_ADMIN_ROLE(),
+            address(stToken),
+            ownerGovernor,
+            ownerTimelock
+        );
+
         (folio, proxyAdmin) = deployFolio(
             basicDetails,
             additionalDetails,
             ownerTimelock,
-            tradeProposers,
+            tradeApprovers,
             priceCurators,
             vibesOfficers
         );
-
-        emit GovernedFolioDeployed(
-            address(stToken),
-            folio,
-            ownerGovernor,
-            ownerTimelock,
-            tradingGovernor,
-            tradingTimelock
-        );
+        emit FolioDeployed(folio, proxyAdmin, ownerTimelock);
     }
 }
