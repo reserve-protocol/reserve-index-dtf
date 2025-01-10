@@ -331,7 +331,7 @@ contract Folio is
 
     function distributeFees() public nonReentrant {
         _poke();
-        // pendingFeeShares is up-to-date
+        // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
 
         // Fee recipients
         uint256 _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
@@ -378,7 +378,7 @@ contract Folio is
     /// @param startPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator
     /// @param endPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator
     /// @param ttl {s} How long a trade can exist in an APPROVED state until it can no longer be OPENED
-    ///     (once opened, it always finishes). Accepts type(uint256).max .
+    ///     (once opened, it always finishes).
     ///     Must be longer than tradeDelay if intended to be permissionlessly available.
     function approveTrade(
         uint256 tradeId,
@@ -713,7 +713,7 @@ contract Folio is
         emit AuctionLengthSet(auctionLength);
     }
 
-    /// @dev After: pendingFeeShares is up-to-date
+    /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
     function _poke() internal {
         if (lastPoke == block.timestamp) {
             return;
