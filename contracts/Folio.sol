@@ -15,8 +15,8 @@ import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 
 import { Versioned } from "@utils/Versioned.sol";
 
-import { IFolioDAOFeeRegistry } from "./interfaces/IFolioDAOFeeRegistry.sol";
-import { IFolio } from "./interfaces/IFolio.sol";
+import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
+import { IFolio } from "@interfaces/IFolio.sol";
 
 interface IBidderCallee {
     /// @param buyAmount {qBuyTok}
@@ -24,7 +24,7 @@ interface IBidderCallee {
 }
 
 uint256 constant MAX_FOLIO_FEE = 21979552668; // D18{1/s} 50% annually
-uint256 constant MAX_MINTING_FEE = 0.1e18; // D18{1} 10%
+uint256 constant MAX_MINTING_FEE = 0.10e18; // D18{1} 10%
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week

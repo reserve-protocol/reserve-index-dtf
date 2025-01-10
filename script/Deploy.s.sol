@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "forge-std/Script.sol";
+import { Script, console2 } from "forge-std/Script.sol";
 
 import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 
@@ -86,8 +86,8 @@ contract DeployScript is Script {
 
         vm.stopBroadcast();
 
-        console.log("Governance Deployer: %s", address(governanceDeployer));
-        console.log("Folio Deployer: %s", address(folioDeployer));
+        console2.log("Governance Deployer: %s", address(governanceDeployer));
+        console2.log("Folio Deployer: %s", address(folioDeployer));
 
         require(folioDeployer.daoFeeRegistry() == address(daoFeeRegistry), "wrong dao fee registry");
         require(folioDeployer.versionRegistry() == address(versionRegistry), "wrong version registry");
