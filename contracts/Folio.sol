@@ -23,7 +23,7 @@ interface IBidderCallee {
     function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
 }
 
-uint256 constant MAX_FOLIO_FEE = 21979552668; // D18{1/s} 50% annually
+uint256 constant MIN_FOLIO_FEE_HALF_LIFE = 365 * 86400; // D18{s} 1 year
 uint256 constant MAX_MINTING_FEE = 0.10e18; // D18{1} 10%
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
@@ -32,6 +32,8 @@ uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
+
+uint256 constant LN_2 = 0.693147180559945309e18; // D18{1} ln(2e18)
 
 uint256 constant SCALAR = 1e18; // D18
 
@@ -642,13 +644,16 @@ contract Folio is
         _feeRecipientsPendingFeeShares += feeShares - daoShares;
     }
 
-    function _setFolioFee(uint256 _newFee) internal {
-        if (_newFee > MAX_FOLIO_FEE) {
+    /// @param _newFeeHalfLife {s} Can pass 0 for no-fee
+    function _setFolioFee(uint256 _newFeeHalfLife) internal {
+        if (_newFeeHalfLife != 0 && _newFeeHalfLife < MIN_FOLIO_FEE_HALF_LIFE) {
             revert Folio__FolioFeeTooHigh();
         }
 
-        folioFee = _newFee;
-        emit FolioFeeSet(_newFee);
+        // D18{1/s} = D18{1} / {s}
+        folioFee = _newFeeHalfLife != 0 ? LN_2 / _newFeeHalfLife : 0;
+
+        emit FolioFeeSet(folioFee, _newFeeHalfLife);
     }
 
     function _setMintingFee(uint256 _newFee) internal {
