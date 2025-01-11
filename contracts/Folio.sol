@@ -645,13 +645,15 @@ contract Folio is
         _feeRecipientsPendingFeeShares += feeShares - daoShares;
     }
 
+    /// Set folio fee by annual percentage
     /// @param _newFeeAnnually {s}
     function _setFolioFee(uint256 _newFeeAnnually) internal {
         if (_newFeeAnnually > MAX_FOLIO_FEE_ANNUALLY) {
             revert Folio__FolioFeeTooHigh();
         }
 
-        folioFee = 1e18 - UD60x18.wrap(1e18 - _newFeeAnnually).pow(UD60x18.wrap(ONE_OVER_A_YEAR)).unwrap();
+        // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
+        folioFee = SCALAR - UD60x18.wrap(SCALAR - _newFeeAnnually).pow(UD60x18.wrap(ONE_OVER_A_YEAR)).unwrap();
 
         if (_newFeeAnnually != 0 && folioFee == 0) {
             revert Folio__FolioFeeTooLow();
@@ -700,7 +702,7 @@ contract Folio is
             emit FeeRecipientSet(_feeRecipients[i].recipient, _feeRecipients[i].portion);
         }
 
-        if (total != 1e18) {
+        if (total != SCALAR) {
             revert Folio__BadFeeTotal();
         }
     }

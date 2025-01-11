@@ -15,6 +15,7 @@ import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
+    uint256 internal constant MAX_FOLIO_FEE = 21979552667; // D18{1/s} 50% annually, per second
 
     function _testSetup() public virtual override {
         super._testSetup();
@@ -71,7 +72,7 @@ contract FolioTest is BaseTest {
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
         assertEq(MEME.balanceOf(address(folio)), D27_TOKEN_10K, "wrong folio meme balance");
-        assertEq(folio.folioFee(), 21979552667, "wrong folio fee");
+        assertEq(folio.folioFee(), MAX_FOLIO_FEE, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 0.9e18, "wrong first recipient bps");
@@ -466,7 +467,7 @@ contract FolioTest is BaseTest {
         uint256 pendingFeeShares = folio.getPendingFeeShares();
 
         // validate pending fees have been accumulated -- 50% fee = 100% of supply
-        assertApproxEqAbs(supplyBefore, pendingFeeShares, 1e15, "wrong pending fee shares");
+        assertApproxEqAbs(supplyBefore, pendingFeeShares, 1e12, "wrong pending fee shares");
 
         uint256 initialOwnerShares = folio.balanceOf(owner);
         folio.distributeFees();
@@ -561,18 +562,22 @@ contract FolioTest is BaseTest {
 
     function test_setFolioFee() public {
         vm.startPrank(owner);
-        assertEq(folio.folioFee(), 21979552667, "wrong folio fee");
+        assertEq(folio.folioFee(), MAX_FOLIO_FEE, "wrong folio fee");
         uint256 newFolioFee = MAX_FOLIO_FEE_ANNUALLY / 1000;
+        uint256 newFolioFeePerSecond = 15858860;
         vm.expectEmit(true, true, false, true);
-        emit IFolio.FolioFeeSet(15858860, MAX_FOLIO_FEE_ANNUALLY / 1000);
+        emit IFolio.FolioFeeSet(newFolioFeePerSecond, MAX_FOLIO_FEE_ANNUALLY / 1000);
         folio.setFolioFee(newFolioFee);
-        assertEq(folio.folioFee(), 15858860, "wrong folio fee");
+        assertEq(folio.folioFee(), newFolioFeePerSecond, "wrong folio fee");
     }
 
-    function test_setFolioFeeTooLow() public {
+    function test_setFolioFeeOutOfBounds() public {
         vm.startPrank(owner);
         vm.expectRevert(IFolio.Folio__FolioFeeTooLow.selector);
         folio.setFolioFee(1);
+
+        vm.expectRevert(IFolio.Folio__FolioFeeTooHigh.selector);
+        folio.setFolioFee(MAX_FOLIO_FEE_ANNUALLY + 1);
     }
 
     function test_setTradeDelay() public {
@@ -666,13 +671,6 @@ contract FolioTest is BaseTest {
             "wrong owner shares"
         );
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
-    }
-
-    function test_setFolioFee_InvalidFee() public {
-        vm.startPrank(owner);
-        uint256 newFolioFee = MAX_FOLIO_FEE_ANNUALLY + 1;
-        vm.expectRevert(IFolio.Folio__FolioFeeTooHigh.selector);
-        folio.setFolioFee(newFolioFee);
     }
 
     function test_setFolioFeeRecipients_InvalidRecipient() public {

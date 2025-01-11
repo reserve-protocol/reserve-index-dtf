@@ -13,6 +13,7 @@ import "./base/BaseTest.sol";
 
 contract FolioDeployerTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
+    uint256 internal constant MAX_FOLIO_FEE = 21979552667; // D18{1/s} 50% annually, per second
 
     function test_constructor() public view {
         assertEq(address(folioDeployer.daoFeeRegistry()), address(daoFeeRegistry));
@@ -62,7 +63,7 @@ contract FolioDeployerTest is BaseTest {
         assertEq(_assets[1], address(DAI), "wrong second asset");
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
-        assertEq(folio.folioFee(), 21979552667, "wrong folio fee");
+        assertEq(folio.folioFee(), MAX_FOLIO_FEE, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 0.9e18, "wrong first recipient bps");
@@ -386,7 +387,7 @@ contract FolioDeployerTest is BaseTest {
         assertEq(_assets[1], address(DAI), "wrong second asset");
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
-        assertEq(folio.folioFee(), 21979552667, "wrong folio fee");
+        assertEq(folio.folioFee(), MAX_FOLIO_FEE, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 0.9e18, "wrong first recipient bps");
