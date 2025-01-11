@@ -4,11 +4,11 @@
 
 Reserve Folio is a protocol for creating and managing portfolios of ERC20-compliant assets entirely onchain. Folios are designed to be used as a single-source of truth for asset allocations, enabling composability of complex, multi-asset portfolios.
 
-Folios support rebalancing trades via Dutch Auction over an exponential decay curve between two prices. Control flow over the trade is shared between two parties, with a `TRADE_PROPOSER` approving trades and a `CURATOR` opening them.
+Folios support rebalancing trades via Dutch Auction over an exponential decay curve between two prices. Control flow over the trade is shared between two parties, with a `TRADE_PROPOSER` approving trades and a `TRADE_CURATOR` opening them.
 
 `TRADE_PROPOSER` is expected to be the timelock of the fast-moving trade governor associated with the Folio.
 
-`CURATOR` is expected to be a semi-trusted EOA or multisig; They can open trades within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the trade can be opened permissionlessly after a preset delay. If they are evil, at-best they can deviate trading within the governance-granted range, or prevent a Folio from rebalancing entirely by killing trades. They cannot access the backing directly.
+`TRADE_CURATOR` is expected to be a semi-trusted EOA or multisig; They can open trades within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the trade can be opened permissionlessly after a preset delay. If they are evil, at-best they can deviate trading within the governance-granted range, or prevent a Folio from rebalancing entirely by killing trades. They cannot access the backing directly.
 
 ### Architecture
 
@@ -43,12 +43,12 @@ A Folio has 3 roles:
 1. `DEFAULT_ADMIN_ROLE`
    - Expected: Timelock of Slow Folio Governor
    - Can add/remove assets, set fees, configure auction length, and set the trade delay
-   - Can configure the `TRADE_PROPOSER`/ `CURATOR`
+   - Can configure the `TRADE_PROPOSER`/ `TRADE_CURATOR`
    - Primary owner of the Folio
 2. `TRADE_PROPOSER`
    - Expected: Timelock of Fast Folio Governor
    - Can approve trades
-3. `CURATOR`
+3. `TRADE_CURATOR`
    - Expected: EOA or multisig
    - Can open and kill trades
 
@@ -65,7 +65,7 @@ The staking vault has ONLY a single owner:
 
 1. Trade is approved by governance, including an initial price range
 2. Trade is opened, starting a dutch auction
-   a. ...either by the curator (immediately)
+   a. ...either by the trade curator (immediately)
    b. ...or permissionlessly (after a delay)
 3. Bids occur
 4. Auction expires
@@ -87,17 +87,17 @@ Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed
 Range buyLimit; // D27{buyTok/share} min ratio of sell token to shares allowed, exclusive
 ```
 
-During `openTrade` the `CURATOR` can set the buy and sell limits within the approved ranges provided by governance. If the trade is opened permissionlessly instead, the buy limit will use the governance pre-approved spot estimates.
+During `openTrade` the `TRADE_CURATOR` can set the buy and sell limits within the approved ranges provided by governance. If the trade is opened permissionlessly instead, the buy limit will use the governance pre-approved spot estimates.
 
 ###### Price
 
 There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `TRADE_PROPOSER`:
 
-1. Can provide `[0, 0]` to _fully_ defer to the curator for pricing. In this mode the auction CANNOT be opened permissionlessly. Loss can arise either due to the curator setting `startPrice` too low, or due to precision issues from traversing too large a range.
-2. Can provide `[startPrice, 0]` to defer to the curator for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
-3. Can provide `[startPrice, endPrice]` to defer to the curator for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Loss is minimal.
+1. Can provide `[0, 0]` to _fully_ defer to the trade curator for pricing. In this mode the auction CANNOT be opened permissionlessly. Loss can arise either due to the trade curator setting `startPrice` too low, or due to precision issues from traversing too large a range.
+2. Can provide `[startPrice, 0]` to defer to the trade curator for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
+3. Can provide `[startPrice, endPrice]` to defer to the trade curator for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Loss is minimal.
 
-The `CURATOR` can choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
+The `TRADE_CURATOR` can choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
 
 The price range (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues.
 
@@ -210,3 +210,16 @@ TODO
    currently only bring-your-own-erc20 governance is supported but we would like to add alternatives in the future such as (i) NFT-based governance; and (ii) an ERC20 fair launch system
 3. **price-based rebalancing**
    currently rebalancing is trade-driven, at the quantity level. this requires making projections about how many tokens will be held at the time of execution and what their values will be. in an alternative price-based world, governance provides a target basket in terms of share-by-value and a trusted party provides prices at time of execution to convert this into a concrete set of quantities/quantity-ratios
+
+### Development
+
+1. Required Tools:
+   - Foundry
+   - Node v20+
+   - Yarn
+2. Install Dependencies: `yarn install`
+3. Build: `yarn compile`
+4. Testing:
+   - Basic Tests: `yarn test`
+   - Extreme Tests: `yarn test:extreme`
+   - All Tests: `yarn test:all`

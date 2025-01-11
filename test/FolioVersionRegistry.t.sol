@@ -47,8 +47,7 @@ contract FolioVersionRegistryTest is BaseTest {
         FolioDeployer newFactoryV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            governorImplementation,
-            timelockImplementation
+            governanceDeployer
         );
         vm.expectEmit(true, true, false, true);
         emit IFolioVersionRegistry.VersionRegistered(keccak256("2.0.0"), newFactoryV2);
@@ -76,8 +75,7 @@ contract FolioVersionRegistryTest is BaseTest {
         FolioDeployer newFactory = new FolioDeployer(
             address(daoFeeRegistry),
             address(versionRegistry),
-            governorImplementation,
-            timelockImplementation
+            governanceDeployer
         );
         vm.expectRevert(abi.encodeWithSelector(IFolioVersionRegistry.VersionRegistry__InvalidRegistration.selector));
         versionRegistry.registerVersion(newFactory);
@@ -87,8 +85,7 @@ contract FolioVersionRegistryTest is BaseTest {
         FolioDeployer newFactoryV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            governorImplementation,
-            timelockImplementation
+            governanceDeployer
         );
 
         vm.prank(user1);

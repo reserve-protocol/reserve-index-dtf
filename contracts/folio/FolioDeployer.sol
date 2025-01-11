@@ -7,6 +7,7 @@ import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
+import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { Folio, IFolio } from "@src/Folio.sol";
@@ -24,21 +25,15 @@ contract FolioDeployer is IFolioDeployer, Versioned {
     address public immutable daoFeeRegistry;
 
     address public immutable folioImplementation;
-    address public immutable governorImplementation;
-    address public immutable timelockImplementation;
 
-    constructor(
-        address _daoFeeRegistry,
-        address _versionRegistry,
-        address _governorImplementation,
-        address _timelockImplementation
-    ) {
+    IGovernanceDeployer public immutable governanceDeployer;
+
+    constructor(address _daoFeeRegistry, address _versionRegistry, IGovernanceDeployer _governanceDeployer) {
         daoFeeRegistry = _daoFeeRegistry;
         versionRegistry = _versionRegistry;
 
         folioImplementation = address(new Folio());
-        governorImplementation = _governorImplementation;
-        timelockImplementation = _timelockImplementation;
+        governanceDeployer = _governanceDeployer;
     }
 
     /// Deploy a raw Folio instance with previously defined roles
@@ -49,16 +44,14 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         address owner,
         address[] memory tradeProposers,
-        address[] memory priceCurators
+        address[] memory priceCurators,
+        address[] memory vibesOfficers
     ) public returns (address folio_, address folioAdmin_) {
-        // Checks
-
         if (basicDetails.assets.length != basicDetails.amounts.length) {
             revert FolioDeployer__LengthMismatch();
         }
 
         // Deploy Folio
-
         folioAdmin_ = address(new FolioProxyAdmin(owner, versionRegistry));
         Folio folio = Folio(address(new FolioProxy(folioImplementation, folioAdmin_)));
 
@@ -68,93 +61,95 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         folio.initialize(basicDetails, additionalDetails, msg.sender, daoFeeRegistry);
 
-        // Setup roles
-
+        // Setup Roles
         folio.grantRole(folio.DEFAULT_ADMIN_ROLE(), owner);
 
         for (uint256 i; i < tradeProposers.length; i++) {
             folio.grantRole(folio.TRADE_PROPOSER(), tradeProposers[i]);
         }
-
         for (uint256 i; i < priceCurators.length; i++) {
-            folio.grantRole(folio.CURATOR(), priceCurators[i]);
+            folio.grantRole(folio.TRADE_CURATOR(), priceCurators[i]);
+        }
+        for (uint256 i; i < vibesOfficers.length; i++) {
+            folio.grantRole(folio.VIBES_OFFICER(), vibesOfficers[i]);
         }
 
-        // Renounce adminship
-
+        // Renounce Ownership
         folio.renounceRole(folio.DEFAULT_ADMIN_ROLE(), address(this));
 
         folio_ = address(folio);
+
+        emit FolioDeployed(owner, folio_, folioAdmin_);
     }
 
-    /// Deploy a Folio instance with brand new owner/trading governances
+    /// Deploy a Folio instance with brand new owner + trading governors
     /// @return folio The deployed Folio instance
     /// @return proxyAdmin The deployed FolioProxyAdmin instance
     /// @return ownerGovernor The owner governor with attached timelock
+    /// @return ownerTimelock The owner timelock
     /// @return tradingGovernor The trading governor with attached timelock
+    /// @return tradingTimelock The trading timelock
     function deployGovernedFolio(
         IVotes stToken,
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
-        IFolioDeployer.GovParams calldata ownerGovParams,
-        IFolioDeployer.GovParams calldata tradingGovParams,
-        address[] memory priceCurators
-    ) external returns (address folio, address proxyAdmin, address ownerGovernor, address tradingGovernor) {
-        // Deploy owner governor + timelock
+        IGovernanceDeployer.GovParams calldata ownerGovParams,
+        IGovernanceDeployer.GovParams calldata tradingGovParams,
+        address[] memory existingTradeProposers,
+        address[] memory priceCurators,
+        address[] memory vibesOfficers
+    )
+        external
+        returns (
+            address folio,
+            address proxyAdmin,
+            address ownerGovernor,
+            address ownerTimelock,
+            address tradingGovernor,
+            address tradingTimelock
+        )
+    {
+        // Deploy Owner Governance
+        (ownerGovernor, ownerTimelock) = governanceDeployer.deployGovernanceWithTimelock(ownerGovParams, stToken);
 
-        address ownerTimelock;
-        (ownerGovernor, ownerTimelock) = _deployTimelockedGovernance(ownerGovParams, stToken);
+        if (existingTradeProposers.length == 0) {
+            // Deploy Trading Governance
+            (tradingGovernor, tradingTimelock) = governanceDeployer.deployGovernanceWithTimelock(
+                tradingGovParams,
+                stToken
+            );
 
-        // Deploy trading governor + timelock
+            address[] memory tradeProposers = new address[](1);
+            tradeProposers[0] = tradingTimelock;
 
-        address tradingTimelock;
-        (tradingGovernor, tradingTimelock) = _deployTimelockedGovernance(tradingGovParams, stToken);
-
-        // Deploy Folio
-
-        address[] memory tradeProposers = new address[](1);
-        tradeProposers[0] = tradingTimelock;
-        (folio, proxyAdmin) = deployFolio(
-            basicDetails,
-            additionalDetails,
-            ownerTimelock,
-            tradeProposers,
-            priceCurators
-        );
-    }
-
-    // ==== Internal ====
-
-    function _deployTimelockedGovernance(
-        IFolioDeployer.GovParams calldata govParams,
-        IVotes stToken
-    ) internal returns (address governor, address timelock) {
-        timelock = Clones.clone(timelockImplementation);
-
-        governor = Clones.clone(governorImplementation);
-
-        FolioGovernor(payable(governor)).initialize(
-            stToken,
-            TimelockControllerUpgradeable(payable(timelock)),
-            govParams.votingDelay,
-            govParams.votingPeriod,
-            govParams.proposalThreshold,
-            govParams.quorumPercent
-        );
-
-        address[] memory proposers = new address[](1);
-        proposers[0] = governor;
-        address[] memory executors = new address[](1);
-        executors[0] = governor;
-
-        TimelockControllerUpgradeable timelockController = TimelockControllerUpgradeable(payable(timelock));
-
-        timelockController.initialize(govParams.timelockDelay, proposers, executors, address(this));
-
-        if (govParams.guardian != address(0)) {
-            timelockController.grantRole(timelockController.CANCELLER_ROLE(), govParams.guardian);
+            // Deploy Folio
+            (folio, proxyAdmin) = deployFolio(
+                basicDetails,
+                additionalDetails,
+                ownerTimelock,
+                tradeProposers,
+                priceCurators,
+                vibesOfficers
+            );
+        } else {
+            // Deploy Folio
+            (folio, proxyAdmin) = deployFolio(
+                basicDetails,
+                additionalDetails,
+                ownerTimelock,
+                existingTradeProposers,
+                priceCurators,
+                vibesOfficers
+            );
         }
 
-        timelockController.renounceRole(timelockController.DEFAULT_ADMIN_ROLE(), address(this));
+        emit GovernedFolioDeployed(
+            address(stToken),
+            folio,
+            ownerGovernor,
+            ownerTimelock,
+            tradingGovernor,
+            tradingTimelock
+        );
     }
 }

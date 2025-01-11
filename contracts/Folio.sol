@@ -10,21 +10,21 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import { UD60x18, powu } from "@prb/math/src/UD60x18.sol";
+import { UD60x18, powu, pow } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 
 import { Versioned } from "@utils/Versioned.sol";
 
-import { IFolioDAOFeeRegistry } from "./interfaces/IFolioDAOFeeRegistry.sol";
-import { IFolio } from "./interfaces/IFolio.sol";
+import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
+import { IFolio } from "@interfaces/IFolio.sol";
 
 interface IBidderCallee {
     /// @param buyAmount {qBuyTok}
     function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
 }
 
-uint256 constant MAX_FOLIO_FEE = 21979552668; // D18{1/s} 50% annually
-uint256 constant MAX_MINTING_FEE = 0.1e18; // D18{1} 10%
+uint256 constant MAX_FOLIO_FEE = 0.5e18; // D18{1/year} 50% annually
+uint256 constant MAX_MINTING_FEE = 0.10e18; // D18{1} 10%
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
@@ -33,6 +33,9 @@ uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
 uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
+
+uint256 constant LN_2 = 0.693147180559945309e18; // D18{1} ln(2e18)
+uint256 constant ONE_OVER_A_YEAR = 31709791983; // D18{1/s} 1 / 31536000
 
 uint256 constant D18 = 1e18; // D18
 uint256 constant D27 = 1e27; // D27
@@ -58,7 +61,8 @@ contract Folio is
      * Roles
      */
     bytes32 public constant TRADE_PROPOSER = keccak256("TRADE_PROPOSER"); // expected to be trading governance's timelock
-    bytes32 public constant CURATOR = keccak256("CURATOR"); // optional: EOA or multisig
+    bytes32 public constant TRADE_CURATOR = keccak256("TRADE_CURATOR"); // optional: EOA or multisig
+    bytes32 public constant VIBES_OFFICER = keccak256("VIBES_OFFICER"); // optional: no permissions
 
     /**
      */
@@ -81,7 +85,7 @@ contract Folio is
 
     /**
      * Trading
-     *   - Trades have a delay before they can be opened, that CURATOR can bypass
+     *   - Trades have a delay before they can be opened, that TRADE_CURATOR can bypass
      *   - Multiple trades can be open at once
      *   - Multiple bids can be executed against the same trade
      *   - All trades are dutch auctions, but it's possible to pass startPrice = endPrice
@@ -330,7 +334,7 @@ contract Folio is
 
     function distributeFees() public nonReentrant {
         _poke();
-        // pendingFeeShares is up-to-date
+        // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
 
         // Fee recipients
         uint256 _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
@@ -407,10 +411,10 @@ contract Folio is
     /// @param buy The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
-    /// @param startPrice D27{buyTok/sellTok} Provide 0 to defer pricing to curator, 1e54 max
-    /// @param endPrice D27{buyTok/sellTok} Provide 0 to defer pricing to curator, 1e54 max
+    /// @param startPrice D27{buyTok/sellTok} Provide 0 to defer pricing to trade curator, 1e54 max
+    /// @param endPrice D27{buyTok/sellTok} Provide 0 to defer pricing to trade curator, 1e54 max
     /// @param ttl {s} How long a trade can exist in an APPROVED state until it can no longer be OPENED
-    ///     (once opened, it always finishes). Accepts type(uint256).max .
+    ///     (once opened, it always finishes).
     ///     Must be longer than tradeDelay if intended to be permissionlessly available.
     function approveTrade(
         uint256 tradeId,
@@ -490,7 +494,7 @@ contract Folio is
         );
     }
 
-    /// Open a trade as the curator by providing a buy limit and price range
+    /// Open a trade as the trade curator by providing a buy limit and price range
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param startPrice D27{buyTok/sellTok} 1e54 max
@@ -501,14 +505,14 @@ contract Folio is
         uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice
-    ) external nonReentrant onlyRole(CURATOR) {
+    ) external nonReentrant onlyRole(TRADE_CURATOR) {
         Trade storage trade = trades[tradeId];
 
-        // curator can:
-        //   - raise starting price by up to 100x
-        //   - raise ending price arbitrarily (can cause auction not to clear)
+        // trade curator can:
         //   - select a sell limit within the approved range
         //   - select a buy limit within the approved range
+        //   - raise starting price by up to 100x
+        //   - raise ending price arbitrarily (can cause auction not to clear, same as killing)
 
         if (
             startPrice < trade.startPrice ||
@@ -627,9 +631,9 @@ contract Folio is
 
     /// Kill a trade
     /// A trade can be killed anywhere in its lifecycle, and cannot be restarted
-    /// @dev Callable by TRADE_PROPOSER or CURATOR
+    /// @dev Callable by TRADE_PROPOSER or TRADE_CURATOR
     function killTrade(uint256 tradeId) external nonReentrant {
-        if (!hasRole(TRADE_PROPOSER, msg.sender) && !hasRole(CURATOR, msg.sender)) {
+        if (!hasRole(TRADE_PROPOSER, msg.sender) && !hasRole(TRADE_CURATOR, msg.sender)) {
             revert Folio__Unauthorized();
         }
 
@@ -756,13 +760,21 @@ contract Folio is
         _feeRecipientsPendingFeeShares += feeShares - daoShares;
     }
 
-    function _setFolioFee(uint256 _newFee) internal {
-        if (_newFee > MAX_FOLIO_FEE) {
+    /// Set folio fee by annual percentage
+    /// @param _newFeeAnnually {s}
+    function _setFolioFee(uint256 _newFeeAnnually) internal {
+        if (_newFeeAnnually > MAX_FOLIO_FEE) {
             revert Folio__FolioFeeTooHigh();
         }
 
-        folioFee = _newFee;
-        emit FolioFeeSet(_newFee);
+        // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
+        folioFee = D18 - UD60x18.wrap(D18 - _newFeeAnnually).pow(UD60x18.wrap(ONE_OVER_A_YEAR)).unwrap();
+
+        if (_newFeeAnnually != 0 && folioFee == 0) {
+            revert Folio__FolioFeeTooLow();
+        }
+
+        emit FolioFeeSet(folioFee, _newFeeAnnually);
     }
 
     function _setMintingFee(uint256 _newFee) internal {
@@ -805,6 +817,7 @@ contract Folio is
             emit FeeRecipientSet(_feeRecipients[i].recipient, _feeRecipients[i].portion);
         }
 
+        // ensure table adds up to 100%
         if (total != D18) {
             revert Folio__BadFeeTotal();
         }
@@ -827,7 +840,7 @@ contract Folio is
         emit AuctionLengthSet(auctionLength);
     }
 
-    /// @dev After: pendingFeeShares is up-to-date
+    /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
     function _poke() internal {
         if (lastPoke == block.timestamp) {
             return;

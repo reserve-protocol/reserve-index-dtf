@@ -12,7 +12,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
 import { Time } from "@openzeppelin/contracts/utils/types/Time.sol";
 
-import { UD60x18, powu } from "@prb/math/src/UD60x18.sol";
+import { UD60x18 } from "@prb/math/src/UD60x18.sol";
 
 import { UnstakingManager } from "./UnstakingManager.sol";
 
@@ -42,7 +42,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
     struct RewardInfo {
         uint256 payoutLastPaid; // {s}
-        uint256 rewardIndex; // D18{reward}
+        uint256 rewardIndex; // D18+decimals{reward/share}
         //
         uint256 balanceAccounted; // {reward}
         uint256 balanceLastKnown; // {reward}
@@ -50,7 +50,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     }
 
     struct UserRewardInfo {
-        uint256 lastRewardIndex; // D18{reward}
+        uint256 lastRewardIndex; // D18+decimals{reward/share}
         uint256 accruedRewards; // {reward}
     }
 
@@ -231,6 +231,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
             // If a deposit/withdraw operation gets called for another user we should
             // accrue for both of them to avoid potential issues
+            // This is important for accruing for "from" and "to" in a transfer.
             if (_receiver != _caller) {
                 _accrueUser(_caller, rewardToken);
             }
@@ -258,10 +259,10 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         uint256 supplyTokens = totalSupply();
 
         if (supplyTokens != 0) {
-            // D18{reward} = D18 * {reward} * {share} / {share}
+            // D18+decimals{reward/share} = D18 * {reward} * decimals / {share}
             uint256 deltaIndex = (SCALAR * tokensToHandout * uint256(10 ** decimals())) / supplyTokens;
 
-            // D18{reward} += D18{reward}
+            // D18+decimals{reward/share} += D18+decimals{reward/share}
             rewardInfo.rewardIndex += deltaIndex;
             rewardInfo.balanceAccounted += tokensToHandout;
         }
@@ -278,12 +279,12 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         RewardInfo memory rewardInfo = rewardTrackers[_rewardToken];
         UserRewardInfo storage userRewardTracker = userRewardTrackers[_rewardToken][_user];
 
-        // D18{reward}
+        // D18+decimals{reward/share}
         uint256 deltaIndex = rewardInfo.rewardIndex - userRewardTracker.lastRewardIndex;
 
         if (deltaIndex != 0) {
             // Accumulate rewards by multiplying user tokens by index and adding on unclaimed
-            // {reward} = {share} * D18{reward} / {share} / D18
+            // {reward} = {share} * D18+decimals{reward/share} / decimals / D18
             uint256 supplierDelta = (balanceOf(_user) * deltaIndex) / uint256(10 ** decimals()) / SCALAR;
 
             // {reward} += {reward}

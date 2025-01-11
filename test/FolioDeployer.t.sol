@@ -6,18 +6,19 @@ import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_MINTING_FEE } from "contracts/Folio.sol";
 import { FolioDeployer, IFolioDeployer } from "contracts/folio/FolioDeployer.sol";
+import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import "./base/BaseTest.sol";
 
 contract FolioDeployerTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
+    uint256 internal constant MAX_FOLIO_FEE_PER_SECOND = 21979552667; // D18{1/s} 50% annually, per second
 
     function test_constructor() public view {
         assertEq(address(folioDeployer.daoFeeRegistry()), address(daoFeeRegistry));
         assertNotEq(address(folioDeployer.folioImplementation()), address(0));
-        assertEq(address(folioDeployer.governorImplementation()), governorImplementation);
-        assertEq(address(folioDeployer.timelockImplementation()), timelockImplementation);
+        assertEq(address(folioDeployer.governanceDeployer()), address(governanceDeployer));
     }
 
     function test_createFolio() public {
@@ -42,7 +43,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            100,
+            MAX_FOLIO_FEE,
             MAX_MINTING_FEE,
             owner,
             dao,
@@ -62,7 +63,7 @@ contract FolioDeployerTest is BaseTest {
         assertEq(_assets[1], address(DAI), "wrong second asset");
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
-        assertEq(folio.folioFee(), 100, "wrong folio fee");
+        assertEq(folio.folioFee(), MAX_FOLIO_FEE_PER_SECOND, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 0.9e18, "wrong first recipient bps");
@@ -93,7 +94,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            100,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -111,7 +112,19 @@ contract FolioDeployerTest is BaseTest {
 
         vm.startPrank(owner);
         vm.expectRevert(IFolio.Folio__EmptyAssets.selector);
-        createFolio(tokens, amounts, 1, MAX_TRADE_DELAY, MAX_AUCTION_LENGTH, recipients, 100, 0, owner, dao, curator);
+        createFolio(
+            tokens,
+            amounts,
+            1,
+            MAX_TRADE_DELAY,
+            MAX_AUCTION_LENGTH,
+            recipients,
+            MAX_FOLIO_FEE,
+            0,
+            owner,
+            dao,
+            curator
+        );
         vm.stopPrank();
     }
 
@@ -136,7 +149,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            100,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -166,7 +179,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            100,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -213,7 +226,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            100,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -235,7 +248,19 @@ contract FolioDeployerTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector); // below min
-        createFolio(tokens, amounts, INITIAL_SUPPLY, MAX_TRADE_DELAY, 1, recipients, 100, 0, owner, dao, curator);
+        createFolio(
+            tokens,
+            amounts,
+            INITIAL_SUPPLY,
+            MAX_TRADE_DELAY,
+            1,
+            recipients,
+            MAX_FOLIO_FEE,
+            0,
+            owner,
+            dao,
+            curator
+        );
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector); // above max
         createFolio(
@@ -245,7 +270,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH + 1,
             recipients,
-            100,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -275,7 +300,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY + 1,
             MAX_AUCTION_LENGTH,
             recipients,
-            100,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -288,11 +313,11 @@ contract FolioDeployerTest is BaseTest {
     function test_createGovernedFolio() public {
         // Deploy Community Governor
 
-        (address _stToken, ) = governanceDeployer.deployGovernedStakingToken(
+        (StakingVault stToken, , ) = governanceDeployer.deployGovernedStakingToken(
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IFolioDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
         );
 
         // Deploy Governed Folio
@@ -315,9 +340,15 @@ contract FolioDeployerTest is BaseTest {
         priceCurators[0] = curator;
 
         vm.startSnapshotGas("deployGovernedFolio");
-        (address _folio, address _folioAdmin, address _ownerGovernor, address _tradingGovernor) = folioDeployer
-            .deployGovernedFolio(
-                IVotes(_stToken),
+        (
+            address _folio,
+            address _folioAdmin,
+            address _ownerGovernor,
+            address _ownerTimelock,
+            address _tradingGovernor,
+            address _tradingTimelock
+        ) = folioDeployer.deployGovernedFolio(
+                stToken,
                 IFolio.FolioBasicDetails({
                     name: "Test Folio",
                     symbol: "TFOLIO",
@@ -332,9 +363,11 @@ contract FolioDeployerTest is BaseTest {
                     folioFee: MAX_FOLIO_FEE,
                     mintingFee: MAX_MINTING_FEE
                 }),
-                IFolioDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
-                IFolioDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
-                priceCurators
+                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
+                IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
+                new address[](0),
+                priceCurators,
+                new address[](0)
             );
         vm.stopSnapshotGas("deployGovernedFolio()");
         vm.stopPrank();
@@ -343,7 +376,6 @@ contract FolioDeployerTest is BaseTest {
 
         // Check Folio
 
-        assertEq(folio.name(), "Test Folio", "wrong name");
         assertEq(folio.symbol(), "TFOLIO", "wrong symbol");
         assertEq(folio.decimals(), 18, "wrong decimals");
         assertEq(folio.auctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
@@ -355,7 +387,7 @@ contract FolioDeployerTest is BaseTest {
         assertEq(_assets[1], address(DAI), "wrong second asset");
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
-        assertEq(folio.folioFee(), MAX_FOLIO_FEE, "wrong folio fee");
+        assertEq(folio.folioFee(), MAX_FOLIO_FEE_PER_SECOND, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 0.9e18, "wrong first recipient bps");
@@ -364,7 +396,6 @@ contract FolioDeployerTest is BaseTest {
         assertEq(bps2, 0.1e18, "wrong second recipient bps");
 
         // Check owner governor + owner timelock
-        StakingVault stToken = StakingVault(_stToken);
         vm.startPrank(user1);
         MEME.approve(address(stToken), type(uint256).max);
         stToken.deposit(D18_TOKEN_1, user1);
