@@ -64,4 +64,4 @@ jobs:
 
       - name: Contract Size Check
         run: |
-          yarn size
+          yarn size contracts/
