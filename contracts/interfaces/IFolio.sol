@@ -11,10 +11,23 @@ interface IFolio {
         address indexed from,
         address indexed to,
         uint256 startPrice,
-        uint256 sellLimit,
-        uint256 buyLimit
+        uint256 endPrice,
+        uint256 sellLimitSpot,
+        uint256 sellLimitLow,
+        uint256 sellLimitHigh,
+        uint256 buyLimitSpot,
+        uint256 buyLimitLow,
+        uint256 buyLimitHigh
     );
-    event TradeOpened(uint256 indexed tradeId, uint256 startPrice, uint256 endPrice, uint256 start, uint256 end);
+    event TradeOpened(
+        uint256 indexed tradeId,
+        uint256 startPrice,
+        uint256 endPrice,
+        uint256 sellLimit,
+        uint256 buyLimit,
+        uint256 start,
+        uint256 end
+    );
     event Bid(uint256 indexed tradeId, uint256 sellAmount, uint256 buyAmount);
     event TradeKilled(uint256 indexed tradeId);
 
@@ -88,6 +101,12 @@ interface IFolio {
         uint96 portion; // D18{1}
     }
 
+    struct Range {
+        uint256 spot; // D27{buyTok/share}
+        uint256 low; // D27{buyTok/share} inclusive
+        uint256 high; // D27{buyTok/share} inclusive
+    }
+
     /// Trade states:
     ///   - APPROVED: start == 0 && end == 0
     ///   - OPEN: block.timestamp >= start && block.timestamp <= end
@@ -96,8 +115,8 @@ interface IFolio {
         uint256 id;
         IERC20 sell;
         IERC20 buy;
-        uint256 sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
-        uint256 buyLimit; // D27{buyTok/share} max ratio of buy token to shares allowed, exclusive
+        Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
+        Range buyLimit; // D27{buyTok/share} min ratio of sell token to shares allowed, exclusive
         uint256 startPrice; // D27{buyTok/sellTok}
         uint256 endPrice; // D27{buyTok/sellTok}
         uint256 availableAt; // {s} inclusive

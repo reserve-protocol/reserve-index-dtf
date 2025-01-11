@@ -47,7 +47,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_MINTING_FEE,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopSnapshotGas();
         vm.stopPrank();
@@ -98,7 +98,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopPrank();
     }
@@ -123,7 +123,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopPrank();
     }
@@ -153,7 +153,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopPrank();
     }
@@ -183,7 +183,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopPrank();
     }
@@ -210,7 +210,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopPrank();
 
@@ -230,7 +230,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
         vm.stopPrank();
     }
@@ -259,7 +259,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector); // above max
@@ -274,7 +274,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
 
         vm.stopPrank();
@@ -304,7 +304,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            priceCurator
+            curator
         );
 
         vm.stopPrank();
@@ -337,7 +337,7 @@ contract FolioDeployerTest is BaseTest {
         DAI.approve(address(folioDeployer), type(uint256).max);
 
         address[] memory priceCurators = new address[](1);
-        priceCurators[0] = priceCurator;
+        priceCurators[0] = curator;
 
         vm.startSnapshotGas("deployGovernedFolio");
         (

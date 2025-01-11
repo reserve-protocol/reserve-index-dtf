@@ -68,7 +68,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             folio.grantRole(folio.TRADE_PROPOSER(), tradeProposers[i]);
         }
         for (uint256 i; i < priceCurators.length; i++) {
-            folio.grantRole(folio.PRICE_CURATOR(), priceCurators[i]);
+            folio.grantRole(folio.TRADE_CURATOR(), priceCurators[i]);
         }
         for (uint256 i; i < vibesOfficers.length; i++) {
             folio.grantRole(folio.VIBES_OFFICER(), vibesOfficers[i]);
