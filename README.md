@@ -4,7 +4,7 @@
 
 Reserve Folio is a protocol for creating and managing portfolios of ERC20-compliant assets entirely onchain. Folios are designed to be used as a single-source of truth for asset allocations, enabling composability of complex, multi-asset portfolios.
 
-Folios support rebalancing trades via Dutch Auction over an exponential decay curve between two prices. Control flow over the trade is shared between two parties, with a `TRADE_PROPOSER` approving trades and a `TRADE_CURATOR` opening them.
+Folios support rebalancing trades via Dutch Auction over an exponential decay curve between two prices. Control flow over the trade is shared between two parties, with a `TRADE_PROPOSER` approving trades in advance and a `TRADE_CURATOR` opening them, optionally providing some amount of additional detail.
 
 `TRADE_PROPOSER` is expected to be the timelock of the fast-moving trade governor associated with the Folio.
 
@@ -50,7 +50,7 @@ A Folio has 3 roles:
    - Can approve trades
 3. `TRADE_CURATOR`
    - Expected: EOA or multisig
-   - Can open and kill trades
+   - Can open and kill trades, optionally altering parameters of the trade within the approved ranges
 
 ##### StakingVault
 
@@ -87,7 +87,7 @@ Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed
 Range buyLimit; // D27{buyTok/share} min ratio of sell token to shares allowed, exclusive
 ```
 
-During `openTrade` the `TRADE_CURATOR` can set the buy and sell limits within the approved ranges provided by governance. If the trade is opened permissionlessly instead, the buy limit will use the governance pre-approved spot estimates.
+During `openTrade` the `TRADE_CURATOR` can set the buy and sell limits within the approved ranges provided by governance. If the trade is opened permissionlessly instead, the governance pre-approved spot estimates will be used instead.
 
 ###### Price
 
@@ -95,9 +95,9 @@ There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `TRADE_
 
 1. Can provide `[0, 0]` to _fully_ defer to the trade curator for pricing. In this mode the auction CANNOT be opened permissionlessly. Loss can arise either due to the trade curator setting `startPrice` too low, or due to precision issues from traversing too large a range.
 2. Can provide `[startPrice, 0]` to defer to the trade curator for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
-3. Can provide `[startPrice, endPrice]` to defer to the trade curator for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Loss is minimal.
+3. Can provide `[startPrice, endPrice]` to defer to the trade curator for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Suggested default option.
 
-The `TRADE_CURATOR` can choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
+The `TRADE_CURATOR` can always choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
 
 The price range (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues.
 
@@ -140,11 +140,11 @@ The DAO takes a cut
 
 Fee on mints
 
-The DAO takes a cut with a minimum floor of 5 bps. The DAO always receives at least 5 bps of the value of the mint. Note this is NOT 5 bps of the minting fee, that portion is still initially calculated based on the `FolioDAOFeeRegistry`.
+The DAO takes a cut with a minimum floor of 5 bps. The DAO always receives at least 5 bps of the value of the mint. If the minting fee is set to 5 bps, then 100% of the minting fee is taken by the DAO.
 
 ### Units
 
-Units are documented with curly brackets (`{}`) throughout the codebase with the additional `D18` or `D27` prefixes being used to denote when additional decimals of precision have been applied, for example in the case of a ratio.
+Units are documented with curly brackets (`{}`) throughout the codebase with the additional `D18` or `D27` prefixes being used to denote when additional decimals of precision have been applied, for example in the case of a ratio. Amounts and percentages are generally 18-decimal throughout the codebase, but exchange rates are generally 27-decimal.
 
 Units:
 
