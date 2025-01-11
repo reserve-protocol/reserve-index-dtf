@@ -55,7 +55,7 @@ contract FolioTest is BaseTest {
             0,
             owner,
             dao,
-            curator
+            auctionLauncher
         );
         vm.stopPrank();
     }
@@ -795,7 +795,7 @@ contract FolioTest is BaseTest {
         emit IFolio.TradeApproved(0, address(USDC), address(USDT), 0, 0, 0, 0, MAX_RATE, MAX_RATE, 0, MAX_RATE);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
@@ -834,7 +834,7 @@ contract FolioTest is BaseTest {
         emit IFolio.TradeApproved(0, address(USDC), address(USDT), 0, 0, 0, 0, MAX_RATE, MAX_RATE, 0, MAX_RATE);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
@@ -881,7 +881,7 @@ contract FolioTest is BaseTest {
         emit IFolio.TradeApproved(0, address(USDC), address(USDT), 0, 0, 0, 0, MAX_RATE, MAX_RATE, 0, MAX_RATE);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeOpened(0, 10e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
@@ -918,7 +918,7 @@ contract FolioTest is BaseTest {
         emit IFolio.TradeApproved(0, address(USDC), address(USDT), 0, 0, 0, 0, MAX_RATE, MAX_RATE, 0, MAX_RATE);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeOpened(0, 10e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
@@ -965,7 +965,7 @@ contract FolioTest is BaseTest {
         emit IFolio.TradeApproved(0, address(MEME), address(USDT), 0, 0, 0, 0, MAX_RATE, MAX_RATE, 0, MAX_RATE);
         folio.approveTrade(0, MEME, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeOpened(0, 1e5, 1, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 1e5, 1);
@@ -985,7 +985,7 @@ contract FolioTest is BaseTest {
         emit IFolio.TradeApproved(0, address(USDC), address(USDT), 0, 0, 0, 0, MAX_RATE, MAX_RATE, 0, MAX_RATE);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeOpened(0, 10e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
@@ -1018,14 +1018,14 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_auctionKillTradeByPriceCurator() public {
+    function test_auctionKillTradeByauctionLauncher() public {
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, true);
         emit IFolio.TradeApproved(0, address(USDC), address(USDT), 0, 0, 0, 0, MAX_RATE, MAX_RATE, 0, MAX_RATE);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeOpened(0, 10e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
@@ -1034,7 +1034,7 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__Unauthorized.selector);
         folio.killTrade(0);
 
-        vm.startPrank(curator);
+        vm.startPrank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeKilled(0);
         folio.killTrade(0);
@@ -1078,13 +1078,13 @@ contract FolioTest is BaseTest {
         emit IFolio.TradeApproved(0, address(USDC), address(USDT), 0, 0, 0, 0, MAX_RATE, MAX_RATE, 0, MAX_RATE);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
         // Revert if tried to reopen
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__TradeCannotBeOpened.selector);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
     }
@@ -1097,7 +1097,7 @@ contract FolioTest is BaseTest {
 
         (, , , , , , , , uint256 launchTimeout, , , ) = folio.trades(0);
         vm.warp(launchTimeout + 1);
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__TradeTimeout.selector);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
     }
@@ -1118,7 +1118,7 @@ contract FolioTest is BaseTest {
         vm.prank(dao);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         // auction should not biddable after end
@@ -1129,14 +1129,18 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt, amt, false, bytes(""));
     }
 
-    function test_auctionOnlyPriceCuratorCanBypassDelay() public {
+    function test_auctionOnlyauctionLauncherCanBypassDelay() public {
         vm.startPrank(dao);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 1, 1, MAX_TTL);
 
-        // dao should not be able to open trade because not curator
+        // dao should not be able to open trade because not auctionLauncher
 
         vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, dao, folio.TRADE_CURATOR())
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                dao,
+                folio.AUCTION_LAUNCHER()
+            )
         );
         folio.openTrade(0, 0, MAX_RATE, 1, 1); // 10x -> 1x
 
@@ -1155,10 +1159,14 @@ contract FolioTest is BaseTest {
         vm.startPrank(dao);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 1e27, 1e27, MAX_TTL);
 
-        // dao should not be able to open trade because not curator
+        // dao should not be able to open trade because not auctionLauncher
 
         vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, dao, folio.TRADE_CURATOR())
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                dao,
+                folio.AUCTION_LAUNCHER()
+            )
         );
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
@@ -1178,7 +1186,7 @@ contract FolioTest is BaseTest {
         vm.prank(dao);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27); // 1x
 
         // dishonest callback that returns fewer tokens than expected
@@ -1200,9 +1208,9 @@ contract FolioTest is BaseTest {
         vm.prank(dao);
         folio.approveTrade(1, DAI, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         folio.openTrade(1, 0, MAX_RATE, 100e6, 1e6); // 100x -> 1x
 
         // bid in first auction for half volume at start
@@ -1241,7 +1249,7 @@ contract FolioTest is BaseTest {
             folio.approveTrade(index, MEME, USDC, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
             // should not revert at top or bottom end
-            vm.prank(curator);
+            vm.prank(auctionLauncher);
             uint256 endPrice = i / MAX_PRICE_RANGE;
             folio.openTrade(index, 0, MAX_RATE, i, endPrice > i ? endPrice : i);
             (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(index);
@@ -1254,7 +1262,7 @@ contract FolioTest is BaseTest {
         vm.prank(dao);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
         (, , , , , , , , , , uint256 end, ) = folio.trades(0);
 
@@ -1371,7 +1379,7 @@ contract FolioTest is BaseTest {
         emit IFolio.TradeApproved(0, address(USDC), address(USDT), 0, 0, 0, 0, MAX_RATE, MAX_RATE, 0, MAX_RATE);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
@@ -1390,7 +1398,7 @@ contract FolioTest is BaseTest {
         emit IFolio.TradeApproved(0, address(USDC), address(USDT), 0, 0, 0, 0, MAX_RATE, MAX_RATE, 0, MAX_RATE);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
@@ -1483,22 +1491,22 @@ contract FolioTest is BaseTest {
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 1e27, 1e27, MAX_TTL);
 
         //  Revert if tried to open (smaller start price)
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
         folio.openTrade(0, 0, MAX_RATE, 0.5e27, 1e27);
 
         //  Revert if tried to open (smaller end price)
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 0.5e27);
 
         //  Revert if tried to open (more than 100x start price)
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
         folio.openTrade(0, 0, MAX_RATE, 101e27, 50e27);
 
         //  Revert if tried to open (start < end price)
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
         folio.openTrade(0, 0, MAX_RATE, 50e27, 55e27);
     }
@@ -1510,7 +1518,7 @@ contract FolioTest is BaseTest {
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
 
         //  Revert if tried to open with zero price
-        vm.prank(curator);
+        vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
         folio.openTrade(0, 0, MAX_RATE, 0, 0);
     }

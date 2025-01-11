@@ -43,7 +43,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
             0,
             owner,
             dao,
-            curator
+            auctionLauncher
         );
         vm.stopPrank();
     }
