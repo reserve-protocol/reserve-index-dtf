@@ -34,8 +34,7 @@ uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
 uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 
-uint256 constant LN_2 = 0.693147180559945309e18; // D18{1} ln(2e18)
-uint256 constant ONE_OVER_A_YEAR = 31709791983; // D18{1/s} 1 / 31536000
+UD60x18 constant ANNUALIZATION_EXP = UD60x18.wrap(31709791983); // D18{1/s} 1 / 31536000
 
 uint256 constant D18 = 1e18; // D18
 uint256 constant D27 = 1e27; // D27
@@ -169,6 +168,7 @@ contract Folio is
         _setFolioFee(_newFee);
     }
 
+    /// A minting fee below 5 bps will result in the entirety of the fee being sent to the DAO
     /// @dev Non-reentrant via distributeFees()
     /// @param _newFee D18{1} Fee on mint
     function setMintingFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -178,8 +178,7 @@ contract Folio is
     }
 
     /// @dev Non-reentrant via distributeFees()
-    /// @param _newRecipients.portion must sum to 1e18
-    /// @dev Fee recipients must be unique and sorted by address
+    /// @dev Fee recipients must be unique and sorted by address, and sum to 1e18
     function setFeeRecipients(FeeRecipient[] memory _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
@@ -494,7 +493,7 @@ contract Folio is
         );
     }
 
-    /// Open a trade as the trade curator by providing a buy limit and price range
+    /// Open a trade as the trade curator
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param startPrice D27{buyTok/sellTok} 1e54 max
@@ -668,6 +667,8 @@ contract Folio is
     }
 
     function _openTrade(Trade storage trade) internal {
+        require(!isKilled, Folio__FolioKilled());
+
         // only open APPROVED trades
         if (trade.start != 0 || trade.end != 0) {
             revert Folio__TradeCannotBeOpened();
@@ -678,7 +679,8 @@ contract Folio is
             revert Folio__TradeTimeout();
         }
 
-        // ensure no conflicting trades
+        // ensure no conflicting trades by token
+        // necessary to prevent dutch auctions from taking losses
         if (block.timestamp <= tradeEnds[address(trade.sell)] || block.timestamp <= tradeEnds[address(trade.buy)]) {
             revert Folio__TradeCollision();
         }
@@ -760,15 +762,16 @@ contract Folio is
         _feeRecipientsPendingFeeShares += feeShares - daoShares;
     }
 
-    /// Set folio fee by annual percentage
+    /// @dev Set folio fee by annual percentage
     /// @param _newFeeAnnually {s}
     function _setFolioFee(uint256 _newFeeAnnually) internal {
         if (_newFeeAnnually > MAX_FOLIO_FEE) {
             revert Folio__FolioFeeTooHigh();
         }
 
+        // convert annual percentage to per-second
         // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
-        folioFee = D18 - UD60x18.wrap(D18 - _newFeeAnnually).pow(UD60x18.wrap(ONE_OVER_A_YEAR)).unwrap();
+        folioFee = D18 - UD60x18.wrap(D18 - _newFeeAnnually).pow(ANNUALIZATION_EXP).unwrap();
 
         if (_newFeeAnnually != 0 && folioFee == 0) {
             revert Folio__FolioFeeTooLow();
