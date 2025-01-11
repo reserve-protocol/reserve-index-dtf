@@ -30,8 +30,8 @@ abstract contract BaseExtremeTest is BaseTest {
     uint8[] internal testDecimals = [6, 8, 18, 27];
     uint256[] internal testNumTokens = [1, 10, 50, 100, 500];
     uint256[] internal testAmounts = [1, 1e6, 1e18, 1e36];
+    uint256[] internal testFolioFees = [0, MAX_FOLIO_FEE / 10, MAX_FOLIO_FEE / 2, MAX_FOLIO_FEE];
     uint256[] internal testPrices = [1, 1e6, 1e18, 1e36, 1e54];
-    uint256[] internal testFolioFees = [0, MAX_FOLIO_FEE / 4, MAX_FOLIO_FEE / 2, MAX_FOLIO_FEE];
     uint256[] internal testDaoFees = [0, 0.01e18, 0.1e18, 0.15e18];
     uint256[] internal testTimeLapse = [1, 12, 1 days, 30 days, 120 days, YEAR_IN_SECONDS];
     uint256[] internal testNumFeeRecipients = [1, 5, 10, MAX_FEE_RECIPIENTS];

@@ -10,7 +10,7 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import { UD60x18, powu } from "@prb/math/src/UD60x18.sol";
+import { UD60x18, powu, pow } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 
 import { Versioned } from "@utils/Versioned.sol";
@@ -23,7 +23,7 @@ interface IBidderCallee {
     function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
 }
 
-uint256 constant MAX_FOLIO_FEE = 21979552668; // D18{1/s} 50% annually
+uint256 constant MAX_FOLIO_FEE = 0.5e18; // D18{1/year} 50% annually
 uint256 constant MAX_MINTING_FEE = 0.10e18; // D18{1} 10%
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
@@ -33,6 +33,9 @@ uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
 uint256 constant MAX_EXCHANGE_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
+
+uint256 constant LN_2 = 0.693147180559945309e18; // D18{1} ln(2e18)
+uint256 constant ONE_OVER_A_YEAR = 31709791983; // D18{1/s} 1 / 31536000
 
 uint256 constant D18 = 1e18; // D18
 uint256 constant D27 = 1e27; // D27
@@ -710,13 +713,21 @@ contract Folio is
         _feeRecipientsPendingFeeShares += feeShares - daoShares;
     }
 
-    function _setFolioFee(uint256 _newFee) internal {
-        if (_newFee > MAX_FOLIO_FEE) {
+    /// Set folio fee by annual percentage
+    /// @param _newFeeAnnually {s}
+    function _setFolioFee(uint256 _newFeeAnnually) internal {
+        if (_newFeeAnnually > MAX_FOLIO_FEE) {
             revert Folio__FolioFeeTooHigh();
         }
 
-        folioFee = _newFee;
-        emit FolioFeeSet(_newFee);
+        // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
+        folioFee = D18 - UD60x18.wrap(D18 - _newFeeAnnually).pow(UD60x18.wrap(ONE_OVER_A_YEAR)).unwrap();
+
+        if (_newFeeAnnually != 0 && folioFee == 0) {
+            revert Folio__FolioFeeTooLow();
+        }
+
+        emit FolioFeeSet(folioFee, _newFeeAnnually);
     }
 
     function _setMintingFee(uint256 _newFee) internal {
@@ -759,6 +770,7 @@ contract Folio is
             emit FeeRecipientSet(_feeRecipients[i].recipient, _feeRecipients[i].portion);
         }
 
+        // ensure table adds up to 100%
         if (total != D18) {
             revert Folio__BadFeeTotal();
         }
