@@ -31,6 +31,7 @@ uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
+uint256 constant MAX_EXCHANGE_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 
 uint256 constant SCALAR = 1e18; // D18
@@ -89,6 +90,7 @@ contract Folio is
     uint256 public auctionLength; // {s}
     uint256 public tradeDelay; // {s}
     Trade[] public trades;
+    mapping(address => uint256) public tradeEnds; // {s}
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -359,24 +361,56 @@ contract Folio is
         return trades.length;
     }
 
+    /// The amount on sale in an auction, dynamically increasing over time
+    /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
+    function lot(uint256 tradeId, uint256 timestamp) external view returns (uint256 sellAmount) {
+        Trade storage trade = trades[tradeId];
+
+        uint256 _totalSupply = totalSupply();
+        uint256 sellBal = trade.sell.balanceOf(address(this));
+        uint256 buyBal = trade.buy.balanceOf(address(this));
+
+        // {sellTok} = D18{sellTok/share} * {share} / D18
+        uint256 minSellBal = Math.mulDiv(trade.sellLimit, _totalSupply, SCALAR, Math.Rounding.Ceil);
+        uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
+
+        // {buyTok} = D18{buyTok/share} * {share} / D18
+        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit, _totalSupply, SCALAR, Math.Rounding.Floor);
+        uint256 buyAvailable = buyBal < maxBuyBal ? maxBuyBal - buyBal : 0;
+
+        // avoid overflow
+        if (buyAvailable > 1e36) {
+            return sellAvailable;
+        }
+
+        // D18{buyTok/sellTok}
+        uint256 price = _price(trade, timestamp);
+
+        // {sellTok} = {buyTok} * D18 / D18{buyTok/sellTok}
+        sellAmount = Math.min(sellAvailable, Math.mulDiv(buyAvailable, SCALAR, price, Math.Rounding.Floor));
+    }
+
     /// @return D18{buyTok/sellTok} The price at the given timestamp as an 18-decimal fixed point
     function getPrice(uint256 tradeId, uint256 timestamp) external view returns (uint256) {
         return _price(trades[tradeId], timestamp);
     }
 
-    /// @return {buyTok} The amount the bidder would receive if they bid at the given timestamp
-    function getBidAmount(uint256 tradeId, uint256 amount, uint256 timestamp) external view returns (uint256) {
+    /// @param sellAmount {sellTok} The amount of sell tokens the bidder is offering the protocol
+    /// @return bidAmount {buyTok} The amount of buy tokens required to bid in the auction at a given timestamp
+    function getBid(uint256 tradeId, uint256 timestamp, uint256 sellAmount) external view returns (uint256 bidAmount) {
         uint256 price = _price(trades[tradeId], timestamp);
+
         // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
-        return (amount * price + SCALAR - 1) / SCALAR;
+        bidAmount = (sellAmount * price + SCALAR - 1) / SCALAR;
     }
 
     /// @param tradeId Use to ensure expected ordering
     /// @param sell The token to sell, from the perspective of the Folio
     /// @param buy The token to buy, from the perspective of the Folio
-    /// @param sellAmount {sellTok} Provide type(uint256).max to sell everything
-    /// @param startPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator
-    /// @param endPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator
+    /// @param sellLimit D18{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
+    /// @param buyLimit D18{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
+    /// @param startPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator, 1e54 max
+    /// @param endPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator, 1e54 max
     /// @param ttl {s} How long a trade can exist in an APPROVED state until it can no longer be OPENED
     ///     (once opened, it always finishes). Accepts type(uint256).max .
     ///     Must be longer than tradeDelay if intended to be permissionlessly available.
@@ -384,7 +418,8 @@ contract Folio is
         uint256 tradeId,
         IERC20 sell,
         IERC20 buy,
-        uint256 sellAmount,
+        uint256 sellLimit,
+        uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice,
         uint256 ttl
@@ -399,8 +434,12 @@ contract Folio is
             revert Folio__InvalidTradeTokens();
         }
 
-        if (sellAmount == 0) {
-            revert Folio__InvalidSellAmount();
+        if (sellLimit > MAX_EXCHANGE_RATE) {
+            revert Folio__InvalidSellLimit();
+        }
+
+        if (buyLimit == 0 || buyLimit > MAX_EXCHANGE_RATE) {
+            revert Folio__InvalidBuyLimit();
         }
 
         if (startPrice < endPrice) {
@@ -416,7 +455,8 @@ contract Folio is
                 id: trades.length,
                 sell: sell,
                 buy: buy,
-                sellAmount: sellAmount,
+                sellLimit: sellLimit,
+                buyLimit: buyLimit,
                 startPrice: startPrice,
                 endPrice: endPrice,
                 availableAt: block.timestamp + tradeDelay,
@@ -426,11 +466,11 @@ contract Folio is
                 k: 0
             })
         );
-        emit TradeApproved(tradeId, address(sell), address(buy), sellAmount, startPrice);
+        emit TradeApproved(tradeId, address(sell), address(buy), startPrice, sellLimit, buyLimit);
     }
 
-    /// @param startPrice D18{buyTok/sellTok}
-    /// @param endPrice D18{buyTok/sellTok}
+    /// @param startPrice D18{buyTok/sellTok} 1e54 max
+    /// @param endPrice D18{buyTok/sellTok} 1e54 max
     function openTrade(
         uint256 tradeId,
         uint256 startPrice,
@@ -473,11 +513,11 @@ contract Folio is
     ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
     ///   If withCallback is false, caller must have provided an allowance in advance
     /// @dev Permissionless
-    /// @param sellAmount {sellTok} Token the bidder receives, sold from the point of view of the Folio
-    /// @param maxBuyAmount {buyTok} Token the bidder provides, bought from the point of view of the Folio
+    /// @param sellAmount {sellTok} Sell token, the token the bidder receives
+    /// @param maxBuyAmount {buyTok} Max buy token, the token the bidder provides
     /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
     /// @param data Arbitrary data to pass to the callback
-    /// @return boughtAmt {buyTok} The amount bidder received
+    /// @return boughtAmt {buyTok} The amount bidder receives
     function bid(
         uint256 tradeId,
         uint256 sellAmount,
@@ -488,6 +528,7 @@ contract Folio is
         Trade storage trade = trades[tradeId];
 
         // checks trade is ongoing
+        // D18{buyTok/sellTok}
         uint256 price = _price(trade, block.timestamp);
 
         // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
@@ -496,26 +537,32 @@ contract Folio is
             revert Folio__SlippageExceeded();
         }
 
-        // deduct sellAmount from trade; special-case uint256.max
-        if (trade.sellAmount != type(uint256).max) {
-            trade.sellAmount -= sellAmount;
-        }
+        // TODO think about fee shares inflating supply over time
+        uint256 _totalSupply = totalSupply();
+        uint256 sellBal = trade.sell.balanceOf(address(this));
 
-        // ensure buy token is in basket
-        basket.add(address(trade.buy));
+        // {sellTok} = D18{sellTok/share} * {share} / D18
+        uint256 minSellBal = Math.mulDiv(trade.sellLimit, _totalSupply, SCALAR, Math.Rounding.Ceil);
+        uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
-        // ensure we have sufficient balance to pay bidder
-        if (trade.sell.balanceOf(address(this)) < sellAmount) {
+        // ensure auction is large enough to cover bid
+        if (sellAmount > sellAvailable) {
             revert Folio__InsufficientBalance();
         }
+
+        // put buy token in basket
+        basket.add(address(trade.buy));
 
         // pay bidder
         trade.sell.safeTransfer(msg.sender, sellAmount);
         emit Bid(tradeId, sellAmount, boughtAmt);
 
-        // remove token from the basket if we have sold all of it
+        // QoL feature: close auction and eject token from basket if we have sold all of it
         if (trade.sell.balanceOf(address(this)) == 0) {
             basket.remove(address(trade.sell));
+            trade.end = block.timestamp;
+            tradeEnds[address(trade.sell)] = block.timestamp;
+            tradeEnds[address(trade.buy)] = block.timestamp;
         }
 
         // collect payment from bidder
@@ -530,6 +577,14 @@ contract Folio is
         } else {
             trade.buy.safeTransferFrom(msg.sender, address(this), boughtAmt);
         }
+
+        // D18{buyTok/share} = D18{buyTok/share} * {share} / D18
+        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit, _totalSupply, SCALAR, Math.Rounding.Floor);
+
+        // ensure post-bid buy balance does not exceed max
+        if (trade.buy.balanceOf(address(this)) > maxBuyBal) {
+            revert Folio__ExcessiveBid();
+        }
     }
 
     /// Kill a trade
@@ -540,8 +595,12 @@ contract Folio is
             revert Folio__Unauthorized();
         }
 
-        /// do not revert, to prevent griefing
-        trades[tradeId].end = 1;
+        // do not revert, to prevent griefing
+
+        Trade storage trade = trades[tradeId];
+        trade.end = 1;
+        tradeEnds[address(trade.sell)] = block.timestamp;
+        tradeEnds[address(trade.buy)] = block.timestamp;
         emit TradeKilled(tradeId);
     }
 
@@ -577,11 +636,19 @@ contract Folio is
             revert Folio__TradeTimeout();
         }
 
+        // ensure no conflicting trades
+        if (block.timestamp <= tradeEnds[address(trade.sell)] || block.timestamp <= tradeEnds[address(trade.buy)]) {
+            revert Folio__TradeCollision();
+        }
+        tradeEnds[address(trade.sell)] = trade.end;
+        tradeEnds[address(trade.buy)] = trade.end;
+
         // ensure valid price range (startPrice == endPrice is valid)
         if (
             trade.startPrice < trade.endPrice ||
             trade.startPrice == 0 ||
             trade.endPrice == 0 ||
+            trade.startPrice > MAX_EXCHANGE_RATE ||
             trade.startPrice / trade.endPrice > MAX_PRICE_RANGE
         ) {
             revert Folio__InvalidPrices();
@@ -599,7 +666,7 @@ contract Folio is
     /// @return p D18{buyTok/sellTok}
     function _price(Trade storage trade, uint256 timestamp) internal view returns (uint256 p) {
         // ensure auction is ongoing
-        if (timestamp < trade.start || timestamp > trade.end || trade.sellAmount == 0) {
+        if (timestamp < trade.start || timestamp > trade.end) {
             revert Folio__TradeNotOngoing();
         }
         if (timestamp == trade.start) {
