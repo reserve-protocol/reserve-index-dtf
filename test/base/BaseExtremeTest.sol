@@ -36,6 +36,7 @@ abstract contract BaseExtremeTest is BaseTest {
         MAX_FOLIO_FEE_ANNUALLY / 2,
         MAX_FOLIO_FEE_ANNUALLY
     ];
+    uint256[] internal testPrices = [1, 1e6, 1e18, 1e36, 1e54];
     uint256[] internal testDaoFees = [0, 0.01e18, 0.1e18, 0.15e18];
     uint256[] internal testTimeLapse = [1, 12, 1 days, 30 days, 120 days, YEAR_IN_SECONDS];
     uint256[] internal testNumFeeRecipients = [1, 5, 10, MAX_FEE_RECIPIENTS];
@@ -110,13 +111,13 @@ abstract contract BaseExtremeTest is BaseTest {
         for (uint256 i; i < testDecimals.length; i++) {
             for (uint256 j; j < testDecimals.length; j++) {
                 for (uint256 k; k < testAmounts.length; k++) {
-                    for (uint256 l; l < testAmounts.length; l++) {
+                    for (uint256 l; l < testPrices.length; l++) {
                         tradingTestParams.push(
                             TradingTestParams({
                                 sellDecimals: testDecimals[i],
                                 buyDecimals: testDecimals[j],
                                 sellAmount: testAmounts[k],
-                                price: testAmounts[l]
+                                price: testPrices[l]
                             })
                         );
                         index++;

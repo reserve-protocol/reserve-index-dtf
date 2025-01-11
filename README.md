@@ -82,13 +82,30 @@ The `PRICE_CURATOR` can choose to raise `startPrice` within a limit of 100x, and
 
 The price range (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues.
 
-##### Auction Curve
+##### Auction Dynamics
 
-Standard exponential decay (over time):
+###### Price Curve
 
 ![alt text](auction.png "Auction Curve")
 
 Note: The first block may not have a price of exactly `startPrice`, if it does not occur on the `start` timestamp. Similarly, the `endPrice` may not be exactly `endPrice` in the final block if it does not occur on the `end` timestamp.
+
+###### Lot Sizing
+
+Auction lots are sized by `Trade.sellLimit` and `Trade.buyLimit`. Both correspond to invariants about the auction that should be maintained throughout the auction:
+
+- `sellLimit` is the minimum ratio of sell token to the Folio token
+- `buyLimit` is the maximum ratio of buy token to Folio token
+
+The auction `lot()` represents the single largest quantity of sell token that can be transacted under these invariants.
+
+In general it is possible for the `lot` to both increase and decrease over time, depending on whether `sellLimit` or `buyLimit` is the constraining factor.
+
+###### Auction Participation
+
+Anyone can bid in any auction in size up to and including the `lot` size. Use `getBid()` to determine the amount of buy tokens required in any given timestamp.
+
+`Folio.getBid(uint256 tradeId, uint256 timestamp, uint256 sellAmount) external view returns (uint256 bidAmount)`
 
 ### Fee Structure
 
@@ -108,11 +125,12 @@ The DAO takes a cut with a minimum floor of 5 bps. The DAO always receives at le
 
 ### Units
 
-Units are documented with curly brackets (`{}`) throughout the codebase with the additional `D18` prefix being used to denote when 18 additional decimals of precision have been applied, for example in the case of a ratio.
+Units are documented with curly brackets (`{}`) throughout the codebase with the additional `D18` or `D27` prefixes being used to denote when additional decimals of precision have been applied, for example in the case of a ratio.
 
 Units:
 
 - `{tok}` OR `{share}` OR `{reward}`: token balances
+- `D27`: 1e27
 - `D18`: 1e18
 - `D18{tok}`: a ratio of two token balances with 18 decimals of added precision
 - `D18{1}`: a percentage value with 18 decimals of added precision
@@ -135,7 +153,9 @@ Tokens are assumed to be within the following ranges:
 | **Supply**   | 1e36  | 1e36             | 1e36         | 1e36                            |
 | **Decimals** |       | 27               |              | 21                              |
 
-It is the job of governance to ensure the Folio supply does not grow beyond 1e36.
+It is the job of governance to ensure the Folio supply does not grow beyond 1e36 supply.
+
+Exchange rates / prices are permitted to be up to 1e54, and are 27 decimal fixed point numbers instead of 18.
 
 ### Weird ERC20s
 
