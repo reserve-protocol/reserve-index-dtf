@@ -34,7 +34,8 @@ uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
 uint256 constant MAX_EXCHANGE_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 
-uint256 constant SCALAR = 1e18; // D18
+uint256 constant D18 = 1e18; // D18
+uint256 constant D27 = 1e27; // D27
 
 /**
  * @title Folio
@@ -207,7 +208,7 @@ contract Folio is
         return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
-    // {} -> ({tokAddress}, D18{tok/share})
+    // {} -> ({tokAddress}, {tok})
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
         return toAssets(10 ** decimals(), Math.Rounding.Floor);
     }
@@ -250,13 +251,11 @@ contract Folio is
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(this));
 
         // {share} = {share} * D18{1} / D18
-        uint256 totalFeeShares = (shares * mintingFee + SCALAR - 1) / SCALAR;
-
-        // {share} = {share} * D18{1} / D18{1}
+        uint256 totalFeeShares = (shares * mintingFee + D18 - 1) / D18;
         uint256 daoFeeShares = (totalFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
 
         // ensure DAO's portion of fees is at least MIN_DAO_MINTING_FEE
-        uint256 minDaoShares = (shares * MIN_DAO_MINTING_FEE + SCALAR - 1) / SCALAR;
+        uint256 minDaoShares = (shares * MIN_DAO_MINTING_FEE + D18 - 1) / D18;
         if (daoFeeShares < minDaoShares) {
             daoFeeShares = minDaoShares;
         }
@@ -343,7 +342,7 @@ contract Folio is
         uint256 len = feeRecipients.length;
         for (uint256 i; i < len; i++) {
             // {share} = {share} * D18{1} / D18
-            uint256 shares = (_feeRecipientsPendingFeeShares * feeRecipients[i].portion) / SCALAR;
+            uint256 shares = (_feeRecipientsPendingFeeShares * feeRecipients[i].portion) / D18;
             feeRecipientsTotal += shares;
 
             _mint(feeRecipients[i].recipient, shares);
@@ -370,27 +369,28 @@ contract Folio is
         uint256 sellBal = trade.sell.balanceOf(address(this));
         uint256 buyBal = trade.buy.balanceOf(address(this));
 
-        // {sellTok} = D18{sellTok/share} * {share} / D18
-        uint256 minSellBal = Math.mulDiv(trade.sellLimit, _totalSupply, SCALAR, Math.Rounding.Ceil);
+        // {sellTok} = D27{sellTok/share} * {share} / D27
+        uint256 minSellBal = Math.mulDiv(trade.sellLimit, _totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
-        // {buyTok} = D18{buyTok/share} * {share} / D18
-        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit, _totalSupply, SCALAR, Math.Rounding.Floor);
+        // {buyTok} = D27{buyTok/share} * {share} / D27
+        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit, _totalSupply, D27, Math.Rounding.Floor);
         uint256 buyAvailable = buyBal < maxBuyBal ? maxBuyBal - buyBal : 0;
 
         // avoid overflow
-        if (buyAvailable > 1e36) {
+        if (buyAvailable > MAX_EXCHANGE_RATE) {
             return sellAvailable;
         }
 
-        // D18{buyTok/sellTok}
+        // D27{buyTok/sellTok}
         uint256 price = _price(trade, timestamp);
 
-        // {sellTok} = {buyTok} * D18 / D18{buyTok/sellTok}
-        sellAmount = Math.min(sellAvailable, Math.mulDiv(buyAvailable, SCALAR, price, Math.Rounding.Floor));
+        // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
+        uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
+        sellAmount = Math.min(sellAvailable, sellAvailableFromBuy);
     }
 
-    /// @return D18{buyTok/sellTok} The price at the given timestamp as an 18-decimal fixed point
+    /// @return D27{buyTok/sellTok} The price at the given timestamp as an 18-decimal fixed point
     function getPrice(uint256 tradeId, uint256 timestamp) external view returns (uint256) {
         return _price(trades[tradeId], timestamp);
     }
@@ -400,17 +400,17 @@ contract Folio is
     function getBid(uint256 tradeId, uint256 timestamp, uint256 sellAmount) external view returns (uint256 bidAmount) {
         uint256 price = _price(trades[tradeId], timestamp);
 
-        // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
-        bidAmount = (sellAmount * price + SCALAR - 1) / SCALAR;
+        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
+        bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
     }
 
     /// @param tradeId Use to ensure expected ordering
     /// @param sell The token to sell, from the perspective of the Folio
     /// @param buy The token to buy, from the perspective of the Folio
-    /// @param sellLimit D18{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
-    /// @param buyLimit D18{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
-    /// @param startPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator, 1e54 max
-    /// @param endPrice D18{buyTok/sellTok} Provide 0 to defer pricing to price curator, 1e54 max
+    /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
+    /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
+    /// @param startPrice D27{buyTok/sellTok} Provide 0 to defer pricing to price curator, 1e54 max
+    /// @param endPrice D27{buyTok/sellTok} Provide 0 to defer pricing to price curator, 1e54 max
     /// @param ttl {s} How long a trade can exist in an APPROVED state until it can no longer be OPENED
     ///     (once opened, it always finishes). Accepts type(uint256).max .
     ///     Must be longer than tradeDelay if intended to be permissionlessly available.
@@ -469,8 +469,8 @@ contract Folio is
         emit TradeApproved(tradeId, address(sell), address(buy), startPrice, sellLimit, buyLimit);
     }
 
-    /// @param startPrice D18{buyTok/sellTok} 1e54 max
-    /// @param endPrice D18{buyTok/sellTok} 1e54 max
+    /// @param startPrice D27{buyTok/sellTok} 1e54 max
+    /// @param endPrice D27{buyTok/sellTok} 1e54 max
     function openTrade(
         uint256 tradeId,
         uint256 startPrice,
@@ -528,11 +528,11 @@ contract Folio is
         Trade storage trade = trades[tradeId];
 
         // checks trade is ongoing
-        // D18{buyTok/sellTok}
+        // D27{buyTok/sellTok}
         uint256 price = _price(trade, block.timestamp);
 
-        // {buyTok} = {sellTok} * D18{buyTok/sellTok} / D18
-        boughtAmt = (sellAmount * price + SCALAR - 1) / SCALAR;
+        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
+        boughtAmt = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
         if (boughtAmt > maxBuyAmount) {
             revert Folio__SlippageExceeded();
         }
@@ -541,8 +541,8 @@ contract Folio is
         uint256 _totalSupply = totalSupply();
         uint256 sellBal = trade.sell.balanceOf(address(this));
 
-        // {sellTok} = D18{sellTok/share} * {share} / D18
-        uint256 minSellBal = Math.mulDiv(trade.sellLimit, _totalSupply, SCALAR, Math.Rounding.Ceil);
+        // {sellTok} = D27{sellTok/share} * {share} / D27
+        uint256 minSellBal = Math.mulDiv(trade.sellLimit, _totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // ensure auction is large enough to cover bid
@@ -578,8 +578,8 @@ contract Folio is
             trade.buy.safeTransferFrom(msg.sender, address(this), boughtAmt);
         }
 
-        // D18{buyTok/share} = D18{buyTok/share} * {share} / D18
-        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit, _totalSupply, SCALAR, Math.Rounding.Floor);
+        // D27{buyTok/share} = D27{buyTok/share} * {share} / D27
+        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit, _totalSupply, D27, Math.Rounding.Floor);
 
         // ensure post-bid buy balance does not exceed max
         if (trade.buy.balanceOf(address(this)) > maxBuyBal) {
@@ -658,12 +658,13 @@ contract Folio is
         trade.end = block.timestamp + auctionLength;
         emit TradeOpened(trade.id, trade.startPrice, trade.endPrice, block.timestamp, block.timestamp + auctionLength);
 
+        // D18{1}
         // k = ln(P_0 / P_t) / t
-        trade.k = UD60x18.wrap((trade.startPrice * SCALAR) / trade.endPrice).ln().unwrap() / auctionLength;
+        trade.k = UD60x18.wrap((trade.startPrice * D18) / trade.endPrice).ln().unwrap() / auctionLength;
         // gas optimization to avoid recomputing k on every bid
     }
 
-    /// @return p D18{buyTok/sellTok}
+    /// @return p D27{buyTok/sellTok}
     function _price(Trade storage trade, uint256 timestamp) internal view returns (uint256 p) {
         // ensure auction is ongoing
         if (timestamp < trade.start || timestamp > trade.end) {
@@ -679,7 +680,8 @@ contract Folio is
         uint256 elapsed = timestamp - trade.start;
 
         // P_t = P_0 * e ^ -kt
-        p = (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / SCALAR;
+        // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
+        p = (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / D18;
         if (p < trade.endPrice) {
             p = trade.endPrice;
         }
@@ -699,11 +701,10 @@ contract Folio is
         uint256 elapsed = block.timestamp - lastPoke;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
-        uint256 feeShares = (supply * SCALAR) / UD60x18.wrap(SCALAR - folioFee).powu(elapsed).unwrap() - supply;
+        uint256 feeShares = (supply * D18) / UD60x18.wrap(D18 - folioFee).powu(elapsed).unwrap() - supply;
 
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(this));
 
-        // {share} = {share} * D18{1} / D18{1}
         uint256 daoShares = (feeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
         _daoPendingFeeShares += daoShares;
         _feeRecipientsPendingFeeShares += feeShares - daoShares;
@@ -758,7 +759,7 @@ contract Folio is
             emit FeeRecipientSet(_feeRecipients[i].recipient, _feeRecipients[i].portion);
         }
 
-        if (total != 1e18) {
+        if (total != D18) {
             revert Folio__BadFeeTotal();
         }
     }
