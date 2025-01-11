@@ -191,3 +191,16 @@ TODO
    currently only bring-your-own-erc20 governance is supported but we would like to add alternatives in the future such as (i) NFT-based governance; and (ii) an ERC20 fair launch system
 3. **price-based rebalancing**
    currently rebalancing is trade-driven, at the quantity level. this requires making projections about how many tokens will be held at the time of execution and what their values will be. in an alternative price-based world, governance provides a target basket in terms of share-by-value and a trusted party provides prices at time of execution to convert this into a concrete set of quantities/quantity-ratios
+
+### Development
+
+1. Required Tools:
+   - Foundry
+   - Node v20+
+   - Yarn
+2. Install Dependencies: `yarn install`
+3. Build: `yarn compile`
+4. Testing:
+   - Basic Tests: `yarn test`
+   - Extreme Tests: `yarn test:extreme`
+   - All Tests: `yarn test:all`

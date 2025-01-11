@@ -1258,8 +1258,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            governorImplementation,
-            timelockImplementation
+            governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -1295,8 +1294,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            governorImplementation,
-            timelockImplementation
+            governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -1320,8 +1318,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            governorImplementation,
-            timelockImplementation
+            governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -1343,8 +1340,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            governorImplementation,
-            timelockImplementation
+            governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -1489,8 +1485,7 @@ contract FolioTest is BaseTest {
     }
 
     function test_poke() public {
-        uint256 prevBlockTimestamp = block.timestamp;
-        assertEq(folio.lastPoke(), prevBlockTimestamp);
+        uint256 prevBlockTimestamp = folio.lastPoke();
 
         // fast forward, accumulate fees
         vm.warp(block.timestamp + YEAR_IN_SECONDS);

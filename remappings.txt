@@ -7,6 +7,8 @@ utils/=test/utils/
 @src/=contracts/
 @utils/=contracts/utils/
 @interfaces/=contracts/interfaces/
+
 @folio/=contracts/folio/
 @gov/=contracts/governance/
 @staking/=contracts/staking/
+@deployer/=contract/deployer/

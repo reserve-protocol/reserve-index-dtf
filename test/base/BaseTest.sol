@@ -90,13 +90,8 @@ abstract contract BaseTest is Script, Test {
 
         governorImplementation = address(new FolioGovernor());
         timelockImplementation = address(new TimelockControllerUpgradeable());
-        folioDeployer = new FolioDeployer(
-            address(daoFeeRegistry),
-            address(versionRegistry),
-            governorImplementation,
-            timelockImplementation
-        );
         governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
+        folioDeployer = new FolioDeployer(address(daoFeeRegistry), address(versionRegistry), governanceDeployer);
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
@@ -216,7 +211,8 @@ abstract contract BaseTest is Script, Test {
             _additionalDetails,
             _owner,
             _tradeProposers,
-            _priceCurators
+            _priceCurators,
+            new address[](0)
         );
 
         return (Folio(_folio), FolioProxyAdmin(_proxyAdmin));
