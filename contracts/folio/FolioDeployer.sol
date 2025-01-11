@@ -95,6 +95,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         IGovernanceDeployer.GovParams calldata ownerGovParams,
         IGovernanceDeployer.GovParams calldata tradingGovParams,
+        address[] memory existingTradeProposers,
         address[] memory priceCurators,
         address[] memory vibesOfficers
     )
@@ -111,20 +112,36 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         // Deploy Owner Governance
         (ownerGovernor, ownerTimelock) = governanceDeployer.deployGovernanceWithTimelock(ownerGovParams, stToken);
 
-        // Deploy Trading Governance
-        (tradingGovernor, tradingTimelock) = governanceDeployer.deployGovernanceWithTimelock(tradingGovParams, stToken);
+        if (existingTradeProposers.length == 0) {
+            // Deploy Trading Governance
+            (tradingGovernor, tradingTimelock) = governanceDeployer.deployGovernanceWithTimelock(
+                tradingGovParams,
+                stToken
+            );
 
-        // Deploy Folio
-        address[] memory tradeProposers = new address[](1);
-        tradeProposers[0] = tradingTimelock;
-        (folio, proxyAdmin) = deployFolio(
-            basicDetails,
-            additionalDetails,
-            ownerTimelock,
-            tradeProposers,
-            priceCurators,
-            vibesOfficers
-        );
+            address[] memory tradeProposers = new address[](1);
+            tradeProposers[0] = tradingTimelock;
+
+            // Deploy Folio
+            (folio, proxyAdmin) = deployFolio(
+                basicDetails,
+                additionalDetails,
+                ownerTimelock,
+                tradeProposers,
+                priceCurators,
+                vibesOfficers
+            );
+        } else {
+            // Deploy Folio
+            (folio, proxyAdmin) = deployFolio(
+                basicDetails,
+                additionalDetails,
+                ownerTimelock,
+                existingTradeProposers,
+                priceCurators,
+                vibesOfficers
+            );
+        }
 
         emit GovernedFolioDeployed(
             address(stToken),
