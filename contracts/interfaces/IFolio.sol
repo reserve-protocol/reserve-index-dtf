@@ -19,7 +19,7 @@ interface IFolio {
 
     event BasketTokenAdded(address indexed token);
     event BasketTokenRemoved(address indexed token);
-    event FolioFeeSet(uint256 newFee, uint256 halfLife);
+    event FolioFeeSet(uint256 newFee, uint256 feeAnnually);
     event MintingFeeSet(uint256 newFee);
     event FeeRecipientSet(address indexed recipient, uint96 portion);
     event TradeDelaySet(uint256 newTradeDelay);

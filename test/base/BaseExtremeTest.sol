@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import "./BaseTest.sol";
-import { MIN_FOLIO_FEE_HALF_LIFE, MAX_FEE_RECIPIENTS } from "@src/Folio.sol";
+import { MAX_FOLIO_FEE_ANNUALLY, MAX_FEE_RECIPIENTS } from "@src/Folio.sol";
 
 abstract contract BaseExtremeTest is BaseTest {
     struct MintRedeemTestParams {
@@ -32,9 +32,9 @@ abstract contract BaseExtremeTest is BaseTest {
     uint256[] internal testAmounts = [1, 1e6, 1e18, 1e36];
     uint256[] internal testFolioFees = [
         0,
-        MIN_FOLIO_FEE_HALF_LIFE * 10,
-        MIN_FOLIO_FEE_HALF_LIFE * 2,
-        MIN_FOLIO_FEE_HALF_LIFE
+        MAX_FOLIO_FEE_ANNUALLY / 10,
+        MAX_FOLIO_FEE_ANNUALLY / 2,
+        MAX_FOLIO_FEE_ANNUALLY
     ];
     uint256[] internal testDaoFees = [0, 0.01e18, 0.1e18, 0.15e18];
     uint256[] internal testTimeLapse = [1, 12, 1 days, 30 days, 120 days, YEAR_IN_SECONDS];
