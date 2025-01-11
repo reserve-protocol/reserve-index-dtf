@@ -5,7 +5,7 @@ import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { IFolioDeployer } from "contracts/interfaces/IFolioDeployer.sol";
 import { IFolioDAOFeeRegistry } from "contracts/interfaces/IFolioDAOFeeRegistry.sol";
 import { FolioDAOFeeRegistry, MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
-import { MAX_AUCTION_LENGTH, MAX_FOLIO_FEE_ANNUALLY, MAX_TRADE_DELAY } from "contracts/Folio.sol";
+import { MAX_AUCTION_LENGTH, MAX_FOLIO_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
 import "./base/BaseTest.sol";
 
 contract FolioDAOFeeRegistryTest is BaseTest {
@@ -39,7 +39,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE_ANNUALLY, // 50% annually
+            MAX_FOLIO_FEE, // 50% annually
             0,
             owner,
             dao,

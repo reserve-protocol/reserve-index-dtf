@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE_ANNUALLY, MAX_TTL, MAX_PRICE_RANGE, MAX_EXCHANGE_RATE } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_TTL, MAX_PRICE_RANGE, MAX_EXCHANGE_RATE } from "contracts/Folio.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
@@ -106,7 +106,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // deploy folio
         uint256 initialSupply = p.amount * 1e18;
-        uint256 folioFee = MAX_FOLIO_FEE_ANNUALLY;
+        uint256 folioFee = MAX_FOLIO_FEE;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
@@ -210,7 +210,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // deploy folio
         uint256 initialSupply = p.sellAmount;
-        uint256 folioFee = MAX_FOLIO_FEE_ANNUALLY;
+        uint256 folioFee = MAX_FOLIO_FEE;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);

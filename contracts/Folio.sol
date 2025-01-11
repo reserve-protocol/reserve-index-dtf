@@ -23,7 +23,7 @@ interface IBidderCallee {
     function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
 }
 
-uint256 constant MAX_FOLIO_FEE_ANNUALLY = 0.5e18; // D18{1/year} 50% annually
+uint256 constant MAX_FOLIO_FEE = 0.5e18; // D18{1/year} 50% annually
 uint256 constant MAX_MINTING_FEE = 0.10e18; // D18{1} 10%
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
@@ -716,7 +716,7 @@ contract Folio is
     /// Set folio fee by annual percentage
     /// @param _newFeeAnnually {s}
     function _setFolioFee(uint256 _newFeeAnnually) internal {
-        if (_newFeeAnnually > MAX_FOLIO_FEE_ANNUALLY) {
+        if (_newFeeAnnually > MAX_FOLIO_FEE) {
             revert Folio__FolioFeeTooHigh();
         }
 

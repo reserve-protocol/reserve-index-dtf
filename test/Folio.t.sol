@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FOLIO_FEE_ANNUALLY, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_MINTING_FEE, MIN_DAO_MINTING_FEE, MAX_PRICE_RANGE, MAX_EXCHANGE_RATE } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FOLIO_FEE, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_MINTING_FEE, MIN_DAO_MINTING_FEE, MAX_PRICE_RANGE, MAX_EXCHANGE_RATE } from "contracts/Folio.sol";
 import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
@@ -15,7 +15,7 @@ import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
-    uint256 internal constant MAX_FOLIO_FEE = 21979552667; // D18{1/s} 50% annually, per second
+    uint256 internal constant MAX_FOLIO_FEE_PER_SECOND = 21979552667; // D18{1/s} 50% annually, per second
 
     function _testSetup() public virtual override {
         super._testSetup();
@@ -48,7 +48,7 @@ contract FolioTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE_ANNUALLY,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -72,7 +72,7 @@ contract FolioTest is BaseTest {
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
         assertEq(MEME.balanceOf(address(folio)), D27_TOKEN_10K, "wrong folio meme balance");
-        assertEq(folio.folioFee(), MAX_FOLIO_FEE, "wrong folio fee");
+        assertEq(folio.folioFee(), MAX_FOLIO_FEE_PER_SECOND, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 0.9e18, "wrong first recipient bps");
@@ -114,7 +114,7 @@ contract FolioTest is BaseTest {
             tradeDelay: MAX_TRADE_DELAY,
             auctionLength: MAX_AUCTION_LENGTH,
             feeRecipients: recipients,
-            folioFee: MAX_FOLIO_FEE_ANNUALLY,
+            folioFee: MAX_FOLIO_FEE,
             mintingFee: 0
         });
 
@@ -562,11 +562,11 @@ contract FolioTest is BaseTest {
 
     function test_setFolioFee() public {
         vm.startPrank(owner);
-        assertEq(folio.folioFee(), MAX_FOLIO_FEE, "wrong folio fee");
-        uint256 newFolioFee = MAX_FOLIO_FEE_ANNUALLY / 1000;
+        assertEq(folio.folioFee(), MAX_FOLIO_FEE_PER_SECOND, "wrong folio fee");
+        uint256 newFolioFee = MAX_FOLIO_FEE / 1000;
         uint256 newFolioFeePerSecond = 15858860;
         vm.expectEmit(true, true, false, true);
-        emit IFolio.FolioFeeSet(newFolioFeePerSecond, MAX_FOLIO_FEE_ANNUALLY / 1000);
+        emit IFolio.FolioFeeSet(newFolioFeePerSecond, MAX_FOLIO_FEE / 1000);
         folio.setFolioFee(newFolioFee);
         assertEq(folio.folioFee(), newFolioFeePerSecond, "wrong folio fee");
     }
@@ -577,7 +577,7 @@ contract FolioTest is BaseTest {
         folio.setFolioFee(1);
 
         vm.expectRevert(IFolio.Folio__FolioFeeTooHigh.selector);
-        folio.setFolioFee(MAX_FOLIO_FEE_ANNUALLY + 1);
+        folio.setFolioFee(MAX_FOLIO_FEE + 1);
     }
 
     function test_setTradeDelay() public {
@@ -632,7 +632,7 @@ contract FolioTest is BaseTest {
 
     function test_cannotSetFolioFeeIfNotOwner() public {
         vm.startPrank(user1);
-        uint256 newFolioFee = MAX_FOLIO_FEE_ANNUALLY / 1000;
+        uint256 newFolioFee = MAX_FOLIO_FEE / 1000;
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector,
@@ -653,7 +653,7 @@ contract FolioTest is BaseTest {
         uint256 initialDaoShares = folio.balanceOf(dao);
 
         vm.startPrank(owner);
-        uint256 newFolioFee = MAX_FOLIO_FEE_ANNUALLY / 1000;
+        uint256 newFolioFee = MAX_FOLIO_FEE / 1000;
         folio.setFolioFee(newFolioFee);
 
         assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");

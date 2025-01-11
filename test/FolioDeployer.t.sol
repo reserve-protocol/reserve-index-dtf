@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE_ANNUALLY, MAX_MINTING_FEE } from "contracts/Folio.sol";
+import { MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_MINTING_FEE } from "contracts/Folio.sol";
 import { FolioDeployer, IFolioDeployer } from "contracts/folio/FolioDeployer.sol";
 import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
@@ -13,7 +13,7 @@ import "./base/BaseTest.sol";
 
 contract FolioDeployerTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
-    uint256 internal constant MAX_FOLIO_FEE = 21979552667; // D18{1/s} 50% annually, per second
+    uint256 internal constant MAX_FOLIO_FEE_PER_SECOND = 21979552667; // D18{1/s} 50% annually, per second
 
     function test_constructor() public view {
         assertEq(address(folioDeployer.daoFeeRegistry()), address(daoFeeRegistry));
@@ -43,7 +43,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE_ANNUALLY,
+            MAX_FOLIO_FEE,
             MAX_MINTING_FEE,
             owner,
             dao,
@@ -63,7 +63,7 @@ contract FolioDeployerTest is BaseTest {
         assertEq(_assets[1], address(DAI), "wrong second asset");
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
-        assertEq(folio.folioFee(), MAX_FOLIO_FEE, "wrong folio fee");
+        assertEq(folio.folioFee(), MAX_FOLIO_FEE_PER_SECOND, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 0.9e18, "wrong first recipient bps");
@@ -94,7 +94,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE_ANNUALLY,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -119,7 +119,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE_ANNUALLY,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -149,7 +149,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE_ANNUALLY,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -179,7 +179,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE_ANNUALLY,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -226,7 +226,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE_ANNUALLY,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -255,7 +255,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             1,
             recipients,
-            MAX_FOLIO_FEE_ANNUALLY,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -270,7 +270,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH + 1,
             recipients,
-            MAX_FOLIO_FEE_ANNUALLY,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -300,7 +300,7 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY + 1,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE_ANNUALLY,
+            MAX_FOLIO_FEE,
             0,
             owner,
             dao,
@@ -360,7 +360,7 @@ contract FolioDeployerTest is BaseTest {
                     tradeDelay: MAX_TRADE_DELAY,
                     auctionLength: MAX_AUCTION_LENGTH,
                     feeRecipients: recipients,
-                    folioFee: MAX_FOLIO_FEE_ANNUALLY,
+                    folioFee: MAX_FOLIO_FEE,
                     mintingFee: MAX_MINTING_FEE
                 }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
@@ -387,7 +387,7 @@ contract FolioDeployerTest is BaseTest {
         assertEq(_assets[1], address(DAI), "wrong second asset");
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
-        assertEq(folio.folioFee(), MAX_FOLIO_FEE, "wrong folio fee");
+        assertEq(folio.folioFee(), MAX_FOLIO_FEE_PER_SECOND, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 0.9e18, "wrong first recipient bps");
