@@ -569,6 +569,12 @@ contract FolioTest is BaseTest {
         assertEq(folio.folioFee(), 15858860, "wrong folio fee");
     }
 
+    function test_setFolioFeeTooLow() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IFolio.Folio__FolioFeeTooLow.selector);
+        folio.setFolioFee(1);
+    }
+
     function test_setTradeDelay() public {
         vm.startPrank(owner);
         assertEq(folio.tradeDelay(), MAX_TRADE_DELAY, "wrong trade delay");

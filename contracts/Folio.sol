@@ -34,7 +34,7 @@ uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 
 uint256 constant LN_2 = 0.693147180559945309e18; // D18{1} ln(2e18)
-uint256 constant ONE_OVER_A_YEAR = 31709791983; // D18{1/s}
+uint256 constant ONE_OVER_A_YEAR = 31709791983; // D18{1/s} 1 / 31536000
 
 uint256 constant SCALAR = 1e18; // D18
 
@@ -652,6 +652,10 @@ contract Folio is
         }
 
         folioFee = 1e18 - UD60x18.wrap(1e18 - _newFeeAnnually).pow(UD60x18.wrap(ONE_OVER_A_YEAR)).unwrap();
+
+        if (_newFeeAnnually != 0 && folioFee == 0) {
+            revert Folio__FolioFeeTooLow();
+        }
 
         emit FolioFeeSet(folioFee, _newFeeAnnually);
     }

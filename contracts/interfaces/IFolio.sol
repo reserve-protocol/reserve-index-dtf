@@ -38,6 +38,7 @@ interface IFolio {
     error Folio__FeeRecipientInvalidFeeShare();
     error Folio__BadFeeTotal();
     error Folio__FolioFeeTooHigh();
+    error Folio__FolioFeeTooLow();
     error Folio__MintingFeeTooHigh();
 
     error Folio__InvalidAsset();
