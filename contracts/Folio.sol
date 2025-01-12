@@ -60,7 +60,7 @@ contract Folio is
      * Roles
      */
     bytes32 public constant TRADE_PROPOSER = keccak256("TRADE_PROPOSER"); // expected to be trading governance's timelock
-    bytes32 public constant AUCTION_LAUNCHER = keccak256("AUCTION_LAUNCHER"); // optional: EOA or multisig
+    bytes32 public constant TRADE_LAUNCHER = keccak256("TRADE_LAUNCHER"); // optional: EOA or multisig
     bytes32 public constant VIBES_OFFICER = keccak256("VIBES_OFFICER"); // optional: no permissions
 
     /**
@@ -84,7 +84,7 @@ contract Folio is
 
     /**
      * Trading
-     *   - Trades have a delay before they can be opened, that AUCTION_LAUNCHER can bypass
+     *   - Trades have a delay before they can be opened, that TRADE_LAUNCHER can bypass
      *   - Multiple trades can be open at once
      *   - Multiple bids can be executed against the same trade
      *   - All trades are dutch auctions, but it's possible to pass startPrice = endPrice
@@ -410,8 +410,8 @@ contract Folio is
     /// @param buy The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
-    /// @param startPrice D27{buyTok/sellTok} Provide 0 to defer pricing to auction launcher, 1e54 max
-    /// @param endPrice D27{buyTok/sellTok} Provide 0 to defer pricing to auction launcher, 1e54 max
+    /// @param startPrice D27{buyTok/sellTok} Provide 0 to defer pricing to trade launcher, 1e54 max
+    /// @param endPrice D27{buyTok/sellTok} Provide 0 to defer pricing to trade launcher, 1e54 max
     /// @param ttl {s} How long a trade can exist in an APPROVED state until it can no longer be OPENED
     ///     (once opened, it always finishes).
     ///     Must be longer than tradeDelay if intended to be permissionlessly available.
@@ -493,7 +493,7 @@ contract Folio is
         );
     }
 
-    /// Open a trade as the auction launcher
+    /// Open a trade as the trade launcher
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param startPrice D27{buyTok/sellTok} 1e54 max
@@ -504,10 +504,10 @@ contract Folio is
         uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice
-    ) external nonReentrant onlyRole(AUCTION_LAUNCHER) {
+    ) external nonReentrant onlyRole(TRADE_LAUNCHER) {
         Trade storage trade = trades[tradeId];
 
-        // auction launcher can:
+        // trade launcher can:
         //   - select a sell limit within the approved range
         //   - select a buy limit within the approved range
         //   - raise starting price by up to 100x
@@ -630,9 +630,9 @@ contract Folio is
 
     /// Kill a trade
     /// A trade can be killed anywhere in its lifecycle, and cannot be restarted
-    /// @dev Callable by TRADE_PROPOSER or AUCTION_LAUNCHER
+    /// @dev Callable by TRADE_PROPOSER or TRADE_LAUNCHER
     function killTrade(uint256 tradeId) external nonReentrant {
-        if (!hasRole(TRADE_PROPOSER, msg.sender) && !hasRole(AUCTION_LAUNCHER, msg.sender)) {
+        if (!hasRole(TRADE_PROPOSER, msg.sender) && !hasRole(TRADE_LAUNCHER, msg.sender)) {
             revert Folio__Unauthorized();
         }
 

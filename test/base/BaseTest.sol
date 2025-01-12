@@ -43,7 +43,7 @@ abstract contract BaseTest is Script, Test {
 
     uint256 constant YEAR_IN_SECONDS = 31536000;
 
-    address auctionLauncher = 0x00000000000000000000000000000000000000cc; // has Auction Launcher
+    address tradeLauncher = 0x00000000000000000000000000000000000000cc; // has Trade Launcher
     address dao = 0xDA00000000000000000000000000000000000000; // has TRADE_PROPOSER
     address owner = 0xCc00000000000000000000000000000000000000; // has DEFAULT_ADMIN_ROLE
     address user1 = 0xfF00000000000000000000000000000000000000;
@@ -103,7 +103,7 @@ abstract contract BaseTest is Script, Test {
     }
 
     function _testSetupAfter() public virtual {
-        vm.label(address(auctionLauncher), "Auction Launcher");
+        vm.label(address(tradeLauncher), "Trade Launcher");
         vm.label(address(dao), "DAO");
         vm.label(address(owner), "Owner");
         vm.label(address(user1), "User 1");
@@ -183,7 +183,7 @@ abstract contract BaseTest is Script, Test {
         uint256 _mintingFee,
         address _owner,
         address _tradeProposer,
-        address _auctionLauncher
+        address _tradeLauncher
     ) internal returns (Folio, FolioProxyAdmin) {
         IFolio.FolioBasicDetails memory _basicDetails = IFolio.FolioBasicDetails({
             name: "Test Folio",
@@ -203,15 +203,15 @@ abstract contract BaseTest is Script, Test {
 
         address[] memory _tradeProposers = new address[](1);
         _tradeProposers[0] = _tradeProposer;
-        address[] memory _auctionLaunchers = new address[](1);
-        _auctionLaunchers[0] = _auctionLauncher;
+        address[] memory _tradeLaunchers = new address[](1);
+        _tradeLaunchers[0] = _tradeLauncher;
 
         (address _folio, address _proxyAdmin) = folioDeployer.deployFolio(
             _basicDetails,
             _additionalDetails,
             _owner,
             _tradeProposers,
-            _auctionLaunchers,
+            _tradeLaunchers,
             new address[](0)
         );
 
