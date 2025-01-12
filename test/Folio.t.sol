@@ -1018,7 +1018,7 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_auctionKillTradeBytradeLauncher() public {
+    function test_auctionKillTradeByTradeLauncher() public {
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, true);
@@ -1129,7 +1129,7 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt, amt, false, bytes(""));
     }
 
-    function test_auctionOnlytradeLauncherCanBypassDelay() public {
+    function test_auctionOnlyTradeLauncherCanBypassDelay() public {
         vm.startPrank(dao);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 1, 1, MAX_TTL);
 
