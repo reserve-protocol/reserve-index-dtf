@@ -44,7 +44,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         address owner,
         address[] memory tradeProposers,
-        address[] memory priceCurators,
+        address[] memory tradeLaunchers,
         address[] memory vibesOfficers
     ) public returns (address folio_, address folioAdmin_) {
         if (basicDetails.assets.length != basicDetails.amounts.length) {
@@ -67,8 +67,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         for (uint256 i; i < tradeProposers.length; i++) {
             folio.grantRole(folio.TRADE_PROPOSER(), tradeProposers[i]);
         }
-        for (uint256 i; i < priceCurators.length; i++) {
-            folio.grantRole(folio.TRADE_CURATOR(), priceCurators[i]);
+        for (uint256 i; i < tradeLaunchers.length; i++) {
+            folio.grantRole(folio.TRADE_LAUNCHER(), tradeLaunchers[i]);
         }
         for (uint256 i; i < vibesOfficers.length; i++) {
             folio.grantRole(folio.VIBES_OFFICER(), vibesOfficers[i]);
@@ -96,7 +96,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IGovernanceDeployer.GovParams calldata ownerGovParams,
         IGovernanceDeployer.GovParams calldata tradingGovParams,
         address[] memory existingTradeProposers,
-        address[] memory priceCurators,
+        address[] memory tradeLaunchers,
         address[] memory vibesOfficers
     )
         external
@@ -128,7 +128,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 additionalDetails,
                 ownerTimelock,
                 tradeProposers,
-                priceCurators,
+                tradeLaunchers,
                 vibesOfficers
             );
         } else {
@@ -138,7 +138,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 additionalDetails,
                 ownerTimelock,
                 existingTradeProposers,
-                priceCurators,
+                tradeLaunchers,
                 vibesOfficers
             );
         }

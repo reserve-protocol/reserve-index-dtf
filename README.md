@@ -4,11 +4,11 @@
 
 Reserve Folio is a protocol for creating and managing portfolios of ERC20-compliant assets entirely onchain. Folios are designed to be used as a single-source of truth for asset allocations, enabling composability of complex, multi-asset portfolios.
 
-Folios support rebalancing trades via Dutch Auction over an exponential decay curve between two prices. Control flow over the trade is shared between two parties, with a `TRADE_PROPOSER` approving trades in advance and a `TRADE_CURATOR` opening them, optionally providing some amount of additional detail.
+Folios support rebalancing trades via Dutch Auction over an exponential decay curve between two prices. Control flow over the trade is shared between two parties, with a `TRADE_PROPOSER` approving trades in advance and a `TRADE_LAUNCHER` opening them, optionally providing some amount of additional detail.
 
 `TRADE_PROPOSER` is expected to be the timelock of the fast-moving trade governor associated with the Folio.
 
-`TRADE_CURATOR` is expected to be a semi-trusted EOA or multisig; They can open trades within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the trade can be opened permissionlessly after a preset delay. If they are evil, at-best they can deviate trading within the governance-granted range, or prevent a Folio from rebalancing entirely by killing trades. They cannot access the backing directly.
+`TRADE_LAUNCHER` is expected to be a semi-trusted EOA or multisig; They can open trades within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the trade can be opened permissionlessly after a preset delay. If they are evil, at-best they can deviate trading within the governance-granted range, or prevent a Folio from rebalancing entirely by killing trades. They cannot access the backing directly.
 
 ### Architecture
 
@@ -43,12 +43,12 @@ A Folio has 3 roles:
 1. `DEFAULT_ADMIN_ROLE`
    - Expected: Timelock of Slow Folio Governor
    - Can add/remove assets, set fees, configure auction length, and set the trade delay
-   - Can configure the `TRADE_PROPOSER`/ `TRADE_CURATOR`
+   - Can configure the `TRADE_PROPOSER`/ `TRADE_LAUNCHER`
    - Primary owner of the Folio
 2. `TRADE_PROPOSER`
    - Expected: Timelock of Fast Folio Governor
    - Can approve trades
-3. `TRADE_CURATOR`
+3. `TRADE_LAUNCHER`
    - Expected: EOA or multisig
    - Can open and kill trades, optionally altering parameters of the trade within the approved ranges
 
@@ -65,7 +65,7 @@ The staking vault has ONLY a single owner:
 
 1. Trade is approved by governance, including an initial price range
 2. Trade is opened, starting a dutch auction
-   a. ...either by the trade curator (immediately)
+   a. ...either by the trade launcher (immediately)
    b. ...or permissionlessly (after a delay)
 3. Bids occur
 4. Auction expires
@@ -87,17 +87,17 @@ Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed
 Range buyLimit; // D27{buyTok/share} min ratio of sell token to shares allowed, exclusive
 ```
 
-During `openTrade` the `TRADE_CURATOR` can set the buy and sell limits within the approved ranges provided by governance. If the trade is opened permissionlessly instead, the governance pre-approved spot estimates will be used instead.
+During `openTrade` the `TRADE_LAUNCHER` can set the buy and sell limits within the approved ranges provided by governance. If the trade is opened permissionlessly instead, the governance pre-approved spot estimates will be used instead.
 
 ###### Price
 
 There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `TRADE_PROPOSER`:
 
-1. Can provide `[0, 0]` to _fully_ defer to the trade curator for pricing. In this mode the auction CANNOT be opened permissionlessly. Loss can arise either due to the trade curator setting `startPrice` too low, or due to precision issues from traversing too large a range.
-2. Can provide `[startPrice, 0]` to defer to the trade curator for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
-3. Can provide `[startPrice, endPrice]` to defer to the trade curator for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Suggested default option.
+1. Can provide `[0, 0]` to _fully_ defer to the trade launcher for pricing. In this mode the auction CANNOT be opened permissionlessly. Loss can arise either due to the trade launcher setting `startPrice` too low, or due to precision issues from traversing too large a range.
+2. Can provide `[startPrice, 0]` to defer to the trade launcher for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
+3. Can provide `[startPrice, endPrice]` to defer to the trade launcher for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Suggested default option.
 
-The `TRADE_CURATOR` can always choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
+The `TRADE_LAUNCHER` can always choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
 
 The price range (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues.
 
