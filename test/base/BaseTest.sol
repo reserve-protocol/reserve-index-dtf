@@ -205,6 +205,8 @@ abstract contract BaseTest is Script, Test {
         _tradeProposers[0] = _tradeProposer;
         address[] memory _tradeLaunchers = new address[](1);
         _tradeLaunchers[0] = _tradeLauncher;
+        address[] memory _vibesOfficers = new address[](1);
+        _vibesOfficers[0] = _owner;
 
         (address _folio, address _proxyAdmin) = folioDeployer.deployFolio(
             _basicDetails,
@@ -212,7 +214,7 @@ abstract contract BaseTest is Script, Test {
             _owner,
             _tradeProposers,
             _tradeLaunchers,
-            new address[](0)
+            _vibesOfficers
         );
 
         return (Folio(_folio), FolioProxyAdmin(_proxyAdmin));
