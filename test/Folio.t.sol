@@ -1556,6 +1556,34 @@ contract FolioTest is BaseTest {
         folio.openTrade(0, 0, MAX_RATE, 50e27, 55e27);
     }
 
+    function test_auctionCannotOpenTradeWithInvalidSellLimit() public {
+        IFolio.Range memory sellLimit = IFolio.Range(1, 1, MAX_RATE - 1);
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, sellLimit, FULL_BUY, 0, 0, MAX_TTL);
+
+        vm.prank(tradeLauncher);
+        vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
+        folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
+
+        vm.prank(tradeLauncher);
+        vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
+        folio.openTrade(0, MAX_RATE, MAX_RATE, 1e27, 1e27);
+    }
+
+    function test_auctionCannotOpenTradeWithInvalidBuyLimit() public {
+        IFolio.Range memory buyLimit = IFolio.Range(1, 1, MAX_RATE - 1);
+        vm.prank(dao);
+        folio.approveTrade(0, USDC, USDT, FULL_SELL, buyLimit, 0, 0, MAX_TTL);
+
+        vm.prank(tradeLauncher);
+        vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
+        folio.openTrade(0, MAX_RATE, 0, 1e27, 1e27);
+
+        vm.prank(tradeLauncher);
+        vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
+        folio.openTrade(0, MAX_RATE, MAX_RATE, 1e27, 1e27);
+    }
+
     function test_auctionCannotOpenTradeWithZeroPrice() public {
         vm.prank(dao);
         vm.expectEmit(true, true, true, true);
