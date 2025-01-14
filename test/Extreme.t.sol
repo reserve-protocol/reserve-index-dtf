@@ -221,7 +221,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // approveTrade
         vm.prank(dao);
-        folio.approveTrade(0, sell, buy, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
+        folio.approveTrade(0, sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
 
         // openTrade
         vm.prank(tradeLauncher);
@@ -231,7 +231,7 @@ contract ExtremeTest is BaseExtremeTest {
         // sellAmount will be up to 1e36
         // buyAmount will be up to 1e54 and down to 1
 
-        (, , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
 
         uint256 sellAmount = folio.lot(0, start);
         // getBid should work at both ends of auction

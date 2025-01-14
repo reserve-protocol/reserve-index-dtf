@@ -371,11 +371,11 @@ contract Folio is
         uint256 buyBal = trade.buy.balanceOf(address(this));
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(trade.config.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 minSellBal = Math.mulDiv(trade.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // {buyTok} = D27{buyTok/share} * {share} / D27
-        uint256 maxBuyBal = Math.mulDiv(trade.config.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
+        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
         uint256 buyAvailable = buyBal < maxBuyBal ? maxBuyBal - buyBal : 0;
 
         // avoid overflow
@@ -410,8 +410,7 @@ contract Folio is
     /// @param buy The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
-    /// @param startPrice D27{buyTok/sellTok} Provide 0 to defer pricing to trade launcher, 1e54 max
-    /// @param endPrice D27{buyTok/sellTok} Provide 0 to defer pricing to trade launcher, 1e54 max
+    /// @param prices D27{buyTok/sellTok} Price range
     /// @param ttl {s} How long a trade can exist in an APPROVED state until it can no longer be OPENED
     ///     (once opened, it always finishes).
     ///     Must be longer than tradeDelay if intended to be permissionlessly available.
@@ -421,8 +420,7 @@ contract Folio is
         IERC20 buy,
         Range calldata sellLimit,
         Range calldata buyLimit,
-        uint256 startPrice,
-        uint256 endPrice,
+        Prices calldata prices,
         uint256 ttl
     ) external nonReentrant onlyRole(TRADE_PROPOSER) {
         require(!isKilled, Folio__FolioKilled());
@@ -454,7 +452,7 @@ contract Folio is
             revert Folio__InvalidBuyLimit();
         }
 
-        if (startPrice < endPrice) {
+        if (prices.start < prices.end) {
             revert Folio__InvalidPrices();
         }
 
@@ -467,7 +465,9 @@ contract Folio is
                 id: trades.length,
                 sell: sell,
                 buy: buy,
-                config: AuctionConfig(sellLimit, buyLimit, startPrice, endPrice),
+                sellLimit: sellLimit,
+                buyLimit: buyLimit,
+                prices: prices,
                 availableAt: block.timestamp + tradeDelay,
                 launchTimeout: block.timestamp + ttl,
                 start: 0,
@@ -475,19 +475,7 @@ contract Folio is
                 k: 0
             })
         );
-        emit TradeApproved(
-            tradeId,
-            address(sell),
-            address(buy),
-            startPrice,
-            endPrice,
-            sellLimit.spot,
-            sellLimit.low,
-            sellLimit.high,
-            buyLimit.spot,
-            buyLimit.low,
-            buyLimit.high
-        );
+        emit TradeApproved(tradeId, address(sell), address(buy), sellLimit, buyLimit, prices);
     }
 
     /// Open a trade as the trade launcher
@@ -511,25 +499,25 @@ contract Folio is
         //   - raise ending price arbitrarily (can cause auction not to clear, same as killing)
 
         if (
-            startPrice < trade.config.startPrice ||
-            endPrice < trade.config.endPrice ||
-            (trade.config.startPrice != 0 && startPrice > 100 * trade.config.startPrice)
+            startPrice < trade.prices.start ||
+            endPrice < trade.prices.end ||
+            (trade.prices.start != 0 && startPrice > 100 * trade.prices.start)
         ) {
             revert Folio__InvalidPrices();
         }
 
-        if (sellLimit < trade.config.sellLimit.low || sellLimit > trade.config.sellLimit.high) {
+        if (sellLimit < trade.sellLimit.low || sellLimit > trade.sellLimit.high) {
             revert Folio__InvalidSellLimit();
         }
 
-        if (buyLimit < trade.config.buyLimit.low || buyLimit > trade.config.buyLimit.high) {
+        if (buyLimit < trade.buyLimit.low || buyLimit > trade.buyLimit.high) {
             revert Folio__InvalidBuyLimit();
         }
 
-        trade.config.sellLimit.spot = sellLimit;
-        trade.config.buyLimit.spot = buyLimit;
-        trade.config.startPrice = startPrice;
-        trade.config.endPrice = endPrice;
+        trade.sellLimit.spot = sellLimit;
+        trade.buyLimit.spot = buyLimit;
+        trade.prices.start = startPrice;
+        trade.prices.end = endPrice;
         // more price checks in _openTrade()
 
         _openTrade(trade);
@@ -580,7 +568,7 @@ contract Folio is
         uint256 sellBal = trade.sell.balanceOf(address(this));
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(trade.config.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 minSellBal = Math.mulDiv(trade.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // ensure auction is large enough to cover bid
@@ -617,7 +605,7 @@ contract Folio is
         }
 
         // D27{buyTok/share} = D27{buyTok/share} * {share} / D27
-        uint256 maxBuyBal = Math.mulDiv(trade.config.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
+        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
 
         // ensure post-bid buy balance does not exceed max
         if (trade.buy.balanceOf(address(this)) > maxBuyBal) {
@@ -686,11 +674,11 @@ contract Folio is
 
         // ensure valid price range (startPrice == endPrice is valid)
         if (
-            trade.config.startPrice < trade.config.endPrice ||
-            trade.config.startPrice == 0 ||
-            trade.config.endPrice == 0 ||
-            trade.config.startPrice > MAX_RATE ||
-            trade.config.startPrice / trade.config.endPrice > MAX_PRICE_RANGE
+            trade.prices.start < trade.prices.end ||
+            trade.prices.start == 0 ||
+            trade.prices.end == 0 ||
+            trade.prices.start > MAX_RATE ||
+            trade.prices.start / trade.prices.end > MAX_PRICE_RANGE
         ) {
             revert Folio__InvalidPrices();
         }
@@ -699,17 +687,17 @@ contract Folio is
         trade.end = block.timestamp + auctionLength;
         emit TradeOpened(
             trade.id,
-            trade.config.startPrice,
-            trade.config.endPrice,
-            trade.config.sellLimit.spot,
-            trade.config.buyLimit.spot,
+            trade.sellLimit.spot,
+            trade.buyLimit.spot,
+            trade.prices.start,
+            trade.prices.end,
             block.timestamp,
             block.timestamp + auctionLength
         );
 
         // D18{1}
         // k = ln(P_0 / P_t) / t
-        trade.k = UD60x18.wrap((trade.config.startPrice * D18) / trade.config.endPrice).ln().unwrap() / auctionLength;
+        trade.k = UD60x18.wrap((trade.prices.start * D18) / trade.prices.end).ln().unwrap() / auctionLength;
         // gas optimization to avoid recomputing k on every bid
     }
 
@@ -720,19 +708,19 @@ contract Folio is
             revert Folio__TradeNotOngoing();
         }
         if (timestamp == trade.start) {
-            return trade.config.startPrice;
+            return trade.prices.start;
         }
         if (timestamp == trade.end) {
-            return trade.config.endPrice;
+            return trade.prices.end;
         }
 
         uint256 elapsed = timestamp - trade.start;
 
         // P_t = P_0 * e ^ -kt
         // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-        p = (trade.config.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / D18;
-        if (p < trade.config.endPrice) {
-            p = trade.config.endPrice;
+        p = (trade.prices.start * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / D18;
+        if (p < trade.prices.end) {
+            p = trade.prices.end;
         }
     }
 
