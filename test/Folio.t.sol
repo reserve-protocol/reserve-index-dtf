@@ -423,6 +423,16 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
+    function test_cannotAddToBasketIfDuplicate() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+
+        vm.startPrank(owner);
+        vm.expectRevert(IFolio.Folio__BasketModificationFailed.selector);
+        folio.addToBasket(USDC); // cannot add duplicate
+        vm.stopPrank();
+    }
+
     function test_removeFromBasket() public {
         (address[] memory _assets, ) = folio.totalAssets();
         assertEq(_assets.length, 3, "wrong assets length");
@@ -455,6 +465,16 @@ contract FolioTest is BaseTest {
             )
         );
         folio.removeFromBasket(MEME);
+        vm.stopPrank();
+    }
+
+    function test_cannotRemoveFromBasketIfNotAvailable() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+
+        vm.startPrank(owner);
+        vm.expectRevert(IFolio.Folio__BasketModificationFailed.selector);
+        folio.removeFromBasket(USDT); // cannot remove, not in basket
         vm.stopPrank();
     }
 
@@ -1546,6 +1566,31 @@ contract FolioTest is BaseTest {
         address[] memory smallerBasket = new address[](0);
         vm.expectRevert(IFolio.Folio__InvalidArrayLengths.selector);
         folio.redeem(5e21, user1, smallerBasket, amounts);
+    }
+
+    function test_killFolio() public {
+        assertFalse(folio.isKilled(), "wrong killed status");
+
+        vm.prank(owner);
+        folio.killFolio();
+
+        assertTrue(folio.isKilled(), "wrong killed status");
+    }
+
+    function test_cannotKillFolioIfNotOwner() public {
+        assertFalse(folio.isKilled(), "wrong killed status");
+
+        vm.startPrank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.killFolio();
+        vm.stopPrank();
+        assertFalse(folio.isKilled(), "wrong killed status");
     }
 
     function test_poke() public {
