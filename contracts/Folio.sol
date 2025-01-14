@@ -410,8 +410,7 @@ contract Folio is
     /// @param buy The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
-    /// @param startPrice D27{buyTok/sellTok} Provide 0 to defer pricing to trade launcher, 1e54 max
-    /// @param endPrice D27{buyTok/sellTok} Provide 0 to defer pricing to trade launcher, 1e54 max
+    /// @param prices D27{buyTok/sellTok} Price range
     /// @param ttl {s} How long a trade can exist in an APPROVED state until it can no longer be OPENED
     ///     (once opened, it always finishes).
     ///     Must be longer than tradeDelay if intended to be permissionlessly available.
@@ -421,8 +420,7 @@ contract Folio is
         IERC20 buy,
         Range calldata sellLimit,
         Range calldata buyLimit,
-        uint256 startPrice,
-        uint256 endPrice,
+        Prices calldata prices,
         uint256 ttl
     ) external nonReentrant onlyRole(TRADE_PROPOSER) {
         require(!isKilled, Folio__FolioKilled());
@@ -454,7 +452,7 @@ contract Folio is
             revert Folio__InvalidBuyLimit();
         }
 
-        if (startPrice < endPrice) {
+        if (prices.start < prices.end) {
             revert Folio__InvalidPrices();
         }
 
@@ -469,8 +467,7 @@ contract Folio is
                 buy: buy,
                 sellLimit: sellLimit,
                 buyLimit: buyLimit,
-                startPrice: startPrice,
-                endPrice: endPrice,
+                prices: prices,
                 availableAt: block.timestamp + tradeDelay,
                 launchTimeout: block.timestamp + ttl,
                 start: 0,
@@ -478,19 +475,7 @@ contract Folio is
                 k: 0
             })
         );
-        emit TradeApproved(
-            tradeId,
-            address(sell),
-            address(buy),
-            startPrice,
-            endPrice,
-            sellLimit.spot,
-            sellLimit.low,
-            sellLimit.high,
-            buyLimit.spot,
-            buyLimit.low,
-            buyLimit.high
-        );
+        emit TradeApproved(tradeId, address(sell), address(buy), sellLimit, buyLimit, prices);
     }
 
     /// Open a trade as the trade launcher
@@ -514,9 +499,9 @@ contract Folio is
         //   - raise ending price arbitrarily (can cause auction not to clear, same as killing)
 
         if (
-            startPrice < trade.startPrice ||
-            endPrice < trade.endPrice ||
-            (trade.startPrice != 0 && startPrice > 100 * trade.startPrice)
+            startPrice < trade.prices.start ||
+            endPrice < trade.prices.end ||
+            (trade.prices.start != 0 && startPrice > 100 * trade.prices.start)
         ) {
             revert Folio__InvalidPrices();
         }
@@ -531,8 +516,8 @@ contract Folio is
 
         trade.sellLimit.spot = sellLimit;
         trade.buyLimit.spot = buyLimit;
-        trade.startPrice = startPrice;
-        trade.endPrice = endPrice;
+        trade.prices.start = startPrice;
+        trade.prices.end = endPrice;
         // more price checks in _openTrade()
 
         _openTrade(trade);
@@ -689,11 +674,11 @@ contract Folio is
 
         // ensure valid price range (startPrice == endPrice is valid)
         if (
-            trade.startPrice < trade.endPrice ||
-            trade.startPrice == 0 ||
-            trade.endPrice == 0 ||
-            trade.startPrice > MAX_RATE ||
-            trade.startPrice / trade.endPrice > MAX_PRICE_RANGE
+            trade.prices.start < trade.prices.end ||
+            trade.prices.start == 0 ||
+            trade.prices.end == 0 ||
+            trade.prices.start > MAX_RATE ||
+            trade.prices.start / trade.prices.end > MAX_PRICE_RANGE
         ) {
             revert Folio__InvalidPrices();
         }
@@ -702,8 +687,8 @@ contract Folio is
         trade.end = block.timestamp + auctionLength;
         emit TradeOpened(
             trade.id,
-            trade.startPrice,
-            trade.endPrice,
+            trade.prices.start,
+            trade.prices.end,
             trade.sellLimit.spot,
             trade.buyLimit.spot,
             block.timestamp,
@@ -712,7 +697,7 @@ contract Folio is
 
         // D18{1}
         // k = ln(P_0 / P_t) / t
-        trade.k = UD60x18.wrap((trade.startPrice * D18) / trade.endPrice).ln().unwrap() / auctionLength;
+        trade.k = UD60x18.wrap((trade.prices.start * D18) / trade.prices.end).ln().unwrap() / auctionLength;
         // gas optimization to avoid recomputing k on every bid
     }
 
@@ -723,19 +708,19 @@ contract Folio is
             revert Folio__TradeNotOngoing();
         }
         if (timestamp == trade.start) {
-            return trade.startPrice;
+            return trade.prices.start;
         }
         if (timestamp == trade.end) {
-            return trade.endPrice;
+            return trade.prices.end;
         }
 
         uint256 elapsed = timestamp - trade.start;
 
         // P_t = P_0 * e ^ -kt
         // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-        p = (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / D18;
-        if (p < trade.endPrice) {
-            p = trade.endPrice;
+        p = (trade.prices.start * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / D18;
+        if (p < trade.prices.end) {
+            p = trade.prices.end;
         }
     }
 

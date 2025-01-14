@@ -340,14 +340,8 @@ contract FolioDeployerTest is BaseTest {
         tradeLaunchers[0] = tradeLauncher;
 
         vm.startSnapshotGas("deployGovernedFolio");
-        (
-            address _folio,
-            address _folioAdmin,
-            address _ownerGovernor,
-            address _ownerTimelock,
-            address _tradingGovernor,
-            address _tradingTimelock
-        ) = folioDeployer.deployGovernedFolio(
+        (address _folio, address _folioAdmin, address _ownerGovernor, , address _tradingGovernor, ) = folioDeployer
+            .deployGovernedFolio(
                 stToken,
                 IFolio.FolioBasicDetails({
                     name: "Test Folio",
@@ -365,9 +359,7 @@ contract FolioDeployerTest is BaseTest {
                 }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
-                new address[](0),
-                tradeLaunchers,
-                new address[](0)
+                IGovernanceDeployer.GovRoles(new address[](0), tradeLaunchers, new address[](0))
             );
         vm.stopSnapshotGas("deployGovernedFolio()");
         vm.stopPrank();
