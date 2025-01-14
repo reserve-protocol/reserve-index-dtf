@@ -687,10 +687,10 @@ contract Folio is
         trade.end = block.timestamp + auctionLength;
         emit TradeOpened(
             trade.id,
-            trade.sellLimit.spot,
-            trade.buyLimit.spot,
             trade.prices.start,
             trade.prices.end,
+            trade.sellLimit.spot,
+            trade.buyLimit.spot,
             block.timestamp,
             block.timestamp + auctionLength
         );

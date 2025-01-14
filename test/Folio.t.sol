@@ -799,7 +799,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(tradeLauncher);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 0, MAX_RATE, 1e27, 1e27, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
         // bid once at start time
@@ -838,7 +838,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(tradeLauncher);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 0, MAX_RATE, 1e27, 1e27, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
         // bid once at start time
@@ -885,7 +885,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(tradeLauncher);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 0, MAX_RATE, 10e27, 1e27, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        emit IFolio.TradeOpened(0, 10e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         // bid once at start time
@@ -922,7 +922,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(tradeLauncher);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 0, MAX_RATE, 10e27, 1e27, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        emit IFolio.TradeOpened(0, 10e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         // bid once at start time
@@ -969,7 +969,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(tradeLauncher);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 0, MAX_RATE, 1e5, 1, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        emit IFolio.TradeOpened(0, 1e5, 1, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 1e5, 1);
 
         // should have right bid at start, middle, and end of auction
@@ -989,7 +989,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(tradeLauncher);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 0, MAX_RATE, 10e27, 1e27, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        emit IFolio.TradeOpened(0, 10e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         // killTrade should not be callable by just anyone
@@ -1029,7 +1029,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(tradeLauncher);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 0, MAX_RATE, 10e27, 1e27, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        emit IFolio.TradeOpened(0, 10e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         // killTrade should not be callable by just anyone
@@ -1082,7 +1082,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(tradeLauncher);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 0, MAX_RATE, 1e27, 1e27, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
         // Revert if tried to reopen
@@ -1383,7 +1383,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(tradeLauncher);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 0, MAX_RATE, 1e27, 1e27, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
         // bid once at start time
@@ -1402,7 +1402,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(tradeLauncher);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 0, MAX_RATE, 1e27, 1e27, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
         // bid once at start time
