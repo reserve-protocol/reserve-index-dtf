@@ -42,24 +42,24 @@ const getSharePrice = (targetBasket: bigint[], prices: bigint[]): bigint => {
 
 /**
  *
- * Warning: If you use prices with too large of a range, this algo will produce excessive trades
+ * Warning: If price errors are set too high, this algo will open excessive trades
  *
  * @param shares {share} folio.totalSupply()
  * @param tokens Addresses of tokens in the basket
  * @param bals {tok} Current balances
  * @param targetBasket D18{1/share} Ideal basket
  * @param prices D18{USD/tok} USD prices for each token
- * @param uncertainties D18{1/share} Uncertainty on the price as a percentage of the price
- * @param dust D18{1/share} Tolerance for rebalancing to determine when to dust trade or not, default 0.1%
+ * @param error D18{1/share} Price error
+ * @param tolerance D18{1/share} Tolerance for rebalancing to determine when to tolerance trade or not, default 0.1%
  */
-export const getTrades = (
+export const getRebalance = (
   shares: bigint,
   tokens: string[],
   bals: bigint[],
   targetBasket: bigint[],
   prices: bigint[],
-  uncertainties: bigint[],
-  dust: bigint = BigInt(1e15),
+  error: bigint[],
+  tolerance: bigint = BigInt(1e15),
 ): Trade[] => {
   const trades: Trade[] = [];
 
@@ -72,25 +72,25 @@ export const getTrades = (
   // D18{USD} = D18{USD/share} * {share}
   const sharesValue = sharePrice * shares;
 
-  // queue up trades until there are no more trades left greater than dust amt
+  // queue up trades until there are no more trades left greater than tolerance
   while (true) {
     // indices
-    let x = tokens.length;
-    let y = tokens.length;
+    let x = tokens.length; // sell index
+    let y = tokens.length; // buy index
 
     // D18{USD}
     let biggestSurplus = BigInt(0);
     let biggestDeficit = BigInt(0);
 
     for (let i = 0; i < tokens.length; i++) {
-      if (currentBasket[i] > targetBasket[i] && currentBasket[i] - targetBasket[i] > dust) {
+      if (currentBasket[i] > targetBasket[i] && currentBasket[i] - targetBasket[i] > tolerance) {
         // D18{USD} = {tok} * D18{USD/tok}
         const surplus = (currentBasket[i] - targetBasket[i]) * prices[i];
         if (surplus > biggestSurplus) {
           biggestSurplus = surplus;
           x = i;
         }
-      } else if (currentBasket[i] < targetBasket[i] && targetBasket[i] - currentBasket[i] > dust) {
+      } else if (currentBasket[i] < targetBasket[i] && targetBasket[i] - currentBasket[i] > tolerance) {
         // D18{USD} = {tok} * D18{USD/tok}
         const deficit = (targetBasket[i] - currentBasket[i]) * prices[i];
         if (deficit > biggestDeficit) {
@@ -105,30 +105,35 @@ export const getTrades = (
       return trades;
     }
 
-    // D18{USD}
-    const minAmt = biggestDeficit < biggestSurplus ? biggestDeficit : biggestSurplus;
-
-    // D18{1/share} = minAmt * D18 / D18{USD}
-    const basketTraded = (minAmt * D18) / sharesValue;
-
-    // update basket state assuming full fills
-    // D18{1/share}
-    currentBasket[x] += basketTraded;
-    currentBasket[y] -= basketTraded;
-
     // D18{1}
-    let avgUncertainty = (uncertainties[x] + uncertainties[y]) / BigInt(2);
+    let avgError = (error[x] + error[y]) / BigInt(2);
+
+    if (avgError >= D18) {
+      throw new Error("error too large");
+    }
+
+    // D18{USD}
+    const tradeValue = biggestDeficit < biggestSurplus ? biggestDeficit : biggestSurplus;
+
+    // D18{1/share} = D18{USD} * D18 / D18{USD} / {share}
+    const basketTraded = (tradeValue * D18) / sharesValue / shares;
+
+    // update basket state assuming partial fills
+    // D18{1/share}
+    currentBasket[x] -= (basketTraded * (D18 - avgError)) / D18;
+    currentBasket[y] += (basketTraded * (D18 - avgError)) / D18;
 
     // D27{buyTok/sellTok} = D18{USD/buyTok} * D9 / D18{USD/sellTok}
     let startPrice = (prices[y] * D9) / prices[x];
-    // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-    startPrice = (startPrice * (D18 + avgUncertainty)) / D18;
+    // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18 / D18{1}
+    startPrice = (startPrice * D18) / (D18 - avgError);
 
     // D27{buyTok/sellTok} = D18{USD/buyTok} * D9 / D18{USD/sellTok}
     let endPrice = (prices[y] * D9) / prices[x];
     // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-    endPrice = (endPrice * (D18 - avgUncertainty)) / D18;
+    endPrice = (endPrice * (D18 - avgError)) / D18;
 
+    // queue trade
     trades.push({
       sell: tokens[x],
       buy: tokens[y],
