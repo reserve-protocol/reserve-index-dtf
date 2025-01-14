@@ -347,11 +347,17 @@ contract Folio is
             feeRecipientsTotal += shares;
 
             _mint(feeRecipients[i].recipient, shares);
+
+            emit FolioFeePaid(feeRecipients[i].recipient, shares);
         }
 
         // DAO
-        (address recipient, , ) = daoFeeRegistry.getFeeDetails(address(this));
-        _mint(recipient, daoPendingFeeShares + _feeRecipientsPendingFeeShares - feeRecipientsTotal);
+        uint256 daoShares = daoPendingFeeShares + _feeRecipientsPendingFeeShares - feeRecipientsTotal;
+
+        (address daoRecipient, , ) = daoFeeRegistry.getFeeDetails(address(this));
+        _mint(daoRecipient, daoShares);
+        emit ProtocolFeePaid(daoRecipient, daoShares);
+
         daoPendingFeeShares = 0;
     }
 
