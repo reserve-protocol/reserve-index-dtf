@@ -326,6 +326,22 @@ contract FolioTest is BaseTest {
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
     }
 
+    function test_cannotMintIfFolioKilled() public {
+        vm.prank(owner);
+        folio.killFolio();
+
+        assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+
+        vm.expectRevert(abi.encodeWithSelector(IFolio.Folio__FolioKilled.selector));
+        folio.mint(1e22, user1);
+        vm.stopPrank();
+        assertEq(folio.balanceOf(user1), 0, "wrong ending user1 balance");
+    }
+
     function test_redeem() public {
         assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
         vm.startPrank(user1);
@@ -1504,6 +1520,15 @@ contract FolioTest is BaseTest {
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 1, MAX_TTL);
     }
 
+    function test_auctionCannotApproveTradeIfFolioKilled() public {
+        vm.prank(owner);
+        folio.killFolio();
+
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__FolioKilled.selector);
+        folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
+    }
+
     function test_auctionCannotOpenTradeWithInvalidPrices() public {
         vm.prank(dao);
         vm.expectEmit(true, true, true, true);
@@ -1541,6 +1566,20 @@ contract FolioTest is BaseTest {
         vm.prank(tradeLauncher);
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
         folio.openTrade(0, 0, MAX_RATE, 0, 0);
+    }
+
+    function test_auctionCannotOpenTradeIfFolioKilled() public {
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, true);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), 0, 0, 0, 0, MAX_RATE, MAX_RATE, 0, MAX_RATE);
+        folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
+
+        vm.prank(owner);
+        folio.killFolio();
+
+        vm.prank(tradeLauncher);
+        vm.expectRevert(IFolio.Folio__FolioKilled.selector);
+        folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
     }
 
     function test_redeemMaxSlippage() public {
