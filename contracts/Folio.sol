@@ -460,22 +460,23 @@ contract Folio is
             revert Folio__InvalidTradeTTL();
         }
 
-        trades.push(
-            Trade({
-                id: trades.length,
-                sell: sell,
-                buy: buy,
-                sellLimit: sellLimit,
-                buyLimit: buyLimit,
-                prices: prices,
-                availableAt: block.timestamp + tradeDelay,
-                launchTimeout: block.timestamp + ttl,
-                start: 0,
-                end: 0,
-                k: 0
-            })
-        );
-        emit TradeApproved(tradeId, address(sell), address(buy), sellLimit, buyLimit, prices);
+        Trade memory trade = Trade({
+            id: trades.length,
+            sell: sell,
+            buy: buy,
+            sellLimit: sellLimit,
+            buyLimit: buyLimit,
+            prices: prices,
+            availableAt: block.timestamp + tradeDelay,
+            launchTimeout: block.timestamp + ttl,
+            start: 0,
+            end: 0,
+            k: 0
+        });
+
+        trades.push(trade);
+
+        emit TradeApproved(tradeId, address(sell), address(buy), trade);
     }
 
     /// Open a trade as the trade launcher
@@ -581,7 +582,8 @@ contract Folio is
 
         // pay bidder
         trade.sell.safeTransfer(msg.sender, sellAmount);
-        emit Bid(tradeId, sellAmount, boughtAmt);
+
+        emit TradeBid(tradeId, sellAmount, boughtAmt);
 
         // QoL feature: close auction and eject token from basket if we have sold all of it
         if (trade.sell.balanceOf(address(this)) == 0) {
@@ -685,15 +687,8 @@ contract Folio is
 
         trade.start = block.timestamp;
         trade.end = block.timestamp + auctionLength;
-        emit TradeOpened(
-            trade.id,
-            trade.prices.start,
-            trade.prices.end,
-            trade.sellLimit.spot,
-            trade.buyLimit.spot,
-            block.timestamp,
-            block.timestamp + auctionLength
-        );
+
+        emit TradeOpened(trade.id, trade);
 
         // D18{1}
         // k = ln(P_0 / P_t) / t
