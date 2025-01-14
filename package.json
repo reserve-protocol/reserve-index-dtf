@@ -30,5 +30,5 @@
     "deploy": "forge script script/Deploy.s.sol:DeployScript --broadcast --slow --skip-simulation",
     "anvil": "anvil --fork-url https://eth.public-rpc.com --chain-id 31337 --prune-history"
   },
-  "packageManager": "yarn@4.5.3"
+  "packageManager": "yarn@4.6.0"
 }
