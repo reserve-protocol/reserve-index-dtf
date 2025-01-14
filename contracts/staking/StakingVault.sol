@@ -92,6 +92,15 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     }
 
     /**
+     * Deposit & Delegate
+     */
+    function depositAndDelegate(uint256 assets) external returns (uint256 shares) {
+        shares = deposit(assets, msg.sender);
+
+        _delegate(msg.sender, msg.sender);
+    }
+
+    /**
      * Withdraw Logic
      */
     function _withdraw(
