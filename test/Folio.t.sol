@@ -791,15 +791,29 @@ contract FolioTest is BaseTest {
     function test_atomicBidWithoutCallback() public {
         // bid in two chunks, one at start time and one at end time
 
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
+
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
-        vm.expectEmit(true, true, true, true);
-        emit IFolio.TradeApproved(0, address(USDC), address(USDT), FULL_SELL, FULL_BUY, ZERO_PRICES);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), tradeStruct);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
         vm.prank(tradeLauncher);
-        vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.TradeOpened(0, tradeStruct);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
         // bid once at start time
@@ -807,7 +821,7 @@ contract FolioTest is BaseTest {
         vm.startPrank(user1);
         USDT.approve(address(folio), amt);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.Bid(0, amt / 2, amt / 2);
+        emit IFolio.TradeBid(0, amt / 2, amt / 2);
         folio.bid(0, amt / 2, amt / 2, false, bytes(""));
 
         (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
@@ -819,7 +833,7 @@ contract FolioTest is BaseTest {
         vm.warp(end);
         USDT.approve(address(folio), amt);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.Bid(0, amt / 2, amt / 2);
+        emit IFolio.TradeBid(0, amt / 2, amt / 2);
         folio.bid(0, amt / 2, amt / 2, false, bytes(""));
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         vm.stopPrank();
@@ -830,15 +844,28 @@ contract FolioTest is BaseTest {
     function test_atomicBidWithCallback() public {
         uint256 amt = D6_TOKEN_10K;
         // bid in two chunks, one at start time and one at end time
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
 
         vm.prank(dao);
-        vm.expectEmit(true, true, true, true);
-        emit IFolio.TradeApproved(0, address(USDC), address(USDT), FULL_SELL, FULL_BUY, ZERO_PRICES);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), tradeStruct);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
         vm.prank(tradeLauncher);
-        vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.TradeOpened(0, tradeStruct);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
         // bid once at start time
@@ -848,7 +875,7 @@ contract FolioTest is BaseTest {
         USDT.transfer(address(mockBidder), amt / 2);
         vm.prank(address(mockBidder));
         vm.expectEmit(true, false, false, true);
-        emit IFolio.Bid(0, amt / 2, amt / 2);
+        emit IFolio.TradeBid(0, amt / 2, amt / 2);
         folio.bid(0, amt / 2, amt / 2, true, bytes(""));
         assertEq(USDT.balanceOf(address(mockBidder)), 0, "wrong mock bidder balance");
 
@@ -865,7 +892,7 @@ contract FolioTest is BaseTest {
         USDT.transfer(address(mockBidder2), amt / 2);
         vm.prank(address(mockBidder2));
         vm.expectEmit(true, false, false, true);
-        emit IFolio.Bid(0, amt / 2, amt / 2);
+        emit IFolio.TradeBid(0, amt / 2, amt / 2);
         folio.bid(0, amt / 2, amt / 2, true, bytes(""));
         assertEq(USDT.balanceOf(address(mockBidder2)), 0, "wrong mock bidder2 balance");
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
@@ -877,15 +904,28 @@ contract FolioTest is BaseTest {
     function test_auctionBidWithoutCallback() public {
         // bid in two chunks, one at start time and one at end time
 
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
-        vm.expectEmit(true, true, true, true);
-        emit IFolio.TradeApproved(0, address(USDC), address(USDT), FULL_SELL, FULL_BUY, ZERO_PRICES);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), tradeStruct);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
         vm.prank(tradeLauncher);
-        vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 10e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.TradeOpened(0, tradeStruct);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         // bid once at start time
@@ -893,7 +933,7 @@ contract FolioTest is BaseTest {
         vm.startPrank(user1);
         USDT.approve(address(folio), amt * 5);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.Bid(0, amt / 2, amt * 5);
+        emit IFolio.TradeBid(0, amt / 2, amt * 5);
         folio.bid(0, amt / 2, amt * 5, false, bytes(""));
 
         (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
@@ -905,7 +945,7 @@ contract FolioTest is BaseTest {
         // bid a 2nd time for the rest of the volume, at end time
         USDT.approve(address(folio), amt);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.Bid(0, amt / 2, amt / 2);
+        emit IFolio.TradeBid(0, amt / 2, amt / 2);
         folio.bid(0, amt / 2, amt / 2, false, bytes(""));
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         vm.stopPrank();
@@ -913,16 +953,29 @@ contract FolioTest is BaseTest {
 
     function test_auctionBidWithCallback() public {
         // bid in two chunks, one at start time and one at end time
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
 
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
-        vm.expectEmit(true, true, true, true);
-        emit IFolio.TradeApproved(0, address(USDC), address(USDT), FULL_SELL, FULL_BUY, ZERO_PRICES);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), tradeStruct);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
         vm.prank(tradeLauncher);
-        vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 10e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.TradeOpened(0, tradeStruct);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         // bid once at start time
@@ -932,7 +985,7 @@ contract FolioTest is BaseTest {
         USDT.transfer(address(mockBidder), amt * 5);
         vm.prank(address(mockBidder));
         vm.expectEmit(true, false, false, true);
-        emit IFolio.Bid(0, amt / 2, amt * 5);
+        emit IFolio.TradeBid(0, amt / 2, amt * 5);
         folio.bid(0, amt / 2, amt * 5, true, bytes(""));
         assertEq(USDT.balanceOf(address(mockBidder)), 0, "wrong mock bidder balance");
 
@@ -951,7 +1004,7 @@ contract FolioTest is BaseTest {
         USDT.transfer(address(mockBidder2), amt / 2);
         vm.prank(address(mockBidder2));
         vm.expectEmit(true, false, false, true);
-        emit IFolio.Bid(0, amt / 2, amt / 2);
+        emit IFolio.TradeBid(0, amt / 2, amt / 2);
         folio.bid(0, amt / 2, amt / 2, true, bytes(""));
         assertEq(USDT.balanceOf(address(mockBidder2)), 0, "wrong mock bidder2 balance");
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
@@ -961,15 +1014,28 @@ contract FolioTest is BaseTest {
     function test_auctionTinyPrices() public {
         // 1e-19 price
 
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
         uint256 amt = D27_TOKEN_1;
         vm.prank(dao);
-        vm.expectEmit(true, true, true, true);
-        emit IFolio.TradeApproved(0, address(MEME), address(USDT), FULL_SELL, FULL_BUY, ZERO_PRICES);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(MEME), address(USDT), tradeStruct);
         folio.approveTrade(0, MEME, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
         vm.prank(tradeLauncher);
-        vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 1e5, 1, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.TradeOpened(0, tradeStruct);
         folio.openTrade(0, 0, MAX_RATE, 1e5, 1);
 
         // should have right bid at start, middle, and end of auction
@@ -981,15 +1047,28 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionKillTradeByTradeProposer() public {
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
-        vm.expectEmit(true, true, true, true);
-        emit IFolio.TradeApproved(0, address(USDC), address(USDT), FULL_SELL, FULL_BUY, ZERO_PRICES);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), tradeStruct);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
         vm.prank(tradeLauncher);
-        vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 10e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.TradeOpened(0, tradeStruct);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         // killTrade should not be callable by just anyone
@@ -1021,15 +1100,28 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionKillTradeByTradeLauncher() public {
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
-        vm.expectEmit(true, true, true, true);
-        emit IFolio.TradeApproved(0, address(USDC), address(USDT), FULL_SELL, FULL_BUY, ZERO_PRICES);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), tradeStruct);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
         vm.prank(tradeLauncher);
-        vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 10e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.TradeOpened(0, tradeStruct);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         // killTrade should not be callable by just anyone
@@ -1075,14 +1167,27 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionNotOpenableTwice() public {
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
         vm.prank(dao);
-        vm.expectEmit(true, true, true, true);
-        emit IFolio.TradeApproved(0, address(USDC), address(USDT), FULL_SELL, FULL_BUY, ZERO_PRICES);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), tradeStruct);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
         vm.prank(tradeLauncher);
-        vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.TradeOpened(0, tradeStruct);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
         // Revert if tried to reopen
@@ -1375,15 +1480,28 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotBidIfExceedsSlippage() public {
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        vm.expectEmit(true, true, true, true);
-        emit IFolio.TradeApproved(0, address(USDC), address(USDT), FULL_SELL, FULL_BUY, ZERO_PRICES);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), tradeStruct);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
         vm.prank(tradeLauncher);
-        vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.TradeOpened(0, tradeStruct);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
         // bid once at start time
@@ -1394,15 +1512,28 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotBidWithInsufficientBalance() public {
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
-        vm.expectEmit(true, true, true, true);
-        emit IFolio.TradeApproved(0, address(USDC), address(USDT), FULL_SELL, FULL_BUY, ZERO_PRICES);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), tradeStruct);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
         vm.prank(tradeLauncher);
-        vm.expectEmit(true, false, false, true);
-        emit IFolio.TradeOpened(0, 1e27, 1e27, 0, MAX_RATE, block.timestamp, block.timestamp + MAX_AUCTION_LENGTH);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.TradeOpened(0, tradeStruct);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
         // bid once at start time
@@ -1487,9 +1618,22 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotOpenTradeWithInvalidPrices() public {
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
         vm.prank(dao);
-        vm.expectEmit(true, true, true, true);
-        emit IFolio.TradeApproved(0, address(USDC), address(USDT), FULL_SELL, FULL_BUY, IFolio.Prices(1e27, 1e27));
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), tradeStruct);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(1e27, 1e27), MAX_TTL);
 
         //  Revert if tried to open (smaller start price)
@@ -1514,9 +1658,22 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotOpenTradeWithZeroPrice() public {
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
         vm.prank(dao);
-        vm.expectEmit(true, true, true, true);
-        emit IFolio.TradeApproved(0, address(USDC), address(USDT), FULL_SELL, FULL_BUY, ZERO_PRICES);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), tradeStruct);
         folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
         //  Revert if tried to open with zero price

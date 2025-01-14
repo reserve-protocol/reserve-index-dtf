@@ -6,24 +6,9 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface IFolio {
     // === Events ===
 
-    event TradeApproved(
-        uint256 indexed tradeId,
-        address indexed from,
-        address indexed to,
-        Range sellLimit,
-        Range endLimit,
-        Prices prices
-    );
-    event TradeOpened(
-        uint256 indexed tradeId,
-        uint256 startPrice,
-        uint256 endPrice,
-        uint256 sellLimit,
-        uint256 buyLimit,
-        uint256 start,
-        uint256 end
-    );
-    event Bid(uint256 indexed tradeId, uint256 sellAmount, uint256 buyAmount);
+    event TradeApproved(uint256 indexed tradeId, address indexed from, address indexed to, Trade trade);
+    event TradeOpened(uint256 indexed tradeId, Trade trade);
+    event TradeBid(uint256 indexed tradeId, uint256 sellAmount, uint256 buyAmount);
     event TradeKilled(uint256 indexed tradeId);
 
     event BasketTokenAdded(address indexed token);
