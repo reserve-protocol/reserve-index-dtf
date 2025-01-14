@@ -371,11 +371,11 @@ contract Folio is
         uint256 buyBal = trade.buy.balanceOf(address(this));
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(trade.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 minSellBal = Math.mulDiv(trade.config.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // {buyTok} = D27{buyTok/share} * {share} / D27
-        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
+        uint256 maxBuyBal = Math.mulDiv(trade.config.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
         uint256 buyAvailable = buyBal < maxBuyBal ? maxBuyBal - buyBal : 0;
 
         // avoid overflow
@@ -467,10 +467,7 @@ contract Folio is
                 id: trades.length,
                 sell: sell,
                 buy: buy,
-                sellLimit: sellLimit,
-                buyLimit: buyLimit,
-                startPrice: startPrice,
-                endPrice: endPrice,
+                config: AuctionConfig(sellLimit, buyLimit, startPrice, endPrice),
                 availableAt: block.timestamp + tradeDelay,
                 launchTimeout: block.timestamp + ttl,
                 start: 0,
@@ -514,25 +511,25 @@ contract Folio is
         //   - raise ending price arbitrarily (can cause auction not to clear, same as killing)
 
         if (
-            startPrice < trade.startPrice ||
-            endPrice < trade.endPrice ||
-            (trade.startPrice != 0 && startPrice > 100 * trade.startPrice)
+            startPrice < trade.config.startPrice ||
+            endPrice < trade.config.endPrice ||
+            (trade.config.startPrice != 0 && startPrice > 100 * trade.config.startPrice)
         ) {
             revert Folio__InvalidPrices();
         }
 
-        if (sellLimit < trade.sellLimit.low || sellLimit > trade.sellLimit.high) {
+        if (sellLimit < trade.config.sellLimit.low || sellLimit > trade.config.sellLimit.high) {
             revert Folio__InvalidSellLimit();
         }
 
-        if (buyLimit < trade.buyLimit.low || buyLimit > trade.buyLimit.high) {
+        if (buyLimit < trade.config.buyLimit.low || buyLimit > trade.config.buyLimit.high) {
             revert Folio__InvalidBuyLimit();
         }
 
-        trade.sellLimit.spot = sellLimit;
-        trade.buyLimit.spot = buyLimit;
-        trade.startPrice = startPrice;
-        trade.endPrice = endPrice;
+        trade.config.sellLimit.spot = sellLimit;
+        trade.config.buyLimit.spot = buyLimit;
+        trade.config.startPrice = startPrice;
+        trade.config.endPrice = endPrice;
         // more price checks in _openTrade()
 
         _openTrade(trade);
@@ -583,7 +580,7 @@ contract Folio is
         uint256 sellBal = trade.sell.balanceOf(address(this));
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(trade.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 minSellBal = Math.mulDiv(trade.config.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // ensure auction is large enough to cover bid
@@ -620,7 +617,7 @@ contract Folio is
         }
 
         // D27{buyTok/share} = D27{buyTok/share} * {share} / D27
-        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
+        uint256 maxBuyBal = Math.mulDiv(trade.config.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
 
         // ensure post-bid buy balance does not exceed max
         if (trade.buy.balanceOf(address(this)) > maxBuyBal) {
@@ -689,11 +686,11 @@ contract Folio is
 
         // ensure valid price range (startPrice == endPrice is valid)
         if (
-            trade.startPrice < trade.endPrice ||
-            trade.startPrice == 0 ||
-            trade.endPrice == 0 ||
-            trade.startPrice > MAX_RATE ||
-            trade.startPrice / trade.endPrice > MAX_PRICE_RANGE
+            trade.config.startPrice < trade.config.endPrice ||
+            trade.config.startPrice == 0 ||
+            trade.config.endPrice == 0 ||
+            trade.config.startPrice > MAX_RATE ||
+            trade.config.startPrice / trade.config.endPrice > MAX_PRICE_RANGE
         ) {
             revert Folio__InvalidPrices();
         }
@@ -702,17 +699,17 @@ contract Folio is
         trade.end = block.timestamp + auctionLength;
         emit TradeOpened(
             trade.id,
-            trade.startPrice,
-            trade.endPrice,
-            trade.sellLimit.spot,
-            trade.buyLimit.spot,
+            trade.config.startPrice,
+            trade.config.endPrice,
+            trade.config.sellLimit.spot,
+            trade.config.buyLimit.spot,
             block.timestamp,
             block.timestamp + auctionLength
         );
 
         // D18{1}
         // k = ln(P_0 / P_t) / t
-        trade.k = UD60x18.wrap((trade.startPrice * D18) / trade.endPrice).ln().unwrap() / auctionLength;
+        trade.k = UD60x18.wrap((trade.config.startPrice * D18) / trade.config.endPrice).ln().unwrap() / auctionLength;
         // gas optimization to avoid recomputing k on every bid
     }
 
@@ -723,19 +720,19 @@ contract Folio is
             revert Folio__TradeNotOngoing();
         }
         if (timestamp == trade.start) {
-            return trade.startPrice;
+            return trade.config.startPrice;
         }
         if (timestamp == trade.end) {
-            return trade.endPrice;
+            return trade.config.endPrice;
         }
 
         uint256 elapsed = timestamp - trade.start;
 
         // P_t = P_0 * e ^ -kt
         // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-        p = (trade.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / D18;
-        if (p < trade.endPrice) {
-            p = trade.endPrice;
+        p = (trade.config.startPrice * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / D18;
+        if (p < trade.config.endPrice) {
+            p = trade.config.endPrice;
         }
     }
 
