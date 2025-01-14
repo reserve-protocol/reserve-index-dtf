@@ -115,16 +115,20 @@ interface IFolio {
         uint256 id;
         IERC20 sell;
         IERC20 buy;
-        Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
-        Range buyLimit; // D27{buyTok/share} min ratio of sell token to shares allowed, exclusive
-        uint256 startPrice; // D27{buyTok/sellTok}
-        uint256 endPrice; // D27{buyTok/sellTok}
+        AuctionConfig config;
         uint256 availableAt; // {s} inclusive
         uint256 launchTimeout; // {s} inclusive
         uint256 start; // {s} inclusive
         uint256 end; // {s} inclusive
         // === Gas optimization ===
         uint256 k; // D18{1} price = startPrice * e ^ -kt
+    }
+
+    struct AuctionConfig {
+        Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
+        Range buyLimit; // D27{buyTok/share} min ratio of sell token to shares allowed, exclusive
+        uint256 startPrice; // D27{buyTok/sellTok}
+        uint256 endPrice; // D27{buyTok/sellTok}
     }
 
     function distributeFees() external;
