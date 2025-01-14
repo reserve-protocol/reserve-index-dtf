@@ -15,44 +15,41 @@ export interface Trade {
 /**
  * @param bals {tok} Current balances
  * @param prices D18{USD/tok} USD prices for each token
- * @returns D18{1/share} Current basket, total never exceeds D18
+ * @returns D18{1} Current basket, total never exceeds D18
  */
 const getCurrentBasket = (bals: bigint[], prices: bigint[]): bigint[] => {
   // D18{USD} = {tok} * D18{USD/tok}
   const values = bals.map((bal, i) => bal * prices[i]);
 
-  // D18{USD/share}
+  // D18{USD}
   const total = values.reduce((a, b) => a + b);
 
-  // D18{1/share} = D18{USD/share} * D18 / D18{USD}
+  // D18{1} = D18{USD} * D18 / D18{USD}
   return values.map((amt, i) => (amt * D18) / total);
 };
 
 /**
- * @param targetBasket D18{1/share} Ideal basket, adds up to D18 or close to it
+ * @param bals {tok} Current balances
  * @param prices D18{USD/tok} USD prices for each token
  * @returns D18{USD/share} Estimated share price
  */
-const getSharePrice = (targetBasket: bigint[], prices: bigint[]): bigint => {
-  // D18{USD/share tok} = D18{1/share} * D18{USD/tok} / D18
-  const values = targetBasket.map((portion, i) => (portion * prices[i]) / D18);
-
-  // D18{USD/share} = sum(D18{USD/share tok})
+const getSharesValue = (bals: bigint[], prices: bigint[]): bigint => {
+  // D18{USD} = {tok} * D18{USD/tok}
+  const values = bals.map((bal, i) => bal * prices[i]);
   return values.reduce((a, b) => a + b);
 };
 
 /**
  *
  * Warning: If price errors are set too high, this algo will open excessive trades
- *
+ *3
  * @param shares {share} folio.totalSupply()
  * @param tokens Addresses of tokens in the basket
  * @param bals {tok} Current balances
- * @param targetBasket D18{1/share} Ideal basket
+ * @param targetBasket D18{1} Ideal basket
  * @param prices D18{USD/tok} USD prices for each token
- * @param error D18{1/share} Price error
- * @param tolerance D18{1/share} Tolerance for rebalancing to determine when to tolerance trade or not, default 0.1%
- * @param maxTradeVolume D18{USD} Maximum size of an auction
+ * @param error D18{1} Price error
+ * @param tolerance D18{1} Tolerance for rebalancing to determine when to tolerance trade or not, default 0.1%
  */
 export const getRebalance = (
   shares: bigint,
@@ -62,30 +59,20 @@ export const getRebalance = (
   prices: bigint[],
   error: bigint[],
   tolerance: bigint = BigInt(1e15),
-  maxTradeVolume: bigint = BigInt(1e24),
 ): Trade[] => {
   const trades: Trade[] = [];
 
-  // D18{1/share}
+  // D18{1}
   const currentBasket = getCurrentBasket(bals, prices);
 
-  console.log("current basket", currentBasket);
+  // D18{USD}
+  const sharesValue = getSharesValue(bals, prices);
 
-  // D18{USD/share}
-  const sharePrice = getSharePrice(targetBasket, prices);
-
-  // D18{USD} = D18{USD/share} * {share}
-  const sharesValue = sharePrice * shares;
-
-  let z = 0;
+  console.log("sharesValue", sharesValue);
+  console.log("initial basket", currentBasket);
 
   // queue up trades until there are no more trades left greater than tolerance
   while (true) {
-    console.log("----");
-    if (++z > 3) {
-      break;
-    }
-
     // indices
     let x = tokens.length; // sell index
     let y = tokens.length; // buy index
@@ -95,16 +82,16 @@ export const getRebalance = (
     let biggestDeficit = BigInt(0);
 
     for (let i = 0; i < tokens.length; i++) {
-      if (currentBasket[i] > targetBasket[i]) {
-        // D18{USD} = D18{USD/share} * D18{1/share} / D18
-        const surplus = (sharePrice * (currentBasket[i] - targetBasket[i])) / D18;
+      if (currentBasket[i] > targetBasket[i] && currentBasket[i] - targetBasket[i] > tolerance) {
+        // D18{USD} = D18{1} * D18{USD} / D18
+        const surplus = ((currentBasket[i] - targetBasket[i]) * sharesValue) / D18;
         if (surplus > biggestSurplus) {
           biggestSurplus = surplus;
           x = i;
         }
-      } else if (currentBasket[i] < targetBasket[i]) {
-        // D18{USD} = D18{USD/share} * D18{1/share} / D18
-        const deficit = (sharePrice * (targetBasket[i] - currentBasket[i])) / D18;
+      } else if (currentBasket[i] < targetBasket[i] && targetBasket[i] - currentBasket[i] > tolerance) {
+        // D18{USD} = D18{1} * D18{USD} / D18
+        const deficit = ((targetBasket[i] - currentBasket[i]) * sharesValue) / D18;
         if (deficit > biggestDeficit) {
           biggestDeficit = deficit;
           y = i;
@@ -117,34 +104,26 @@ export const getRebalance = (
       return trades;
     }
 
+    // simulate trade and update currentBasket
+
+    // D18{USD}
+    const maxTrade = biggestDeficit < biggestSurplus ? biggestDeficit : biggestSurplus;
+
+    // D18{1} = D18{USD} * D18 / D18{USD}
+    const backingTraded = (maxTrade * D18) / sharesValue;
+
+    // D18{1}
+    currentBasket[x] -= backingTraded;
+    currentBasket[y] += backingTraded;
+
+    // set startPrice and endPrice to be above and below their par levels by the error
+
     // D18{1}
     let avgError = (error[x] + error[y]) / BigInt(2);
 
     if (avgError >= D18) {
       throw new Error("error too large");
     }
-
-    console.log("deficit", biggestDeficit);
-    console.log("surplus", biggestSurplus);
-
-    // D18{USD}
-    let tradeValue = biggestDeficit < biggestSurplus ? biggestDeficit : biggestSurplus;
-    if (tradeValue > maxTradeVolume) {
-      tradeValue = maxTradeVolume;
-    }
-
-    // D18{1/share} = D18{USD} * D18 / D18{USD/share}
-    const basketTraded = (tradeValue * D18) / sharePrice;
-
-    console.log("basketTraded:", basketTraded);
-
-    // update basket state assuming partial progress
-    // D18{1/share} = D18{1/share} * D18{1} / D18
-    const partial = (basketTraded * (D18 - avgError)) / D18;
-    currentBasket[x] -= partial > tolerance ? partial : basketTraded;
-    currentBasket[y] += partial > tolerance ? partial : basketTraded;
-    console.log("current basket", currentBasket);
-    console.log("target basket", targetBasket);
 
     // D27{buyTok/sellTok} = D18{USD/buyTok} * D27 / D18{USD/sellTok}
     let startPrice = (prices[y] * D27) / prices[x];
@@ -156,14 +135,28 @@ export const getRebalance = (
     // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
     endPrice = (endPrice * (D18 - avgError)) / D18;
 
+    // D27{tok/share} = D18{1/share} * D18{USD} * D9 / D18{USD/tok}
+    const sellLimit = (targetBasket[x] * sharesValue * D27) / prices[x];
+    const buyLimit = (targetBasket[y] * sharesValue * D27) / prices[y];
+
+    console.log("-------------------------");
+    console.log(trades.length);
+    console.log("maxTrade", maxTrade);
+    console.log("backingTraded", backingTraded);
+    console.log("sellLimit", sellLimit);
+    console.log("buyLimit", buyLimit);
+    console.log("startPrice", startPrice);
+    console.log("endPrice", endPrice);
+    console.log("currentBasket", currentBasket);
+
     // queue trade
+
     trades.push({
       sell: tokens[x],
       buy: tokens[y],
 
-      // D27{tok/share} = D18{1/share} * D18{USD} * D9 / D18{USD/tok}
-      sellLimit: (targetBasket[x] * sharesValue * D9) / prices[x],
-      buyLimit: (targetBasket[y] * sharesValue * D9) / prices[y],
+      sellLimit: sellLimit,
+      buyLimit: buyLimit,
       startPrice: startPrice,
       endPrice: endPrice,
     });
