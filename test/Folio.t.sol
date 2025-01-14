@@ -808,7 +808,7 @@ contract FolioTest is BaseTest {
         emit IFolio.Bid(0, amt / 2, amt / 2);
         folio.bid(0, amt / 2, amt / 2, false, bytes(""));
 
-        (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        (, , , , , , uint256 start, uint256 end, ) = folio.trades(0);
         assertEq(folio.getBid(0, start, amt), amt, "wrong start bid amount"); // 1x
         assertEq(folio.getBid(0, (start + end) / 2, amt), amt, "wrong mid bid amount"); // 1x
         assertEq(folio.getBid(0, end, amt), amt, "wrong end bid amount"); // 1x
@@ -850,7 +850,7 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt / 2, amt / 2, true, bytes(""));
         assertEq(USDT.balanceOf(address(mockBidder)), 0, "wrong mock bidder balance");
 
-        (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        (, , , , , , uint256 start, uint256 end, ) = folio.trades(0);
         assertEq(folio.getBid(0, start, amt), amt, "wrong start bid amount"); // 1x
         assertEq(folio.getBid(0, (start + end) / 2, amt), amt, "wrong mid bid amount"); // 1x
         assertEq(folio.getBid(0, end, amt), amt, "wrong end bid amount"); // 1x
@@ -894,7 +894,7 @@ contract FolioTest is BaseTest {
         emit IFolio.Bid(0, amt / 2, amt * 5);
         folio.bid(0, amt / 2, amt * 5, false, bytes(""));
 
-        (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        (, , , , , , uint256 start, uint256 end, ) = folio.trades(0);
         assertEq(folio.getBid(0, start, amt), amt * 10, "wrong start bid amount"); // 10x
         assertEq(folio.getBid(0, (start + end) / 2, amt), 31622776602, "wrong mid bid amount"); // ~3.16x
         assertEq(folio.getBid(0, end, amt), amt, "wrong end bid amount"); // 1x
@@ -936,7 +936,7 @@ contract FolioTest is BaseTest {
 
         // check prices
 
-        (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        (, , , , , , uint256 start, uint256 end, ) = folio.trades(0);
         assertEq(folio.getBid(0, start, amt), amt * 10, "wrong start bid amount"); // 10x
         assertEq(folio.getBid(0, (start + end) / 2, amt), 31622776602, "wrong mid bid amount"); // ~3.16x
         assertEq(folio.getBid(0, end, amt), amt, "wrong end bid amount"); // 1x
@@ -972,7 +972,7 @@ contract FolioTest is BaseTest {
 
         // should have right bid at start, middle, and end of auction
 
-        (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        (, , , , , , uint256 start, uint256 end, ) = folio.trades(0);
         assertEq(folio.getBid(0, start, amt), amt / 1e22, "wrong start bid amount");
         assertEq(folio.getBid(0, (start + end) / 2, amt), 316, "wrong mid bid amount");
         assertEq(folio.getBid(0, end, amt), 1, "wrong end bid amount");
@@ -994,7 +994,7 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__Unauthorized.selector);
         folio.killTrade(0);
 
-        (, , , , , , , , , , uint256 end, ) = folio.trades(0);
+        (, , , , , , , uint256 end, ) = folio.trades(0);
         vm.startPrank(dao);
         vm.expectEmit(true, false, false, true);
         emit IFolio.TradeKilled(0);
@@ -1044,7 +1044,7 @@ contract FolioTest is BaseTest {
         vm.expectRevert();
         folio.killTrade(1); // index out of bounds
 
-        (, , , , , , , , , , uint256 end, ) = folio.trades(0);
+        (, , , , , , , uint256 end, ) = folio.trades(0);
         vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
         folio.bid(0, amt, amt, false, bytes(""));
 
@@ -1095,7 +1095,7 @@ contract FolioTest is BaseTest {
 
         // should not be openable after launchTimeout
 
-        (, , , , , , , , uint256 launchTimeout, , , ) = folio.trades(0);
+        (, , , , , uint256 launchTimeout, , , ) = folio.trades(0);
         vm.warp(launchTimeout + 1);
         vm.prank(tradeLauncher);
         vm.expectRevert(IFolio.Folio__TradeTimeout.selector);
@@ -1123,7 +1123,7 @@ contract FolioTest is BaseTest {
 
         // auction should not biddable after end
 
-        (, , , , , , , , , , uint256 end, ) = folio.trades(0);
+        (, , , , , , , uint256 end, ) = folio.trades(0);
         vm.warp(end + 1);
         vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
         folio.bid(0, amt, amt, false, bytes(""));
@@ -1149,7 +1149,7 @@ contract FolioTest is BaseTest {
 
         // but should be possible after trading delay
 
-        (, , , , , , , uint256 availableAt, , , , ) = folio.trades(0);
+        (, , , , uint256 availableAt, , , , ) = folio.trades(0);
         vm.warp(availableAt);
         folio.openTradePermissionlessly(0);
         vm.stopPrank();
@@ -1175,7 +1175,7 @@ contract FolioTest is BaseTest {
 
         // but should be possible after trading delay
 
-        (, , , , , , , uint256 availableAt, , , , ) = folio.trades(0);
+        (, , , , uint256 availableAt, , , , ) = folio.trades(0);
         vm.warp(availableAt);
         folio.openTradePermissionlessly(0);
         vm.stopPrank();
@@ -1221,7 +1221,7 @@ contract FolioTest is BaseTest {
 
         // advance halfway and bid for full volume of second auction
 
-        (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        (, , , , , , uint256 start, uint256 end, ) = folio.trades(0);
         vm.warp(start + (end - start) / 2);
         uint256 bidAmt = (amt2 * 40) / 1e12; // adjust for decimals
         USDT.approve(address(folio), bidAmt);
@@ -1252,7 +1252,7 @@ contract FolioTest is BaseTest {
             vm.prank(tradeLauncher);
             uint256 endPrice = i / MAX_PRICE_RANGE;
             folio.openTrade(index, 0, MAX_RATE, i, endPrice > i ? endPrice : i);
-            (, , , , , , , , , uint256 start, uint256 end, ) = folio.trades(index);
+            (, , , , , , uint256 start, uint256 end, ) = folio.trades(index);
             folio.getPrice(index, start);
             folio.getPrice(index, end);
         }
@@ -1264,7 +1264,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(tradeLauncher);
         folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
-        (, , , , , , , , , , uint256 end, ) = folio.trades(0);
+        (, , , , , , , uint256 end, ) = folio.trades(0);
 
         vm.startSnapshotGas("getPrice()");
         folio.getPrice(0, end);
