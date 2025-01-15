@@ -60,7 +60,7 @@ export const getRebalance = (
   targetBasket: number[],
   prices: number[],
   priceError: number[],
-  tolerance: number = 0.001, // 0.1%
+  tolerance: number = 0.0001, // 0.01%
 ): Trade[] => {
   const trades: Trade[] = [];
 
