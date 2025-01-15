@@ -1579,6 +1579,40 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt + 1, amt + 1, false, bytes("")); // no balance
     }
 
+    function test_auctionCannotBidWithExcessiveBid() public {
+        IFolio.Range memory buyLimit = IFolio.Range(1, 0, 1);
+
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: buyLimit,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
+        uint256 amt = D6_TOKEN_10K;
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), tradeStruct);
+        folio.approveTrade(0, USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL);
+
+        vm.prank(tradeLauncher);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.TradeOpened(0, tradeStruct);
+        folio.openTrade(0, 0, 1, 1e18, 1e18);
+
+        // bid once (excessive bid)
+        vm.startPrank(user1);
+        USDT.approve(address(folio), D6_TOKEN_10K);
+        vm.expectRevert(IFolio.Folio__ExcessiveBid.selector);
+        folio.bid(0, amt, D6_TOKEN_100K, false, bytes(""));
+    }
+
     function test_auctionCannotApproveTradeWithInvalidId() public {
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidTradeId.selector);
