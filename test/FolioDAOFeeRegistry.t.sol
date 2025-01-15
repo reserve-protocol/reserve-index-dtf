@@ -55,7 +55,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
             address(folio)
         );
         assertEq(recipient, dao);
-        assertEq(feeNumerator, 0); // no fee numerator set yet
+        assertEq(feeNumerator, MAX_DAO_FEE);
         assertEq(feeDenominator, folioDAOFeeRegistry.FEE_DENOMINATOR());
     }
 
@@ -101,7 +101,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
     function test_setDefaultFeeNumerator() public {
         uint256 numerator;
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(numerator, 0);
+        assertEq(numerator, MAX_DAO_FEE);
 
         vm.expectEmit(true, true, false, true);
         emit IFolioDAOFeeRegistry.DefaultFeeNumeratorSet(0.1e18);
@@ -126,7 +126,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
     function test_setTokenFeeNumerator() public {
         uint256 numerator;
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(numerator, 0);
+        assertEq(numerator, MAX_DAO_FEE);
 
         vm.expectEmit(true, true, false, true);
         emit IFolioDAOFeeRegistry.TokenFeeNumeratorSet(address(folio), 0.1e18, true);
@@ -150,7 +150,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
     function test_usesDefaultFeeNumeratorOnlyWhenTokenNumeratorIsNotSet() public {
         uint256 numerator;
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(numerator, 0); // default
+        assertEq(numerator, MAX_DAO_FEE); // default
 
         // set new value for default fee numerator
         daoFeeRegistry.setDefaultFeeNumerator(0.05e18);
@@ -180,7 +180,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         emit IFolioDAOFeeRegistry.TokenFeeNumeratorSet(address(folio), 0, false);
         daoFeeRegistry.resetTokenFee(address(folio));
         (, numerator, ) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(numerator, 0);
+        assertEq(numerator, MAX_DAO_FEE);
     }
 
     function test_cannotResetTokenFeeIfNotOwner() public {
