@@ -92,7 +92,8 @@ contract Folio is
     uint256 public auctionLength; // {s}
     uint256 public tradeDelay; // {s}
     Trade[] public trades;
-    mapping(address => uint256) public tradeEnds; // {s}
+    mapping(address => uint256) public sellEnds; // {s}
+    mapping(address => uint256) public buyEnds; // {s}
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -595,8 +596,8 @@ contract Folio is
         if (trade.sell.balanceOf(address(this)) == 0) {
             basket.remove(address(trade.sell));
             trade.end = block.timestamp;
-            tradeEnds[address(trade.sell)] = block.timestamp;
-            tradeEnds[address(trade.buy)] = block.timestamp;
+            sellEnds[address(trade.sell)] = block.timestamp;
+            buyEnds[address(trade.buy)] = block.timestamp;
         }
 
         // collect payment from bidder
@@ -633,8 +634,8 @@ contract Folio is
 
         Trade storage trade = trades[tradeId];
         trade.end = 1;
-        tradeEnds[address(trade.sell)] = block.timestamp;
-        tradeEnds[address(trade.buy)] = block.timestamp;
+        sellEnds[address(trade.sell)] = block.timestamp;
+        buyEnds[address(trade.buy)] = block.timestamp;
         emit TradeKilled(tradeId);
     }
 
@@ -674,11 +675,16 @@ contract Folio is
 
         // ensure no conflicting trades by token
         // necessary to prevent dutch auctions from taking losses
-        if (block.timestamp <= tradeEnds[address(trade.sell)] || block.timestamp <= tradeEnds[address(trade.buy)]) {
+        // allow trades to overlap in their buy token
+        if (
+            block.timestamp <= sellEnds[address(trade.sell)] ||
+            block.timestamp <= sellEnds[address(trade.buy)] ||
+            block.timestamp <= buyEnds[address(trade.sell)]
+        ) {
             revert Folio__TradeCollision();
         }
-        tradeEnds[address(trade.sell)] = trade.end;
-        tradeEnds[address(trade.buy)] = trade.end;
+        sellEnds[address(trade.sell)] = Math.max(sellEnds[address(trade.sell)], block.timestamp + auctionLength);
+        buyEnds[address(trade.buy)] = Math.max(buyEnds[address(trade.buy)], block.timestamp + auctionLength);
 
         // ensure valid price range (startPrice == endPrice is valid)
         if (
