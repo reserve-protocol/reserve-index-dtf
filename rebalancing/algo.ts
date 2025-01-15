@@ -1,6 +1,6 @@
 export const D27: number = 10 ** 27;
 
-// Trade interface minus some fields from solidity implementation
+// IFolio.Trade interface minus some fields
 export interface Trade {
   sell: string;
   buy: string;
@@ -13,7 +13,7 @@ export interface Trade {
 /**
  * @param bals {tok} Current balances
  * @param prices {USD/wholeTok} USD prices for each token
- * @returns {1} Current basket, total never exceeds 1
+ * @returns {1} Current basket, total shouldn't exceed 1 (excessively)
  */
 const getCurrentBasket = (bals: bigint[], prices: number[], decimals: bigint[]): number[] => {
   // {USD} = {tok} * {USD/wholeTok} / {tok/wholeTok}
@@ -29,7 +29,7 @@ const getCurrentBasket = (bals: bigint[], prices: number[], decimals: bigint[]):
 /**
  * @param bals {tok} Current balances
  * @param prices {USD/wholeTok} USD prices for each token
- * @returns {USD/share} Estimated share price
+ * @returns {USD} Estimated USD value of all the shares
  */
 const getSharesValue = (bals: bigint[], prices: number[], decimals: bigint[]): number => {
   // {USD} = {tok} * {USD/wholeTok} / {tok/wholeTok}
@@ -114,13 +114,8 @@ export const getRebalance = (
 
     // simulate swap and update currentBasket
 
-    console.log("biggestSurplus", biggestSurplus);
-    console.log("biggestDeficit", biggestDeficit);
-
     // {USD}
     const maxTrade = biggestDeficit < biggestSurplus ? biggestDeficit : biggestSurplus;
-
-    console.log("maxTrade", maxTrade, sharesValue);
 
     // {1} = {USD} / {USD}
     const backingTraded = maxTrade / sharesValue;
@@ -152,8 +147,6 @@ export const getRebalance = (
     // {wholeTok} = {1} * {USD} / {USD/wholeTok}
     const sellLimitWhole = (targetBasket[x] * sharesValue) / prices[x];
     const buyLimitWhole = (targetBasket[y] * sharesValue) / prices[y];
-
-    console.log("early buyLimit", buyLimitWhole);
 
     // {tok/share} = {wholeTok} * {tok/wholeTok} / {share}
     const sellLimit = (sellLimitWhole * Number(10n ** decimals[x])) / Number(supply);
