@@ -1,6 +1,6 @@
-const D9: bigint = BigInt(1e9);
-const D18: bigint = BigInt(1e18);
-const D27: bigint = BigInt(1e27);
+const D9: bigint = 10n ** 9n;
+const D18: bigint = 10n ** 18n;
+const D27: bigint = 10n ** 27n;
 
 // Trade interface minus some fields from solidity implementation
 export interface Trade {
@@ -41,9 +41,10 @@ const getSharesValue = (bals: bigint[], prices: bigint[]): bigint => {
 
 /**
  *
- * Warning: If price errors are set too high, this algo will open excessive trades
+ * Warnings:
+ *   - Breakup large trades into smaller trades in advance of using this algo; a large Folio may have to use this
+ *     algo multiple times to rebalance gradually to avoid transacting too much volume in any one trade.
  *3
- * @param shares {share} folio.totalSupply()
  * @param tokens Addresses of tokens in the basket
  * @param bals {tok} Current balances
  * @param targetBasket D18{1} Ideal basket
@@ -52,13 +53,12 @@ const getSharesValue = (bals: bigint[], prices: bigint[]): bigint => {
  * @param tolerance D18{1} Tolerance for rebalancing to determine when to tolerance trade or not, default 0.1%
  */
 export const getRebalance = (
-  shares: bigint,
   tokens: string[],
   bals: bigint[],
   targetBasket: bigint[],
   prices: bigint[],
   error: bigint[],
-  tolerance: bigint = BigInt(1e15),
+  tolerance: bigint = 10n ** 15n, // 0.1%
 ): Trade[] => {
   const trades: Trade[] = [];
 
@@ -68,9 +68,6 @@ export const getRebalance = (
   // D18{USD}
   const sharesValue = getSharesValue(bals, prices);
 
-  console.log("sharesValue", sharesValue);
-  console.log("initial basket", currentBasket);
-
   // queue up trades until there are no more trades left greater than tolerance
   while (true) {
     // indices
@@ -78,8 +75,8 @@ export const getRebalance = (
     let y = tokens.length; // buy index
 
     // D18{USD}
-    let biggestSurplus = BigInt(0);
-    let biggestDeficit = BigInt(0);
+    let biggestSurplus = 0n;
+    let biggestDeficit = 0n;
 
     for (let i = 0; i < tokens.length; i++) {
       if (currentBasket[i] > targetBasket[i] && currentBasket[i] - targetBasket[i] > tolerance) {
@@ -91,7 +88,7 @@ export const getRebalance = (
         }
       } else if (currentBasket[i] < targetBasket[i] && targetBasket[i] - currentBasket[i] > tolerance) {
         // D18{USD} = D18{1} * D18{USD} / D18
-        const deficit = ((targetBasket[i] - currentBasket[i]) * sharesValue) / D18;
+        const deficit = ((targetBasket[i] - currentBasket[i]) * sharesValue + D18 - 1n) / D18;
         if (deficit > biggestDeficit) {
           biggestDeficit = deficit;
           y = i;
@@ -104,22 +101,22 @@ export const getRebalance = (
       return trades;
     }
 
-    // simulate trade and update currentBasket
+    // simulate swap and update currentBasket
 
     // D18{USD}
     const maxTrade = biggestDeficit < biggestSurplus ? biggestDeficit : biggestSurplus;
 
     // D18{1} = D18{USD} * D18 / D18{USD}
-    const backingTraded = (maxTrade * D18) / sharesValue;
+    const backingTraded = (maxTrade * D18 + sharesValue - 1n) / sharesValue;
 
     // D18{1}
     currentBasket[x] -= backingTraded;
     currentBasket[y] += backingTraded;
 
-    // set startPrice and endPrice to be above and below their par levels by the error
+    // set startPrice and endPrice to be above and below their par levels by the average error
 
     // D18{1}
-    let avgError = (error[x] + error[y]) / BigInt(2);
+    let avgError = (error[x] + error[y]) / 2n;
 
     if (avgError >= D18) {
       throw new Error("error too large");
@@ -139,17 +136,7 @@ export const getRebalance = (
     const sellLimit = (targetBasket[x] * sharesValue * D27) / prices[x];
     const buyLimit = (targetBasket[y] * sharesValue * D27) / prices[y];
 
-    console.log("-------------------------");
-    console.log(trades.length);
-    console.log("maxTrade", maxTrade);
-    console.log("backingTraded", backingTraded);
-    console.log("sellLimit", sellLimit);
-    console.log("buyLimit", buyLimit);
-    console.log("startPrice", startPrice);
-    console.log("endPrice", endPrice);
-    console.log("currentBasket", currentBasket);
-
-    // queue trade
+    // add trade into set
 
     trades.push({
       sell: tokens[x],
