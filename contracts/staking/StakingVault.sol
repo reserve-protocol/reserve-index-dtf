@@ -92,6 +92,15 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     }
 
     /**
+     * Deposit & Delegate
+     */
+    function depositAndDelegate(uint256 assets) external returns (uint256 shares) {
+        shares = deposit(assets, msg.sender);
+
+        _delegate(msg.sender, msg.sender);
+    }
+
+    /**
      * Withdraw Logic
      */
     function _withdraw(
@@ -172,24 +181,29 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     }
 
     /// @param _rewardTokens Array of reward tokens to claim
-    function claimRewards(address[] calldata _rewardTokens) external accrueRewards(msg.sender, msg.sender) {
+    /// @return claimableRewards Amount claimed for each rewardToken
+    function claimRewards(
+        address[] calldata _rewardTokens
+    ) external accrueRewards(msg.sender, msg.sender) returns (uint256[] memory claimableRewards) {
+        claimableRewards = new uint256[](_rewardTokens.length);
+
         for (uint256 i; i < _rewardTokens.length; i++) {
             address _rewardToken = _rewardTokens[i];
 
             RewardInfo storage rewardInfo = rewardTrackers[_rewardToken];
             UserRewardInfo storage userRewardTracker = userRewardTrackers[_rewardToken][msg.sender];
 
-            uint256 claimableRewards = userRewardTracker.accruedRewards;
+            claimableRewards[i] = userRewardTracker.accruedRewards;
 
-            // {reward} += {reward}
-            rewardInfo.totalClaimed += claimableRewards;
-            userRewardTracker.accruedRewards = 0;
+            if (claimableRewards[i] != 0) {
+                // {reward} += {reward}
+                rewardInfo.totalClaimed += claimableRewards[i];
+                userRewardTracker.accruedRewards = 0;
 
-            if (claimableRewards != 0) {
-                SafeERC20.safeTransfer(IERC20(_rewardToken), msg.sender, claimableRewards);
+                SafeERC20.safeTransfer(IERC20(_rewardToken), msg.sender, claimableRewards[i]);
+
+                emit RewardsClaimed(msg.sender, _rewardToken, claimableRewards[i]);
             }
-
-            emit RewardsClaimed(msg.sender, _rewardToken, claimableRewards);
         }
     }
 
