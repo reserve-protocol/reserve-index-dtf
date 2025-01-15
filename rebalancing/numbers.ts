@@ -1,5 +1,3 @@
-export const ZERO = BigInt(0);
-
 export const bn = (str: string): bigint => {
   if (typeof str !== "string") {
     return BigInt(str);
