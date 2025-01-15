@@ -77,12 +77,12 @@ describe("getRebalance()", () => {
     expectTradeApprox(trades[0], "WETH", "USDC", bn("8.33e61"), bn("7.5e53"), bn("3.367e35"), bn("3.3e35"));
   });
 
-  it("should not revert within range", () => {
-    // shitty fuzz test, could do a better thing later
+  it("should produce trades across a variety of setups", () => {
+    // shitty fuzz test, should do a better thing later
 
     // 1k runs
     for (let i = 0; i < 1000; i++) {
-      const tokens = ["USDC", "DAI", "WETH"];
+      const tokens = ["USDC", "DAI", "WETH", "WBTC"];
       const bals = tokens.map((_) => BigInt(Math.round(Math.random() * 1e36)));
       const prices = tokens.map((_) => BigInt(Math.round(Math.random() * 1e54)));
       let targetBasket = tokens.map((_) => BigInt(Math.round(Math.random() * 1e18)));
@@ -93,8 +93,9 @@ describe("getRebalance()", () => {
         targetBasket[0] += D18 - sum;
       }
 
-      const error = [bn("5e16"), bn("5e16"), bn("5e16")];
-      getRebalance(tokens, bals, targetBasket, prices, error);
+      const error = [bn("5e16"), bn("5e16"), bn("5e16"), bn("5e16")];
+      const trades = getRebalance(tokens, bals, targetBasket, prices, error);
+      expect(trades.length).toBeLessThanOrEqual(tokens.length - 1);
     }
   });
 });
