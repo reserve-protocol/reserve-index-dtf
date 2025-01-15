@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import "forge-std/Test.sol";
 
 import { IERC20, IERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { StakingVault, UnstakingManager } from "contracts/staking/StakingVault.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
@@ -381,6 +382,28 @@ contract StakingVaultTest is Test {
     function test_cannotSetRewardRatioWithInvalidValue() public {
         vm.expectRevert(StakingVault.Vault__InvalidRewardsHalfLife.selector);
         vault.setRewardRatio(2 weeks + 1);
+    }
+
+    function test_depositAndDelegate() public {
+        token.mint(address(this), 1000e18);
+        token.approve(address(vault), 1000e18);
+
+        // normal deposit (no delegation)
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Deposit(address(this), address(this), 500e18, 500e18);
+        vault.deposit(500e18, address(this));
+        assertEq(vault.balanceOf(address(this)), 500e18);
+        assertEq(vault.delegates(address(this)), address(0));
+
+        // deposit and delegate
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Deposit(address(this), address(this), 500e18, 500e18);
+        vm.expectEmit(true, true, true, true);
+        emit IVotes.DelegateChanged(address(this), address(0), address(this));
+        vault.depositAndDelegate(500e18);
+
+        assertEq(vault.delegates(address(this)), address(this)); // delegated
+        assertEq(vault.balanceOf(address(this)), 1000e18); // has full balance
     }
 
     function test_unstake_noDelay() public {
