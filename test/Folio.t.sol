@@ -1659,7 +1659,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__FolioKilled.selector);
-        folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
+        folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 1), MAX_TTL);
     }
 
     function test_auctionCannotOpenTradeWithInvalidPrices() public {
@@ -1705,7 +1705,7 @@ contract FolioTest is BaseTest {
     function test_auctionCannotOpenTradeWithInvalidSellLimit() public {
         IFolio.Range memory sellLimit = IFolio.Range(1, 1, MAX_RATE - 1);
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, sellLimit, FULL_BUY, 0, 0, MAX_TTL);
+        folio.approveTrade(0, USDC, USDT, sellLimit, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
 
         vm.prank(tradeLauncher);
         vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
@@ -1719,7 +1719,7 @@ contract FolioTest is BaseTest {
     function test_auctionCannotOpenTradeWithInvalidBuyLimit() public {
         IFolio.Range memory buyLimit = IFolio.Range(1, 1, MAX_RATE - 1);
         vm.prank(dao);
-        folio.approveTrade(0, USDC, USDT, FULL_SELL, buyLimit, 0, 0, MAX_TTL);
+        folio.approveTrade(0, USDC, USDT, FULL_SELL, buyLimit, IFolio.Prices(0, 0), MAX_TTL);
 
         vm.prank(tradeLauncher);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
@@ -1757,9 +1757,7 @@ contract FolioTest is BaseTest {
 
     function test_auctionCannotOpenTradeIfFolioKilled() public {
         vm.prank(dao);
-        vm.expectEmit(true, true, true, true);
-        emit IFolio.TradeApproved(0, address(USDC), address(USDT), 0, 0, 0, 0, MAX_RATE, MAX_RATE, 0, MAX_RATE);
-        folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, 0, 0, MAX_TTL);
+        folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
 
         vm.prank(owner);
         folio.killFolio();

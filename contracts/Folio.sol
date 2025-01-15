@@ -377,11 +377,11 @@ contract Folio is
         uint256 buyBal = trade.buy.balanceOf(address(this));
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(trade.config.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 minSellBal = Math.mulDiv(trade.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // {buyTok} = D27{buyTok/share} * {share} / D27
-        uint256 maxBuyBal = Math.mulDiv(trade.config.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
+        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
         uint256 buyAvailable = buyBal < maxBuyBal ? maxBuyBal - buyBal : 0;
 
         // avoid overflow
@@ -513,11 +513,11 @@ contract Folio is
             revert Folio__InvalidPrices();
         }
 
-        if (sellLimit < trade.config.sellLimit.low || sellLimit > trade.config.sellLimit.high) {
+        if (sellLimit < trade.sellLimit.low || sellLimit > trade.sellLimit.high) {
             revert Folio__InvalidSellLimit();
         }
 
-        if (buyLimit < trade.config.buyLimit.low || buyLimit > trade.config.buyLimit.high) {
+        if (buyLimit < trade.buyLimit.low || buyLimit > trade.buyLimit.high) {
             revert Folio__InvalidBuyLimit();
         }
 
@@ -575,7 +575,7 @@ contract Folio is
         uint256 sellBal = trade.sell.balanceOf(address(this));
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(trade.config.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 minSellBal = Math.mulDiv(trade.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // ensure auction is large enough to cover bid
@@ -613,7 +613,7 @@ contract Folio is
         }
 
         // D27{buyTok/share} = D27{buyTok/share} * {share} / D27
-        uint256 maxBuyBal = Math.mulDiv(trade.config.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
+        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
 
         // ensure post-bid buy balance does not exceed max
         if (trade.buy.balanceOf(address(this)) > maxBuyBal) {
