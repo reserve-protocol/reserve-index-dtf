@@ -1,11 +1,11 @@
 {
-  "poke with one token": "31100",
-  "poke(1, 1 tokens)": "101127",
-  "poke(1, 10 tokens)": "1004854",
-  "poke(1, 25 tokens)": "2511102",
-  "poke(1, 50 tokens)": "5021610",
-  "poke(2, 1 tokens)": "11527",
-  "poke(2, 10 tokens)": "108854",
-  "poke(2, 25 tokens)": "271102",
-  "poke(2, 50 tokens)": "541610"
+  "poke with one token": "31594",
+  "poke(1, 1 tokens)": "102879",
+  "poke(1, 10 tokens)": "1021636",
+  "poke(1, 25 tokens)": "2552934",
+  "poke(1, 50 tokens)": "5105192",
+  "poke(2, 1 tokens)": "13279",
+  "poke(2, 10 tokens)": "125636",
+  "poke(2, 25 tokens)": "312934",
+  "poke(2, 50 tokens)": "625192"
 }
