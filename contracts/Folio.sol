@@ -23,14 +23,14 @@ interface IBidderCallee {
     function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
 }
 
-uint256 constant MAX_FOLIO_FEE = 0.5e18; // D18{1/year} 50% annually
-uint256 constant MAX_MINTING_FEE = 0.10e18; // D18{1} 10%
+uint256 constant MAX_FOLIO_FEE = 0.1e18; // D18{1/year} 10% annually
+uint256 constant MAX_MINTING_FEE = 0.05e18; // D18{1} 5%
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
-uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
+uint256 constant MIN_DAO_MINTING_FEE = 0.0015e18; // D18{1} 15 bps
 uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 

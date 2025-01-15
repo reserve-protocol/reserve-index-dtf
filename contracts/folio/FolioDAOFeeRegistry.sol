@@ -18,7 +18,7 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     IRoleRegistry public immutable roleRegistry;
 
     address private feeRecipient;
-    uint256 private defaultFeeNumerator; // D18{1}
+    uint256 private defaultFeeNumerator = MAX_DAO_FEE; // D18{1} fee starts at max
 
     mapping(address => uint256) private fTokenFeeNumerator; // D18{1}
     mapping(address => bool) private fTokenFeeSet;
@@ -41,7 +41,6 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
 
         roleRegistry = _roleRegistry;
         feeRecipient = _feeRecipient;
-        // defaultFeeNumerator = 0;
     }
 
     // === External ===
