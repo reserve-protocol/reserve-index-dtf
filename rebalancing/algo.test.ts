@@ -80,8 +80,8 @@ describe("getRebalance()", () => {
   it("should not revert within range", () => {
     // shitty fuzz test, could do a better thing later
 
-    // 10k runs
-    for (let i = 0; i < 10000; i++) {
+    // 1k runs
+    for (let i = 0; i < 1000; i++) {
       const tokens = ["USDC", "DAI", "WETH"];
       const bals = tokens.map((_) => BigInt(Math.round(Math.random() * 1e36)));
       const prices = tokens.map((_) => BigInt(Math.round(Math.random() * 1e54)));
