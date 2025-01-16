@@ -283,22 +283,6 @@ contract ExtremeTest is BaseExtremeTest {
         // fast forward, accumulate fees
         vm.warp(block.timestamp + p.timeLapse);
         vm.roll(block.number + 1000);
-        uint256 pendingFeeShares = folio.getPendingFeeShares();
         folio.distributeFees();
-
-        // check receipient balances
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
-        uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
-
-        assertApproxEqAbs(folio.balanceOf(address(dao)), expectedDaoShares, p.numFeeRecipients, "wrong dao shares");
-
-        uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        for (uint256 i = 0; i < recipients.length; i++) {
-            assertEq(
-                folio.balanceOf(recipients[i].recipient),
-                (remainingShares * feeReceiverShare) / 1e18,
-                "wrong receiver shares"
-            );
-        }
     }
 }

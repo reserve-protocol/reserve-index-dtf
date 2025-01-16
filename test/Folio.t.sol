@@ -2,8 +2,8 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FOLIO_FEE, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_MINTING_FEE, MIN_DAO_MINTING_FEE, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
-import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
+import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FOLIO_FEE, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_MINTING_FEE, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
+import { MAX_DAO_FEE, DEFAULT_FEE_FLOOR } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -343,9 +343,11 @@ contract FolioTest is BaseTest {
         uint256 startingDAIBalance = DAI.balanceOf(address(folio));
         uint256 startingMEMEBalance = MEME.balanceOf(address(folio));
 
-        // set mintingFee to MIN_DAO_MINTING_FEE, 5 bps
+        uint256 feeFloor = daoFeeRegistry.feeFloor();
+
+        // set mintingFee to feeFloor, 15 bps
         vm.prank(owner);
-        folio.setMintingFee(MIN_DAO_MINTING_FEE);
+        folio.setMintingFee(feeFloor);
         // leave daoFeeRegistry fee at 0 (default)
 
         vm.startPrank(user1);
@@ -355,7 +357,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = 1e22;
         folio.mint(amt, user1);
-        assertEq(folio.balanceOf(user1), amt - (amt * MIN_DAO_MINTING_FEE) / 1e18, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), amt - (amt * feeFloor) / 1e18, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
             startingUSDCBalance + D6_TOKEN_10K,
@@ -377,7 +379,7 @@ contract FolioTest is BaseTest {
 
         // minting fee should be manifested in total supply and ONLY the DAO's side of the stream
         assertEq(folio.totalSupply(), amt * 2, "total supply off");
-        assertEq(folio.daoPendingFeeShares(), (amt * MIN_DAO_MINTING_FEE) / 1e18, "wrong dao pending fee shares");
+        assertEq(folio.daoPendingFeeShares(), (amt * feeFloor) / 1e18, "wrong dao pending fee shares");
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
     }
 
@@ -750,7 +752,7 @@ contract FolioTest is BaseTest {
         uint256 initialOwnerShares = folio.balanceOf(owner);
         uint256 initialDaoShares = folio.balanceOf(dao);
 
-        vm.startPrank(owner);
+        vm.prank(owner);
         uint256 newFolioFee = MAX_FOLIO_FEE / 1000;
         folio.setFolioFee(newFolioFee);
 
@@ -769,6 +771,26 @@ contract FolioTest is BaseTest {
             "wrong owner shares"
         );
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
+    }
+
+    function test_pendingFeeSharesAtFeeFloor() public {
+        assertEq(folio.getPendingFeeShares(), 0, "pending fee shares should start 0");
+
+        vm.prank(owner);
+        folio.setFolioFee(0);
+
+        // fast forward, accumulate fees
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        vm.roll(block.number + 1000000);
+        uint256 pendingFeeShares = folio.getPendingFeeShares();
+        uint256 feeFloor = daoFeeRegistry.feeFloor();
+        uint256 expectedPendingFeeShares = (INITIAL_SUPPLY * 1e18) / (1e18 - feeFloor) - INITIAL_SUPPLY;
+        assertApproxEqAbs(
+            pendingFeeShares,
+            expectedPendingFeeShares,
+            expectedPendingFeeShares / 1e7,
+            "wrong pending fee shares"
+        );
     }
 
     function test_setFolioFeeRecipients_InvalidRecipient() public {
