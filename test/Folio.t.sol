@@ -1929,8 +1929,16 @@ contract FolioTest is BaseTest {
         // call poke
         folio.poke();
         assertEq(folio.lastPoke(), block.timestamp);
+        vm.warp(block.timestamp + 1000);
 
         // no-op if already poked
+        vm.startSnapshotGas("poke()");
         folio.poke(); // collect shares
+        vm.stopSnapshotGas("poke()");
+
+        // no-op if already poked
+        vm.startSnapshotGas("repeat poke()");
+        folio.poke(); // collect shares
+        vm.stopSnapshotGas("repeat poke()");
     }
 }
