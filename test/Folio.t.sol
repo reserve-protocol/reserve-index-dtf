@@ -1394,7 +1394,7 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt, amt, true, bytes(""));
     }
 
-    function test_parallelAuctions() public {
+    function test_parallelAuctionsOnBuyToken() public {
         // launch two auction in parallel to sell ALL USDC/DAI
 
         uint256 amt1 = USDC.balanceOf(address(folio));
@@ -1437,6 +1437,25 @@ contract FolioTest is BaseTest {
         assertEq(DAI.balanceOf(address(folio)), 0, "wrong dai balance");
     }
 
+    function test_parallelAuctionsOnSellToken() public {
+        vm.startPrank(dao);
+        folio.approveTrade(0, USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
+        folio.approveTrade(1, DAI, USDC, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
+        folio.approveTrade(2, USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
+        folio.approveTrade(3, USDT, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
+
+        vm.startPrank(tradeLauncher);
+        folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
+
+        // trades 1-3 should all revert while trade 0 is open
+        vm.expectRevert(IFolio.Folio__TradeCollision.selector);
+        folio.openTrade(1, 0, MAX_RATE, 1e27, 1e27);
+        vm.expectRevert(IFolio.Folio__TradeCollision.selector);
+        folio.openTrade(1, 0, MAX_RATE, 1e27, 1e27);
+        vm.expectRevert(IFolio.Folio__TradeCollision.selector);
+        folio.openTrade(1, 0, MAX_RATE, 1e27, 1e27);
+    }
+
     function test_auctionPriceRange() public {
         for (uint256 i = MAX_RATE; i > 0; i /= 10) {
             uint256 index = folio.nextTradeId();
@@ -1451,6 +1470,7 @@ contract FolioTest is BaseTest {
             (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(index);
             folio.getPrice(index, start);
             folio.getPrice(index, end);
+            vm.warp(end + 1);
         }
     }
 
