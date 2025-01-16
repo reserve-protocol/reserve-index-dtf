@@ -569,7 +569,7 @@ contract FolioTest is BaseTest {
         folio.distributeFees();
 
         // check receipient balances
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) /
             daoFeeDenominator +
             1;
@@ -647,7 +647,7 @@ contract FolioTest is BaseTest {
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
 
         // check receipient balances
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
@@ -760,7 +760,7 @@ contract FolioTest is BaseTest {
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
 
         // check receipient balances
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
@@ -849,7 +849,7 @@ contract FolioTest is BaseTest {
         uint256 initialDaoShares = folio.balanceOf(dao);
         uint256 initialFeeReceiverShares = folio.balanceOf(feeReceiver);
 
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
 
@@ -876,7 +876,7 @@ contract FolioTest is BaseTest {
         initialOwnerShares = folio.balanceOf(owner);
         initialDaoShares = folio.balanceOf(dao);
         initialFeeReceiverShares = folio.balanceOf(feeReceiver);
-        (, daoFeeNumerator, daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        (, daoFeeNumerator, daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
 
         // set new fee numerator, should distribute fees
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.05e18);

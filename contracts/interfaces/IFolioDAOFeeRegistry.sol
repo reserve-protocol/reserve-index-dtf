@@ -14,9 +14,7 @@ interface IFolioDAOFeeRegistry {
     event TokenFeeNumeratorSet(address indexed rToken, uint256 feeNumerator, bool isActive);
     event FeeFloorSet(uint256 feeFloor);
 
-    function feeFloor() external view returns (uint256);
-
     function getFeeDetails(
         address rToken
-    ) external view returns (address recipient, uint256 feeNumerator, uint256 feeDenominator);
+    ) external view returns (address recipient, uint256 feeNumerator, uint256 feeDenominator, uint256 feeFloor);
 }

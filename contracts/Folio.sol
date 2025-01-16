@@ -249,14 +249,16 @@ contract Folio is
 
         // === Calculate fee shares ===
 
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(this));
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
+            address(this)
+        );
 
         // {share} = {share} * D18{1} / D18
         uint256 totalFeeShares = (shares * mintingFee + D18 - 1) / D18;
         uint256 daoFeeShares = (totalFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
 
-        // ensure DAO's portion of fees is at least the DAO feeFloor
-        uint256 minDaoShares = (shares * daoFeeRegistry.feeFloor() + D18 - 1) / D18;
+        // ensure DAO's portion of fees is at least the DAO daoFeeFloor
+        uint256 minDaoShares = (shares * daoFeeFloor + D18 - 1) / D18;
         daoFeeShares = daoFeeShares < minDaoShares ? minDaoShares : daoFeeShares;
 
         // 100% to DAO, if necessary
@@ -350,7 +352,7 @@ contract Folio is
         // DAO
         uint256 daoShares = daoPendingFeeShares + _feeRecipientsPendingFeeShares - feeRecipientsTotal;
 
-        (address daoRecipient, , ) = daoFeeRegistry.getFeeDetails(address(this));
+        (address daoRecipient, , , ) = daoFeeRegistry.getFeeDetails(address(this));
         _mint(daoRecipient, daoShares);
         emit ProtocolFeePaid(daoRecipient, daoShares);
 
@@ -734,10 +736,14 @@ contract Folio is
         uint256 supply = super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
         uint256 elapsed = block.timestamp - lastPoke;
 
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
+            address(this)
+        );
+
         // convert annual percentage to per-second for comparison with stored folioFee
         // D18{1/s} = D18{1} - D18{1} * D18{1} ^ {s}
         // = 1 - (1 - feeFloor) ^ (1 / 31536000)
-        uint256 feeFloor = D18 - UD60x18.wrap(D18 - daoFeeRegistry.feeFloor()).pow(ANNUALIZATION_EXP).unwrap();
+        uint256 feeFloor = D18 - UD60x18.wrap(D18 - daoFeeFloor).pow(ANNUALIZATION_EXP).unwrap();
 
         // D18{1/s}
         uint256 _folioFee = feeFloor > folioFee ? feeFloor : folioFee;
@@ -745,8 +751,6 @@ contract Folio is
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
         // = supply / (1 - _folioFee) ^ elapsed
         uint256 feeShares = (supply * D18) / UD60x18.wrap(D18 - _folioFee).powu(elapsed).unwrap() - supply;
-
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(this));
 
         // D18{1} = D18{1/s} * D18 / D18{1/s}
         uint256 correction = (feeFloor * D18 + _folioFee - 1) / _folioFee;

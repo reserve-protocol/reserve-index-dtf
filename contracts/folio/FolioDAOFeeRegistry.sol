@@ -96,10 +96,11 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     /// @param feeDenominator D18{1}
     function getFeeDetails(
         address fToken
-    ) external view returns (address recipient, uint256 feeNumerator, uint256 feeDenominator) {
+    ) external view returns (address recipient, uint256 feeNumerator, uint256 feeDenominator, uint256 feeFloor_) {
         recipient = feeRecipient;
         feeNumerator = fTokenFeeSet[fToken] ? fTokenFeeNumerator[fToken] : defaultFeeNumerator;
         feeDenominator = FEE_DENOMINATOR;
+        feeFloor_ = feeFloor;
     }
 
     // ==== Internal ====

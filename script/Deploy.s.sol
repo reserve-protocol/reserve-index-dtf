@@ -60,7 +60,7 @@ contract DeployScript is Script {
         vm.stopBroadcast();
 
         require(address(daoFeeRegistry.roleRegistry()) == address(roleRegistry), "wrong role registry");
-        (address feeRecipient_, , ) = daoFeeRegistry.getFeeDetails(address(0));
+        (address feeRecipient_, , , ) = daoFeeRegistry.getFeeDetails(address(0));
         require(feeRecipient_ == feeRecipient, "wrong fee recipient");
 
         require(address(versionRegistry.roleRegistry()) == address(roleRegistry), "wrong role registry");
