@@ -30,7 +30,6 @@ uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
-uint256 constant MIN_DAO_MINTING_FEE = 0.0015e18; // D18{1} 15 bps
 uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 
@@ -71,8 +70,8 @@ contract Folio is
      * Fees
      */
     FeeRecipient[] public feeRecipients;
-    uint256 public folioFee; // D18{1/s} demurrage fee on AUM
-    uint256 public mintingFee; // D18{1} fee on mint
+    uint256 public folioFee; // D18{1/s} demurrage fee on AUM from Folio ride, additional fees by DAO
+    uint256 public mintingFee; // D18{1} fee on mint from Folio side; additional fees added by DAO
 
     /**
      * System
@@ -160,6 +159,7 @@ contract Folio is
         emit BasketTokenRemoved(address(token));
     }
 
+    /// An annual folio fee below 15 bps will result in the entirety of the fee being sent to the DAO
     /// @dev Non-reentrant via distributeFees()
     /// @param _newFee D18{1/s} Fee per second on AUM
     function setFolioFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -168,7 +168,7 @@ contract Folio is
         _setFolioFee(_newFee);
     }
 
-    /// A minting fee below 5 bps will result in the entirety of the fee being sent to the DAO
+    /// A minting fee below 15 bps will result in the entirety of the fee being sent to the DAO
     /// @dev Non-reentrant via distributeFees()
     /// @param _newFee D18{1} Fee on mint
     function setMintingFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -255,16 +255,12 @@ contract Folio is
         uint256 totalFeeShares = (shares * mintingFee + D18 - 1) / D18;
         uint256 daoFeeShares = (totalFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
 
-        // ensure DAO's portion of fees is at least MIN_DAO_MINTING_FEE
-        uint256 minDaoShares = (shares * MIN_DAO_MINTING_FEE + D18 - 1) / D18;
-        if (daoFeeShares < minDaoShares) {
-            daoFeeShares = minDaoShares;
-        }
+        // ensure DAO's portion of fees is at least the DAO feeFloor
+        uint256 minDaoShares = (shares * daoFeeRegistry.feeFloor() + D18 - 1) / D18;
+        daoFeeShares = daoFeeShares < minDaoShares ? minDaoShares : daoFeeShares;
 
         // 100% to DAO, if necessary
-        if (totalFeeShares < daoFeeShares) {
-            totalFeeShares = daoFeeShares;
-        }
+        totalFeeShares = totalFeeShares < daoFeeShares ? daoFeeShares : totalFeeShares;
 
         // === Transfer assets in ===
 
@@ -738,25 +734,42 @@ contract Folio is
         uint256 supply = super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
         uint256 elapsed = block.timestamp - lastPoke;
 
+        // convert annual percentage to per-second for comparison with stored folioFee
+        // D18{1/s} = D18{1} - D18{1} * D18{1} ^ {s}
+        // = 1 - (1 - feeFloor) ^ (1 / 31536000)
+        uint256 feeFloor = D18 - UD60x18.wrap(D18 - daoFeeRegistry.feeFloor()).pow(ANNUALIZATION_EXP).unwrap();
+
+        // D18{1/s}
+        uint256 _folioFee = feeFloor > folioFee ? feeFloor : folioFee;
+
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
-        uint256 feeShares = (supply * D18) / UD60x18.wrap(D18 - folioFee).powu(elapsed).unwrap() - supply;
+        // = supply / (1 - _folioFee) ^ elapsed
+        uint256 feeShares = (supply * D18) / UD60x18.wrap(D18 - _folioFee).powu(elapsed).unwrap() - supply;
 
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(this));
 
-        uint256 daoShares = (feeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
+        // D18{1} = D18{1/s} * D18 / D18{1/s}
+        uint256 correction = (feeFloor * D18 + _folioFee - 1) / _folioFee;
+
+        // {share} = {share} * D18{1} / D18
+        uint256 daoShares = (correction > (daoFeeNumerator * D18 + daoFeeDenominator - 1) / daoFeeDenominator)
+            ? (feeShares * correction + D18 - 1) / D18
+            : (feeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
+
         _daoPendingFeeShares += daoShares;
         _feeRecipientsPendingFeeShares += feeShares - daoShares;
     }
 
     /// @dev Set folio fee by annual percentage
-    /// @param _newFeeAnnually {s}
+    /// @param _newFeeAnnually D18{1/s}
     function _setFolioFee(uint256 _newFeeAnnually) internal {
         if (_newFeeAnnually > MAX_FOLIO_FEE) {
             revert Folio__FolioFeeTooHigh();
         }
 
         // convert annual percentage to per-second
-        // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
+        // D18{1/s} = D18{1} - D18{1} * D18{1} ^ {s}
+        // = 1 - (1 - newFeeAnnually) ^ (1 / 31536000)
         folioFee = D18 - UD60x18.wrap(D18 - _newFeeAnnually).pow(ANNUALIZATION_EXP).unwrap();
 
         if (_newFeeAnnually != 0 && folioFee == 0) {

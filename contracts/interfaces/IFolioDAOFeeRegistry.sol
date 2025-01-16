@@ -7,10 +7,14 @@ interface IFolioDAOFeeRegistry {
     error FolioDAOFeeRegistry__InvalidFeeNumerator();
     error FolioDAOFeeRegistry__InvalidRoleRegistry();
     error FolioDAOFeeRegistry__InvalidCaller();
+    error FolioDAOFeeRegistry__InvalidFeeFloor();
 
     event FeeRecipientSet(address indexed feeRecipient);
     event DefaultFeeNumeratorSet(uint256 defaultFeeNumerator);
     event TokenFeeNumeratorSet(address indexed rToken, uint256 feeNumerator, bool isActive);
+    event FeeFloorSet(uint256 feeFloor);
+
+    function feeFloor() external view returns (uint256);
 
     function getFeeDetails(
         address rToken
