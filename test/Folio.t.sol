@@ -1447,13 +1447,12 @@ contract FolioTest is BaseTest {
         vm.startPrank(tradeLauncher);
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
 
-        // trades 1-3 should all revert while trade 0 is open
+        // trade 2 should be launchable
         vm.expectRevert(IFolio.Folio__TradeCollision.selector);
         folio.openTrade(1, 0, MAX_RATE, 1e27, 1e27);
+        folio.openTrade(2, 0, MAX_RATE, 1e27, 1e27);
         vm.expectRevert(IFolio.Folio__TradeCollision.selector);
-        folio.openTrade(1, 0, MAX_RATE, 1e27, 1e27);
-        vm.expectRevert(IFolio.Folio__TradeCollision.selector);
-        folio.openTrade(1, 0, MAX_RATE, 1e27, 1e27);
+        folio.openTrade(3, 0, MAX_RATE, 1e27, 1e27);
     }
 
     function test_auctionPriceRange() public {

@@ -673,14 +673,9 @@ contract Folio is
             revert Folio__TradeTimeout();
         }
 
-        // ensure no conflicting trades by token
+        // ensure no conflicting tokens across trades (same sell or sell buy is okay)
         // necessary to prevent dutch auctions from taking losses
-        // allow trades to overlap in their buy token
-        if (
-            block.timestamp <= sellEnds[address(trade.sell)] ||
-            block.timestamp <= sellEnds[address(trade.buy)] ||
-            block.timestamp <= buyEnds[address(trade.sell)]
-        ) {
+        if (block.timestamp <= sellEnds[address(trade.buy)] || block.timestamp <= buyEnds[address(trade.sell)]) {
             revert Folio__TradeCollision();
         }
         sellEnds[address(trade.sell)] = Math.max(sellEnds[address(trade.sell)], block.timestamp + auctionLength);
