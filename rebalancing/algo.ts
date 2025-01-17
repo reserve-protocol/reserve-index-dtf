@@ -49,8 +49,8 @@ const getSharesValue = (bals: bigint[], prices: bigint[]): bigint => {
  * @param decimals Decimals of each token
  * @param bals {tok} Current balances, in wei
  * @param targetBasket D18{1} Ideal basket
- * @param prices {USD/wholeTok} USD prices for each *whole* token
- * @param priceError {1} Price error
+ * @param _prices {USD/wholeTok} USD prices for each *whole* token
+ * @param _priceError {1} Price error
  * @param tolerance D18{1} Tolerance for rebalancing to determine when to tolerance trade or not, default 0.1%
  */
 export const getRebalance = (
@@ -58,7 +58,7 @@ export const getRebalance = (
   tokens: string[],
   decimals: bigint[],
   bals: bigint[],
-  _targetBasket: bigint[],
+  targetBasket: bigint[],
   _prices: number[],
   _priceError: number[],
   tolerance: bigint = 10n ** 14n, // 0.01%
@@ -74,20 +74,20 @@ export const getRebalance = (
   const priceError = _priceError.map((a) => BigInt(Math.round(a * D27)));
 
   // D27{1} = D18{1} * D9
-  const targetBasket = _targetBasket.map((a) => a * 10n ** 9n);
+  targetBasket = targetBasket.map((a) => a * 10n ** 9n);
 
-  // ===
+  console.log("--------------------------------------------------------------------------------");
 
-  // D27{1} sums to 1
+  // D27{1} imprecisely sums to 1e27
   const currentBasket = getCurrentBasket(bals, prices);
 
   // D27{USD}
   const sharesValue = getSharesValue(bals, prices);
 
-  console.log("---------------------");
-
-  // queue up trades until there are no more trades-to-make left greater than tolerance
-  // trades returned will never be longer than tokens.length - 1; proof left as an exercise to the reader
+  // queue up trades until there are no more trades-to-make greater than tolerance in size
+  //
+  // trades returned will never be longer than tokens.length - 1
+  // proof left as an exercise to the reader
 
   while (true) {
     if (trades.length > tokens.length - 1) {
@@ -149,16 +149,12 @@ export const getRebalance = (
       throw new Error("error too large");
     }
 
-    console.log("sellLimit", targetBasket[x], sharesValue, prices[x]);
-
     // D27{tok/share} = D27{1} * D27{USD} / D27{USD/tok} / {share}
     const sellLimit = ((targetBasket[x] * sharesValue + prices[x] - 1n) / prices[x] + supply - 1n) / supply;
     const buyLimit = ((targetBasket[y] * sharesValue + prices[y] - 1n) / prices[y] + supply - 1n) / supply;
 
     // D27{buyTok/sellTok} = D27{USD/sellTok} * D27 / D27{USD/buyTok}
     const price = (prices[x] * D27n) / prices[y];
-
-    console.log("startPrice", price, avgPriceError);
 
     // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D27 / D27{1}
     const startPrice = (price * D27n + D27n - avgPriceError - 1n) / (D27n - avgPriceError);

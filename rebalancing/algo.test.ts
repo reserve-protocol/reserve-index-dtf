@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import expect from "expect";
 
 import { bn } from "./numbers";
-import { D27, getRebalance, Trade } from "./algo";
+import { getRebalance, Trade } from "./algo";
 
 const D18: bigint = BigInt(1e18);
 
