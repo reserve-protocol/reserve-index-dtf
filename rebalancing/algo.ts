@@ -1,4 +1,5 @@
 export const D27: number = 10 ** 27;
+export const D27n: bigint = 10n ** 27n;
 
 // IFolio.Trade interface minus some fields
 export interface Trade {
@@ -12,28 +13,28 @@ export interface Trade {
 
 /**
  * @param bals {tok} Current balances
- * @param prices {USD/wholeTok} USD prices for each token
- * @returns {1} Current basket, total shouldn't exceed 1 (excessively)
+ * @param prices D27{USD/tok} USD prices for each token
+ * @returns D27{1} Current basket, total will be around 1e18 but not exactly
  */
-const getCurrentBasket = (bals: bigint[], prices: number[], decimals: bigint[]): number[] => {
-  // {USD} = {tok} * {USD/wholeTok} / {tok/wholeTok}
-  const values = bals.map((bal, i) => (Number(bal) * prices[i]) / Number(10n ** decimals[i]));
+const getCurrentBasket = (bals: bigint[], prices: bigint[]): bigint[] => {
+  // D27{USD} = {tok} * D27{USD/tok}
+  const values = bals.map((bal, i) => bal * prices[i]);
 
-  // {USD}
+  // D27{USD}
   const total = values.reduce((a, b) => a + b);
 
-  // {1} = {USD} /{USD}
-  return values.map((amt, i) => amt / total);
+  // D27{1} = D27{USD} * D27/ D27{USD}
+  return values.map((amt, i) => (amt * D27n) / total);
 };
 
 /**
  * @param bals {tok} Current balances
- * @param prices {USD/wholeTok} USD prices for each token
- * @returns {USD} Estimated USD value of all the shares
+ * @param prices D27{USD/tok} USD prices for each token
+ * @returns D27{USD} Estimated USD value of all the shares
  */
-const getSharesValue = (bals: bigint[], prices: number[], decimals: bigint[]): number => {
-  // {USD} = {tok} * {USD/wholeTok} / {tok/wholeTok}
-  const values = bals.map((bal, i) => (Number(bal) * prices[i]) / Number(10n ** decimals[i]));
+const getSharesValue = (bals: bigint[], prices: bigint[]): bigint => {
+  // D27{USD} = {tok} * D27{USD/tok}
+  const values = bals.map((bal, i) => bal * prices[i]);
   return values.reduce((a, b) => a + b);
 };
 
@@ -43,32 +44,47 @@ const getSharesValue = (bals: bigint[], prices: number[], decimals: bigint[]): n
  *   - Breakup large trades into smaller trades in advance of using this algo; a large Folio may have to use this
  *     algo multiple times to rebalance gradually to avoid transacting too much volume in any one trade.
  *
- * @param supply {share} Ideal basket
+ * @param supply D27{share} Ideal basket
  * @param tokens Addresses of tokens in the basket
  * @param decimals Decimals of each token
  * @param bals {tok} Current balances, in wei
- * @param targetBasket {1} Ideal basket
+ * @param targetBasket D18{1} Ideal basket
  * @param prices {USD/wholeTok} USD prices for each *whole* token
  * @param priceError {1} Price error
- * @param tolerance {1} Tolerance for rebalancing to determine when to tolerance trade or not, default 0.1%
+ * @param tolerance D18{1} Tolerance for rebalancing to determine when to tolerance trade or not, default 0.1%
  */
 export const getRebalance = (
   supply: bigint,
   tokens: string[],
   decimals: bigint[],
   bals: bigint[],
-  targetBasket: number[],
-  prices: number[],
-  priceError: number[],
-  tolerance: number = 0.0001, // 0.01%
+  _targetBasket: bigint[],
+  _prices: number[],
+  _priceError: number[],
+  tolerance: bigint = 10n ** 14n, // 0.01%
 ): Trade[] => {
   const trades: Trade[] = [];
 
-  // {1} sum to 1
-  const currentBasket = getCurrentBasket(bals, prices, decimals);
+  // convert price number inputs to bigints
 
-  // {USD}
-  const sharesValue = getSharesValue(bals, prices, decimals);
+  // D27{USD/tok} = {USD/wholeTok} * D27 / {tok/wholeTok}
+  const prices = _prices.map((a, i) => BigInt(Math.round((a * D27) / 10 ** Number(decimals[i]))));
+
+  // D27{1} = {1} * D27
+  const priceError = _priceError.map((a) => BigInt(Math.round(a * D27)));
+
+  // D27{1} = D18{1} * D9
+  const targetBasket = _targetBasket.map((a) => a * 10n ** 9n);
+
+  // ===
+
+  // D27{1} sums to 1
+  const currentBasket = getCurrentBasket(bals, prices);
+
+  // D27{USD}
+  const sharesValue = getSharesValue(bals, prices);
+
+  console.log("---------------------");
 
   // queue up trades until there are no more trades-to-make left greater than tolerance
   // trades returned will never be longer than tokens.length - 1; proof left as an exercise to the reader
@@ -82,24 +98,24 @@ export const getRebalance = (
     let x = tokens.length; // sell index
     let y = tokens.length; // buy index
 
-    // {USD}
-    let biggestSurplus = 0;
-    let biggestDeficit = 0;
+    // D27{USD}
+    let biggestSurplus = 0n;
+    let biggestDeficit = 0n;
 
     console.log("currentBasket", currentBasket);
     console.log("targetBasket", targetBasket);
 
     for (let i = 0; i < tokens.length; i++) {
       if (currentBasket[i] > targetBasket[i] && currentBasket[i] - targetBasket[i] > tolerance) {
-        // {USD} = {1} * {USD}
-        const surplus = (currentBasket[i] - targetBasket[i]) * sharesValue;
+        // D27{USD} = D27{1} * D27{USD} / D27
+        const surplus = ((currentBasket[i] - targetBasket[i]) * sharesValue) / D27n;
         if (surplus > biggestSurplus) {
           biggestSurplus = surplus;
           x = i;
         }
       } else if (currentBasket[i] < targetBasket[i] && targetBasket[i] - currentBasket[i] > tolerance) {
-        // {USD} = {1} * {USD}
-        const deficit = (targetBasket[i] - currentBasket[i]) * sharesValue;
+        // D27{USD} = D27{1} * D27{USD} / D27
+        const deficit = ((targetBasket[i] - currentBasket[i]) * sharesValue) / D27n;
         if (deficit > biggestDeficit) {
           biggestDeficit = deficit;
           y = i;
@@ -114,60 +130,49 @@ export const getRebalance = (
 
     // simulate swap and update currentBasket
 
-    // {USD}
+    // D27{USD}
     const maxTrade = biggestDeficit < biggestSurplus ? biggestDeficit : biggestSurplus;
 
-    // {1} = {USD} / {USD}
-    const backingTraded = maxTrade / sharesValue;
+    // D27{1} = D27{USD} * D27 / D27{USD}
+    const backingTraded = (maxTrade * D27n) / sharesValue;
 
     console.log("backingTraded", backingTraded);
 
-    // {1}
+    // D27{1}
     currentBasket[x] -= backingTraded;
     currentBasket[y] += backingTraded;
 
-    // set startPrice and endPrice to be above and below their par levels by the average priceError
+    // D27{1}
+    const avgPriceError = (priceError[x] + priceError[y]) / 2n;
 
-    // {1}
-    const avgPriceError = (priceError[x] + priceError[y]) / 2;
-
-    if (avgPriceError >= 1) {
+    if (avgPriceError >= D27) {
       throw new Error("error too large");
     }
 
-    // {wholeBuyTok/wholeSellTok} = {USD/wholeBuyTok} / {USD/wholeSellTok}
-    const price = prices[y] / prices[x];
+    console.log("sellLimit", targetBasket[x], sharesValue, prices[x]);
 
-    // {wholeBuyTok/wholeSellTok} = {wholeBuyTok/wholeSellTok} / {1}
-    const startPriceWhole = price / (1 - avgPriceError);
-    const endPriceWhole = price * (1 - avgPriceError);
+    // D27{tok/share} = D27{1} * D27{USD} / D27{USD/tok} / {share}
+    const sellLimit = ((targetBasket[x] * sharesValue + prices[x] - 1n) / prices[x] + supply - 1n) / supply;
+    const buyLimit = ((targetBasket[y] * sharesValue + prices[y] - 1n) / prices[y] + supply - 1n) / supply;
 
-    console.log("targetBasket", targetBasket[y], sharesValue, prices[y]);
+    // D27{buyTok/sellTok} = D27{USD/sellTok} * D27 / D27{USD/buyTok}
+    const price = (prices[x] * D27n) / prices[y];
 
-    // {wholeTok} = {1} * {USD} / {USD/wholeTok}
-    const sellLimitWhole = (targetBasket[x] * sharesValue) / prices[x];
-    const buyLimitWhole = (targetBasket[y] * sharesValue) / prices[y];
+    console.log("startPrice", price, avgPriceError);
 
-    // {tok/share} = {wholeTok} * {tok/wholeTok} / {share}
-    const sellLimit = (sellLimitWhole * Number(10n ** decimals[x])) / Number(supply);
-    const buyLimit = (buyLimitWhole * Number(10n ** decimals[y])) / Number(supply);
-
-    // {buyTok/sellTok} = {wholeBuyTok/wholeSellTok} * {buyTok/wholeBuyTok} / {sellTok/wholeSellTok}
-    const startPrice = (startPriceWhole * Number(10n ** decimals[y])) / Number(10n ** decimals[x]);
-    const endPrice = (endPriceWhole * Number(10n ** decimals[y])) / Number(10n ** decimals[x]);
+    // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D27 / D27{1}
+    const startPrice = (price * D27n + D27n - avgPriceError - 1n) / (D27n - avgPriceError);
+    const endPrice = (price * (D27n - avgPriceError)) / D27n;
 
     // add trade into set
 
     trades.push({
       sell: tokens[x],
       buy: tokens[y],
-
-      // convert number to 27-decimal bigints
-      // D27{tok/share} = {tok/share} * D27
-      sellLimit: BigInt(Math.round(sellLimit * D27)),
-      buyLimit: BigInt(Math.round(buyLimit * D27)),
-      startPrice: BigInt(Math.round(startPrice * D27)),
-      endPrice: BigInt(Math.round(endPrice * D27)),
+      sellLimit: sellLimit,
+      buyLimit: buyLimit,
+      startPrice: startPrice,
+      endPrice: endPrice,
     });
 
     // do not remove console.logs they do not show in tests that succeed

@@ -39,7 +39,7 @@ describe("getRebalance()", () => {
     const tokens = ["USDC", "DAI", "USDT"];
     const decimals = [bn("6"), bn("18"), bn("6")];
     const bals = [bn("1e9"), bn("0"), bn("0")];
-    const targetBasket = [0, 0.5, 0.5];
+    const targetBasket = [bn("0"), bn("0.5e18"), bn("0.5e18")];
     const prices = [1, 1, 1];
     const error = [0.01, 0.01, 0.01];
     const trades = getRebalance(supply, tokens, decimals, bals, targetBasket, prices, error);
@@ -51,7 +51,7 @@ describe("getRebalance()", () => {
     const tokens = ["USDC", "DAI", "USDT"];
     const decimals = [bn("6"), bn("18"), bn("6")];
     const bals = [bn("0"), bn("500e18"), bn("500e6")];
-    const targetBasket = [1, 0, 0];
+    const targetBasket = [bn("1e18"), bn("0"), bn("0")];
     const prices = [1, 1, 1];
     const error = [0.01, 0.01, 0.01];
     const trades = getRebalance(supply, tokens, decimals, bals, targetBasket, prices, error);
@@ -64,7 +64,7 @@ describe("getRebalance()", () => {
     const tokens = ["USDC", "DAI"];
     const decimals = [bn("6"), bn("18")];
     const bals = [bn("250e6"), bn("750e18")];
-    const targetBasket = [0.75, 0.25];
+    const targetBasket = [bn("0.75e18"), bn("0.25e18")];
     const prices = [1, 1];
     const error = [0.01, 0.01];
     const trades = getRebalance(supply, tokens, decimals, bals, targetBasket, prices, error);
@@ -76,12 +76,12 @@ describe("getRebalance()", () => {
     const tokens = ["USDC", "WETH"];
     const decimals = [bn("6"), bn("18")];
     const bals = [bn("250e6"), bn("0.25e18")];
-    const targetBasket = [0.75, 0.25];
+    const targetBasket = [bn("0.75e18"), bn("0.25e18")];
     const prices = [1, 3000];
     const error = [0.01, 0.01];
     const trades = getRebalance(supply, tokens, decimals, bals, targetBasket, prices, error);
     expect(trades.length).toBe(1);
-    expectTradeApprox(trades[0], "WETH", "USDC", bn("8.33e22"), bn("750e12"), bn("0.3367e12"), bn("0.33e12"));
+    expectTradeApprox(trades[0], "WETH", "USDC", bn("8.33e22"), bn("750e12"), bn("3.03e18"), bn("2.97e18"));
   });
 
   it("should produce trades across a variety of setups", () => {
@@ -93,12 +93,12 @@ describe("getRebalance()", () => {
       const decimals = [bn("6"), bn("18"), bn("18"), bn("8")];
       const bals = tokens.map((_, i) => BigInt(Math.round(Math.random() * 1e36)));
       const prices = tokens.map((_, i) => Math.round(Math.random() * 1e54) / Number(10n ** decimals[i]));
-      let targetBasket = tokens.map((_) => Math.random());
-      let sum = targetBasket.reduce((a, b) => a + b);
-      targetBasket = targetBasket.map((a) => a / sum);
-      sum = targetBasket.reduce((a, b) => a + b);
-      if (sum != 1) {
-        targetBasket[0] += 1 - sum;
+      const targetBasketAsNum = tokens.map((_) => Math.random());
+      const sumAsNum = targetBasketAsNum.reduce((a, b) => a + b);
+      const targetBasket = targetBasketAsNum.map((a) => BigInt(Math.round((a * 10 ** 18) / sumAsNum)));
+      const sum = targetBasket.reduce((a, b) => a + b);
+      if (sum != 10n ** 18n) {
+        targetBasket[0] += 10n ** 18n - sum;
       }
 
       const error = tokens.map((_) => Math.random() * 0.5);
