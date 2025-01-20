@@ -5,9 +5,15 @@ import { D9n, D27, D27n } from "./numbers";
  * @param decimals Decimals of the token
  * @param _price {USD/wholeTok} Price of the *whole* token
  * @param _sharePrice {USD/wholeShare} Price of the *whole* share
- * @return {1} % of the basket given by the limit
+ * @return {1} % of the basket given by the limit, as a number
+ * @return D27{1} % of the basket given by the limit, as a 27-decimal bigint
  */
-export const getBasketPortion = (limit: bigint, decimals: bigint, _price: number, _sharePrice: number): number => {
+export const getBasketPortion = (
+  limit: bigint,
+  decimals: bigint,
+  _price: number,
+  _sharePrice: number,
+): [number, bigint] => {
   // D27{USD/share} = {USD/wholeShare} * D27 / {share/wholeShare}
   const sharePrice = BigInt(Math.round(_sharePrice * D27)) / 10n ** 18n;
 
@@ -17,7 +23,7 @@ export const getBasketPortion = (limit: bigint, decimals: bigint, _price: number
   // D27{1} = D27{tok/share} * D27{USD/tok} / D27{USD/share}
   const portion = (limit * price) / sharePrice;
 
-  return Number(portion) / D27;
+  return [Number(portion) / D27, portion];
 };
 
 /**
@@ -74,7 +80,7 @@ export const makeTrade = (
   buyLimit: bigint,
   startPrice: bigint,
   endPrice: bigint,
-  avgPriceError: bigint,
+  avgPriceError: bigint = 0n,
 ) => {
   return {
     sell: sell,

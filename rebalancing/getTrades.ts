@@ -1,6 +1,6 @@
 import { Trade } from "./types";
 import { D27, D27n } from "./numbers";
-import { getCurrentBasket, getSharePricing, getBasketPortion, makeTrade } from "./utils";
+import { getCurrentBasket, getSharePricing, makeTrade } from "./utils";
 
 /**
  * Get trades from basket

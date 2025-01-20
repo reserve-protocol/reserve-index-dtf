@@ -3,16 +3,17 @@ import { D9n, D18n, D27, D27n } from "./numbers";
 import { getCurrentBasket, getSharePricing, getBasketPortion } from "./utils";
 
 /**
- * Get basket from trades
+ * Get basket from a set of trades
+ *
+ * Works by presuming the smallest trade is executed iteratively until all trades are exhausted
  *
  * @param supply {share} DTF supply
  * @param trades Trades
  * @param tokens Addresses of tokens in the basket
  * @param bals {tok} Current balances
  * @param decimals Decimals of each token
- * @param prices {USD/wholeTok} USD prices for each *whole* token
- * @returns basket D18{1} Resulting basket
- * @returns amountDeficit D18{1} Amount deficit of being able to achieve the targetBasket; should be 0 for a well-configured rebalance
+ * @param _prices {USD/wholeTok} USD prices for each *whole* token
+ * @returns basket D18{1} Resulting basket from running the smallest trade first
  */
 export const getBasket = (
   supply: bigint,
@@ -20,83 +21,100 @@ export const getBasket = (
   tokens: string[],
   bals: bigint[],
   decimals: bigint[],
-  prices: number[],
-): [bigint[], bigint] => {
+  _prices: number[],
+): bigint[] => {
   // convert price number inputs to bigints
+
+  // D27{USD/tok} = {USD/wholeTok} * D27 / {tok/wholeTok}
+  const prices = _prices.map((a, i) => BigInt(Math.round((a * D27) / 10 ** Number(decimals[i]))));
 
   console.log("--------------------------------------------------------------------------------");
 
   // D27{1} approx sum 1e27
-  const currentBasket = getCurrentBasket(bals, decimals, prices);
+  let currentBasket = getCurrentBasket(bals, decimals, _prices);
 
   // D27{USD}, {USD/wholeShare}
-  const [sharesValue, sharePrice] = getSharePricing(supply, bals, decimals, prices);
+  const [sharesValue, _sharePrice] = getSharePricing(supply, bals, decimals, _prices);
 
-  // determine targetBasket from trades
+  // process the smallest trade first until we hit an unbounded traded
 
-  const targetBasket: bigint[] = [];
-  let sum = 0n;
+  while (trades.length > 0) {
+    let tradeIndex = 0;
 
-  for (let i = 0; i < tokens.length; i++) {
-    targetBasket.push(0n);
+    // find index of smallest trade index
 
-    for (let j = 0; j < trades.length; j++) {
-      const balBuy = bals[tokens.indexOf(trades[j].sell)];
-      // TODO
+    // D27{USD}
+    let smallestSwap = 10n ** 54n; // max
 
-      if (balBuy > 0n) {
-        // D27{USD} = {buyTok} * D27{USD/buyTok}
-        const buyValue = balBuy / prices[i];
+    for (let i = 0; i < trades.length; i++) {
+      const x = tokens.indexOf(trades[i].sell);
+      const y = tokens.indexOf(trades[i].buy);
 
-        // D27{1} = D27{USD} * D27 / D27{USD}
-        const basketPct = (buyValue * D27n) / sharesValue;
+      // D27{1}
+      const [, sellTarget] = getBasketPortion(trades[i].sellLimit.spot, decimals[x], _prices[x], _sharePrice);
+      const [, buyTarget] = getBasketPortion(trades[i].buyLimit.spot, decimals[y], _prices[y], _sharePrice);
 
-        if (basketPct > targetBasket[i]) {
-          targetBasket[i] = basketPct;
+      let tradeValue = smallestSwap;
+
+      if (currentBasket[x] > sellTarget) {
+        // D27{USD} = D27{1} * D27{USD} / D27
+        const surplus = ((currentBasket[x] - sellTarget) * sharesValue) / D27n;
+        if (surplus < tradeValue) {
+          tradeValue = surplus;
         }
       }
 
-      const balSell = bals[tokens.indexOf(trades[j].sell)];
-      if (balSell > 0n) {
-        // D27{USD} = {sellTok} * D27{USD/sellTok}
-        const sellValue = balSell / prices[i];
-
-        // D27{1} = D27{USD} * D27 / D27{USD}
-        const basketPct = (sellValue * D27n) / sharesValue;
-
-        if (basketPct > targetBasket[i]) {
-          targetBasket[i] = basketPct;
+      if (currentBasket[y] < buyTarget) {
+        // D27{USD} = D27{1} * D27{USD} / D27
+        const deficit = ((buyTarget - currentBasket[y]) * sharesValue) / D27n;
+        if (deficit < tradeValue) {
+          tradeValue = deficit;
         }
+      }
+
+      if (tradeValue < smallestSwap) {
+        smallestSwap = tradeValue;
+        tradeIndex = i;
       }
     }
 
-    sum += targetBasket[i];
+    // simulate swap and update currentBasket
+    // if no trade was smallest, default to 0th index
+
+    const x = tokens.indexOf(trades[tradeIndex].sell);
+    const y = tokens.indexOf(trades[tradeIndex].buy);
+
+    // check price is within price range
+
+    // D27{buyTok/sellTok} = D27{USD/sellTok} * D27 / D27{USD/buyTok}
+    const price = (prices[x] * D27n) / prices[y];
+    if (price > trades[tradeIndex].prices.start || price < trades[tradeIndex].prices.end) {
+      throw new Error(
+        `price ${price} out of range [${trades[tradeIndex].prices.start}, ${trades[tradeIndex].prices.end}]`,
+      );
+    }
+
+    // D27{1} = D27{USD} * D27 / D27{USD}
+    const backingTraded = (smallestSwap * D27n) / sharesValue;
+
+    // D27{1}
+    currentBasket[x] -= backingTraded;
+    currentBasket[y] += backingTraded;
+
+    // remove the trade
+    trades.splice(tradeIndex, 1);
   }
 
-  if (sum != D18n) {
-    console.log("sum", sum);
-    console.log("targetBasket", targetBasket);
-    throw new Error("targetBasket does not sum to 1e18");
+  // make it sum to 1e27
+  let sum = 0n;
+  for (let i = 0; i < currentBasket.length; i++) {
+    sum += currentBasket[i];
   }
 
-  // determine if we can reach the targetBasket
-  // TODO
-
-  for (let i = 0; i < trades.length; i++) {
-    const sellIndex = tokens.indexOf(trades[i].sell);
-    const buyIndex = tokens.indexOf(trades[i].buy);
-
-    // // D27{sellTok/share} = {sellTok} * D27{USD/sellTok} / D27{USD}
-    // const currentSell = (bals[sellIndex] * prices[sellIndex]) / sharesValue;
-
-    // // D27{buyTok/share} = {buyTok} * D27{USD/buyTok} / D27{USD}
-    // const currentBuy = (bals[buyIndex] * prices[buyIndex]) / sharesValue;
-
-    // // D27{1} = D27{USD} * D27 / D27{USD}
-    // const backingTraded = (maxTrade * D27n) / sharesValue;
-
-    // console.log("backingTraded", backingTraded);
+  if (sum < D27n) {
+    currentBasket[0] += D27n - sum;
   }
 
-  return [targetBasket, 0n];
+  // remove 9 decimals
+  return currentBasket.map((a) => a / D9n);
 };
