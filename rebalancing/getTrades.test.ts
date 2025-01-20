@@ -2,7 +2,8 @@ import { describe, it } from "node:test";
 import expect from "expect";
 
 import { bn } from "./numbers";
-import { getRebalance, Trade } from "./algo";
+import { Trade } from "./types";
+import { getTrades } from "./getTrades";
 
 const D18: bigint = BigInt(1e18);
 
@@ -26,13 +27,13 @@ const expectTradeApprox = (
   expect(trade.sell).toBe(sell);
   expect(trade.buy).toBe(buy);
 
-  assertApproxEq(trade.sellLimit, sellLimit, precision);
-  assertApproxEq(trade.buyLimit, buyLimit, precision);
-  assertApproxEq(trade.startPrice, startPrice, precision);
-  assertApproxEq(trade.endPrice, endPrice, precision);
+  assertApproxEq(trade.sellLimit.spot, sellLimit, precision);
+  assertApproxEq(trade.buyLimit.spot, buyLimit, precision);
+  assertApproxEq(trade.prices.start, startPrice, precision);
+  assertApproxEq(trade.prices.end, endPrice, precision);
 };
 
-describe("getRebalance()", () => {
+describe("getTrades()", () => {
   const supply = bn("1e21"); // 1000 supply
 
   it("split: [100%, 0%, 0%] => [0%, 50%, 50%]", () => {
@@ -42,7 +43,7 @@ describe("getRebalance()", () => {
     const targetBasket = [bn("0"), bn("0.5e18"), bn("0.5e18")];
     const prices = [1, 1, 1];
     const error = [0.01, 0.01, 0.01];
-    const trades = getRebalance(supply, tokens, decimals, bals, targetBasket, prices, error);
+    const trades = getTrades(supply, tokens, decimals, bals, targetBasket, prices, error);
     expect(trades.length).toBe(2);
     expectTradeApprox(trades[0], "USDC", "DAI", bn("0"), bn("5e26"), bn("1.01e39"), bn("0.99e39"));
     expectTradeApprox(trades[1], "USDC", "USDT", bn("0"), bn("5e14"), bn("1.01e27"), bn("0.99e27"));
@@ -54,10 +55,10 @@ describe("getRebalance()", () => {
     const targetBasket = [bn("1e18"), bn("0"), bn("0")];
     const prices = [1, 1, 1];
     const error = [0.01, 0.01, 0.01];
-    const trades = getRebalance(supply, tokens, decimals, bals, targetBasket, prices, error);
+    const trades = getTrades(supply, tokens, decimals, bals, targetBasket, prices, error);
     expect(trades.length).toBe(2);
-    expectTradeApprox(trades[0], "DAI", "USDC", bn("0"), bn("1e15"), bn("1.01e15"), bn("0.99e15"));
-    expectTradeApprox(trades[1], "USDT", "USDC", bn("0"), bn("1e15"), bn("1.01e27"), bn("0.99e27"));
+    expectTradeApprox(trades[0], "USDT", "USDC", bn("0"), bn("1e15"), bn("1.01e27"), bn("0.99e27"));
+    expectTradeApprox(trades[1], "DAI", "USDC", bn("0"), bn("1e15"), bn("1.01e15"), bn("0.99e15"));
   });
 
   it("reweight: [25%, 75%] => [75%, 25%]", () => {
@@ -67,7 +68,7 @@ describe("getRebalance()", () => {
     const targetBasket = [bn("0.75e18"), bn("0.25e18")];
     const prices = [1, 1];
     const error = [0.01, 0.01];
-    const trades = getRebalance(supply, tokens, decimals, bals, targetBasket, prices, error);
+    const trades = getTrades(supply, tokens, decimals, bals, targetBasket, prices, error);
     expect(trades.length).toBe(1);
     expectTradeApprox(trades[0], "DAI", "USDC", bn("2.5e26"), bn("7.5e14"), bn("1.01e15"), bn("0.99e15"));
   });
@@ -79,7 +80,7 @@ describe("getRebalance()", () => {
     const targetBasket = [bn("0.75e18"), bn("0.25e18")];
     const prices = [1, 3000];
     const error = [0.01, 0.01];
-    const trades = getRebalance(supply, tokens, decimals, bals, targetBasket, prices, error);
+    const trades = getTrades(supply, tokens, decimals, bals, targetBasket, prices, error);
     expect(trades.length).toBe(1);
     expectTradeApprox(trades[0], "WETH", "USDC", bn("8.33e22"), bn("750e12"), bn("3.03e18"), bn("2.97e18"));
   });
@@ -102,7 +103,7 @@ describe("getRebalance()", () => {
       }
 
       const error = tokens.map((_) => Math.random() * 0.5);
-      const trades = getRebalance(supply, tokens, decimals, bals, targetBasket, prices, error);
+      const trades = getTrades(supply, tokens, decimals, bals, targetBasket, prices, error);
       expect(trades.length).toBeLessThanOrEqual(tokens.length - 1);
     }
   });

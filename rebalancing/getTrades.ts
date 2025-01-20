@@ -1,59 +1,24 @@
-export const D27: number = 10 ** 27;
-export const D27n: bigint = 10n ** 27n;
-
-// IFolio.Trade interface minus some fields
-export interface Trade {
-  sell: string;
-  buy: string;
-  sellLimit: bigint; // D27{sellTok/share} spot est for min ratio of sell token to shares allowed, inclusive
-  buyLimit: bigint; // D27{buyTok/share} spot est for max ratio of buy token to shares allowed, exclusive
-  startPrice: bigint; // D27{buyTok/sellTok}
-  endPrice: bigint; // D27{buyTok/sellTok}
-}
+import { Trade } from "./types";
+import { D27, D27n } from "./numbers";
+import { getCurrentBasket, getSharePricing, getBasketPortion, makeTrade } from "./utils";
 
 /**
- * @param bals {tok} Current balances
- * @param prices D27{USD/tok} USD prices for each token
- * @returns D27{1} Current basket, total will be around 1e18 but not exactly
- */
-const getCurrentBasket = (bals: bigint[], prices: bigint[]): bigint[] => {
-  // D27{USD} = {tok} * D27{USD/tok}
-  const values = bals.map((bal, i) => bal * prices[i]);
-
-  // D27{USD}
-  const total = values.reduce((a, b) => a + b);
-
-  // D27{1} = D27{USD} * D27/ D27{USD}
-  return values.map((amt, i) => (amt * D27n) / total);
-};
-
-/**
- * @param bals {tok} Current balances
- * @param prices D27{USD/tok} USD prices for each token
- * @returns D27{USD} Estimated USD value of all the shares
- */
-const getSharesValue = (bals: bigint[], prices: bigint[]): bigint => {
-  // D27{USD} = {tok} * D27{USD/tok}
-  const values = bals.map((bal, i) => bal * prices[i]);
-  return values.reduce((a, b) => a + b);
-};
-
-/**
+ * Get trades from basket
  *
  * Warnings:
  *   - Breakup large trades into smaller trades in advance of using this algo; a large Folio may have to use this
  *     algo multiple times to rebalance gradually to avoid transacting too much volume in any one trade.
  *
- * @param supply D27{share} Ideal basket
+ * @param supply {share} Ideal basket
  * @param tokens Addresses of tokens in the basket
  * @param decimals Decimals of each token
- * @param bals {tok} Current balances, in wei
+ * @param bals {tok} Current balances
  * @param targetBasket D18{1} Ideal basket
  * @param _prices {USD/wholeTok} USD prices for each *whole* token
  * @param _priceError {1} Price error
  * @param tolerance D18{1} Tolerance for rebalancing to determine when to tolerance trade or not, default 0.1%
  */
-export const getRebalance = (
+export const getTrades = (
   supply: bigint,
   tokens: string[],
   decimals: bigint[],
@@ -78,11 +43,12 @@ export const getRebalance = (
 
   console.log("--------------------------------------------------------------------------------");
 
-  // D27{1} imprecisely sums to 1e27
-  const currentBasket = getCurrentBasket(bals, prices);
+  // D27{1} approx sum 1e27
+  const currentBasket = getCurrentBasket(bals, decimals, _prices);
 
-  // D27{USD}
-  const sharesValue = getSharesValue(bals, prices);
+  // D27{USD}, {USD/wholeShare}
+  const [sharesValue, sharePrice] = getSharePricing(supply, bals, decimals, _prices);
+  console.log("shares", sharesValue, sharePrice);
 
   // queue up trades until there are no more trades-to-make greater than tolerance in size
   //
@@ -162,22 +128,13 @@ export const getRebalance = (
 
     // add trade into set
 
-    trades.push({
-      sell: tokens[x],
-      buy: tokens[y],
-      sellLimit: sellLimit,
-      buyLimit: buyLimit,
-      startPrice: startPrice,
-      endPrice: endPrice,
-    });
+    trades.push(makeTrade(tokens[x], tokens[y], sellLimit, buyLimit, startPrice, endPrice));
 
     // do not remove console.logs they do not show in tests that succeed
-    console.log("sellLimit", trades[trades.length - 1].sellLimit);
-    console.log("buyLimit", trades[trades.length - 1].buyLimit);
-    console.log("startPrice", trades[trades.length - 1].startPrice);
-    console.log("endPrice", trades[trades.length - 1].endPrice);
+    console.log("sellLimit", trades[trades.length - 1].sellLimit.spot);
+    console.log("buyLimit", trades[trades.length - 1].buyLimit.spot);
+    console.log("startPrice", trades[trades.length - 1].prices.start);
+    console.log("endPrice", trades[trades.length - 1].prices.end);
     console.log("currentBasket", currentBasket);
   }
-
-  return trades;
 };
