@@ -15,7 +15,7 @@ import { getCurrentBasket, getSharePricing, getBasketPortion, makeTrade } from "
  * @param bals {tok} Current balances
  * @param targetBasket D18{1} Ideal basket
  * @param _prices {USD/wholeTok} USD prices for each *whole* token
- * @param _priceError {1} Price error
+ * @param _priceError {1} Price error, pass 1 to fully defer to price curator / auction launcher
  * @param tolerance D18{1} Tolerance for rebalancing to determine when to tolerance trade or not, default 0.1%
  */
 export const getTrades = (
@@ -68,9 +68,6 @@ export const getTrades = (
     let biggestSurplus = 0n;
     let biggestDeficit = 0n;
 
-    console.log("currentBasket", currentBasket);
-    console.log("targetBasket", targetBasket);
-
     for (let i = 0; i < tokens.length; i++) {
       if (currentBasket[i] > targetBasket[i] && currentBasket[i] - targetBasket[i] > tolerance) {
         // D27{USD} = D27{1} * D27{USD} / D27
@@ -109,10 +106,9 @@ export const getTrades = (
     currentBasket[y] += backingTraded;
 
     // D27{1}
-    const avgPriceError = (priceError[x] + priceError[y]) / 2n;
-
-    if (avgPriceError >= D27) {
-      throw new Error("error too large");
+    let avgPriceError = (priceError[x] + priceError[y]) / 2n;
+    if (priceError[x] >= D27n || priceError[y] >= D27n) {
+      avgPriceError = D27n;
     }
 
     // D27{tok/share} = D27{1} * D27{USD} / D27{USD/tok} / {share}
@@ -123,12 +119,12 @@ export const getTrades = (
     const price = (prices[x] * D27n) / prices[y];
 
     // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D27 / D27{1}
-    const startPrice = (price * D27n + D27n - avgPriceError - 1n) / (D27n - avgPriceError);
+    const startPrice = avgPriceError >= D27n ? 0n : (price * D27n + D27n - avgPriceError - 1n) / (D27n - avgPriceError);
     const endPrice = (price * (D27n - avgPriceError)) / D27n;
 
     // add trade into set
 
-    trades.push(makeTrade(tokens[x], tokens[y], sellLimit, buyLimit, startPrice, endPrice));
+    trades.push(makeTrade(tokens[x], tokens[y], sellLimit, buyLimit, startPrice, endPrice, avgPriceError));
 
     // do not remove console.logs they do not show in tests that succeed
     console.log("sellLimit", trades[trades.length - 1].sellLimit.spot);

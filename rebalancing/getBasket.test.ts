@@ -26,9 +26,9 @@ describe("getBasket()", () => {
   //     const decimals = [bn("6"), bn("18"), bn("6")];
   //     const bals = [bn("1e9"), bn("0"), bn("0")];
   //     const prices = [1, 1, 1];
-  //     const [canReach, targetBasket] = getBasket(supply, trades, tokens, bals, decimals, prices);
-  //     console.log(canReach, targetBasket);
-  //     expect(canReach).toBe(true);
+  //     const [targetBasket, deficit] = getBasket(supply, trades, tokens, bals, decimals, prices);
+  //     console.log(deficit, targetBasket);
+  //     expect(targetBasket).toBe(true);
   //     expect(targetBasket.length).toBe(3);
   //     expect(targetBasket[0]).toBe(bn("0"));
   //     expect(targetBasket[1]).toBe(bn("0.5e18"));

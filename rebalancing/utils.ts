@@ -74,19 +74,21 @@ export const makeTrade = (
   buyLimit: bigint,
   startPrice: bigint,
   endPrice: bigint,
+  avgPriceError: bigint,
 ) => {
   return {
     sell: sell,
     buy: buy,
     sellLimit: {
       spot: sellLimit,
-      low: sellLimit,
-      high: sellLimit,
+      low: (sellLimit * (D27n - avgPriceError)) / D27n,
+      high:
+        avgPriceError >= D27n ? 10n ** 54n : (sellLimit * D27n + D27n - avgPriceError - 1n) / (D27n - avgPriceError),
     },
     buyLimit: {
       spot: buyLimit,
-      low: buyLimit,
-      high: buyLimit,
+      low: (buyLimit * (D27n - avgPriceError)) / D27n,
+      high: avgPriceError >= D27n ? 10n ** 54n : (buyLimit * D27n + D27n - avgPriceError - 1n) / (D27n - avgPriceError),
     },
     prices: {
       start: startPrice,
