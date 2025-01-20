@@ -107,4 +107,28 @@ describe("getTrades()", () => {
       expect(trades.length).toBeLessThanOrEqual(tokens.length - 1);
     }
   });
+
+  it("should handle standard register mocktest, regression test", () => {
+    const tokens = ["RSR", "VIRTUAL", "BRETT", "AERO", "PENDLE"];
+    const decimals = [18n, 18n, 18n, 18n, 18n];
+    const bals = [
+      2500000000000000000000000n,
+      5970149253731343000000n,
+      75414781297134238000000n,
+      11111111111111111000000n,
+      3432494279176201000000n,
+    ];
+    const prices = [0.016, 3.35, 0.1326, 1.35, 4.37];
+    const targetBasket = [
+      400000000000000000n,
+      200000000000000000n,
+      150000000000000000n,
+      100000000000000000n,
+      150000000000000000n,
+    ];
+    const error = [0.1, 0.1, 0.1, 0.1, 0.1];
+    const trades = getTrades(bn("1e23"), tokens, decimals, bals, targetBasket, prices, error);
+    expect(trades.length).toBe(1);
+    expectTradeApprox(trades[0], "AERO", "BRETT", bn("7.407e25"), bn("1.131e27"), bn("1.131e28"), bn("0.916e28"));
+  });
 });
