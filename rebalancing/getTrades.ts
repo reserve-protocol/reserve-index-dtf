@@ -33,18 +33,20 @@ export const getTrades = (
   // convert price number inputs to bigints
 
   // D27{USD/tok} = {USD/wholeTok} * D27 / {tok/wholeTok}
-  const prices = _prices.map((a, i) => BigInt(Math.round((a * D27) / 10 ** Number(decimals[i]))));
+  const prices = _prices.map((a, i) => BigInt(Math.round((a * D27) / Number(10n ** decimals[i]))));
 
   // D27{1} = {1} * D27
   const priceError = _priceError.map((a) => BigInt(Math.round(a * D27)));
 
   // D27{1} = D18{1} * D9
   targetBasket = targetBasket.map((a) => a * 10n ** 9n);
+  tolerance = tolerance * 10n ** 9n;
 
   console.log("--------------------------------------------------------------------------------");
 
   // D27{1} approx sum 1e27
   const currentBasket = getCurrentBasket(bals, decimals, _prices);
+  console.log("currentBasket", currentBasket);
 
   // D27{USD}, {USD/wholeShare}
   const [sharesValue, sharePrice] = getSharePricing(supply, bals, decimals, _prices);
