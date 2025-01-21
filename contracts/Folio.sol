@@ -600,8 +600,6 @@ contract Folio is
         if (trade.sell.balanceOf(address(this)) == 0) {
             basket.remove(address(trade.sell));
             trade.end = block.timestamp;
-            sellEnds[address(trade.sell)] = block.timestamp;
-            buyEnds[address(trade.buy)] = block.timestamp;
         }
 
         // collect payment from bidder
