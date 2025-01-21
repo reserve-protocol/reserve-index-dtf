@@ -21,6 +21,7 @@ interface IFolio {
     event FeeRecipientSet(address indexed recipient, uint96 portion);
     event TradeDelaySet(uint256 newTradeDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
+    event MandateSet(string newMandate);
     event FolioKilled();
 
     // === Errors ===
@@ -42,7 +43,6 @@ interface IFolio {
     error Folio__InvalidAssetAmount(address asset);
 
     error Folio__InvalidAuctionLength();
-    error Folio__InvalidTradeId();
     error Folio__InvalidSellLimit();
     error Folio__InvalidBuyLimit();
     error Folio__TradeCannotBeOpened();
@@ -77,6 +77,7 @@ interface IFolio {
         FeeRecipient[] feeRecipients;
         uint256 folioFee; // D18{1/s}
         uint256 mintingFee; // D18{1}
+        string mandate;
     }
 
     struct FeeRecipient {

@@ -64,6 +64,11 @@ contract Folio is
     bytes32 public constant VIBES_OFFICER = keccak256("VIBES_OFFICER"); // optional: no permissions
 
     /**
+     * Mandate
+     */
+    string public mandate;
+
+    /**
      */
     EnumerableSet.AddressSet private basket;
 
@@ -116,6 +121,7 @@ contract Folio is
         _setMintingFee(_additionalDetails.mintingFee);
         _setTradeDelay(_additionalDetails.tradeDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
+        _setMandate(_additionalDetails.mandate);
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 
@@ -194,6 +200,10 @@ contract Folio is
     /// @param _newLength {s} Length of an auction
     function setAuctionLength(uint256 _newLength) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         _setAuctionLength(_newLength);
+    }
+
+    function setMandate(string calldata _newMandate) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setMandate(_newMandate);
     }
 
     function killFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -412,7 +422,6 @@ contract Folio is
         bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
     }
 
-    /// @param tradeId Use to ensure expected ordering
     /// @param sell The token to sell, from the perspective of the Folio
     /// @param buy The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
@@ -422,7 +431,6 @@ contract Folio is
     ///     (once opened, it always finishes).
     ///     Must be longer than tradeDelay if intended to be permissionlessly available.
     function approveTrade(
-        uint256 tradeId,
         IERC20 sell,
         IERC20 buy,
         Range calldata sellLimit,
@@ -431,10 +439,6 @@ contract Folio is
         uint256 ttl
     ) external nonReentrant onlyRole(TRADE_PROPOSER) {
         require(!isKilled, Folio__FolioKilled());
-
-        if (trades.length != tradeId) {
-            revert Folio__InvalidTradeId();
-        }
 
         if (address(sell) == address(0) || address(buy) == address(0) || address(sell) == address(buy)) {
             revert Folio__InvalidTradeTokens();
@@ -483,7 +487,7 @@ contract Folio is
 
         trades.push(trade);
 
-        emit TradeApproved(tradeId, address(sell), address(buy), trade);
+        emit TradeApproved(trade.id, address(sell), address(buy), trade);
     }
 
     /// Open a trade as the trade launcher
@@ -596,8 +600,6 @@ contract Folio is
         if (trade.sell.balanceOf(address(this)) == 0) {
             basket.remove(address(trade.sell));
             trade.end = block.timestamp;
-            sellEnds[address(trade.sell)] = block.timestamp;
-            buyEnds[address(trade.buy)] = block.timestamp;
         }
 
         // collect payment from bidder
@@ -825,6 +827,11 @@ contract Folio is
 
         auctionLength = _newLength;
         emit AuctionLengthSet(auctionLength);
+    }
+
+    function _setMandate(string memory _newMandate) internal {
+        mandate = _newMandate;
+        emit MandateSet(_newMandate);
     }
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date

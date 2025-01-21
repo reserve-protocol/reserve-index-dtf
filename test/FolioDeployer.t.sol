@@ -366,7 +366,8 @@ contract FolioDeployerTest is BaseTest {
                 auctionLength: MAX_AUCTION_LENGTH,
                 feeRecipients: recipients,
                 folioFee: MAX_FOLIO_FEE,
-                mintingFee: MAX_MINTING_FEE
+                mintingFee: MAX_MINTING_FEE,
+                mandate: "mandate"
             }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
@@ -513,7 +514,8 @@ contract FolioDeployerTest is BaseTest {
                 auctionLength: MAX_AUCTION_LENGTH,
                 feeRecipients: recipients,
                 folioFee: MAX_FOLIO_FEE,
-                mintingFee: MAX_MINTING_FEE
+                mintingFee: MAX_MINTING_FEE,
+                mandate: "mandate"
             }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
