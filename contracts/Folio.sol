@@ -638,10 +638,7 @@ contract Folio is
 
         // do not revert, to prevent griefing
 
-        Trade storage trade = trades[tradeId];
-        trade.end = 1;
-        tradeEnds[address(trade.sell)] = block.timestamp;
-        tradeEnds[address(trade.buy)] = block.timestamp;
+        trades[tradeId].end = 1;
         emit TradeKilled(tradeId);
     }
 
