@@ -264,4 +264,10 @@ contract GovernanceTest is BaseTest {
         governor.propose(targets, values, calldatas, description);
         vm.stopPrank();
     }
+
+    function test_cannotSetProposalThresholdAboveOne() public {
+        vm.prank(owner);
+        vm.expectRevert(FolioGovernor.Governor__InvalidProposalThreshold.selector);
+        governor.setProposalThreshold(1e18 + 1);
+    }
 }

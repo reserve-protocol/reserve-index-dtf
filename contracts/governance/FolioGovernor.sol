@@ -21,6 +21,7 @@ contract FolioGovernor is
     GovernorVotesQuorumFractionUpgradeable,
     GovernorTimelockControlUpgradeable
 {
+    error Governor__InvalidProposalThreshold();
     error Governor__ZeroSupply();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -41,6 +42,11 @@ contract FolioGovernor is
         __GovernorVotes_init(_token);
         __GovernorVotesQuorumFraction_init(quorumPercent);
         __GovernorTimelockControl_init(_timelock);
+    }
+
+    function setProposalThreshold(uint256 newProposalThreshold) public override {
+        require(newProposalThreshold <= 1e18, Governor__InvalidProposalThreshold());
+        super.setProposalThreshold(newProposalThreshold);
     }
 
     function votingDelay() public view override(GovernorUpgradeable, GovernorSettingsUpgradeable) returns (uint256) {
