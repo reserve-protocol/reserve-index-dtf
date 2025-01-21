@@ -202,7 +202,7 @@ contract Folio is
         _setAuctionLength(_newLength);
     }
 
-    function setMandate(string calldata _newMandate) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setMandate(string calldata _newMandate) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setMandate(_newMandate);
     }
 
