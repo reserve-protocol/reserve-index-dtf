@@ -3,7 +3,8 @@ pragma solidity 0.8.28;
 
 import "forge-std/Test.sol";
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import { IERC20, IERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { StakingVault, UnstakingManager } from "contracts/staking/StakingVault.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
@@ -351,13 +352,13 @@ contract StakingVaultTest is Test {
         assertEq(_rewardTokens.length, 0);
     }
 
-    function test_cannotRemoRewardTokenIfNotOwner() public {
+    function test_cannotRemoveRewardTokenIfNotOwner() public {
         vm.prank(ACTOR_ALICE);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, ACTOR_ALICE));
         vault.removeRewardToken(address(reward));
     }
 
-    function test_cannotRemoRewardTokenIfNotRegistered() public {
+    function test_cannotRemoveRewardTokenIfNotRegistered() public {
         MockERC20 newReward = new MockERC20("New Reward Token", "NREWARD", 18);
         vm.expectRevert(abi.encodeWithSelector(StakingVault.Vault__RewardNotRegistered.selector));
         vault.removeRewardToken(address(newReward));
@@ -383,6 +384,57 @@ contract StakingVaultTest is Test {
         vault.setRewardRatio(2 weeks + 1);
     }
 
+    function test_depositAndDelegate() public {
+        token.mint(address(this), 1000e18);
+        token.approve(address(vault), 1000e18);
+
+        // normal deposit (no delegation)
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Deposit(address(this), address(this), 500e18, 500e18);
+        vault.deposit(500e18, address(this));
+        assertEq(vault.balanceOf(address(this)), 500e18);
+        assertEq(vault.delegates(address(this)), address(0));
+
+        // deposit and delegate
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Deposit(address(this), address(this), 500e18, 500e18);
+        vm.expectEmit(true, true, true, true);
+        emit IVotes.DelegateChanged(address(this), address(0), address(this));
+        vault.depositAndDelegate(500e18);
+
+        assertEq(vault.delegates(address(this)), address(this)); // delegated
+        assertEq(vault.balanceOf(address(this)), 1000e18); // has full balance
+    }
+
+    function test_unstake_noDelay() public {
+        token.mint(address(this), 1000e18);
+        token.approve(address(vault), 1000e18);
+
+        vault.deposit(1000e18, address(this));
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Withdraw(address(this), address(this), address(this), 1000e18, 1000e18);
+        vault.redeem(1000e18, address(this), address(this));
+        assertEq(token.balanceOf(address(this)), 1000e18);
+    }
+
+    function test_unstake_noDelay_redeemOnBehalf() public {
+        token.mint(address(this), 1000e18);
+        token.approve(address(vault), 1000e18);
+
+        vault.deposit(1000e18, address(this));
+
+        // Reedem on behalf
+        vault.approve(ACTOR_ALICE, 1000e18);
+
+        vm.startPrank(ACTOR_ALICE);
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Withdraw(ACTOR_ALICE, address(this), address(this), 1000e18, 1000e18);
+        vault.redeem(1000e18, address(this), address(this));
+        vm.stopPrank();
+
+        assertEq(token.balanceOf(address(this)), 1000e18);
+    }
+
     function test_unstakingDelay_claimLock() public {
         StakingVault newVault = new StakingVault(
             "Staked Test Token",
@@ -400,6 +452,8 @@ contract StakingVaultTest is Test {
         newVault.deposit(1000e18, address(this));
         vm.expectEmit(true, true, true, true);
         emit UnstakingManager.LockCreated(0, address(this), 1000e18, block.timestamp + newVault.unstakingDelay());
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Withdraw(address(this), address(this), address(this), 1000e18, 1000e18);
         newVault.redeem(1000e18, address(this), address(this));
 
         assertEq(token.balanceOf(address(this)), 0);
@@ -449,9 +503,13 @@ contract StakingVaultTest is Test {
 
         assertEq(token.balanceOf(address(this)), 0);
         assertEq(newVault.balanceOf(address(this)), 1000e18);
+
+        // Cannot claim
+        vm.expectRevert(UnstakingManager.UnstakingManager__NotUnlockedYet.selector);
+        manager.claimLock(0);
     }
 
-    function test__unstakingDelay_redeemOnBehalf() public {
+    function test_unstakingDelay_redeemOnBehalf() public {
         StakingVault newVault = new StakingVault(
             "Staked Test Token",
             "sTEST",

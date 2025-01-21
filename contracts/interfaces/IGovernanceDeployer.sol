@@ -15,6 +15,12 @@ interface IGovernanceDeployer {
         address guardian; // Canceller Role
     }
 
+    struct GovRoles {
+        address[] existingTradeProposers;
+        address[] tradeLaunchers;
+        address[] vibesOfficers;
+    }
+
     function deployGovernanceWithTimelock(
         IGovernanceDeployer.GovParams calldata govParams,
         IVotes stToken

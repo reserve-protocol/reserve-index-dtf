@@ -6,30 +6,13 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface IFolio {
     // === Events ===
 
-    event TradeApproved(
-        uint256 indexed tradeId,
-        address indexed from,
-        address indexed to,
-        uint256 startPrice,
-        uint256 endPrice,
-        uint256 sellLimitSpot,
-        uint256 sellLimitLow,
-        uint256 sellLimitHigh,
-        uint256 buyLimitSpot,
-        uint256 buyLimitLow,
-        uint256 buyLimitHigh
-    );
-    event TradeOpened(
-        uint256 indexed tradeId,
-        uint256 startPrice,
-        uint256 endPrice,
-        uint256 sellLimit,
-        uint256 buyLimit,
-        uint256 start,
-        uint256 end
-    );
-    event Bid(uint256 indexed tradeId, uint256 sellAmount, uint256 buyAmount);
+    event TradeApproved(uint256 indexed tradeId, address indexed from, address indexed to, Trade trade);
+    event TradeOpened(uint256 indexed tradeId, Trade trade);
+    event TradeBid(uint256 indexed tradeId, uint256 sellAmount, uint256 buyAmount);
     event TradeKilled(uint256 indexed tradeId);
+
+    event FolioFeePaid(address indexed recipient, uint256 amount);
+    event ProtocolFeePaid(address indexed recipient, uint256 amount);
 
     event BasketTokenAdded(address indexed token);
     event BasketTokenRemoved(address indexed token);
@@ -107,6 +90,11 @@ interface IFolio {
         uint256 high; // D27{buyTok/share} inclusive
     }
 
+    struct Prices {
+        uint256 start; // D27{buyTok/sellTok}
+        uint256 end; // D27{buyTok/sellTok}
+    }
+
     /// Trade states:
     ///   - APPROVED: start == 0 && end == 0
     ///   - OPEN: block.timestamp >= start && block.timestamp <= end
@@ -116,15 +104,21 @@ interface IFolio {
         IERC20 sell;
         IERC20 buy;
         Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
-        Range buyLimit; // D27{buyTok/share} min ratio of sell token to shares allowed, exclusive
-        uint256 startPrice; // D27{buyTok/sellTok}
-        uint256 endPrice; // D27{buyTok/sellTok}
+        Range buyLimit; // D27{buyTok/share} max ratio of buy token to shares allowed, exclusive
+        Prices prices; // D27{buyTok/sellTok}
         uint256 availableAt; // {s} inclusive
         uint256 launchTimeout; // {s} inclusive
         uint256 start; // {s} inclusive
         uint256 end; // {s} inclusive
         // === Gas optimization ===
         uint256 k; // D18{1} price = startPrice * e ^ -kt
+    }
+
+    struct AuctionConfig {
+        Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
+        Range buyLimit; // D27{buyTok/share} min ratio of sell token to shares allowed, exclusive
+        uint256 startPrice; // D27{buyTok/sellTok}
+        uint256 endPrice; // D27{buyTok/sellTok}
     }
 
     function distributeFees() external;

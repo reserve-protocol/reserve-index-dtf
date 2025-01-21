@@ -95,9 +95,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         IGovernanceDeployer.GovParams calldata ownerGovParams,
         IGovernanceDeployer.GovParams calldata tradingGovParams,
-        address[] memory existingTradeProposers,
-        address[] memory tradeLaunchers,
-        address[] memory vibesOfficers
+        IGovernanceDeployer.GovRoles calldata govRoles
     )
         external
         returns (
@@ -112,7 +110,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         // Deploy Owner Governance
         (ownerGovernor, ownerTimelock) = governanceDeployer.deployGovernanceWithTimelock(ownerGovParams, stToken);
 
-        if (existingTradeProposers.length == 0) {
+        if (govRoles.existingTradeProposers.length == 0) {
             // Deploy Trading Governance
             (tradingGovernor, tradingTimelock) = governanceDeployer.deployGovernanceWithTimelock(
                 tradingGovParams,
@@ -128,8 +126,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 additionalDetails,
                 ownerTimelock,
                 tradeProposers,
-                tradeLaunchers,
-                vibesOfficers
+                govRoles.tradeLaunchers,
+                govRoles.vibesOfficers
             );
         } else {
             // Deploy Folio
@@ -137,9 +135,9 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 basicDetails,
                 additionalDetails,
                 ownerTimelock,
-                existingTradeProposers,
-                tradeLaunchers,
-                vibesOfficers
+                govRoles.existingTradeProposers,
+                govRoles.tradeLaunchers,
+                govRoles.vibesOfficers
             );
         }
 
