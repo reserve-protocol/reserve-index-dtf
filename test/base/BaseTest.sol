@@ -15,11 +15,11 @@ import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 import { MockBidder } from "utils/MockBidder.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
-import { FolioDeployer } from "@folio/FolioDeployer.sol";
+import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
-import { GovernanceDeployer } from "@gov/GovernanceDeployer.sol";
+import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 
 abstract contract BaseTest is Script, Test {
@@ -209,7 +209,7 @@ abstract contract BaseTest is Script, Test {
         address[] memory _vibesOfficers = new address[](1);
         _vibesOfficers[0] = _owner;
 
-        (address _folio, address _proxyAdmin) = folioDeployer.deployFolio(
+        (Folio _folio, address _proxyAdmin) = folioDeployer.deployFolio(
             _basicDetails,
             _additionalDetails,
             _owner,
@@ -218,6 +218,6 @@ abstract contract BaseTest is Script, Test {
             _vibesOfficers
         );
 
-        return (Folio(_folio), FolioProxyAdmin(_proxyAdmin));
+        return (_folio, FolioProxyAdmin(_proxyAdmin));
     }
 }

@@ -5,7 +5,7 @@ import { TimelockController } from "@openzeppelin/contracts/governance/TimelockC
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_MINTING_FEE } from "contracts/Folio.sol";
-import { FolioDeployer, IFolioDeployer } from "contracts/folio/FolioDeployer.sol";
+import { FolioDeployer, IFolioDeployer } from "@deployer/FolioDeployer.sol";
 import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
@@ -348,31 +348,33 @@ contract FolioDeployerTest is BaseTest {
         tradeLaunchers[0] = tradeLauncher;
 
         vm.startSnapshotGas("deployGovernedFolio");
-        (address _folio, address _folioAdmin, address _ownerGovernor, , address _tradingGovernor, ) = folioDeployer
-            .deployGovernedFolio(
-                stToken,
-                IFolio.FolioBasicDetails({
-                    name: "Test Folio",
-                    symbol: "TFOLIO",
-                    assets: tokens,
-                    amounts: amounts,
-                    initialShares: INITIAL_SUPPLY
-                }),
-                IFolio.FolioAdditionalDetails({
-                    tradeDelay: MAX_TRADE_DELAY,
-                    auctionLength: MAX_AUCTION_LENGTH,
-                    feeRecipients: recipients,
-                    folioFee: MAX_FOLIO_FEE,
-                    mintingFee: MAX_MINTING_FEE,
-                    mandate: "mandate"
-                }),
-                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
-                IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
-                IGovernanceDeployer.GovRoles(new address[](0), tradeLaunchers, new address[](0))
-            );
+        address _folioAdmin;
+        address _ownerGovernor;
+        address _tradingGovernor;
+
+        (folio, _folioAdmin, _ownerGovernor, , _tradingGovernor, ) = folioDeployer.deployGovernedFolio(
+            stToken,
+            IFolio.FolioBasicDetails({
+                name: "Test Folio",
+                symbol: "TFOLIO",
+                assets: tokens,
+                amounts: amounts,
+                initialShares: INITIAL_SUPPLY
+            }),
+            IFolio.FolioAdditionalDetails({
+                tradeDelay: MAX_TRADE_DELAY,
+                auctionLength: MAX_AUCTION_LENGTH,
+                feeRecipients: recipients,
+                folioFee: MAX_FOLIO_FEE,
+                mintingFee: MAX_MINTING_FEE,
+                mandate: "mandate"
+            }),
+            IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
+            IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
+            IGovernanceDeployer.GovRoles(new address[](0), tradeLaunchers, new address[](0))
+        );
         vm.stopSnapshotGas("deployGovernedFolio()");
         vm.stopPrank();
-        folio = Folio(_folio);
         proxyAdmin = FolioProxyAdmin(_folioAdmin);
 
         // Check Folio
@@ -496,7 +498,9 @@ contract FolioDeployerTest is BaseTest {
         tradeLaunchers[0] = tradeLauncher;
 
         vm.startSnapshotGas("deployGovernedFolio");
-        (address _folio, address _folioAdmin, address _ownerGovernor, , , ) = folioDeployer.deployGovernedFolio(
+        address _folioAdmin;
+        address _ownerGovernor;
+        (folio, _folioAdmin, _ownerGovernor, , , ) = folioDeployer.deployGovernedFolio(
             stToken,
             IFolio.FolioBasicDetails({
                 name: "Test Folio",
@@ -519,7 +523,6 @@ contract FolioDeployerTest is BaseTest {
         );
         vm.stopSnapshotGas("deployGovernedFolio()");
         vm.stopPrank();
-        folio = Folio(_folio);
         proxyAdmin = FolioProxyAdmin(_folioAdmin);
 
         // Check owner governor + owner timelock

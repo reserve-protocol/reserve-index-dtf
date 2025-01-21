@@ -12,7 +12,7 @@ import { StakingVault } from "@staking/StakingVault.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 /**
- * @title GovernanceDeployer
+ * @title Governance Deployer
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 contract GovernanceDeployer is IGovernanceDeployer, Versioned {
@@ -49,7 +49,9 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
         IERC20 underlying,
         IGovernanceDeployer.GovParams calldata govParams
     ) external returns (StakingVault stToken, address governor, address timelock) {
-        stToken = new StakingVault(
+        bytes32 deploymentSalt = keccak256(abi.encode(name, symbol, underlying, govParams));
+
+        stToken = new StakingVault{ salt: deploymentSalt }(
             name,
             symbol,
             underlying,
@@ -69,8 +71,10 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
         IGovernanceDeployer.GovParams calldata govParams,
         IVotes stToken
     ) public returns (address governor, address timelock) {
-        governor = Clones.clone(governorImplementation);
-        timelock = Clones.clone(timelockImplementation);
+        bytes32 deploymentSalt = keccak256(abi.encode(govParams, stToken));
+
+        governor = Clones.cloneDeterministic(governorImplementation, deploymentSalt);
+        timelock = Clones.cloneDeterministic(timelockImplementation, deploymentSalt);
 
         FolioGovernor(payable(governor)).initialize(
             stToken,
