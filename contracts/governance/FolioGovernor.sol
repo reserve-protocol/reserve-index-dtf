@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts-upgradeable/governance/GovernorUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/governance/extensions/GovernorSettingsUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/governance/extensions/GovernorCountingSimpleUpgradeable.sol";
@@ -22,7 +23,6 @@ contract FolioGovernor is
     GovernorTimelockControlUpgradeable
 {
     error Governor__InvalidProposalThreshold();
-    error Governor__ZeroSupply();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -82,8 +82,7 @@ contract FolioGovernor is
         returns (uint256)
     {
         uint256 threshold = super.proposalThreshold(); // D18{1}
-        uint256 pastSupply = token().getPastTotalSupply(clock() - 1);
-        require(pastSupply != 0, Governor__ZeroSupply());
+        uint256 pastSupply = Math.max(1, token().getPastTotalSupply(clock() - 1));
 
         // CEIL to make sure thresholds near 0% don't get rounded down to 0 tokens
         return (threshold * pastSupply + (1e18 - 1)) / 1e18;

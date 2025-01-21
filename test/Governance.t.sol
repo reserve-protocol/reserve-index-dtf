@@ -260,9 +260,10 @@ contract GovernanceTest is BaseTest {
         string memory description = "desc";
 
         // attempt to propose
-        vm.expectRevert(FolioGovernor.Governor__ZeroSupply.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(IGovernor.GovernorInsufficientProposerVotes.selector, address(this), 0, 1)
+        );
         governor.propose(targets, values, calldatas, description);
-        vm.stopPrank();
     }
 
     function test_cannotSetProposalThresholdAboveOne() public {
