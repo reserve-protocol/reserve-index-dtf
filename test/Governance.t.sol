@@ -244,4 +244,24 @@ contract GovernanceTest is BaseTest {
         assertEq(uint256(governor.state(pid)), uint256(IGovernor.ProposalState.Canceled));
         assertEq(governor.votingDelay(), 1 days); // no changes
     }
+
+    function test_cannotProposeWhenSupplyZero() public {
+        votingToken.burn(owner, 100e18);
+        assertEq(votingToken.totalSupply(), 0);
+        vm.warp(block.timestamp + 1 days);
+        vm.roll(block.number + 1);
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSelector(governor.setVotingDelay.selector, 2 days);
+        string memory description = "desc";
+
+        // attempt to propose
+        vm.expectRevert(FolioGovernor.Governor__ZeroSupply.selector);
+        governor.propose(targets, values, calldatas, description);
+        vm.stopPrank();
+    }
 }
