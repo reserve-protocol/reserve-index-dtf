@@ -64,6 +64,11 @@ contract Folio is
     bytes32 public constant VIBES_OFFICER = keccak256("VIBES_OFFICER"); // optional: no permissions
 
     /**
+     * Mandate
+     */
+    string public mandate;
+
+    /**
      */
     EnumerableSet.AddressSet private basket;
 
@@ -116,6 +121,7 @@ contract Folio is
         _setMintingFee(_additionalDetails.mintingFee);
         _setTradeDelay(_additionalDetails.tradeDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
+        _setMandate(_additionalDetails.mandate);
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 
@@ -194,6 +200,10 @@ contract Folio is
     /// @param _newLength {s} Length of an auction
     function setAuctionLength(uint256 _newLength) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         _setAuctionLength(_newLength);
+    }
+
+    function setMandate(string calldata _newMandate) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setMandate(_newMandate);
     }
 
     function killFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -819,6 +829,11 @@ contract Folio is
 
         auctionLength = _newLength;
         emit AuctionLengthSet(auctionLength);
+    }
+
+    function _setMandate(string memory _newMandate) internal {
+        mandate = _newMandate;
+        emit MandateSet(_newMandate);
     }
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
