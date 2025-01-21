@@ -150,6 +150,7 @@ contract Folio is
     // ==== Governance ====
 
     function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(address(token) != address(0), Folio__InvalidAsset());
         require(basket.add(address(token)), Folio__BasketModificationFailed());
 
         emit BasketTokenAdded(address(token));

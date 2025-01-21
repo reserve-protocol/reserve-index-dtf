@@ -1923,6 +1923,12 @@ contract FolioTest is BaseTest {
         assertFalse(folio.isKilled(), "wrong killed status");
     }
 
+    function test_cannotAddZeroAddressToBasket() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
+        folio.addToBasket(IERC20(address(0)));
+    }
+
     function test_poke() public {
         uint256 prevBlockTimestamp = folio.lastPoke();
 
