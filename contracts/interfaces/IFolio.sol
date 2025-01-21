@@ -42,7 +42,6 @@ interface IFolio {
     error Folio__InvalidAssetAmount(address asset);
 
     error Folio__InvalidAuctionLength();
-    error Folio__InvalidTradeId();
     error Folio__InvalidSellLimit();
     error Folio__InvalidBuyLimit();
     error Folio__TradeCannotBeOpened();
