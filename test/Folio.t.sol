@@ -67,6 +67,7 @@ contract FolioTest is BaseTest {
     function test_deployment() public view {
         assertEq(folio.name(), "Test Folio", "wrong name");
         assertEq(folio.symbol(), "TFOLIO", "wrong symbol");
+        assertEq(folio.mandate(), "mandate", "wrong mandate");
         assertEq(folio.decimals(), 18, "wrong decimals");
         assertEq(folio.totalSupply(), INITIAL_SUPPLY, "wrong total supply");
         assertEq(folio.balanceOf(owner), INITIAL_SUPPLY, "wrong owner balance");
@@ -122,7 +123,8 @@ contract FolioTest is BaseTest {
             auctionLength: MAX_AUCTION_LENGTH,
             feeRecipients: recipients,
             folioFee: MAX_FOLIO_FEE,
-            mintingFee: 0
+            mintingFee: 0,
+            mandate: "mandate"
         });
 
         // Attempt to initialize
@@ -692,6 +694,27 @@ contract FolioTest is BaseTest {
         emit IFolio.AuctionLengthSet(newAuctionLength);
         folio.setAuctionLength(newAuctionLength);
         assertEq(folio.auctionLength(), newAuctionLength, "wrong auction length");
+    }
+
+    function test_setMandate() public {
+        vm.startPrank(owner);
+        assertEq(folio.mandate(), "mandate", "wrong mandate");
+        string memory newMandate = "new mandate";
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.MandateSet(newMandate);
+        folio.setMandate(newMandate);
+        assertEq(folio.mandate(), newMandate);
+        vm.stopPrank();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                dao,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        vm.prank(dao);
+        folio.setMandate(newMandate);
     }
 
     function test_setMintingFee() public {

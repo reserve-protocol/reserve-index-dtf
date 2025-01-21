@@ -198,7 +198,8 @@ abstract contract BaseTest is Script, Test {
             auctionLength: _auctionLength,
             feeRecipients: _feeRecipients,
             folioFee: _folioFee,
-            mintingFee: _mintingFee
+            mintingFee: _mintingFee,
+            mandate: "mandate"
         });
 
         address[] memory _tradeProposers = new address[](1);

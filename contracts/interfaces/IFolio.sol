@@ -21,6 +21,7 @@ interface IFolio {
     event FeeRecipientSet(address indexed recipient, uint96 portion);
     event TradeDelaySet(uint256 newTradeDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
+    event MandateSet(string newMandate);
     event FolioKilled();
 
     // === Errors ===
@@ -76,6 +77,7 @@ interface IFolio {
         FeeRecipient[] feeRecipients;
         uint256 folioFee; // D18{1/s}
         uint256 mintingFee; // D18{1}
+        string mandate;
     }
 
     struct FeeRecipient {
