@@ -632,7 +632,7 @@ contract Folio is
 
         // do not revert, to prevent griefing
         trades[tradeId].end = 1;
-        
+
         emit TradeKilled(tradeId);
     }
 

@@ -17,3 +17,6 @@ package-lock.json
 
 # Yarn
 install-state.gz
+
+# Playground
+Playground.*
