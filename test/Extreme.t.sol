@@ -221,7 +221,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // approveTrade
         vm.prank(dao);
-        folio.approveTrade(0, sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
+        folio.approveTrade(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
 
         // openTrade
         vm.prank(tradeLauncher);
