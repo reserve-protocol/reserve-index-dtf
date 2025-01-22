@@ -140,8 +140,7 @@ contract Folio is
                 revert Folio__InvalidAssetAmount(_basicDetails.assets[i]);
             }
 
-            emit BasketTokenAdded(_basicDetails.assets[i]);
-            basket.add(address(_basicDetails.assets[i]));
+            _addToBasket(_basicDetails.assets[i]);
         }
 
         lastPoke = block.timestamp;
@@ -156,15 +155,11 @@ contract Folio is
     // ==== Governance ====
 
     function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(basket.add(address(token)), Folio__BasketModificationFailed());
-
-        emit BasketTokenAdded(address(token));
+        require(_addToBasket(address(token)), Folio__BasketModificationFailed());
     }
 
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(basket.remove(address(token)), Folio__BasketModificationFailed());
-
-        emit BasketTokenRemoved(address(token));
+        require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
     }
 
     /// @dev Non-reentrant via distributeFees()
@@ -589,7 +584,7 @@ contract Folio is
         }
 
         // put buy token in basket
-        basket.add(address(trade.buy));
+        _addToBasket(address(trade.buy));
 
         // pay bidder
         trade.sell.safeTransfer(msg.sender, sellAmount);
@@ -598,7 +593,8 @@ contract Folio is
 
         // QoL feature: close auction and eject token from basket if we have sold all of it
         if (trade.sell.balanceOf(address(this)) == 0) {
-            basket.remove(address(trade.sell));
+            _removeFromBasket(address(trade.sell));
+
             trade.end = block.timestamp;
         }
 
@@ -842,5 +838,18 @@ contract Folio is
 
         (daoPendingFeeShares, feeRecipientsPendingFeeShares) = _getPendingFeeShares();
         lastPoke = block.timestamp;
+    }
+
+    function _addToBasket(address token) internal returns (bool) {
+        require(token != address(0), Folio__InvalidAsset());
+        emit BasketTokenAdded(token);
+
+        return basket.add(token);
+    }
+
+    function _removeFromBasket(address token) internal returns (bool) {
+        emit BasketTokenRemoved(token);
+
+        return basket.remove(token);
     }
 }
