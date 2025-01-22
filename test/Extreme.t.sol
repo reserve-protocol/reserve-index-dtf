@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_TTL, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
+import { StakingVault } from "contracts/staking/StakingVault.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
@@ -72,6 +73,17 @@ contract ExtremeTest is BaseExtremeTest {
         uint256 snapshot = vm.snapshotState();
         for (uint256 i; i < feeTestParams.length; i++) {
             run_fees_scenario(feeTestParams[i]);
+            vm.revertToState(snapshot);
+        }
+    }
+
+    function test_staking_rewards_extreme() public {
+        deployCoins();
+
+        // Process all test combinations
+        uint256 snapshot = vm.snapshotState();
+        for (uint256 i; i < stkRewardsTestParams.length; i++) {
+            run_staking_rewards_scenario(stkRewardsTestParams[i]);
             vm.revertToState(snapshot);
         }
     }
@@ -299,6 +311,73 @@ contract ExtremeTest is BaseExtremeTest {
                 (remainingShares * feeReceiverShare) / 1e18,
                 "wrong receiver shares"
             );
+        }
+    }
+
+    function run_staking_rewards_scenario(StakingRewardsTestParams memory p) public {
+        IERC20 token = deployCoin("Mock Token", "TKN", 18); // mock
+
+        StakingVault vault = new StakingVault(
+            "Staked Test Token",
+            "sTEST",
+            IERC20(address(token)),
+            address(this),
+            p.rewardHalfLife,
+            0
+        );
+
+        // Create reward tokens
+        address[] memory rewardTokens = new address[](p.numTokens);
+        for (uint256 j = 0; j < p.numTokens; j++) {
+            rewardTokens[j] = address(
+                deployCoin(
+                    string(abi.encodePacked("Reward Token", j)),
+                    string(abi.encodePacked("RWRDTKN", j)),
+                    p.decimals
+                )
+            );
+            vault.addRewardToken(rewardTokens[j]);
+        }
+
+        // Deposit
+        uint256 mintAmount = p.mintAmount; //
+        MockERC20(address(token)).mint(address(this), mintAmount);
+        token.approve(address(vault), mintAmount);
+        vault.deposit(mintAmount, user1);
+
+        // advance time
+        vm.warp(block.timestamp + 1);
+
+        // Mint rewards
+        for (uint256 j = 0; j < p.numTokens; j++) {
+            MockERC20(rewardTokens[j]).mint(address(vault), p.rewardAmount);
+        }
+        vault.poke();
+
+        vm.warp(block.timestamp + p.rewardHalfLife * 1);
+
+        // Claim rewards
+        vm.prank(user1);
+        vault.claimRewards(rewardTokens);
+
+        uint256 expectedRewards = 0; // TODO
+
+        for (uint256 j = 0; j < p.numTokens; j++) {
+            MockERC20 reward = MockERC20(rewardTokens[j]);
+            assertApproxEqRel(reward.balanceOf(user1), expectedRewards, 0.001e18); // TODO
+        }
+
+        vm.warp(block.timestamp + p.rewardHalfLife * 1);
+
+        // Claim rewards
+        vm.prank(user1);
+        vault.claimRewards(rewardTokens);
+
+        expectedRewards = 0; // TODO
+
+        for (uint256 j = 0; j < p.numTokens; j++) {
+            MockERC20 reward = MockERC20(rewardTokens[j]);
+            assertApproxEqRel(reward.balanceOf(user1), expectedRewards, 0.001e18); // TODO
         }
     }
 }

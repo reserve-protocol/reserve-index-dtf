@@ -26,19 +26,31 @@ abstract contract BaseExtremeTest is BaseTest {
         uint256 numFeeRecipients;
     }
 
+    struct StakingRewardsTestParams {
+        uint256 numTokens;
+        uint8 decimals;
+        uint256 rewardAmount;
+        uint256 rewardHalfLife;
+        uint256 mintAmount;
+    }
+
     // Test dimensions
     uint8[] internal testDecimals = [6, 8, 18, 27];
+    uint8[] internal testStakingDecimals = [6, 8, 18, 21];
     uint256[] internal testNumTokens = [1, 10, 50, 100, 500];
+    uint256[] internal testStakingNumTokens = [1, 10];
     uint256[] internal testAmounts = [1, 1e6, 1e18, 1e36];
     uint256[] internal testPrices = [1, 1e6, 1e18, 1e36, 1e54];
     uint256[] internal testFolioFees = [0, MAX_FOLIO_FEE / 4, MAX_FOLIO_FEE / 2, MAX_FOLIO_FEE];
     uint256[] internal testDaoFees = [0, 0.01e18, 0.1e18, 0.15e18];
     uint256[] internal testTimeLapse = [1, 12, 1 days, 30 days, 120 days, YEAR_IN_SECONDS];
     uint256[] internal testNumFeeRecipients = [1, 5, 10, MAX_FEE_RECIPIENTS];
+    uint256[] internal testRewardHalfLives = [1 days, 3 days, 1 weeks, 2 weeks];
 
     MintRedeemTestParams[] internal mintRedeemTestParams;
     TradingTestParams[] internal tradingTestParams;
     FeeTestParams[] internal feeTestParams;
+    StakingRewardsTestParams[] internal stkRewardsTestParams;
 
     function _testSetupBefore() public override {
         roleRegistry = new MockRoleRegistry();
@@ -134,6 +146,28 @@ abstract contract BaseExtremeTest is BaseTest {
                                     daoFee: testDaoFees[k],
                                     timeLapse: testTimeLapse[l],
                                     numFeeRecipients: testNumFeeRecipients[m]
+                                })
+                            );
+                            index++;
+                        }
+                    }
+                }
+            }
+        }
+
+        index = 0;
+        for (uint256 i; i < testStakingNumTokens.length; i++) {
+            for (uint8 j; j < testStakingDecimals.length; j++) {
+                for (uint256 k; k < testAmounts.length; k++) {
+                    for (uint256 l; l < testRewardHalfLives.length; l++) {
+                        for (uint256 m; m < testAmounts.length; m++) {
+                            stkRewardsTestParams.push(
+                                StakingRewardsTestParams({
+                                    numTokens: testStakingNumTokens[i],
+                                    decimals: testStakingDecimals[j],
+                                    rewardAmount: testAmounts[k],
+                                    rewardHalfLife: testRewardHalfLives[l],
+                                    mintAmount: testAmounts[m]
                                 })
                             );
                             index++;
