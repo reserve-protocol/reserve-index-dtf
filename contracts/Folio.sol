@@ -586,6 +586,7 @@ contract Folio is
         }
 
         // put buy token in basket
+        emit BasketTokenAdded(address(trade.buy));
         basket.add(address(trade.buy));
 
         // pay bidder
@@ -595,6 +596,7 @@ contract Folio is
 
         // QoL feature: close auction and eject token from basket if we have sold all of it
         if (trade.sell.balanceOf(address(this)) == 0) {
+            emit BasketTokenRemoved(address(trade.sell));
             basket.remove(address(trade.sell));
             trade.end = block.timestamp;
             sellEnds[address(trade.sell)] = block.timestamp;
