@@ -340,7 +340,7 @@ contract ExtremeTest is BaseExtremeTest {
         }
 
         // Deposit
-        uint256 mintAmount = p.mintAmount; //
+        uint256 mintAmount = p.mintAmount;
         MockERC20(address(token)).mint(address(this), mintAmount);
         token.approve(address(vault), mintAmount);
         vault.deposit(mintAmount, user1);
@@ -352,32 +352,42 @@ contract ExtremeTest is BaseExtremeTest {
         for (uint256 j = 0; j < p.numTokens; j++) {
             MockERC20(rewardTokens[j]).mint(address(vault), p.rewardAmount);
         }
+        vm.startSnapshotGas("poke(): process rewards");
         vault.poke();
+        vm.stopSnapshotGas();
 
-        vm.warp(block.timestamp + p.rewardHalfLife * 1);
+        // advance 1 half life
+        vm.warp(block.timestamp + p.rewardHalfLife);
 
         // Claim rewards
         vm.prank(user1);
+        vm.startSnapshotGas("claimRewards(): 1");
         vault.claimRewards(rewardTokens);
+        vm.stopSnapshotGas();
 
-        uint256 expectedRewards = 0; // TODO
+        // one half life has passed; 1 = 0.5 ^ 1 = 50%
+        uint256 expectedRewards = p.rewardAmount / 2;
 
         for (uint256 j = 0; j < p.numTokens; j++) {
             MockERC20 reward = MockERC20(rewardTokens[j]);
-            assertApproxEqRel(reward.balanceOf(user1), expectedRewards, 0.001e18); // TODO
+            assertApproxEqRel(reward.balanceOf(user1), expectedRewards, 1e14);
         }
 
-        vm.warp(block.timestamp + p.rewardHalfLife * 1);
+        // advance 2 half lives
+        vm.warp(block.timestamp + p.rewardHalfLife * 2);
 
         // Claim rewards
         vm.prank(user1);
+        // vm.startSnapshotGas("claimRewards(): 2");
         vault.claimRewards(rewardTokens);
+        vm.stopSnapshotGas();
 
-        expectedRewards = 0; // TODO
+        // three half lives have passed: 1 - 0.5 ^ 3 = 87.5%
+        expectedRewards = (p.rewardAmount * 7) / 8;
 
         for (uint256 j = 0; j < p.numTokens; j++) {
             MockERC20 reward = MockERC20(rewardTokens[j]);
-            assertApproxEqRel(reward.balanceOf(user1), expectedRewards, 0.001e18); // TODO
+            assertApproxEqRel(reward.balanceOf(user1), expectedRewards, 1e14);
         }
     }
 }
