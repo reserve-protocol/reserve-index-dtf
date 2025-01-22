@@ -134,8 +134,7 @@ contract Folio is
                 revert Folio__InvalidAssetAmount(_basicDetails.assets[i]);
             }
 
-            emit BasketTokenAdded(_basicDetails.assets[i]);
-            basket.add(address(_basicDetails.assets[i]));
+            _addToBasket(IERC20(_basicDetails.assets[i]));
         }
 
         lastPoke = block.timestamp;
@@ -150,16 +149,11 @@ contract Folio is
     // ==== Governance ====
 
     function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(address(token) != address(0), Folio__InvalidAsset());
-        require(basket.add(address(token)), Folio__BasketModificationFailed());
-
-        emit BasketTokenAdded(address(token));
+        _addToBasket(token);
     }
 
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(basket.remove(address(token)), Folio__BasketModificationFailed());
-
-        emit BasketTokenRemoved(address(token));
+        _removeFromBasket(token);
     }
 
     /// @dev Non-reentrant via distributeFees()
@@ -586,7 +580,9 @@ contract Folio is
         }
 
         // put buy token in basket
-        basket.add(address(trade.buy));
+        if (!basket.contains(address(trade.buy))) {
+            _addToBasket(trade.buy);
+        }
 
         // pay bidder
         trade.sell.safeTransfer(msg.sender, sellAmount);
@@ -595,7 +591,7 @@ contract Folio is
 
         // QoL feature: close auction and eject token from basket if we have sold all of it
         if (trade.sell.balanceOf(address(this)) == 0) {
-            basket.remove(address(trade.sell));
+            _removeFromBasket(trade.sell);
             trade.end = block.timestamp;
             sellEnds[address(trade.sell)] = block.timestamp;
             buyEnds[address(trade.buy)] = block.timestamp;
@@ -826,6 +822,17 @@ contract Folio is
 
         auctionLength = _newLength;
         emit AuctionLengthSet(auctionLength);
+    }
+
+    function _addToBasket(IERC20 token) internal {
+        require(address(token) != address(0), Folio__InvalidAsset());
+        require(basket.add(address(token)), Folio__BasketModificationFailed());
+        emit BasketTokenAdded(address(token));
+    }
+
+    function _removeFromBasket(IERC20 token) internal {
+        require(basket.remove(address(token)), Folio__BasketModificationFailed());
+        emit BasketTokenRemoved(address(token));
     }
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
