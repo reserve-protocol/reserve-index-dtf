@@ -632,4 +632,34 @@ contract StakingVaultTest is Test {
         vm.expectRevert(StakingVault.Vault__InvalidUnstakingDelay.selector);
         vault.setUnstakingDelay(newUnstakingDelay);
     }
+
+    function test__StackingVault__ZeroSupply() public {
+        _mintAndDepositFor(ACTOR_ALICE, 1000e18);
+
+        reward.mint(address(vault), 1000e18);
+        vault.poke();
+        _payoutRewards(1);
+
+        _withdrawAs(ACTOR_ALICE, 1000e18);
+        _claimRewardsAs(ACTOR_ALICE);
+
+        assertApproxEqRel(reward.balanceOf(ACTOR_ALICE), 500e18, 0.01e18);
+        assertApproxEqRel(vault.totalSupply(), 0, 0);
+
+        for (uint256 i = 0; i < 10; i++) {
+            // 10 cycles without any supply, but still poking.
+            _payoutRewards(1);
+            vault.poke();
+        }
+
+        _mintAndDepositFor(ACTOR_BOB, 1000e18);
+        vault.poke();
+
+        _payoutRewards(1);
+
+        _withdrawAs(ACTOR_BOB, 1000e18);
+        _claimRewardsAs(ACTOR_BOB);
+
+        assertApproxEqRel(reward.balanceOf(ACTOR_BOB), 250e18, 0.01e18);
+    }
 }
