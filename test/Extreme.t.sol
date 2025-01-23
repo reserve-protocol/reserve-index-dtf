@@ -388,9 +388,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // Claim rewards
         vm.prank(user1);
-        vm.startSnapshotGas(claimRewardsGasTag);
         vault.claimRewards(rewardTokens);
-        vm.stopSnapshotGas(claimRewardsGasTag);
 
         // one half life has passed; 1 = 0.5 ^ 1 = 50%
         uint256 expectedRewards = p.rewardAmount / 2;
@@ -405,7 +403,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // Claim rewards
         vm.prank(user1);
-        // vm.startSnapshotGas("claimRewards(): 2");
+        vm.startSnapshotGas(claimRewardsGasTag);
         vault.claimRewards(rewardTokens);
         vm.stopSnapshotGas();
 

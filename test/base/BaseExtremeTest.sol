@@ -44,8 +44,8 @@ abstract contract BaseExtremeTest is BaseTest {
     uint256[] internal testFolioFees = [0, MAX_FOLIO_FEE / 4, MAX_FOLIO_FEE / 2, MAX_FOLIO_FEE];
     uint256[] internal testDaoFees = [0, 0.01e18, 0.1e18, 0.15e18];
     uint256[] internal testTimeLapse = [1, 12, 1 days, 30 days, 120 days, YEAR_IN_SECONDS];
-    uint256[] internal testNumFeeRecipients = [1, 5, 10, MAX_FEE_RECIPIENTS];
     uint256[] internal testRewardHalfLives = [1 days, 3 days, 1 weeks, 2 weeks];
+    uint256[] internal testNumFeeRecipients = [1, 5, 10, MAX_FEE_RECIPIENTS];
 
     MintRedeemTestParams[] internal mintRedeemTestParams;
     TradingTestParams[] internal tradingTestParams;
