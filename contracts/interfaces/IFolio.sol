@@ -11,6 +11,8 @@ interface IFolio {
     event TradeBid(uint256 indexed tradeId, uint256 sellAmount, uint256 buyAmount);
     event TradeKilled(uint256 indexed tradeId);
 
+    event FolioMinted(address indexed account, uint256 amount);
+    event FolioRedeemed(address indexed account, uint256 amount);
     event FolioFeePaid(address indexed recipient, uint256 amount);
     event ProtocolFeePaid(address indexed recipient, uint256 amount);
 

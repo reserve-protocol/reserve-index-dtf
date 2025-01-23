@@ -148,7 +148,10 @@ contract Folio is
         }
 
         lastPoke = block.timestamp;
+
         _mint(_creator, _basicDetails.initialShares);
+        emit FolioMinted(_creator, _basicDetails.initialShares);
+
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
@@ -288,8 +291,8 @@ contract Folio is
         }
 
         // === Mint shares ===
-
         _mint(receiver, shares - totalFeeShares);
+        emit FolioMinted(receiver, shares - totalFeeShares);
 
         // defer fee handouts until distributeFees()
         daoPendingFeeShares += daoFeeShares;
@@ -331,6 +334,8 @@ contract Folio is
                 SafeERC20.safeTransfer(IERC20(_assets[i]), receiver, _amounts[i]);
             }
         }
+
+        emit FolioRedeemed(msg.sender, shares);
     }
 
     // === Fee Shares ===
@@ -357,7 +362,6 @@ contract Folio is
             feeRecipientsTotal += shares;
 
             _mint(feeRecipients[i].recipient, shares);
-
             emit FolioFeePaid(feeRecipients[i].recipient, shares);
         }
 

@@ -253,6 +253,8 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folio), type(uint256).max);
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.FolioMinted(user1, 1e22 - 1e22 / 2000);
         folio.mint(1e22, user1);
         assertEq(folio.balanceOf(user1), 1e22 - 1e22 / 2000, "wrong user1 balance");
         assertApproxEqAbs(
@@ -292,6 +294,8 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.FolioMinted(user1, amt - amt / 10);
         folio.mint(amt, user1);
         assertEq(folio.balanceOf(user1), amt - amt / 10, "wrong user1 balance");
         assertApproxEqAbs(
@@ -341,6 +345,8 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.FolioMinted(user1, amt - amt / 10);
         folio.mint(amt, user1);
         assertEq(folio.balanceOf(user1), amt - amt / 10, "wrong user1 balance");
         assertApproxEqAbs(
@@ -391,6 +397,8 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.FolioMinted(user1, amt - (amt * MIN_DAO_MINTING_FEE) / 1e18);
         folio.mint(amt, user1);
         assertEq(folio.balanceOf(user1), amt - (amt * MIN_DAO_MINTING_FEE) / 1e18, "wrong user1 balance");
         assertApproxEqAbs(
@@ -455,6 +463,8 @@ contract FolioTest is BaseTest {
         basket[2] = address(MEME);
         uint256[] memory minAmountsOut = new uint256[](3);
 
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.FolioRedeemed(user1, 5e21);
         folio.redeem(5e21, user1, basket, minAmountsOut);
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
@@ -601,16 +611,25 @@ contract FolioTest is BaseTest {
         assertApproxEqAbs(supplyBefore, pendingFeeShares, 1e12, "wrong pending fee shares");
 
         uint256 initialOwnerShares = folio.balanceOf(owner);
-        folio.distributeFees();
 
-        // check receipient balances
+        // calculate shares
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
         uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) /
             daoFeeDenominator +
             1;
-        assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
+
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.FolioFeePaid(owner, (remainingShares * 0.9e18) / 1e18);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.FolioFeePaid(feeReceiver, (remainingShares * 0.1e18) / 1e18);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.ProtocolFeePaid(dao, expectedDaoShares);
+        folio.distributeFees();
+
+        // check receipient balances
+        assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
         assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
     }
