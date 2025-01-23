@@ -15,7 +15,7 @@ import { FolioProxyAdmin, FolioProxy } from "@folio/FolioProxy.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 /**
- * @title FolioDeployer
+ * @title Folio Deployer
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 contract FolioDeployer is IFolioDeployer, Versioned {
@@ -37,8 +37,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
     }
 
     /// Deploy a raw Folio instance with previously defined roles
-    /// @return folio_ The deployed Folio instance
-    /// @return folioAdmin_ The deployed FolioProxyAdmin instance
+    /// @return folio The deployed Folio instance
+    /// @return folioAdmin The deployed FolioProxyAdmin instance
     function deployFolio(
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
@@ -46,14 +46,18 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         address[] memory tradeProposers,
         address[] memory tradeLaunchers,
         address[] memory vibesOfficers
-    ) public returns (address folio_, address folioAdmin_) {
+    ) public returns (Folio folio, address folioAdmin) {
         if (basicDetails.assets.length != basicDetails.amounts.length) {
             revert FolioDeployer__LengthMismatch();
         }
 
+        bytes32 deploymentSalt = keccak256(
+            abi.encode(basicDetails, additionalDetails, owner, tradeProposers, tradeLaunchers, vibesOfficers)
+        );
+
         // Deploy Folio
-        folioAdmin_ = address(new FolioProxyAdmin(owner, versionRegistry));
-        Folio folio = Folio(address(new FolioProxy(folioImplementation, folioAdmin_)));
+        folioAdmin = address(new FolioProxyAdmin{ salt: deploymentSalt }(owner, versionRegistry));
+        folio = Folio(address(new FolioProxy{ salt: deploymentSalt }(folioImplementation, folioAdmin)));
 
         for (uint256 i; i < basicDetails.assets.length; i++) {
             IERC20(basicDetails.assets[i]).safeTransferFrom(msg.sender, address(folio), basicDetails.amounts[i]);
@@ -77,9 +81,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         // Renounce Ownership
         folio.renounceRole(folio.DEFAULT_ADMIN_ROLE(), address(this));
 
-        folio_ = address(folio);
-
-        emit FolioDeployed(owner, folio_, folioAdmin_);
+        emit FolioDeployed(owner, address(folio), folioAdmin);
     }
 
     /// Deploy a Folio instance with brand new owner + trading governors
@@ -99,7 +101,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
     )
         external
         returns (
-            address folio,
+            Folio folio,
             address proxyAdmin,
             address ownerGovernor,
             address ownerTimelock,
@@ -143,7 +145,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         emit GovernedFolioDeployed(
             address(stToken),
-            folio,
+            address(folio),
             ownerGovernor,
             ownerTimelock,
             tradingGovernor,

@@ -10,8 +10,8 @@ import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 import { FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
-import { FolioDeployer } from "@folio/FolioDeployer.sol";
-import { GovernanceDeployer } from "@gov/GovernanceDeployer.sol";
+import { FolioDeployer } from "@deployer/FolioDeployer.sol";
+import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 
 string constant junkSeedPhrase = "test test test test test test test test test test test junk";
