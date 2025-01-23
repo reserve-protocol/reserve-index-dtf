@@ -26,7 +26,7 @@ export const getBasket = (
   // convert price number inputs to bigints
 
   // D27{USD/tok} = {USD/wholeTok} * D27 / {tok/wholeTok}
-  const prices = _prices.map((a, i) => BigInt(Math.round((a * D27) / 10 ** Number(decimals[i]))));
+  const prices = _prices.map((a, i) => BigInt(Math.round(a * D27)) / 10n ** decimals[i]);
 
   console.log("--------------------------------------------------------------------------------");
 

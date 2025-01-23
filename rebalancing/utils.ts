@@ -61,7 +61,7 @@ export const getSharePricing = (
   _prices: number[],
 ): [bigint, number] => {
   // D27{USD/tok} = {USD/wholeTok} * D27 / {tok/wholeTok}
-  const prices = _prices.map((a, i) => BigInt(Math.round((a * D27) / 10 ** Number(decimals[i]))));
+  const prices = _prices.map((a, i) => BigInt(Math.round(a * D27)) / 10n ** decimals[i]);
 
   // D27{USD} = {tok} * D27{USD/tok}
   const values = bals.map((bal, i) => bal * prices[i]);

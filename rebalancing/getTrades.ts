@@ -33,7 +33,7 @@ export const getTrades = (
   // convert price number inputs to bigints
 
   // D27{USD/tok} = {USD/wholeTok} * D27 / {tok/wholeTok}
-  const prices = _prices.map((a, i) => BigInt(Math.round((a * D27) / Number(10n ** decimals[i]))));
+  const prices = _prices.map((a, i) => BigInt(Math.round(a * D27)) / 10n ** decimals[i]);
 
   // D27{1} = {1} * D27
   const priceError = _priceError.map((a) => BigInt(Math.round(a * D27)));
