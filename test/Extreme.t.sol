@@ -315,6 +315,33 @@ contract ExtremeTest is BaseExtremeTest {
     }
 
     function run_staking_rewards_scenario(StakingRewardsTestParams memory p) public {
+        string memory pokeGasTag = string.concat(
+            "poke(",
+            vm.toString(p.numTokens),
+            " tokens, ",
+            vm.toString(p.decimals),
+            " decimals, ",
+            vm.toString(p.rewardAmount),
+            " rewardAmount, ",
+            vm.toString(p.rewardHalfLife),
+            " rewardHalfLife, ",
+            vm.toString(p.mintAmount),
+            " mintAmount)"
+        );
+        string memory claimRewardsGasTag = string.concat(
+            "claimRewards(",
+            vm.toString(p.numTokens),
+            " tokens, ",
+            vm.toString(p.decimals),
+            " decimals, ",
+            vm.toString(p.rewardAmount),
+            " rewardAmount, ",
+            vm.toString(p.rewardHalfLife),
+            " rewardHalfLife, ",
+            vm.toString(p.mintAmount),
+            " mintAmount)"
+        );
+
         IERC20 token = deployCoin("Mock Token", "TKN", 18); // mock
 
         StakingVault vault = new StakingVault(
@@ -352,18 +379,18 @@ contract ExtremeTest is BaseExtremeTest {
         for (uint256 j = 0; j < p.numTokens; j++) {
             MockERC20(rewardTokens[j]).mint(address(vault), p.rewardAmount);
         }
-        vm.startSnapshotGas("poke(): process rewards");
+        vm.startSnapshotGas(pokeGasTag);
         vault.poke();
-        vm.stopSnapshotGas();
+        vm.stopSnapshotGas(pokeGasTag);
 
         // advance 1 half life
         vm.warp(block.timestamp + p.rewardHalfLife);
 
         // Claim rewards
         vm.prank(user1);
-        vm.startSnapshotGas("claimRewards(): 1");
+        vm.startSnapshotGas(claimRewardsGasTag);
         vault.claimRewards(rewardTokens);
-        vm.stopSnapshotGas();
+        vm.stopSnapshotGas(claimRewardsGasTag);
 
         // one half life has passed; 1 = 0.5 ^ 1 = 50%
         uint256 expectedRewards = p.rewardAmount / 2;
