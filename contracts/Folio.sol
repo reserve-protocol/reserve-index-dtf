@@ -125,6 +125,10 @@ contract Folio is
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 
+        if (_basicDetails.initialShares == 0) {
+            revert Folio__ZeroInitialShares();
+        }
+
         uint256 assetLength = _basicDetails.assets.length;
         if (assetLength == 0) {
             revert Folio__EmptyAssets();

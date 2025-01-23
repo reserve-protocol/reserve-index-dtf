@@ -132,6 +132,41 @@ contract FolioTest is BaseTest {
         newFolio.initialize(basicDetails, additionalDetails, address(this), address(daoFeeRegistry));
     }
 
+    function test_cannotCreateWithZeroInitialShares() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(DAI);
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = D6_TOKEN_10K;
+        amounts[1] = D18_TOKEN_10K;
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
+
+        vm.startPrank(owner);
+        USDC.approve(address(folioDeployer), type(uint256).max);
+        DAI.approve(address(folioDeployer), type(uint256).max);
+
+        Folio newFolio;
+        FolioProxyAdmin folioAdmin;
+
+        vm.expectRevert(IFolio.Folio__ZeroInitialShares.selector);
+        (newFolio, folioAdmin) = createFolio(
+            tokens,
+            amounts,
+            0, // zero initial shares
+            MAX_TRADE_DELAY,
+            MAX_AUCTION_LENGTH,
+            recipients,
+            MAX_FOLIO_FEE,
+            0,
+            owner,
+            dao,
+            tradeLauncher
+        );
+        vm.stopPrank();
+    }
+
     function test_getFolio() public view {
         (address[] memory _assets, uint256[] memory _amounts) = folio.folio();
         assertEq(_assets.length, 3, "wrong assets length");
