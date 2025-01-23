@@ -291,6 +291,7 @@ contract Folio is
         }
 
         // === Mint shares ===
+
         _mint(receiver, shares - totalFeeShares);
         emit FolioMinted(receiver, shares - totalFeeShares);
 
