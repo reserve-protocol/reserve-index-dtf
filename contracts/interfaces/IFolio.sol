@@ -118,7 +118,7 @@ interface IFolio {
 
     struct AuctionConfig {
         Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
-        Range buyLimit; // D27{buyTok/share} min ratio of sell token to shares allowed, exclusive
+        Range buyLimit; // D27{buyTok/share} min ratio of buy token to shares allowed, exclusive
         uint256 startPrice; // D27{buyTok/sellTok}
         uint256 endPrice; // D27{buyTok/sellTok}
     }

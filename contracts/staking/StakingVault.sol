@@ -280,7 +280,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
             rewardInfo.rewardIndex += deltaIndex;
             rewardInfo.balanceAccounted += tokensToHandout;
         }
-        // @todo Add a test case for when supplyTokens is 0 for a while, the reward are paid out correctly.
+        // @todo Add a test case for when supplyTokens is 0 for a while, the rewards are paid out correctly.
 
         rewardInfo.payoutLastPaid = block.timestamp;
     }
