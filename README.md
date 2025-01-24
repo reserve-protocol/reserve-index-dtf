@@ -128,19 +128,19 @@ Anyone can bid in any auction in size up to and including the `lot` size. Use `g
 
 ### Fee Structure
 
-Folios support 2 types of fee
+Folios support 2 types of fees. Both have a DAO portion that work the same underlying way, placing limits on how small the fee can be.
 
 ##### `folioFee`
 
 Per-unit time fee on AUM
 
-The DAO takes a cut
+The DAO takes a cut with a minimum floor of 15 bps. The DAO always receives at least 15 bps of the value of the mint. If the minting fee is set to 15 bps, then 100% of the minting fee is taken by the DAO.
 
 ##### `mintingFee`
 
 Fee on mints
 
-The DAO takes a cut with a minimum floor of 5 bps. The DAO always receives at least 5 bps of the value of the mint. If the minting fee is set to 5 bps, then 100% of the minting fee is taken by the DAO.
+The DAO takes a cut with a minimum floor of 15 bps. The DAO always receives at least 15 bps of the value of the mint. If the minting fee is set to 15 bps, then 100% of the minting fee is taken by the DAO.
 
 ### Units
 
