@@ -178,7 +178,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         // reset fee
         vm.expectEmit(true, true, false, true);
         emit IFolioDAOFeeRegistry.TokenFeeNumeratorSet(address(folio), 0, false);
-        daoFeeRegistry.resetTokenFee(address(folio));
+        daoFeeRegistry.resetTokenFees(address(folio));
         (, numerator, , ) = daoFeeRegistry.getFeeDetails(address(folio));
         assertEq(numerator, MAX_DAO_FEE);
     }
@@ -186,6 +186,40 @@ contract FolioDAOFeeRegistryTest is BaseTest {
     function test_cannotResetTokenFeeIfNotOwner() public {
         vm.prank(user2);
         vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidCaller.selector);
-        daoFeeRegistry.resetTokenFee(address(folio));
+        daoFeeRegistry.resetTokenFees(address(folio));
+    }
+
+    function test_setTokenFeeFloor() public {
+        uint256 feeFloor;
+        (, , , feeFloor) = daoFeeRegistry.getFeeDetails(address(folio));
+        assertEq(feeFloor, DEFAULT_FEE_FLOOR);
+
+        vm.expectEmit(true, true, false, true);
+        emit IFolioDAOFeeRegistry.TokenFeeFloorSet(address(folio), DEFAULT_FEE_FLOOR / 2);
+        daoFeeRegistry.setTokenFeeFloor(address(folio), DEFAULT_FEE_FLOOR / 2);
+
+        (, , , feeFloor) = daoFeeRegistry.getFeeDetails(address(folio));
+        assertEq(feeFloor, DEFAULT_FEE_FLOOR / 2);
+
+        // lower default below the individual token fee floor
+        daoFeeRegistry.setDefaultFeeFloor(DEFAULT_FEE_FLOOR / 4);
+        (, , , feeFloor) = daoFeeRegistry.getFeeDetails(address(folio));
+        assertEq(feeFloor, DEFAULT_FEE_FLOOR / 4);
+    }
+
+    function test_cannotSetTokenFeeFloorIfNotOwner() public {
+        vm.prank(user2);
+        vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidCaller.selector);
+        daoFeeRegistry.setTokenFeeFloor(address(folio), 0.1e18);
+    }
+
+    function test_cannotSetDefaultFeeFloorWithInvalidValue() public {
+        vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidFeeFloor.selector);
+        daoFeeRegistry.setDefaultFeeFloor(DEFAULT_FEE_FLOOR + 1);
+    }
+
+    function test_cannotSetTokenFeeFloorWithInvalidValue() public {
+        vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidFeeFloor.selector);
+        daoFeeRegistry.setTokenFeeFloor(address(folio), DEFAULT_FEE_FLOOR + 1);
     }
 }

@@ -343,11 +343,11 @@ contract FolioTest is BaseTest {
         uint256 startingDAIBalance = DAI.balanceOf(address(folio));
         uint256 startingMEMEBalance = MEME.balanceOf(address(folio));
 
-        uint256 feeFloor = daoFeeRegistry.feeFloor();
+        uint256 defaultFeeFloor = daoFeeRegistry.defaultFeeFloor();
 
         // set mintingFee to feeFloor, 15 bps
         vm.prank(owner);
-        folio.setMintingFee(feeFloor);
+        folio.setMintingFee(defaultFeeFloor);
         // leave daoFeeRegistry fee at 0 (default)
 
         vm.startPrank(user1);
@@ -357,7 +357,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = 1e22;
         folio.mint(amt, user1);
-        assertEq(folio.balanceOf(user1), amt - (amt * feeFloor) / 1e18, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), amt - (amt * defaultFeeFloor) / 1e18, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
             startingUSDCBalance + D6_TOKEN_10K,
@@ -379,7 +379,7 @@ contract FolioTest is BaseTest {
 
         // minting fee should be manifested in total supply and ONLY the DAO's side of the stream
         assertEq(folio.totalSupply(), amt * 2, "total supply off");
-        assertEq(folio.daoPendingFeeShares(), (amt * feeFloor) / 1e18, "wrong dao pending fee shares");
+        assertEq(folio.daoPendingFeeShares(), (amt * defaultFeeFloor) / 1e18, "wrong dao pending fee shares");
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
     }
 
@@ -783,8 +783,8 @@ contract FolioTest is BaseTest {
         vm.warp(block.timestamp + YEAR_IN_SECONDS);
         vm.roll(block.number + 1000000);
         uint256 pendingFeeShares = folio.getPendingFeeShares();
-        uint256 feeFloor = daoFeeRegistry.feeFloor();
-        uint256 expectedPendingFeeShares = (INITIAL_SUPPLY * 1e18) / (1e18 - feeFloor) - INITIAL_SUPPLY;
+        uint256 defaultFeeFloor = daoFeeRegistry.defaultFeeFloor();
+        uint256 expectedPendingFeeShares = (INITIAL_SUPPLY * 1e18) / (1e18 - defaultFeeFloor) - INITIAL_SUPPLY;
         assertApproxEqAbs(
             pendingFeeShares,
             expectedPendingFeeShares,

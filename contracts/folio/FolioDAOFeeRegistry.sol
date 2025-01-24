@@ -12,7 +12,10 @@ uint256 constant DEFAULT_FEE_FLOOR = 0.0015e18; // D18{1} 15 bps
 /**
  * @title Folio
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
- * @notice FolioDAOFeeRegistry tracks the DAO fee that should be applied to each Folio
+ * @notice FolioDAOFeeRegistry tracks the DAO fees that should be applied to each Folio
+ *         The DAO fee is the % of the Folio fees should go to the DAO.
+ *         The fee floor is a lower-bound on the fees that can be charged to Folio users, in case
+ *         the Folio has set its fees too low.
  */
 contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     uint256 public constant FEE_DENOMINATOR = 1e18;
@@ -25,7 +28,9 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     mapping(address => uint256) private fTokenFeeNumerator; // D18{1}
     mapping(address => bool) private fTokenFeeSet;
 
-    uint256 public feeFloor = DEFAULT_FEE_FLOOR; // D18{1} 15 bps
+    uint256 public defaultFeeFloor = DEFAULT_FEE_FLOOR; // D18{1} 15 bps
+    mapping(address => uint256) private fTokenFeeFloor; // D18{1}
+    mapping(address => bool) private fTokenFeeFloorSet;
 
     modifier onlyOwner() {
         if (!roleRegistry.isOwner(msg.sender)) {
@@ -79,38 +84,58 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
         _setTokenFee(fToken, feeNumerator_, true);
     }
 
-    function setFeeFloor(uint256 _feeFloor) external onlyOwner {
-        if (_feeFloor > MAX_FEE_FLOOR) {
+    function setDefaultFeeFloor(uint256 _defaultFeeFloor) external onlyOwner {
+        if (_defaultFeeFloor > DEFAULT_FEE_FLOOR) {
             revert FolioDAOFeeRegistry__InvalidFeeFloor();
         }
 
-        feeFloor = _feeFloor;
-        emit FeeFloorSet(feeFloor);
+        defaultFeeFloor = _defaultFeeFloor;
+        emit DefaultFeeFloorSet(defaultFeeFloor);
     }
 
-    function resetTokenFee(address fToken) external onlyOwner {
+    function setTokenFeeFloor(address fToken, uint256 _feeFloor) external onlyOwner {
+        if (_feeFloor > DEFAULT_FEE_FLOOR) {
+            revert FolioDAOFeeRegistry__InvalidFeeFloor();
+        }
+
+        _setTokenFeeFloor(fToken, _feeFloor, true);
+    }
+
+    function resetTokenFees(address fToken) external onlyOwner {
         _setTokenFee(fToken, 0, false);
+        _setTokenFeeFloor(fToken, 0, false);
     }
 
     /// @param feeNumerator D18{1}
     /// @param feeDenominator D18{1}
     function getFeeDetails(
         address fToken
-    ) external view returns (address recipient, uint256 feeNumerator, uint256 feeDenominator, uint256 feeFloor_) {
+    ) external view returns (address recipient, uint256 feeNumerator, uint256 feeDenominator, uint256 feeFloor) {
         recipient = feeRecipient;
         feeNumerator = fTokenFeeSet[fToken] ? fTokenFeeNumerator[fToken] : defaultFeeNumerator;
         feeDenominator = FEE_DENOMINATOR;
-        feeFloor_ = feeFloor;
+        feeFloor = fTokenFeeFloorSet[fToken]
+            ? (defaultFeeFloor < fTokenFeeFloor[fToken] ? defaultFeeFloor : fTokenFeeFloor[fToken])
+            : defaultFeeFloor;
     }
 
     // ==== Internal ====
 
     function _setTokenFee(address fToken, uint256 feeNumerator_, bool isActive) internal {
-        IFolio(fToken).distributeFees(); // @audit review
+        IFolio(fToken).distributeFees();
 
         fTokenFeeNumerator[fToken] = feeNumerator_;
         fTokenFeeSet[fToken] = isActive;
 
         emit TokenFeeNumeratorSet(fToken, feeNumerator_, isActive);
+    }
+
+    function _setTokenFeeFloor(address fToken, uint256 feeFloor, bool isActive) internal {
+        IFolio(fToken).distributeFees();
+
+        fTokenFeeFloor[fToken] = feeFloor;
+        fTokenFeeFloorSet[fToken] = isActive;
+
+        emit TokenFeeFloorSet(fToken, feeFloor);
     }
 }
