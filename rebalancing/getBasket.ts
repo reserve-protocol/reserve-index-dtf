@@ -1,6 +1,6 @@
 import { Trade } from "./types";
-import { D9n, D18n, D27, D27n } from "./numbers";
-import { getCurrentBasket, getSharePricing, getBasketPortion } from "./utils";
+import { D9, D9n, D27, D27n } from "./numbers";
+import { getBasketPortion } from "./utils";
 
 /**
  * Get basket from a set of trades
@@ -10,8 +10,8 @@ import { getCurrentBasket, getSharePricing, getBasketPortion } from "./utils";
  * @param supply {share} DTF supply
  * @param trades Trades
  * @param tokens Addresses of tokens in the basket
- * @param bals {tok} Current balances
  * @param decimals Decimals of each token
+ * @param currentBasket D18{1} Current basket breakdown
  * @param _prices {USD/wholeTok} USD prices for each *whole* token
  * @returns basket D18{1} Resulting basket from running the smallest trade first
  */
@@ -19,22 +19,27 @@ export const getBasket = (
   supply: bigint,
   trades: Trade[],
   tokens: string[],
-  bals: bigint[],
   decimals: bigint[],
+  currentBasket: bigint[],
   _prices: number[],
+  _dtfPrice: number,
 ): bigint[] => {
   // convert price number inputs to bigints
 
   // D27{USD/tok} = {USD/wholeTok} * D27 / {tok/wholeTok}
-  const prices = _prices.map((a, i) => BigInt(Math.round(a * D27)) / 10n ** decimals[i]);
+  const prices = _prices.map((a, i) => BigInt(a * 10 ** (27 - Number(decimals[i]))));
+
+  // upscale currentBasket and targetBasket to D27
+
+  // D27{1} = D18{1} * D9
+  currentBasket = currentBasket.map((a) => a * 10n ** 9n);
 
   console.log("--------------------------------------------------------------------------------");
 
-  // D27{1} approx sum 1e27
-  let currentBasket = getCurrentBasket(bals, decimals, _prices);
+  // D27{USD} = {USD/wholeShare} * D27 * {share} / {share/wholeShare}
+  const sharesValue = BigInt(_dtfPrice * D9) * supply;
 
-  // D27{USD}, {USD/wholeShare}
-  const [sharesValue, _sharePrice] = getSharePricing(supply, bals, decimals, _prices);
+  console.log("sharesValue", sharesValue);
 
   // process the smallest trade first until we hit an unbounded traded
 
@@ -51,8 +56,8 @@ export const getBasket = (
       const y = tokens.indexOf(trades[i].buy);
 
       // D27{1}
-      const [, sellTarget] = getBasketPortion(trades[i].sellLimit.spot, decimals[x], _prices[x], _sharePrice);
-      const [, buyTarget] = getBasketPortion(trades[i].buyLimit.spot, decimals[y], _prices[y], _sharePrice);
+      const [, sellTarget] = getBasketPortion(trades[i].sellLimit.spot, decimals[x], _prices[x], _dtfPrice);
+      const [, buyTarget] = getBasketPortion(trades[i].buyLimit.spot, decimals[y], _prices[y], _dtfPrice);
 
       let tradeValue = smallestSwap;
 

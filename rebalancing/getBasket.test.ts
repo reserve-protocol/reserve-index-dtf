@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import expect from "expect";
 
+import { getCurrentBasket } from "./utils";
 import { bn } from "./numbers";
 import { makeTrade } from "./utils";
 import { Trade } from "./types";
@@ -18,7 +19,6 @@ const assertApproxEq = (a: bigint, b: bigint, precision: bigint) => {
 
 describe("getBasket()", () => {
   const supply = bn("1e21"); // 1000 supply
-
   it("split: [100%, 0%, 0%] => [0%, 50%, 50%]", () => {
     const trades: Trade[] = [];
     trades.push(makeTrade("USDC", "DAI", bn("0"), bn("5e26"), bn("1.01e39"), bn("0.99e39")));
@@ -26,9 +26,9 @@ describe("getBasket()", () => {
 
     const tokens = ["USDC", "DAI", "USDT"];
     const decimals = [bn("6"), bn("18"), bn("6")];
-    const bals = [bn("1e9"), bn("0"), bn("0")];
+    const currentBasket = [bn("1e18"), bn("0"), bn("0")];
     const prices = [1, 1, 1];
-    const targetBasket = getBasket(supply, trades, tokens, bals, decimals, prices);
+    const targetBasket = getBasket(supply, trades, tokens, currentBasket, decimals, prices, 1);
     expect(targetBasket.length).toBe(3);
     assertApproxEq(targetBasket[0], bn("0"), precision);
     assertApproxEq(targetBasket[1], bn("0.5e18"), precision);
@@ -41,9 +41,9 @@ describe("getBasket()", () => {
 
     const tokens = ["USDC", "DAI", "USDT"];
     const decimals = [bn("6"), bn("18"), bn("6")];
-    const bals = [bn("0"), bn("500e18"), bn("500e6")];
+    const currentBasket = [bn("0"), bn("0.5e18"), bn("0.5e18")];
     const prices = [1, 1, 1];
-    const targetBasket = getBasket(supply, trades, tokens, bals, decimals, prices);
+    const targetBasket = getBasket(supply, trades, tokens, currentBasket, decimals, prices, 1);
     expect(targetBasket.length).toBe(3);
     assertApproxEq(targetBasket[0], bn("1e18"), precision);
     assertApproxEq(targetBasket[1], bn("0"), precision);
@@ -56,9 +56,9 @@ describe("getBasket()", () => {
 
     const tokens = ["USDC", "DAI"];
     const decimals = [bn("6"), bn("18")];
-    const bals = [bn("250e6"), bn("750e18")];
+    const currentBasket = [bn("0.25e18"), bn("0.75e18")];
     const prices = [1, 1];
-    const targetBasket = getBasket(supply, trades, tokens, bals, decimals, prices);
+    const targetBasket = getBasket(supply, trades, tokens, currentBasket, decimals, prices, 1);
     expect(targetBasket.length).toBe(2);
     assertApproxEq(targetBasket[0], bn("0.75e18"), precision);
     assertApproxEq(targetBasket[1], bn("0.25e18"), precision);
@@ -70,9 +70,9 @@ describe("getBasket()", () => {
 
     const tokens = ["USDC", "WETH"];
     const decimals = [bn("6"), bn("18")];
-    const bals = [bn("250e6"), bn("0.25e18")];
+    const currentBasket = [bn("0.25e18"), bn("0.75e18")];
     const prices = [1, 3000];
-    const targetBasket = getBasket(supply, trades, tokens, bals, decimals, prices);
+    const targetBasket = getBasket(supply, trades, tokens, currentBasket, decimals, prices, 1);
     expect(targetBasket.length).toBe(2);
     assertApproxEq(targetBasket[0], bn("0.75e18"), precision);
     assertApproxEq(targetBasket[1], bn("0.25e18"), precision);
@@ -89,6 +89,7 @@ describe("getBasket()", () => {
       const decimals = [bn("6"), bn("18"), bn("18"), bn("8")];
       const bals = tokens.map((_, i) => BigInt(Math.round(Math.random() * 1e36)));
       const prices = tokens.map((_, i) => Math.round(Math.random() * 1e54) / Number(10n ** decimals[i]));
+      const currentBasket = getCurrentBasket(bals, decimals, prices);
       const sellIndex = Math.floor(Math.random() * tokens.length);
       const buyIndex = Math.floor(Math.random() * tokens.length);
       let price = BigInt(Math.round((prices[sellIndex] * 1e27) / prices[buyIndex]));
@@ -99,7 +100,7 @@ describe("getBasket()", () => {
 
       trades.push(makeTrade(tokens[sellIndex], tokens[buyIndex], bn("0"), bn("1e54"), startPrice, endPrice));
 
-      const targetBasket = getBasket(supply, trades, tokens, bals, decimals, prices);
+      const targetBasket = getBasket(supply, trades, tokens, currentBasket, decimals, prices, 1);
       expect(targetBasket.length).toBe(tokens.length);
     }
   });

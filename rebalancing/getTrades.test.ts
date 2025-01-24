@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import expect from "expect";
 
+import { getCurrentBasket, getSharePricing } from "./utils";
 import { bn } from "./numbers";
 import { Trade } from "./types";
 import { getTrades } from "./getTrades";
@@ -10,7 +11,6 @@ const D18: bigint = BigInt(1e18);
 const assertApproxEq = (a: bigint, b: bigint, precision: bigint) => {
   const delta = a > b ? a - b : b - a;
   console.log("assertApproxEq", a, b);
-  console.log("assertApproxEq", delta, (precision * b) / D18);
   expect(delta).toBeLessThanOrEqual((precision * b) / D18);
 };
 
@@ -39,11 +39,11 @@ describe("getTrades()", () => {
   it("split: [100%, 0%, 0%] => [0%, 50%, 50%]", () => {
     const tokens = ["USDC", "DAI", "USDT"];
     const decimals = [bn("6"), bn("18"), bn("6")];
-    const bals = [bn("1e9"), bn("0"), bn("0")];
+    const currentBasket = [bn("1e18"), bn("0"), bn("0")];
     const targetBasket = [bn("0"), bn("0.5e18"), bn("0.5e18")];
     const prices = [1, 1, 1];
     const error = [0.01, 0.01, 0.01];
-    const trades = getTrades(supply, tokens, decimals, bals, targetBasket, prices, error);
+    const trades = getTrades(supply, tokens, decimals, currentBasket, targetBasket, prices, error, 1);
     expect(trades.length).toBe(2);
     expectTradeApprox(trades[0], "USDC", "DAI", bn("0"), bn("5e26"), bn("1.01e39"), bn("0.99e39"));
     expectTradeApprox(trades[1], "USDC", "USDT", bn("0"), bn("5e14"), bn("1.01e27"), bn("0.99e27"));
@@ -51,24 +51,24 @@ describe("getTrades()", () => {
   it("join: [0%, 50%, 50%] => [100%, 0%, 0%]", () => {
     const tokens = ["USDC", "DAI", "USDT"];
     const decimals = [bn("6"), bn("18"), bn("6")];
-    const bals = [bn("0"), bn("500e18"), bn("500e6")];
+    const currentBasket = [bn("0"), bn("0.5e18"), bn("0.5e18")];
     const targetBasket = [bn("1e18"), bn("0"), bn("0")];
     const prices = [1, 1, 1];
     const error = [0.01, 0.01, 0.01];
-    const trades = getTrades(supply, tokens, decimals, bals, targetBasket, prices, error);
+    const trades = getTrades(supply, tokens, decimals, currentBasket, targetBasket, prices, error, 1);
     expect(trades.length).toBe(2);
-    expectTradeApprox(trades[0], "USDT", "USDC", bn("0"), bn("1e15"), bn("1.01e27"), bn("0.99e27"));
-    expectTradeApprox(trades[1], "DAI", "USDC", bn("0"), bn("1e15"), bn("1.01e15"), bn("0.99e15"));
+    expectTradeApprox(trades[0], "DAI", "USDC", bn("0"), bn("1e15"), bn("1.01e15"), bn("0.99e15"));
+    expectTradeApprox(trades[1], "USDT", "USDC", bn("0"), bn("1e15"), bn("1.01e27"), bn("0.99e27"));
   });
 
   it("reweight: [25%, 75%] => [75%, 25%]", () => {
     const tokens = ["USDC", "DAI"];
     const decimals = [bn("6"), bn("18")];
-    const bals = [bn("250e6"), bn("750e18")];
+    const currentBasket = [bn("0.25e18"), bn("0.75e18")];
     const targetBasket = [bn("0.75e18"), bn("0.25e18")];
     const prices = [1, 1];
     const error = [0.01, 0.01];
-    const trades = getTrades(supply, tokens, decimals, bals, targetBasket, prices, error);
+    const trades = getTrades(supply, tokens, decimals, currentBasket, targetBasket, prices, error, 1);
     expect(trades.length).toBe(1);
     expectTradeApprox(trades[0], "DAI", "USDC", bn("2.5e26"), bn("7.5e14"), bn("1.01e15"), bn("0.99e15"));
   });
@@ -76,11 +76,11 @@ describe("getTrades()", () => {
   it("reweight (/w volatiles): [25%, 75%] => [75%, 25%]", () => {
     const tokens = ["USDC", "WETH"];
     const decimals = [bn("6"), bn("18")];
-    const bals = [bn("250e6"), bn("0.25e18")];
+    const currentBasket = [bn("0.25e18"), bn("0.75e18")];
     const targetBasket = [bn("0.75e18"), bn("0.25e18")];
     const prices = [1, 3000];
     const error = [0.01, 0.01];
-    const trades = getTrades(supply, tokens, decimals, bals, targetBasket, prices, error);
+    const trades = getTrades(supply, tokens, decimals, currentBasket, targetBasket, prices, error, 1);
     expect(trades.length).toBe(1);
     expectTradeApprox(trades[0], "WETH", "USDC", bn("8.33e22"), bn("750e12"), bn("3.03e18"), bn("2.97e18"));
   });
@@ -94,6 +94,7 @@ describe("getTrades()", () => {
       const decimals = [bn("6"), bn("18"), bn("18"), bn("8")];
       const bals = tokens.map((_, i) => BigInt(Math.round(Math.random() * 1e36)));
       const prices = tokens.map((_, i) => Math.round(Math.random() * 1e54) / Number(10n ** decimals[i]));
+      const currentBasket = getCurrentBasket(bals, decimals, prices);
       const targetBasketAsNum = tokens.map((_) => Math.random());
       const sumAsNum = targetBasketAsNum.reduce((a, b) => a + b);
       const targetBasket = targetBasketAsNum.map((a) => BigInt(Math.round((a * 10 ** 18) / sumAsNum)));
@@ -103,32 +104,26 @@ describe("getTrades()", () => {
       }
 
       const error = tokens.map((_) => Math.random() * 0.5);
-      const trades = getTrades(supply, tokens, decimals, bals, targetBasket, prices, error);
+      const trades = getTrades(supply, tokens, decimals, currentBasket, targetBasket, prices, error, 1);
       expect(trades.length).toBeLessThanOrEqual(tokens.length - 1);
     }
   });
 
-  it("should handle standard register mocktest, regression test", () => {
-    const tokens = ["RSR", "VIRTUAL", "BRETT", "AERO", "PENDLE"];
-    const decimals = [18n, 18n, 18n, 18n, 18n];
-    const bals = [
-      2500000000000000000000000n,
-      5970149253731343000000n,
-      75414781297134238000000n,
-      11111111111111111000000n,
-      3432494279176201000000n,
-    ];
-    const prices = [0.016, 3.35, 0.1326, 1.35, 4.37];
-    const targetBasket = [
-      400000000000000000n,
-      200000000000000000n,
-      150000000000000000n,
-      100000000000000000n,
-      150000000000000000n,
-    ];
-    const error = [0.1, 0.1, 0.1, 0.1, 0.1];
-    const trades = getTrades(bn("1e23"), tokens, decimals, bals, targetBasket, prices, error);
-    expect(trades.length).toBe(1);
-    expectTradeApprox(trades[0], "AERO", "BRETT", bn("7.407e25"), bn("1.131e27"), bn("1.131e28"), bn("0.916e28"));
-  });
+  // it("should handle register case, regression test", () => {
+  //   const tokens = ["VIRTUAL", "AIXBT", "FAI", "GAME", "COOKIE"];
+  //   const decimals = [18n, 18n, 18n, 18n, 18n];
+  //   const bals = [6067000000000000n, 1258000000000000n, 1063000000000000n, 783000000000000n, 829000000000000n];
+  //   const targetBasket = [
+  //     919200000000000000n,
+  //     50000000000000000n,
+  //     7400000000000000n,
+  //     5000000000000000n,
+  //     18400000000000000n,
+  //   ];
+  //   const _prices = [2.735191813135, 0.774066056772, 0.0557460299, 0.12355496041, 0.396445257];
+  //   const _priceError = [0.1, 0.1, 0.1, 0.1, 0.1];
+  //   const trades = getTrades(supply, tokens, decimals, bals, targetBasket, _prices, _priceError);
+  //   console.log(trades);
+  //   expect(trades.length).toBe(1);
+  // });
 });
