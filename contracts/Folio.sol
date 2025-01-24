@@ -125,7 +125,7 @@ contract Folio is
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 
-        require(_basicDetails.initialShares > 0, Folio__ZeroInitialShares());
+        require(_basicDetails.initialShares != 0, Folio__ZeroInitialShares());
 
         uint256 assetLength = _basicDetails.assets.length;
         require(assetLength > 0, Folio__EmptyAssets());
