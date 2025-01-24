@@ -63,6 +63,11 @@ contract Folio is
     bytes32 public constant VIBES_OFFICER = keccak256("VIBES_OFFICER"); // optional: no permissions
 
     /**
+     * Mandate
+     */
+    string public mandate;
+
+    /**
      */
     EnumerableSet.AddressSet private basket;
 
@@ -91,7 +96,8 @@ contract Folio is
     uint256 public auctionLength; // {s}
     uint256 public tradeDelay; // {s}
     Trade[] public trades;
-    mapping(address => uint256) public tradeEnds; // {s}
+    mapping(address => uint256) public sellEnds; // {s}
+    mapping(address => uint256) public buyEnds; // {s}
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -114,26 +120,22 @@ contract Folio is
         _setMintingFee(_additionalDetails.mintingFee);
         _setTradeDelay(_additionalDetails.tradeDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
+        _setMandate(_additionalDetails.mandate);
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 
+        require(_basicDetails.initialShares != 0, Folio__ZeroInitialShares());
+
         uint256 assetLength = _basicDetails.assets.length;
-        if (assetLength == 0) {
-            revert Folio__EmptyAssets();
-        }
+        require(assetLength != 0, Folio__EmptyAssets());
 
         for (uint256 i; i < assetLength; i++) {
-            if (_basicDetails.assets[i] == address(0)) {
-                revert Folio__InvalidAsset();
-            }
+            require(_basicDetails.assets[i] != address(0), Folio__InvalidAsset());
 
             uint256 assetBalance = IERC20(_basicDetails.assets[i]).balanceOf(address(this));
-            if (assetBalance == 0) {
-                revert Folio__InvalidAssetAmount(_basicDetails.assets[i]);
-            }
+            require(assetBalance != 0, Folio__InvalidAssetAmount(_basicDetails.assets[i]));
 
-            emit BasketTokenAdded(_basicDetails.assets[i]);
-            basket.add(address(_basicDetails.assets[i]));
+            _addToBasket(_basicDetails.assets[i]);
         }
 
         lastPoke = block.timestamp;
@@ -148,15 +150,11 @@ contract Folio is
     // ==== Governance ====
 
     function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(basket.add(address(token)), Folio__BasketModificationFailed());
-
-        emit BasketTokenAdded(address(token));
+        require(_addToBasket(address(token)), Folio__BasketModificationFailed());
     }
 
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(basket.remove(address(token)), Folio__BasketModificationFailed());
-
-        emit BasketTokenRemoved(address(token));
+        require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
     }
 
     /// An annual folio fee below 15 bps will result in the entirety of the fee being sent to the DAO
@@ -195,6 +193,10 @@ contract Folio is
         _setAuctionLength(_newLength);
     }
 
+    function setMandate(string calldata _newMandate) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setMandate(_newMandate);
+    }
+
     function killFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
         isKilled = true;
 
@@ -230,9 +232,7 @@ contract Folio is
         uint256 shares,
         Math.Rounding rounding
     ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
-        if (_reentrancyGuardEntered()) {
-            revert ReentrancyGuardReentrantCall();
-        }
+        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
 
         return _toAssets(shares, rounding);
     }
@@ -302,18 +302,11 @@ contract Folio is
         _burn(msg.sender, shares);
 
         uint256 len = _assets.length;
-        if (len != assets.length || len != minAmountsOut.length) {
-            revert Folio__InvalidArrayLengths();
-        }
+        require(len == assets.length && len == minAmountsOut.length, Folio__InvalidArrayLengths());
 
         for (uint256 i; i < len; i++) {
-            if (_assets[i] != assets[i]) {
-                revert Folio__InvalidAsset();
-            }
-
-            if (_amounts[i] < minAmountsOut[i]) {
-                revert Folio__InvalidAssetAmount(_assets[i]);
-            }
+            require(_assets[i] == assets[i], Folio__InvalidAsset());
+            require(_amounts[i] >= minAmountsOut[i], Folio__InvalidAssetAmount(_assets[i]));
 
             if (_amounts[i] != 0) {
                 SafeERC20.safeTransfer(IERC20(_assets[i]), receiver, _amounts[i]);
@@ -409,7 +402,6 @@ contract Folio is
         bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
     }
 
-    /// @param tradeId Use to ensure expected ordering
     /// @param sell The token to sell, from the perspective of the Folio
     /// @param buy The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
@@ -419,7 +411,6 @@ contract Folio is
     ///     (once opened, it always finishes).
     ///     Must be longer than tradeDelay if intended to be permissionlessly available.
     function approveTrade(
-        uint256 tradeId,
         IERC20 sell,
         IERC20 buy,
         Range calldata sellLimit,
@@ -429,40 +420,31 @@ contract Folio is
     ) external nonReentrant onlyRole(TRADE_PROPOSER) {
         require(!isKilled, Folio__FolioKilled());
 
-        if (trades.length != tradeId) {
-            revert Folio__InvalidTradeId();
-        }
+        require(
+            address(sell) != address(0) && address(buy) != address(0) && address(sell) != address(buy),
+            Folio__InvalidTradeTokens()
+        );
 
-        if (address(sell) == address(0) || address(buy) == address(0) || address(sell) == address(buy)) {
-            revert Folio__InvalidTradeTokens();
-        }
+        require(
+            sellLimit.spot <= MAX_RATE &&
+                sellLimit.high <= MAX_RATE &&
+                sellLimit.low <= sellLimit.spot &&
+                sellLimit.high >= sellLimit.spot,
+            Folio__InvalidSellLimit()
+        );
 
-        if (
-            sellLimit.spot > MAX_RATE ||
-            sellLimit.high > MAX_RATE ||
-            sellLimit.low > sellLimit.spot ||
-            sellLimit.high < sellLimit.spot
-        ) {
-            revert Folio__InvalidSellLimit();
-        }
+        require(
+            buyLimit.spot != 0 &&
+                buyLimit.spot <= MAX_RATE &&
+                buyLimit.high <= MAX_RATE &&
+                buyLimit.low <= buyLimit.spot &&
+                buyLimit.high >= buyLimit.spot,
+            Folio__InvalidBuyLimit()
+        );
 
-        if (
-            buyLimit.spot == 0 ||
-            buyLimit.spot > MAX_RATE ||
-            buyLimit.high > MAX_RATE ||
-            buyLimit.low > buyLimit.spot ||
-            buyLimit.high < buyLimit.spot
-        ) {
-            revert Folio__InvalidBuyLimit();
-        }
+        require(prices.start >= prices.end, Folio__InvalidPrices());
 
-        if (prices.start < prices.end) {
-            revert Folio__InvalidPrices();
-        }
-
-        if (ttl > MAX_TTL) {
-            revert Folio__InvalidTradeTTL();
-        }
+        require(ttl <= MAX_TTL, Folio__InvalidTradeTTL());
 
         Trade memory trade = Trade({
             id: trades.length,
@@ -480,7 +462,7 @@ contract Folio is
 
         trades.push(trade);
 
-        emit TradeApproved(tradeId, address(sell), address(buy), trade);
+        emit TradeApproved(trade.id, address(sell), address(buy), trade);
     }
 
     /// Open a trade as the trade launcher
@@ -503,21 +485,16 @@ contract Folio is
         //   - raise starting price by up to 100x
         //   - raise ending price arbitrarily (can cause auction not to clear, same as killing)
 
-        if (
-            startPrice < trade.prices.start ||
-            endPrice < trade.prices.end ||
-            (trade.prices.start != 0 && startPrice > 100 * trade.prices.start)
-        ) {
-            revert Folio__InvalidPrices();
-        }
+        require(
+            startPrice >= trade.prices.start &&
+                endPrice >= trade.prices.end &&
+                (trade.prices.start == 0 || startPrice <= 100 * trade.prices.start),
+            Folio__InvalidPrices()
+        );
 
-        if (sellLimit < trade.sellLimit.low || sellLimit > trade.sellLimit.high) {
-            revert Folio__InvalidSellLimit();
-        }
+        require(sellLimit >= trade.sellLimit.low && sellLimit <= trade.sellLimit.high, Folio__InvalidSellLimit());
 
-        if (buyLimit < trade.buyLimit.low || buyLimit > trade.buyLimit.high) {
-            revert Folio__InvalidBuyLimit();
-        }
+        require(buyLimit >= trade.buyLimit.low && buyLimit <= trade.buyLimit.high, Folio__InvalidBuyLimit());
 
         trade.sellLimit.spot = sellLimit;
         trade.buyLimit.spot = buyLimit;
@@ -533,9 +510,7 @@ contract Folio is
         Trade storage trade = trades[tradeId];
 
         // only open trades that have not timed out (ttl check)
-        if (block.timestamp < trade.availableAt) {
-            revert Folio__TradeCannotBeOpenedPermissionlesslyYet();
-        }
+        require(block.timestamp >= trade.availableAt, Folio__TradeCannotBeOpenedPermissionlesslyYet());
 
         _openTrade(trade);
     }
@@ -564,9 +539,7 @@ contract Folio is
 
         // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
         boughtAmt = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
-        if (boughtAmt > maxBuyAmount) {
-            revert Folio__SlippageExceeded();
-        }
+        require(boughtAmt <= maxBuyAmount, Folio__SlippageExceeded());
 
         // TODO think about fee shares inflating supply over time
         uint256 _totalSupply = totalSupply();
@@ -577,12 +550,10 @@ contract Folio is
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // ensure auction is large enough to cover bid
-        if (sellAmount > sellAvailable) {
-            revert Folio__InsufficientBalance();
-        }
+        require(sellAmount <= sellAvailable, Folio__InsufficientBalance());
 
         // put buy token in basket
-        basket.add(address(trade.buy));
+        _addToBasket(address(trade.buy));
 
         // pay bidder
         trade.sell.safeTransfer(msg.sender, sellAmount);
@@ -591,10 +562,9 @@ contract Folio is
 
         // QoL feature: close auction and eject token from basket if we have sold all of it
         if (trade.sell.balanceOf(address(this)) == 0) {
-            basket.remove(address(trade.sell));
+            _removeFromBasket(address(trade.sell));
+
             trade.end = block.timestamp;
-            tradeEnds[address(trade.sell)] = block.timestamp;
-            tradeEnds[address(trade.buy)] = block.timestamp;
         }
 
         // collect payment from bidder
@@ -603,9 +573,7 @@ contract Folio is
 
             IBidderCallee(msg.sender).bidCallback(address(trade.buy), boughtAmt, data);
 
-            if (trade.buy.balanceOf(address(this)) - balBefore < boughtAmt) {
-                revert Folio__InsufficientBid();
-            }
+            require(trade.buy.balanceOf(address(this)) - balBefore >= boughtAmt, Folio__InsufficientBid());
         } else {
             trade.buy.safeTransferFrom(msg.sender, address(this), boughtAmt);
         }
@@ -614,25 +582,18 @@ contract Folio is
         uint256 maxBuyBal = Math.mulDiv(trade.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
 
         // ensure post-bid buy balance does not exceed max
-        if (trade.buy.balanceOf(address(this)) > maxBuyBal) {
-            revert Folio__ExcessiveBid();
-        }
+        require(trade.buy.balanceOf(address(this)) <= maxBuyBal, Folio__ExcessiveBid());
     }
 
     /// Kill a trade
     /// A trade can be killed anywhere in its lifecycle, and cannot be restarted
     /// @dev Callable by TRADE_PROPOSER or TRADE_LAUNCHER
     function killTrade(uint256 tradeId) external nonReentrant {
-        if (!hasRole(TRADE_PROPOSER, msg.sender) && !hasRole(TRADE_LAUNCHER, msg.sender)) {
-            revert Folio__Unauthorized();
-        }
+        require(hasRole(TRADE_PROPOSER, msg.sender) || hasRole(TRADE_LAUNCHER, msg.sender), Folio__Unauthorized());
 
         // do not revert, to prevent griefing
+        trades[tradeId].end = 1;
 
-        Trade storage trade = trades[tradeId];
-        trade.end = 1;
-        tradeEnds[address(trade.sell)] = block.timestamp;
-        tradeEnds[address(trade.buy)] = block.timestamp;
         emit TradeKilled(tradeId);
     }
 
@@ -661,33 +622,30 @@ contract Folio is
         require(!isKilled, Folio__FolioKilled());
 
         // only open APPROVED trades
-        if (trade.start != 0 || trade.end != 0) {
-            revert Folio__TradeCannotBeOpened();
-        }
+        require(trade.start == 0 && trade.end == 0, Folio__TradeCannotBeOpened());
 
         // do not open trades that have timed out from ttl
-        if (block.timestamp > trade.launchTimeout) {
-            revert Folio__TradeTimeout();
-        }
+        require(block.timestamp <= trade.launchTimeout, Folio__TradeTimeout());
 
-        // ensure no conflicting trades by token
+        // ensure no conflicting tokens across trades (same sell or sell buy is okay)
         // necessary to prevent dutch auctions from taking losses
-        if (block.timestamp <= tradeEnds[address(trade.sell)] || block.timestamp <= tradeEnds[address(trade.buy)]) {
-            revert Folio__TradeCollision();
-        }
-        tradeEnds[address(trade.sell)] = trade.end;
-        tradeEnds[address(trade.buy)] = trade.end;
+        require(
+            block.timestamp > sellEnds[address(trade.buy)] && block.timestamp > buyEnds[address(trade.sell)],
+            Folio__TradeCollision()
+        );
+
+        sellEnds[address(trade.sell)] = Math.max(sellEnds[address(trade.sell)], block.timestamp + auctionLength);
+        buyEnds[address(trade.buy)] = Math.max(buyEnds[address(trade.buy)], block.timestamp + auctionLength);
 
         // ensure valid price range (startPrice == endPrice is valid)
-        if (
-            trade.prices.start < trade.prices.end ||
-            trade.prices.start == 0 ||
-            trade.prices.end == 0 ||
-            trade.prices.start > MAX_RATE ||
-            trade.prices.start / trade.prices.end > MAX_PRICE_RANGE
-        ) {
-            revert Folio__InvalidPrices();
-        }
+        require(
+            trade.prices.start >= trade.prices.end &&
+                trade.prices.start != 0 &&
+                trade.prices.end != 0 &&
+                trade.prices.start <= MAX_RATE &&
+                trade.prices.start / trade.prices.end <= MAX_PRICE_RANGE,
+            Folio__InvalidPrices()
+        );
 
         trade.start = block.timestamp;
         trade.end = block.timestamp + auctionLength;
@@ -703,9 +661,8 @@ contract Folio is
     /// @return p D27{buyTok/sellTok}
     function _price(Trade storage trade, uint256 timestamp) internal view returns (uint256 p) {
         // ensure auction is ongoing
-        if (timestamp < trade.start || timestamp > trade.end) {
-            revert Folio__TradeNotOngoing();
-        }
+        require(timestamp >= trade.start && timestamp <= trade.end, Folio__TradeNotOngoing());
+
         if (timestamp == trade.start) {
             return trade.prices.start;
         }
@@ -767,26 +724,20 @@ contract Folio is
     /// @dev Set folio fee by annual percentage
     /// @param _newFeeAnnually D18{1/s}
     function _setFolioFee(uint256 _newFeeAnnually) internal {
-        if (_newFeeAnnually > MAX_FOLIO_FEE) {
-            revert Folio__FolioFeeTooHigh();
-        }
+        require(_newFeeAnnually <= MAX_FOLIO_FEE, Folio__FolioFeeTooHigh());
 
         // convert annual percentage to per-second
         // D18{1/s} = D18{1} - D18{1} * D18{1} ^ {s}
         // = 1 - (1 - newFeeAnnually) ^ (1 / 31536000)
         folioFee = D18 - UD60x18.wrap(D18 - _newFeeAnnually).pow(ANNUALIZATION_EXP).unwrap();
 
-        if (_newFeeAnnually != 0 && folioFee == 0) {
-            revert Folio__FolioFeeTooLow();
-        }
+        require(_newFeeAnnually == 0 || folioFee != 0, Folio__FolioFeeTooLow());
 
         emit FolioFeeSet(folioFee, _newFeeAnnually);
     }
 
     function _setMintingFee(uint256 _newFee) internal {
-        if (_newFee > MAX_MINTING_FEE) {
-            revert Folio__MintingFeeTooHigh();
-        }
+        require(_newFee <= MAX_MINTING_FEE, Folio__MintingFeeTooHigh());
 
         mintingFee = _newFee;
         emit MintingFeeSet(_newFee);
@@ -802,20 +753,13 @@ contract Folio is
         // Add new items to the fee table
         uint256 total;
         len = _feeRecipients.length;
-        if (len > MAX_FEE_RECIPIENTS) {
-            revert Folio__TooManyFeeRecipients();
-        }
+        require(len <= MAX_FEE_RECIPIENTS, Folio__TooManyFeeRecipients());
 
         address previousRecipient;
 
         for (uint256 i; i < len; i++) {
-            if (_feeRecipients[i].recipient <= previousRecipient) {
-                revert Folio__FeeRecipientInvalidAddress();
-            }
-
-            if (_feeRecipients[i].portion == 0) {
-                revert Folio__FeeRecipientInvalidFeeShare();
-            }
+            require(_feeRecipients[i].recipient > previousRecipient, Folio__FeeRecipientInvalidAddress());
+            require(_feeRecipients[i].portion != 0, Folio__FeeRecipientInvalidFeeShare());
 
             total += _feeRecipients[i].portion;
             previousRecipient = _feeRecipients[i].recipient;
@@ -824,26 +768,26 @@ contract Folio is
         }
 
         // ensure table adds up to 100%
-        if (total != D18) {
-            revert Folio__BadFeeTotal();
-        }
+        require(total == D18, Folio__BadFeeTotal());
     }
 
     function _setTradeDelay(uint256 _newDelay) internal {
-        if (_newDelay > MAX_TRADE_DELAY) {
-            revert Folio__InvalidTradeDelay();
-        }
+        require(_newDelay <= MAX_TRADE_DELAY, Folio__InvalidTradeDelay());
+
         tradeDelay = _newDelay;
         emit TradeDelaySet(_newDelay);
     }
 
     function _setAuctionLength(uint256 _newLength) internal {
-        if (_newLength < MIN_AUCTION_LENGTH || _newLength > MAX_AUCTION_LENGTH) {
-            revert Folio__InvalidAuctionLength();
-        }
+        require(_newLength >= MIN_AUCTION_LENGTH && _newLength <= MAX_AUCTION_LENGTH, Folio__InvalidAuctionLength());
 
         auctionLength = _newLength;
         emit AuctionLengthSet(auctionLength);
+    }
+
+    function _setMandate(string memory _newMandate) internal {
+        mandate = _newMandate;
+        emit MandateSet(_newMandate);
     }
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
@@ -854,5 +798,18 @@ contract Folio is
 
         (daoPendingFeeShares, feeRecipientsPendingFeeShares) = _getPendingFeeShares();
         lastPoke = block.timestamp;
+    }
+
+    function _addToBasket(address token) internal returns (bool) {
+        require(token != address(0), Folio__InvalidAsset());
+        emit BasketTokenAdded(token);
+
+        return basket.add(token);
+    }
+
+    function _removeFromBasket(address token) internal returns (bool) {
+        emit BasketTokenRemoved(token);
+
+        return basket.remove(token);
     }
 }
