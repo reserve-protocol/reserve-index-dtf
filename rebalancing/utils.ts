@@ -1,4 +1,6 @@
-import { D9, D9n, D18n, D27, D27n } from "./numbers";
+import { Decimal } from "decimal.js";
+
+import { D9, D9d, D9n, D18n, D27, D27n, D27d } from "./numbers";
 
 /**
  * @param limit D27{tok/share} Range.buyLimit or Range.sellLimit
@@ -15,15 +17,20 @@ export const getBasketPortion = (
   _sharePrice: number,
 ): [number, bigint] => {
   // D27{USD/share} = {USD/wholeShare} * D27 / {share/wholeShare}
-  const sharePrice = BigInt(_sharePrice * D9);
+  const sharePrice = BigInt(new Decimal(_sharePrice).mul(D9d).toFixed(0));
 
   // D27{USD/tok} = {USD/wholeTok} * D27 / {tok/wholeTok}
-  const price = BigInt(_price * D27) / 10n ** decimals;
+  const price = BigInt(
+    new Decimal(_price)
+      .mul(D27d)
+      .div(new Decimal(`1e${decimals}`))
+      .toFixed(),
+  );
 
   // D27{1} = D27{tok/share} * D27{USD/tok} / D27{USD/share}
   const portion = (limit * price) / sharePrice;
 
-  return [Number(portion) / D27, portion];
+  return [new Decimal(portion.toString()).div(D27d).toNumber(), portion];
 };
 
 /**
@@ -34,7 +41,14 @@ export const getBasketPortion = (
  */
 export const getCurrentBasket = (bals: bigint[], decimals: bigint[], _prices: number[]): bigint[] => {
   // D27{USD/tok} = {USD/wholeTok} * D27 / {tok/wholeTok}
-  const prices = _prices.map((a, i) => BigInt(a * D27) / 10n ** decimals[i]);
+  const prices = _prices.map((a, i) =>
+    BigInt(
+      new Decimal(a)
+        .mul(D27d)
+        .div(new Decimal(`1e${decimals[i]}`))
+        .toFixed(0),
+    ),
+  );
 
   // D27{USD} = {tok} * D27{USD/tok}
   const values = bals.map((bal, i) => bal * prices[i]);
@@ -61,14 +75,22 @@ export const getSharePricing = (
   _prices: number[],
 ): [bigint, number] => {
   // D27{USD/tok} = {USD/wholeTok} * D27 / {tok/wholeTok}
-  const prices = _prices.map((a, i) => BigInt(a * D27) / 10n ** decimals[i]);
+  const prices = _prices.map((a, i) =>
+    BigInt(
+      new Decimal(a)
+        .mul(D27d)
+        .div(new Decimal(`1e${decimals[i]}`))
+        .toFixed(0),
+    ),
+  );
 
   // D27{USD} = {tok} * D27{USD/tok}
   const values = bals.map((bal, i) => bal * prices[i]);
   const total = values.reduce((a, b) => a + b);
 
   // {USD/wholeShare} = D27{USD} / (D18{wholeShare} * D9)
-  const per = Number(total) / Number(supply * D9n);
+  // const per = Number(total) / Number(supply * D9n);
+  const per = new Decimal(total.toString()).div(new Decimal(supply.toString()).mul(D9d)).toNumber();
 
   return [total, per];
 };

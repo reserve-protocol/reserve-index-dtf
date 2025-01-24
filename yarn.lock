@@ -702,6 +702,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"decimal.js@npm:^10.5.0":
+  version: 10.5.0
+  resolution: "decimal.js@npm:10.5.0"
+  checksum: 10c0/785c35279df32762143914668df35948920b6c1c259b933e0519a69b7003fc0a5ed2a766b1e1dda02574450c566b21738a45f15e274b47c2ac02072c0d1f3ac3
+  languageName: node
+  linkType: hard
+
 "decompress-response@npm:^6.0.0":
   version: 6.0.0
   resolution: "decompress-response@npm:6.0.0"
@@ -939,6 +946,7 @@ __metadata:
     "@openzeppelin/contracts": "npm:^5.1.0"
     "@openzeppelin/contracts-upgradeable": "npm:^5.1.0"
     "@prb/math": "npm:^4.1.0"
+    decimal.js: "npm:^10.5.0"
     expect: "npm:^29.7.0"
     forge-std: "github:foundry-rs/forge-std#v1.9.4"
     prettier: "npm:^3.4.2"

@@ -1,5 +1,7 @@
+import { Decimal } from "decimal.js";
+
 import { Trade } from "./types";
-import { D9, D18n, D27, D27n } from "./numbers";
+import { D9, D9d, D27, D27d, D27n } from "./numbers";
 import { makeTrade } from "./utils";
 
 /**
@@ -35,10 +37,17 @@ export const getTrades = (
   // convert price number inputs to bigints
 
   // D27{USD/tok} = {USD/wholeTok} * D27 / {tok/wholeTok}
-  const prices = _prices.map((a, i) => BigInt(a * 10 ** (27 - Number(decimals[i]))));
+  const prices = _prices.map((a, i) =>
+    BigInt(
+      new Decimal(a)
+        .mul(D27d)
+        .div(new Decimal(`1e${decimals[i]}`))
+        .toFixed(0),
+    ),
+  );
 
   // D27{1} = {1} * D27
-  const priceError = _priceError.map((a) => BigInt(a * D27));
+  const priceError = _priceError.map((a) => BigInt(new Decimal(a).mul(D27d).toFixed(0)));
 
   // upscale currentBasket and targetBasket to D27
 
@@ -51,12 +60,12 @@ export const getTrades = (
   console.log("--------------------------------------------------------------------------------");
 
   // D27{USD} = {USD/wholeShare} * D27 * {share} / {share/wholeShare}
-  const sharesValue = BigInt(_dtfPrice * D9) * supply;
+  const sharesValue = BigInt(new Decimal(_dtfPrice).mul(D9d).toFixed(0)) * supply;
 
   console.log("sharesValue", sharesValue);
 
   // queue up trades until there are no more trades-to-make greater than tolerance in size
-  //
+  //n
   // trades returned will never be longer than tokens.length - 1
   // proof left as an exercise to the reader
 
@@ -118,6 +127,8 @@ export const getTrades = (
     if (priceError[x] > D27n || priceError[y] > D27n) {
       throw new Error("price error too large");
     }
+
+    console.log("zero", prices[x], supply, prices[y]);
 
     // D27{tok/share} = D27{1} * D27{USD} / D27{USD/tok} / {share}
     const sellLimit = ((targetBasket[x] * sharesValue + prices[x] - 1n) / prices[x] + supply - 1n) / supply;

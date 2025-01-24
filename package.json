@@ -10,6 +10,7 @@
     "forge-std": "github:foundry-rs/forge-std#v1.9.4"
   },
   "devDependencies": {
+    "decimal.js": "^10.5.0",
     "expect": "^29.7.0",
     "prettier": "^3.4.2",
     "prettier-plugin-solidity": "^1.4.2",

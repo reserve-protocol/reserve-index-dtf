@@ -1,5 +1,7 @@
+import { Decimal } from "decimal.js";
+
 import { Trade } from "./types";
-import { D9, D9n, D27, D27n } from "./numbers";
+import { D9, D9d, D9n, D27, D27d, D27n } from "./numbers";
 import { getBasketPortion } from "./utils";
 
 /**
@@ -27,7 +29,14 @@ export const getBasket = (
   // convert price number inputs to bigints
 
   // D27{USD/tok} = {USD/wholeTok} * D27 / {tok/wholeTok}
-  const prices = _prices.map((a, i) => BigInt(a * 10 ** (27 - Number(decimals[i]))));
+  const prices = _prices.map((a, i) =>
+    BigInt(
+      new Decimal(a)
+        .mul(D27d)
+        .div(new Decimal(`1e${decimals[i]}`))
+        .toFixed(0),
+    ),
+  );
 
   // upscale currentBasket and targetBasket to D27
 
@@ -37,7 +46,7 @@ export const getBasket = (
   console.log("--------------------------------------------------------------------------------");
 
   // D27{USD} = {USD/wholeShare} * D27 * {share} / {share/wholeShare}
-  const sharesValue = BigInt(_dtfPrice * D9) * supply;
+  const sharesValue = BigInt(new Decimal(_dtfPrice).mul(D9d).toFixed(0)) * supply;
 
   console.log("sharesValue", sharesValue);
 
