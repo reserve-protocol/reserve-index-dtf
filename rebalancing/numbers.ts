@@ -9,9 +9,5 @@ export const D18d: Decimal = new Decimal("1e18");
 export const D9d: Decimal = new Decimal("1e9");
 
 export const bn = (str: string): bigint => {
-  if (typeof str !== "string") {
-    return BigInt(str);
-  }
-
   return BigInt(new Decimal(str).toFixed(0));
 };
