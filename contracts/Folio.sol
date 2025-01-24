@@ -128,13 +128,13 @@ contract Folio is
         require(_basicDetails.initialShares != 0, Folio__ZeroInitialShares());
 
         uint256 assetLength = _basicDetails.assets.length;
-        require(assetLength > 0, Folio__EmptyAssets());
+        require(assetLength != 0, Folio__EmptyAssets());
 
         for (uint256 i; i < assetLength; i++) {
             require(_basicDetails.assets[i] != address(0), Folio__InvalidAsset());
 
             uint256 assetBalance = IERC20(_basicDetails.assets[i]).balanceOf(address(this));
-            require(assetBalance > 0, Folio__InvalidAssetAmount(_basicDetails.assets[i]));
+            require(assetBalance != 0, Folio__InvalidAssetAmount(_basicDetails.assets[i]));
 
             _addToBasket(_basicDetails.assets[i]);
         }
