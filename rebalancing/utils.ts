@@ -1,6 +1,6 @@
 import { Decimal } from "decimal.js";
 
-import { D9, D9d, D9n, D18n, D27, D27n, D27d } from "./numbers";
+import { D9d, D18n, D27n, D27d } from "./numbers";
 
 /**
  * @param limit D27{tok/share} Range.buyLimit or Range.sellLimit
