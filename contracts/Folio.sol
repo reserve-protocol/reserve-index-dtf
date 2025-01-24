@@ -64,6 +64,11 @@ contract Folio is
     bytes32 public constant VIBES_OFFICER = keccak256("VIBES_OFFICER"); // optional: no permissions
 
     /**
+     * Mandate
+     */
+    string public mandate;
+
+    /**
      */
     EnumerableSet.AddressSet private basket;
 
@@ -92,7 +97,8 @@ contract Folio is
     uint256 public auctionLength; // {s}
     uint256 public tradeDelay; // {s}
     Trade[] public trades;
-    mapping(address => uint256) public tradeEnds; // {s}
+    mapping(address => uint256) public sellEnds; // {s}
+    mapping(address => uint256) public buyEnds; // {s}
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -115,8 +121,13 @@ contract Folio is
         _setMintingFee(_additionalDetails.mintingFee);
         _setTradeDelay(_additionalDetails.tradeDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
+        _setMandate(_additionalDetails.mandate);
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
+
+        if (_basicDetails.initialShares == 0) {
+            revert Folio__ZeroInitialShares();
+        }
 
         uint256 assetLength = _basicDetails.assets.length;
         if (assetLength == 0) {
@@ -133,8 +144,7 @@ contract Folio is
                 revert Folio__InvalidAssetAmount(_basicDetails.assets[i]);
             }
 
-            emit BasketTokenAdded(_basicDetails.assets[i]);
-            basket.add(address(_basicDetails.assets[i]));
+            _addToBasket(_basicDetails.assets[i]);
         }
 
         lastPoke = block.timestamp;
@@ -149,15 +159,11 @@ contract Folio is
     // ==== Governance ====
 
     function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(basket.add(address(token)), Folio__BasketModificationFailed());
-
-        emit BasketTokenAdded(address(token));
+        require(_addToBasket(address(token)), Folio__BasketModificationFailed());
     }
 
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(basket.remove(address(token)), Folio__BasketModificationFailed());
-
-        emit BasketTokenRemoved(address(token));
+        require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
     }
 
     /// @dev Non-reentrant via distributeFees()
@@ -193,6 +199,10 @@ contract Folio is
     /// @param _newLength {s} Length of an auction
     function setAuctionLength(uint256 _newLength) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         _setAuctionLength(_newLength);
+    }
+
+    function setMandate(string calldata _newMandate) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setMandate(_newMandate);
     }
 
     function killFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -411,7 +421,6 @@ contract Folio is
         bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
     }
 
-    /// @param tradeId Use to ensure expected ordering
     /// @param sell The token to sell, from the perspective of the Folio
     /// @param buy The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
@@ -421,7 +430,6 @@ contract Folio is
     ///     (once opened, it always finishes).
     ///     Must be longer than tradeDelay if intended to be permissionlessly available.
     function approveTrade(
-        uint256 tradeId,
         IERC20 sell,
         IERC20 buy,
         Range calldata sellLimit,
@@ -430,10 +438,6 @@ contract Folio is
         uint256 ttl
     ) external nonReentrant onlyRole(TRADE_PROPOSER) {
         require(!isKilled, Folio__FolioKilled());
-
-        if (trades.length != tradeId) {
-            revert Folio__InvalidTradeId();
-        }
 
         if (address(sell) == address(0) || address(buy) == address(0) || address(sell) == address(buy)) {
             revert Folio__InvalidTradeTokens();
@@ -482,7 +486,7 @@ contract Folio is
 
         trades.push(trade);
 
-        emit TradeApproved(tradeId, address(sell), address(buy), trade);
+        emit TradeApproved(trade.id, address(sell), address(buy), trade);
     }
 
     /// Open a trade as the trade launcher
@@ -584,7 +588,7 @@ contract Folio is
         }
 
         // put buy token in basket
-        basket.add(address(trade.buy));
+        _addToBasket(address(trade.buy));
 
         // pay bidder
         trade.sell.safeTransfer(msg.sender, sellAmount);
@@ -593,10 +597,9 @@ contract Folio is
 
         // QoL feature: close auction and eject token from basket if we have sold all of it
         if (trade.sell.balanceOf(address(this)) == 0) {
-            basket.remove(address(trade.sell));
+            _removeFromBasket(address(trade.sell));
+
             trade.end = block.timestamp;
-            tradeEnds[address(trade.sell)] = block.timestamp;
-            tradeEnds[address(trade.buy)] = block.timestamp;
         }
 
         // collect payment from bidder
@@ -630,11 +633,8 @@ contract Folio is
         }
 
         // do not revert, to prevent griefing
+        trades[tradeId].end = 1;
 
-        Trade storage trade = trades[tradeId];
-        trade.end = 1;
-        tradeEnds[address(trade.sell)] = block.timestamp;
-        tradeEnds[address(trade.buy)] = block.timestamp;
         emit TradeKilled(tradeId);
     }
 
@@ -672,13 +672,13 @@ contract Folio is
             revert Folio__TradeTimeout();
         }
 
-        // ensure no conflicting trades by token
+        // ensure no conflicting tokens across trades (same sell or sell buy is okay)
         // necessary to prevent dutch auctions from taking losses
-        if (block.timestamp <= tradeEnds[address(trade.sell)] || block.timestamp <= tradeEnds[address(trade.buy)]) {
+        if (block.timestamp <= sellEnds[address(trade.buy)] || block.timestamp <= buyEnds[address(trade.sell)]) {
             revert Folio__TradeCollision();
         }
-        tradeEnds[address(trade.sell)] = trade.end;
-        tradeEnds[address(trade.buy)] = trade.end;
+        sellEnds[address(trade.sell)] = Math.max(sellEnds[address(trade.sell)], block.timestamp + auctionLength);
+        buyEnds[address(trade.buy)] = Math.max(buyEnds[address(trade.buy)], block.timestamp + auctionLength);
 
         // ensure valid price range (startPrice == endPrice is valid)
         if (
@@ -829,6 +829,11 @@ contract Folio is
         emit AuctionLengthSet(auctionLength);
     }
 
+    function _setMandate(string memory _newMandate) internal {
+        mandate = _newMandate;
+        emit MandateSet(_newMandate);
+    }
+
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
     function _poke() internal {
         if (lastPoke == block.timestamp) {
@@ -837,5 +842,18 @@ contract Folio is
 
         (daoPendingFeeShares, feeRecipientsPendingFeeShares) = _getPendingFeeShares();
         lastPoke = block.timestamp;
+    }
+
+    function _addToBasket(address token) internal returns (bool) {
+        require(token != address(0), Folio__InvalidAsset());
+        emit BasketTokenAdded(token);
+
+        return basket.add(token);
+    }
+
+    function _removeFromBasket(address token) internal returns (bool) {
+        emit BasketTokenRemoved(token);
+
+        return basket.remove(token);
     }
 }

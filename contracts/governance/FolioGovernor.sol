@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts-upgradeable/governance/GovernorUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/governance/extensions/GovernorSettingsUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/governance/extensions/GovernorCountingSimpleUpgradeable.sol";
@@ -21,6 +22,8 @@ contract FolioGovernor is
     GovernorVotesQuorumFractionUpgradeable,
     GovernorTimelockControlUpgradeable
 {
+    error Governor__InvalidProposalThreshold();
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -39,6 +42,11 @@ contract FolioGovernor is
         __GovernorVotes_init(_token);
         __GovernorVotesQuorumFraction_init(quorumPercent);
         __GovernorTimelockControl_init(_timelock);
+    }
+
+    function setProposalThreshold(uint256 newProposalThreshold) public override {
+        require(newProposalThreshold <= 1e18, Governor__InvalidProposalThreshold());
+        super.setProposalThreshold(newProposalThreshold);
     }
 
     function votingDelay() public view override(GovernorUpgradeable, GovernorSettingsUpgradeable) returns (uint256) {
@@ -74,7 +82,7 @@ contract FolioGovernor is
         returns (uint256)
     {
         uint256 threshold = super.proposalThreshold(); // D18{1}
-        uint256 pastSupply = token().getPastTotalSupply(clock() - 1);
+        uint256 pastSupply = Math.max(1, token().getPastTotalSupply(clock() - 1));
 
         // CEIL to make sure thresholds near 0% don't get rounded down to 0 tokens
         return (threshold * pastSupply + (1e18 - 1)) / 1e18;

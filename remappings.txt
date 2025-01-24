@@ -11,4 +11,4 @@ utils/=test/utils/
 @folio/=contracts/folio/
 @gov/=contracts/governance/
 @staking/=contracts/staking/
-@deployer/=contract/deployer/
+@deployer/=contracts/deployer/
