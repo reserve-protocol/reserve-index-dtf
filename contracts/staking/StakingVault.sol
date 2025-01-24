@@ -135,12 +135,9 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
     /// @param _delay {s} New unstaking delay
     function _setUnstakingDelay(uint256 _delay) internal {
-        if (_delay > MAX_UNSTAKING_DELAY) {
-            revert Vault__InvalidUnstakingDelay();
-        }
+        require(_delay <= MAX_UNSTAKING_DELAY, Vault__InvalidUnstakingDelay());
 
         unstakingDelay = _delay;
-
         emit UnstakingDelaySet(_delay);
     }
 
@@ -149,17 +146,11 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
      */
     /// @param _rewardToken Reward token to add
     function addRewardToken(address _rewardToken) external onlyOwner {
-        if (_rewardToken == address(this) || _rewardToken == asset()) {
-            revert Vault__InvalidRewardToken(_rewardToken);
-        }
+        require(_rewardToken != address(this) && _rewardToken != asset(), Vault__InvalidRewardToken(_rewardToken));
 
-        if (disallowedRewardTokens[_rewardToken]) {
-            revert Vault__DisallowedRewardToken(_rewardToken);
-        }
+        require(!disallowedRewardTokens[_rewardToken], Vault__DisallowedRewardToken(_rewardToken));
 
-        if (!rewardTokens.add(_rewardToken)) {
-            revert Vault__RewardAlreadyRegistered();
-        }
+        require(rewardTokens.add(_rewardToken), Vault__RewardAlreadyRegistered());
 
         RewardInfo storage rewardInfo = rewardTrackers[_rewardToken];
 
@@ -173,9 +164,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     function removeRewardToken(address _rewardToken) external onlyOwner {
         disallowedRewardTokens[_rewardToken] = true;
 
-        if (!rewardTokens.remove(_rewardToken)) {
-            revert Vault__RewardNotRegistered();
-        }
+        require(rewardTokens.remove(_rewardToken), Vault__RewardNotRegistered());
 
         emit RewardTokenRemoved(_rewardToken);
     }
@@ -221,9 +210,10 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
     /// @param _rewardHalfLife {s}
     function _setRewardRatio(uint256 _rewardHalfLife) internal accrueRewards(msg.sender, msg.sender) {
-        if (_rewardHalfLife > MAX_REWARD_HALF_LIFE || _rewardHalfLife < MIN_REWARD_HALF_LIFE) {
-            revert Vault__InvalidRewardsHalfLife();
-        }
+        require(
+            _rewardHalfLife <= MAX_REWARD_HALF_LIFE && _rewardHalfLife >= MIN_REWARD_HALF_LIFE,
+            Vault__InvalidRewardsHalfLife()
+        );
 
         // D18{1/s} = D18{1} / {s}
         rewardRatio = LN_2 / _rewardHalfLife;

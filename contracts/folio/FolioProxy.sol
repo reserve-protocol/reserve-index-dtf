@@ -24,12 +24,8 @@ contract FolioProxyAdmin is Ownable {
     function upgradeToVersion(address proxyTarget, bytes32 versionHash, bytes memory data) external onlyOwner {
         IFolioVersionRegistry folioRegistry = IFolioVersionRegistry(versionRegistry);
 
-        if (folioRegistry.isDeprecated(versionHash)) {
-            revert VersionDeprecated();
-        }
-        if (address(folioRegistry.deployments(versionHash)) == address(0)) {
-            revert InvalidVersion();
-        }
+        require(!folioRegistry.isDeprecated(versionHash), VersionDeprecated());
+        require(address(folioRegistry.deployments(versionHash)) != address(0), InvalidVersion());
 
         address folioImpl = folioRegistry.getImplementationForVersion(versionHash);
 
@@ -56,13 +52,11 @@ contract FolioProxy is ERC1967Proxy {
 
     function _fallback() internal virtual override {
         if (msg.sender == ERC1967Utils.getAdmin()) {
-            if (msg.sig != ITransparentUpgradeableProxy.upgradeToAndCall.selector) {
-                revert ProxyDeniedAdminAccess();
-            } else {
-                (address newImplementation, bytes memory data) = abi.decode(msg.data[4:], (address, bytes));
+            require(msg.sig == ITransparentUpgradeableProxy.upgradeToAndCall.selector, ProxyDeniedAdminAccess());
 
-                ERC1967Utils.upgradeToAndCall(newImplementation, data);
-            }
+            (address newImplementation, bytes memory data) = abi.decode(msg.data[4:], (address, bytes));
+
+            ERC1967Utils.upgradeToAndCall(newImplementation, data);
         } else {
             super._fallback();
         }

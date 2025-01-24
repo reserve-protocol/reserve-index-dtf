@@ -20,28 +20,20 @@ contract FolioVersionRegistry is IFolioVersionRegistry {
     bytes32 private latestVersion;
 
     constructor(IRoleRegistry _roleRegistry) {
-        if (address(_roleRegistry) == address(0)) {
-            revert VersionRegistry__ZeroAddress();
-        }
+        require(address(_roleRegistry) != address(0), VersionRegistry__ZeroAddress());
 
         roleRegistry = _roleRegistry;
     }
 
     function registerVersion(IFolioDeployer folioDeployer) external {
-        if (!roleRegistry.isOwner(msg.sender)) {
-            revert VersionRegistry__InvalidCaller();
-        }
+        require(roleRegistry.isOwner(msg.sender), VersionRegistry__InvalidCaller());
 
-        if (address(folioDeployer) == address(0)) {
-            revert VersionRegistry__ZeroAddress();
-        }
+        require(address(folioDeployer) != address(0), VersionRegistry__ZeroAddress());
 
         string memory version = Versioned(address(folioDeployer)).version();
         bytes32 versionHash = keccak256(abi.encodePacked(version));
 
-        if (address(deployments[versionHash]) != address(0)) {
-            revert VersionRegistry__InvalidRegistration();
-        }
+        require(address(deployments[versionHash]) == address(0), VersionRegistry__InvalidRegistration());
 
         deployments[versionHash] = folioDeployer;
         latestVersion = versionHash;
@@ -50,13 +42,10 @@ contract FolioVersionRegistry is IFolioVersionRegistry {
     }
 
     function deprecateVersion(bytes32 versionHash) external {
-        if (!roleRegistry.isOwnerOrEmergencyCouncil(msg.sender)) {
-            revert VersionRegistry__InvalidCaller();
-        }
+        require(roleRegistry.isOwnerOrEmergencyCouncil(msg.sender), VersionRegistry__InvalidCaller());
 
-        if (isDeprecated[versionHash]) {
-            revert VersionRegistry__AlreadyDeprecated();
-        }
+        require(!isDeprecated[versionHash], VersionRegistry__AlreadyDeprecated());
+
         isDeprecated[versionHash] = true;
 
         emit VersionDeprecated(versionHash);
@@ -70,9 +59,7 @@ contract FolioVersionRegistry is IFolioVersionRegistry {
         versionHash = latestVersion;
         folioDeployer = deployments[versionHash];
 
-        if (address(folioDeployer) == address(0)) {
-            revert VersionRegistry__Unconfigured();
-        }
+        require(address(folioDeployer) != address(0), VersionRegistry__Unconfigured());
 
         version = Versioned(address(folioDeployer)).version();
         deprecated = isDeprecated[versionHash];
