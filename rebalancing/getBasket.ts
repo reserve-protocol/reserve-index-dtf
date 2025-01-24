@@ -1,7 +1,7 @@
 import { Decimal } from "decimal.js";
 
 import { Trade } from "./types";
-import { D18d, D27d } from "./numbers";
+import { D18d, D27d, ZERO } from "./numbers";
 
 /**
  * Get basket from a set of trades
@@ -74,15 +74,11 @@ export const getBasket = (
       console.log("buyTarget", buyTarget, currentBasket[y]);
 
       // {USD} = {1} * {USD}
-      let surplus = currentBasket[x].gt(sellTarget)
-        ? currentBasket[x].sub(sellTarget).mul(sharesValue)
-        : new Decimal("0");
-      const deficit = currentBasket[y].lt(buyTarget)
-        ? buyTarget.sub(currentBasket[y]).mul(sharesValue)
-        : new Decimal("0");
+      let surplus = currentBasket[x].gt(sellTarget) ? currentBasket[x].sub(sellTarget).mul(sharesValue) : ZERO;
+      const deficit = currentBasket[y].lt(buyTarget) ? buyTarget.sub(currentBasket[y]).mul(sharesValue) : ZERO;
       const tradeValue = surplus.gt(deficit) ? deficit : surplus;
 
-      if (tradeValue.gt(new Decimal("0")) && tradeValue.lt(smallestSwap)) {
+      if (tradeValue.gt(ZERO) && tradeValue.lt(smallestSwap)) {
         smallestSwap = tradeValue;
         tradeIndex = i;
       }

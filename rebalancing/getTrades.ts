@@ -1,7 +1,7 @@
 import { Decimal } from "decimal.js";
 
 import { Trade } from "./types";
-import { D18d, D27d } from "./numbers";
+import { D18d, D27d, ONE, TWO, ZERO } from "./numbers";
 import { makeTrade } from "./utils";
 
 /**
@@ -78,8 +78,8 @@ export const getTrades = (
     let y = tokens.length; // buy index
 
     // {USD}
-    let biggestSurplus = new Decimal("0");
-    let biggestDeficit = new Decimal("0");
+    let biggestSurplus = ZERO;
+    let biggestDeficit = ZERO;
 
     for (let i = 0; i < tokens.length; i++) {
       if (currentBasket[i].gt(targetBasket[i]) && currentBasket[i].sub(targetBasket[i]).gt(tolerance)) {
@@ -119,8 +119,8 @@ export const getTrades = (
     currentBasket[y] = currentBasket[y].add(backingTraded);
 
     // {1}
-    let avgPriceError = priceError[x].add(priceError[y]).div("2");
-    if (priceError[x].gt("1") || priceError[y].gt("1")) {
+    let avgPriceError = priceError[x].add(priceError[y]).div(TWO);
+    if (priceError[x].gt(ONE) || priceError[y].gt(ONE)) {
       throw new Error("price error too large");
     }
 
@@ -132,11 +132,10 @@ export const getTrades = (
     const price = prices[x].div(prices[y]);
 
     // {wholeBuyTok/wholeSellTok} = {wholeBuyTok/wholeSellTok} / {1}
-    const startPrice = price.div(new Decimal("1").sub(avgPriceError));
-    const endPrice = price.mul(new Decimal("1").sub(avgPriceError));
+    const startPrice = avgPriceError.eq(ONE) ? ZERO : price.div(ONE.sub(avgPriceError));
+    const endPrice = avgPriceError.eq(ONE) ? ZERO : price.mul(ONE.sub(avgPriceError));
 
     // add trade into set
-
     trades.push(
       makeTrade(
         tokens[x],
