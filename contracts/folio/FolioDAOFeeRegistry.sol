@@ -79,7 +79,7 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     }
 
     function setTokenFeeFloor(address fToken, uint256 _feeFloor) external onlyOwner {
-        if (_feeFloor > DEFAULT_FEE_FLOOR) {
+        if (_feeFloor > defaultFeeFloor) {
             revert FolioDAOFeeRegistry__InvalidFeeFloor();
         }
 
