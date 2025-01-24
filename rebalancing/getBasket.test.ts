@@ -19,7 +19,6 @@ const assertApproxEq = (a: bigint, b: bigint, precision: bigint) => {
 
 describe("getBasket()", () => {
   const supply = bn("1e21"); // 1000 supply
-  return;
   it("split: [100%, 0%, 0%] => [0%, 50%, 50%]", () => {
     const trades: Trade[] = [];
     trades.push(makeTrade("USDC", "DAI", bn("0"), bn("5e26"), bn("1.01e39"), bn("0.99e39")));
@@ -29,7 +28,7 @@ describe("getBasket()", () => {
     const decimals = [bn("6"), bn("18"), bn("6")];
     const currentBasket = [bn("1e18"), bn("0"), bn("0")];
     const prices = [1, 1, 1];
-    const targetBasket = getBasket(supply, trades, tokens, currentBasket, decimals, prices, 1);
+    const targetBasket = getBasket(supply, trades, tokens, decimals, currentBasket, prices, 1);
     expect(targetBasket.length).toBe(3);
     assertApproxEq(targetBasket[0], bn("0"), precision);
     assertApproxEq(targetBasket[1], bn("0.5e18"), precision);
@@ -44,7 +43,7 @@ describe("getBasket()", () => {
     const decimals = [bn("6"), bn("18"), bn("6")];
     const currentBasket = [bn("0"), bn("0.5e18"), bn("0.5e18")];
     const prices = [1, 1, 1];
-    const targetBasket = getBasket(supply, trades, tokens, currentBasket, decimals, prices, 1);
+    const targetBasket = getBasket(supply, trades, tokens, decimals, currentBasket, prices, 1);
     expect(targetBasket.length).toBe(3);
     assertApproxEq(targetBasket[0], bn("1e18"), precision);
     assertApproxEq(targetBasket[1], bn("0"), precision);
@@ -59,7 +58,7 @@ describe("getBasket()", () => {
     const decimals = [bn("6"), bn("18")];
     const currentBasket = [bn("0.25e18"), bn("0.75e18")];
     const prices = [1, 1];
-    const targetBasket = getBasket(supply, trades, tokens, currentBasket, decimals, prices, 1);
+    const targetBasket = getBasket(supply, trades, tokens, decimals, currentBasket, prices, 1);
     expect(targetBasket.length).toBe(2);
     assertApproxEq(targetBasket[0], bn("0.75e18"), precision);
     assertApproxEq(targetBasket[1], bn("0.25e18"), precision);
@@ -73,7 +72,7 @@ describe("getBasket()", () => {
     const decimals = [bn("6"), bn("18")];
     const currentBasket = [bn("0.25e18"), bn("0.75e18")];
     const prices = [1, 3000];
-    const targetBasket = getBasket(supply, trades, tokens, currentBasket, decimals, prices, 1);
+    const targetBasket = getBasket(supply, trades, tokens, decimals, currentBasket, prices, 1);
     expect(targetBasket.length).toBe(2);
     assertApproxEq(targetBasket[0], bn("0.75e18"), precision);
     assertApproxEq(targetBasket[1], bn("0.25e18"), precision);
@@ -101,7 +100,7 @@ describe("getBasket()", () => {
 
       trades.push(makeTrade(tokens[sellIndex], tokens[buyIndex], bn("0"), bn("1e54"), startPrice, endPrice));
 
-      const targetBasket = getBasket(supply, trades, tokens, currentBasket, decimals, prices, 1);
+      const targetBasket = getBasket(supply, trades, tokens, decimals, currentBasket, prices, 1);
       expect(targetBasket.length).toBe(tokens.length);
     }
   });
