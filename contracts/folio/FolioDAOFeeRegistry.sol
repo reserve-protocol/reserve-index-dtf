@@ -14,8 +14,12 @@ uint256 constant DEFAULT_FEE_FLOOR = 0.0015e18; // D18{1} 15 bps
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  * @notice FolioDAOFeeRegistry tracks the DAO fees that should be applied to each Folio
  *         The DAO fee is the % of the Folio fees should go to the DAO.
- *         The fee floor is a lower-bound on the fees that can be charged to Folio users, in case
- *         the Folio has set its fees too low.
+ *         The fee floor is a lower-bound on what can be charged to Folio users, in case
+ *         the Folio has set its own top-level fees too low.
+ *
+ *         For example, if the DAO fee is 50%, and the fee floor is 0.15%, then any folio fee
+ *         that is less than 0.30% will result in the DAO receiving 0.15% and the folo beneficiaries receiving
+ *         the folio fee minus 0.15%. At <=0.15% folio fee, the DAO receives 0.15% and folio beneficiaries receive 0%
  */
 contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     uint256 public constant FEE_DENOMINATOR = 1e18;
@@ -91,8 +95,10 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
         _setTokenFeeFloor(fToken, 0, false);
     }
 
-    /// @param feeNumerator D18{1}
-    /// @param feeDenominator D18{1}
+    /// @return recipient
+    /// @return feeNumerator D18{1}
+    /// @return feeDenominator D18{1}
+    /// @return feeFloor D18{1}
     function getFeeDetails(
         address fToken
     ) external view returns (address recipient, uint256 feeNumerator, uint256 feeDenominator, uint256 feeFloor) {
