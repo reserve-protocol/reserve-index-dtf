@@ -119,8 +119,8 @@ export const makeTrade = (
       high: avgPriceError >= D18n ? 10n ** 54n : (buyLimit * D18n + D18n - avgPriceError - 1n) / (D18n - avgPriceError),
     },
     prices: {
-      start: startPrice,
-      end: endPrice,
+      start: avgPriceError == D18n ? 0n : startPrice,
+      end: avgPriceError == D18n ? 0n : endPrice,
     },
   };
 };

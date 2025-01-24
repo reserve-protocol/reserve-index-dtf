@@ -109,21 +109,19 @@ describe("getTrades()", () => {
     }
   });
 
-  // it("should handle register case, regression test", () => {
-  //   const tokens = ["VIRTUAL", "AIXBT", "FAI", "GAME", "COOKIE"];
-  //   const decimals = [18n, 18n, 18n, 18n, 18n];
-  //   const bals = [6067000000000000n, 1258000000000000n, 1063000000000000n, 783000000000000n, 829000000000000n];
-  //   const targetBasket = [
-  //     919200000000000000n,
-  //     50000000000000000n,
-  //     7400000000000000n,
-  //     5000000000000000n,
-  //     18400000000000000n,
-  //   ];
-  //   const _prices = [2.735191813135, 0.774066056772, 0.0557460299, 0.12355496041, 0.396445257];
-  //   const _priceError = [0.1, 0.1, 0.1, 0.1, 0.1];
-  //   const trades = getTrades(supply, tokens, decimals, bals, targetBasket, _prices, _priceError);
-  //   console.log(trades);
-  //   expect(trades.length).toBe(1);
-  // });
+  it("should handle defer to curator case", () => {
+    const tokens = ["USDC", "DAI"];
+    const decimals = [bn("6"), bn("18")];
+    const currentBasket = [bn("1e18"), bn("0")];
+    const targetBasket = [bn("0.5e18"), bn("0.5e18")];
+    const prices = [1, 1];
+    const error = [1, 1];
+    const trades = getTrades(supply, tokens, decimals, currentBasket, targetBasket, prices, error, 1);
+    expect(trades.length).toBe(1);
+    expectTradeApprox(trades[0], "USDC", "DAI", bn("5e14"), bn("5e26"), bn("0"), bn("0"));
+    expect(trades[0].sellLimit.low).toBe(0n);
+    expect(trades[0].sellLimit.high).toBe(bn("1e54"));
+    expect(trades[0].buyLimit.low).toBe(0n);
+    expect(trades[0].buyLimit.high).toBe(bn("1e54"));
+  });
 });
