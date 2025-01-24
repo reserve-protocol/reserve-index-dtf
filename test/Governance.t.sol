@@ -266,8 +266,63 @@ contract GovernanceTest is BaseTest {
         governor.propose(targets, values, calldatas, description);
     }
 
+    function test_setProposalThreshold() public {
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSelector(governor.setProposalThreshold.selector, 0.005e18);
+        string memory description = "Update proposal threshold";
+
+        assertEq(governor.proposalThreshold(), 1e18);
+
+        // propose
+        vm.prank(address(owner));
+        votingToken.transfer(address(user1), 10e18);
+
+        // delegate (user1)
+        vm.prank(user1);
+        votingToken.delegate(user1);
+
+        skip(10);
+        vm.roll(block.number + 1);
+
+        vm.prank(user1);
+        uint256 pid = governor.propose(targets, values, calldatas, description);
+
+        skip(2 days);
+        vm.roll(block.number + 1);
+
+        // vote
+        vm.prank(user1);
+        governor.castVote(pid, 1);
+
+        skip(1);
+        vm.roll(block.number + 1);
+
+        // Advance post voting period
+        skip(7 days);
+        vm.roll(block.number + 1);
+        assertEq(uint8(governor.state(pid)), uint8(IGovernor.ProposalState.Succeeded));
+
+        // queue
+        assertEq(governor.proposalNeedsQueuing(pid), true);
+        governor.queue(targets, values, calldatas, keccak256(bytes(description)));
+        assertEq(uint8(governor.state(pid)), uint8(IGovernor.ProposalState.Queued));
+
+        // Advance time (required by timelock)
+        skip(2 days);
+        vm.roll(block.number + 1);
+
+        // execute
+        governor.execute(targets, values, calldatas, keccak256(bytes(description)));
+        assertEq(uint256(governor.state(pid)), uint256(IGovernor.ProposalState.Executed));
+
+        assertEq(governor.proposalThreshold(), 0.5e18);
+    }
+
     function test_cannotSetProposalThresholdAboveOne() public {
-        vm.prank(owner);
         vm.expectRevert(FolioGovernor.Governor__InvalidProposalThreshold.selector);
         governor.setProposalThreshold(1e18 + 1);
     }
