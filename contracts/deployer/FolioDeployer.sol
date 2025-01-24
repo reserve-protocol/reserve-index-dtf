@@ -47,9 +47,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         address[] memory tradeLaunchers,
         address[] memory vibesOfficers
     ) public returns (Folio folio, address folioAdmin) {
-        if (basicDetails.assets.length != basicDetails.amounts.length) {
-            revert FolioDeployer__LengthMismatch();
-        }
+        require(basicDetails.assets.length == basicDetails.amounts.length, FolioDeployer__LengthMismatch());
 
         bytes32 deploymentSalt = keccak256(
             abi.encode(basicDetails, additionalDetails, owner, tradeProposers, tradeLaunchers, vibesOfficers)

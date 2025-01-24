@@ -24,20 +24,13 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     mapping(address => bool) private fTokenFeeSet;
 
     modifier onlyOwner() {
-        if (!roleRegistry.isOwner(msg.sender)) {
-            revert FolioDAOFeeRegistry__InvalidCaller();
-        }
+        require(roleRegistry.isOwner(msg.sender), FolioDAOFeeRegistry__InvalidCaller());
         _;
     }
 
     constructor(IRoleRegistry _roleRegistry, address _feeRecipient) {
-        if (address(_roleRegistry) == address(0)) {
-            revert FolioDAOFeeRegistry__InvalidRoleRegistry();
-        }
-
-        if (address(_feeRecipient) == address(0)) {
-            revert FolioDAOFeeRegistry__InvalidFeeRecipient();
-        }
+        require(address(_roleRegistry) != address(0), FolioDAOFeeRegistry__InvalidRoleRegistry());
+        require(address(_feeRecipient) != address(0), FolioDAOFeeRegistry__InvalidFeeRecipient());
 
         roleRegistry = _roleRegistry;
         feeRecipient = _feeRecipient;
@@ -47,12 +40,8 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     // === External ===
 
     function setFeeRecipient(address feeRecipient_) external onlyOwner {
-        if (feeRecipient_ == address(0)) {
-            revert FolioDAOFeeRegistry__InvalidFeeRecipient();
-        }
-        if (feeRecipient_ == feeRecipient) {
-            revert FolioDAOFeeRegistry__FeeRecipientAlreadySet();
-        }
+        require(feeRecipient_ != address(0), FolioDAOFeeRegistry__InvalidFeeRecipient());
+        require(feeRecipient_ != feeRecipient, FolioDAOFeeRegistry__FeeRecipientAlreadySet());
 
         feeRecipient = feeRecipient_;
         emit FeeRecipientSet(feeRecipient_);
@@ -60,18 +49,14 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
 
     /// @param feeNumerator_ {1} New default fee numerator
     function setDefaultFeeNumerator(uint256 feeNumerator_) external onlyOwner {
-        if (feeNumerator_ > MAX_DAO_FEE) {
-            revert FolioDAOFeeRegistry__InvalidFeeNumerator();
-        }
+        require(feeNumerator_ <= MAX_DAO_FEE, FolioDAOFeeRegistry__InvalidFeeNumerator());
 
         defaultFeeNumerator = feeNumerator_;
         emit DefaultFeeNumeratorSet(feeNumerator_);
     }
 
     function setTokenFeeNumerator(address fToken, uint256 feeNumerator_) external onlyOwner {
-        if (feeNumerator_ > MAX_DAO_FEE) {
-            revert FolioDAOFeeRegistry__InvalidFeeNumerator();
-        }
+        require(feeNumerator_ <= MAX_DAO_FEE, FolioDAOFeeRegistry__InvalidFeeNumerator());
 
         _setTokenFee(fToken, feeNumerator_, true);
     }
