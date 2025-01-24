@@ -13,7 +13,6 @@ const precision: bigint = bn("1e15"); // should be pretty exact
 const assertApproxEq = (a: bigint, b: bigint, precision: bigint) => {
   const delta = a > b ? a - b : b - a;
   console.log("assertApproxEq", a, b);
-  console.log("assertApproxEq", delta, (precision * b) / D18);
   expect(delta).toBeLessThanOrEqual((precision * b) / D18);
 };
 

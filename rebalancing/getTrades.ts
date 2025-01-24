@@ -1,7 +1,7 @@
 import { Decimal } from "decimal.js";
 
 import { Trade } from "./types";
-import { D9, D9d, D27, D27d, D27n } from "./numbers";
+import { D18d, D27d } from "./numbers";
 import { makeTrade } from "./utils";
 
 /**
@@ -22,45 +22,44 @@ import { makeTrade } from "./utils";
  * @param tolerance D18{1} Tolerance for rebalancing to determine when to tolerance trade or not, default 0.1%
  */
 export const getTrades = (
-  supply: bigint,
+  _supply: bigint,
   tokens: string[],
   decimals: bigint[],
-  currentBasket: bigint[],
-  targetBasket: bigint[],
+  _currentBasket: bigint[],
+  _targetBasket: bigint[],
   _prices: number[],
   _priceError: number[],
   _dtfPrice: number,
-  tolerance: bigint = 10n ** 14n, // 0.01%
+  _tolerance: bigint = 10n ** 14n, // 0.01%
 ): Trade[] => {
   const trades: Trade[] = [];
 
   // convert price number inputs to bigints
 
-  // D27{USD/tok} = {USD/wholeTok} * D27 / {tok/wholeTok}
-  const prices = _prices.map((a, i) =>
-    BigInt(
-      new Decimal(a)
-        .mul(D27d)
-        .div(new Decimal(`1e${decimals[i]}`))
-        .toFixed(0),
-    ),
-  );
+  // {wholeShare}
+  const supply = new Decimal(_supply.toString()).div(D18d);
+
+  // {USD/wholeTok}
+  const prices = _prices.map((a) => new Decimal(a));
+
+  // {USD/wholeShare}
+  const dtfPrice = new Decimal(_dtfPrice);
+
+  // {1} = D18{1} / D18
+  const currentBasket = _currentBasket.map((a) => new Decimal(a.toString()).div(D18d));
+
+  // {1} = D18{1} / D18
+  const targetBasket = _targetBasket.map((a) => new Decimal(a.toString()).div(D18d));
 
   // D27{1} = {1} * D27
-  const priceError = _priceError.map((a) => BigInt(new Decimal(a).mul(D27d).toFixed(0)));
+  const priceError = _priceError.map((a) => new Decimal(a));
 
-  // upscale currentBasket and targetBasket to D27
-
-  // D27{1} = D18{1} * D9
-  currentBasket = currentBasket.map((a) => a * 10n ** 9n);
-
-  // D27{1} = D18{1} * D9
-  targetBasket = targetBasket.map((a) => a * 10n ** 9n);
+  const tolerance = new Decimal(_tolerance.toString()).div(D18d);
 
   console.log("--------------------------------------------------------------------------------");
 
-  // D27{USD} = {USD/wholeShare} * D27 * {share} / {share/wholeShare}
-  const sharesValue = BigInt(new Decimal(_dtfPrice).mul(D9d).toFixed(0)) * supply;
+  // {USD} = {USD/wholeShare} * {wholeShare}
+  const sharesValue = dtfPrice.mul(supply);
 
   console.log("sharesValue", sharesValue);
 
@@ -78,30 +77,27 @@ export const getTrades = (
     let x = tokens.length; // sell index
     let y = tokens.length; // buy index
 
-    // D27{USD}
-    let biggestSurplus = 0n;
-    let biggestDeficit = 0n;
+    // {USD}
+    let biggestSurplus = new Decimal("0");
+    let biggestDeficit = new Decimal("0");
 
     for (let i = 0; i < tokens.length; i++) {
-      if (currentBasket[i] > targetBasket[i] && currentBasket[i] - targetBasket[i] > tolerance) {
-        // D27{USD} = D27{1} * D27{USD} / D27
-        const surplus = ((currentBasket[i] - targetBasket[i]) * sharesValue) / D27n;
-        if (surplus > biggestSurplus) {
+      if (currentBasket[i].gt(targetBasket[i]) && currentBasket[i].sub(targetBasket[i]).gt(tolerance)) {
+        // {USD} = {1} * {USD}
+        const surplus = currentBasket[i].sub(targetBasket[i]).mul(sharesValue);
+        if (surplus.gt(biggestSurplus)) {
           biggestSurplus = surplus;
           x = i;
         }
-      } else if (currentBasket[i] < targetBasket[i] && targetBasket[i] - currentBasket[i] > tolerance) {
-        // D27{USD} = D27{1} * D27{USD} / D27
-        const deficit = ((targetBasket[i] - currentBasket[i]) * sharesValue) / D27n;
-        if (deficit > biggestDeficit) {
+      } else if (currentBasket[i].lt(targetBasket[i]) && targetBasket[i].sub(currentBasket[i]).gt(tolerance)) {
+        // {USD} = {1} * {USD}
+        const deficit = targetBasket[i].sub(currentBasket[i]).mul(sharesValue);
+        if (deficit.gt(biggestDeficit)) {
           biggestDeficit = deficit;
           y = i;
         }
       }
     }
-
-    console.log("biggestSurplus", biggestSurplus);
-    console.log("biggestDeficit", biggestDeficit);
 
     // if we don't find any more trades, we're done
     if (x == tokens.length || y == tokens.length) {
@@ -110,40 +106,76 @@ export const getTrades = (
 
     // simulate swap and update currentBasket
 
-    // D27{USD}
-    const maxTrade = biggestDeficit < biggestSurplus ? biggestDeficit : biggestSurplus;
+    // {USD}
+    const maxTrade = biggestDeficit.lt(biggestSurplus) ? biggestDeficit : biggestSurplus;
 
-    // D27{1} = D27{USD} * D27 / D27{USD}
-    const backingTraded = (maxTrade * D27n) / sharesValue;
+    // {1} = {USD} / {USD}
+    const backingTraded = maxTrade.div(sharesValue);
 
     console.log("backingTraded", backingTraded);
 
-    // D27{1}
-    currentBasket[x] -= backingTraded;
-    currentBasket[y] += backingTraded;
+    // {1}
+    currentBasket[x] = currentBasket[x].sub(backingTraded);
+    currentBasket[y] = currentBasket[y].add(backingTraded);
 
-    // D27{1}
-    let avgPriceError = (priceError[x] + priceError[y]) / 2n;
-    if (priceError[x] > D27n || priceError[y] > D27n) {
+    // {1}
+    let avgPriceError = priceError[x].add(priceError[y]).div("2");
+    if (priceError[x].gt("1") || priceError[y].gt("1")) {
       throw new Error("price error too large");
     }
 
-    console.log("zero", prices[x], supply, prices[y]);
+    // {wholeTok/wholeShare} = {1} * {USD} / {USD/wholeTok} / {wholeShare}
+    const sellLimit = targetBasket[x].mul(sharesValue).div(prices[x]).div(supply);
+    const buyLimit = targetBasket[y].mul(sharesValue).div(prices[y]).div(supply);
 
-    // D27{tok/share} = D27{1} * D27{USD} / D27{USD/tok} / {share}
-    const sellLimit = ((targetBasket[x] * sharesValue + prices[x] - 1n) / prices[x] + supply - 1n) / supply;
-    const buyLimit = ((targetBasket[y] * sharesValue + prices[y] - 1n) / prices[y] + supply - 1n) / supply;
+    // {wholeBuyTok/wholeSellTok} = {USD/wholeSellTok} / {USD/wholeBuyTok}
+    const price = prices[x].div(prices[y]);
 
-    // D27{buyTok/sellTok} = D27{USD/sellTok} * D27 / D27{USD/buyTok}
-    const price = (prices[x] * D27n) / prices[y];
-
-    // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D27 / D27{1}
-    const startPrice = avgPriceError >= D27n ? 0n : (price * D27n + D27n - avgPriceError - 1n) / (D27n - avgPriceError);
-    const endPrice = (price * (D27n - avgPriceError)) / D27n;
+    // {wholeBuyTok/wholeSellTok} = {wholeBuyTok/wholeSellTok} / {1}
+    const startPrice = price.div(new Decimal("1").sub(avgPriceError));
+    const endPrice = price.mul(new Decimal("1").sub(avgPriceError));
 
     // add trade into set
 
-    trades.push(makeTrade(tokens[x], tokens[y], sellLimit, buyLimit, startPrice, endPrice, avgPriceError));
+    trades.push(
+      makeTrade(
+        tokens[x],
+        tokens[y],
+        // D27{tok/share} = {wholeTok/wholeShare} * D27 * {tok/wholeTok} / {share/wholeShare}
+        BigInt(
+          sellLimit
+            .mul(D27d)
+            .mul(new Decimal(`1e${decimals[x]}`))
+            .div(D18d)
+            .toFixed(0),
+        ),
+        // D27{tok/share} = {wholeTok/wholeShare} * D27 * {tok/wholeTok} / {share/wholeShare}
+        BigInt(
+          buyLimit
+            .mul(D27d)
+            .mul(new Decimal(`1e${decimals[y]}`))
+            .div(D18d)
+            .toFixed(0),
+        ),
+        // D27{buyTok/sellTok} = {USD/wholeSellTok} / {USD/wholeBuyTok} * D27 * {buyTok/wholeBuyTok} / {sellTok/wholeSellTok}
+        BigInt(
+          startPrice
+            .mul(D27d)
+            .mul(new Decimal(`1e${decimals[y]}`))
+            .div(new Decimal(`1e${decimals[x]}`))
+            .toFixed(0),
+        ),
+        // D27{buyTok/sellTok} = {USD/wholeSellTok} / {USD/wholeBuyTok} * D27 * {buyTok/wholeBuyTok} / {sellTok/wholeSellTok}
+        BigInt(
+          endPrice
+            .mul(D27d)
+            .mul(new Decimal(`1e${decimals[y]}`))
+            .div(new Decimal(`1e${decimals[x]}`))
+            .toFixed(0),
+        ),
+        BigInt(avgPriceError.mul(D18d).toFixed(0)),
+      ),
+    );
 
     // do not remove console.logs
     console.log("sellLimit", trades[trades.length - 1].sellLimit.spot);
