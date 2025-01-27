@@ -6,8 +6,7 @@ import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
 
 uint256 constant MAX_DAO_FEE = 0.5e18; // D18{1} 50%
-uint256 constant MAX_FEE_FLOOR = 0.01e18; // D18{1} 1%
-uint256 constant DEFAULT_FEE_FLOOR = 0.0015e18; // D18{1} 15 bps
+uint256 constant MAX_FEE_FLOOR = 0.0015e18; // D18{1} 15 bps
 
 /**
  * @title Folio
@@ -32,7 +31,7 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     mapping(address => uint256) private fTokenFeeNumerator; // D18{1}
     mapping(address => bool) private fTokenFeeSet;
 
-    uint256 public defaultFeeFloor = DEFAULT_FEE_FLOOR; // D18{1} 15 bps
+    uint256 public defaultFeeFloor = MAX_FEE_FLOOR; // D18{1} 15 bps
     mapping(address => uint256) private fTokenFeeFloor; // D18{1}
     mapping(address => bool) private fTokenFeeFloorSet;
 
@@ -74,7 +73,7 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     }
 
     function setDefaultFeeFloor(uint256 _defaultFeeFloor) external onlyOwner {
-        if (_defaultFeeFloor > DEFAULT_FEE_FLOOR) {
+        if (_defaultFeeFloor > MAX_FEE_FLOOR) {
             revert FolioDAOFeeRegistry__InvalidFeeFloor();
         }
 
@@ -127,6 +126,6 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
         fTokenFeeFloor[fToken] = feeFloor;
         fTokenFeeFloorSet[fToken] = isActive;
 
-        emit TokenFeeFloorSet(fToken, feeFloor);
+        emit TokenFeeFloorSet(fToken, feeFloor, isActive);
     }
 }

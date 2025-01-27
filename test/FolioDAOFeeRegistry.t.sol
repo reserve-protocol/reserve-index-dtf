@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { IFolioDeployer } from "contracts/interfaces/IFolioDeployer.sol";
 import { IFolioDAOFeeRegistry } from "contracts/interfaces/IFolioDAOFeeRegistry.sol";
-import { FolioDAOFeeRegistry, DEFAULT_FEE_FLOOR, MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
+import { FolioDAOFeeRegistry, MAX_FEE_FLOOR, MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { MAX_AUCTION_LENGTH, MAX_FOLIO_FEE, MAX_TRADE_DELAY } from "contracts/Folio.sol";
 import "./base/BaseTest.sol";
 
@@ -56,7 +56,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         assertEq(recipient, dao);
         assertEq(feeNumerator, MAX_DAO_FEE);
         assertEq(feeDenominator, folioDAOFeeRegistry.FEE_DENOMINATOR());
-        assertEq(feeFloor, DEFAULT_FEE_FLOOR);
+        assertEq(feeFloor, MAX_FEE_FLOOR);
     }
 
     function test_cannotCreateFeeRegistryWithInvalidRoleRegistry() public {
@@ -192,19 +192,23 @@ contract FolioDAOFeeRegistryTest is BaseTest {
     function test_setTokenFeeFloor() public {
         uint256 feeFloor;
         (, , , feeFloor) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(feeFloor, DEFAULT_FEE_FLOOR);
+        assertEq(feeFloor, MAX_FEE_FLOOR);
 
         vm.expectEmit(true, true, false, true);
-        emit IFolioDAOFeeRegistry.TokenFeeFloorSet(address(folio), DEFAULT_FEE_FLOOR / 2);
-        daoFeeRegistry.setTokenFeeFloor(address(folio), DEFAULT_FEE_FLOOR / 2);
+        emit IFolioDAOFeeRegistry.TokenFeeFloorSet(address(folio), MAX_FEE_FLOOR / 2, true);
+        daoFeeRegistry.setTokenFeeFloor(address(folio), MAX_FEE_FLOOR / 2);
 
         (, , , feeFloor) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(feeFloor, DEFAULT_FEE_FLOOR / 2);
+        assertEq(feeFloor, MAX_FEE_FLOOR / 2);
 
         // lower default below the individual token fee floor
-        daoFeeRegistry.setDefaultFeeFloor(DEFAULT_FEE_FLOOR / 4);
+        daoFeeRegistry.setDefaultFeeFloor(MAX_FEE_FLOOR / 4);
         (, , , feeFloor) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(feeFloor, DEFAULT_FEE_FLOOR / 4);
+        assertEq(feeFloor, MAX_FEE_FLOOR / 4);
+
+        vm.expectEmit(true, true, false, true);
+        emit IFolioDAOFeeRegistry.TokenFeeFloorSet(address(folio), 0, false);
+        daoFeeRegistry.resetTokenFees(address(folio));
     }
 
     function test_cannotSetTokenFeeFloorIfNotOwner() public {
@@ -215,11 +219,11 @@ contract FolioDAOFeeRegistryTest is BaseTest {
 
     function test_cannotSetDefaultFeeFloorWithInvalidValue() public {
         vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidFeeFloor.selector);
-        daoFeeRegistry.setDefaultFeeFloor(DEFAULT_FEE_FLOOR + 1);
+        daoFeeRegistry.setDefaultFeeFloor(MAX_FEE_FLOOR + 1);
     }
 
     function test_cannotSetTokenFeeFloorWithInvalidValue() public {
         vm.expectRevert(IFolioDAOFeeRegistry.FolioDAOFeeRegistry__InvalidFeeFloor.selector);
-        daoFeeRegistry.setTokenFeeFloor(address(folio), DEFAULT_FEE_FLOOR + 1);
+        daoFeeRegistry.setTokenFeeFloor(address(folio), MAX_FEE_FLOOR + 1);
     }
 }

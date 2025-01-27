@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_FOLIO_FEE, MAX_TRADE_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_MINTING_FEE, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
-import { MAX_DAO_FEE, DEFAULT_FEE_FLOOR } from "contracts/folio/FolioDAOFeeRegistry.sol";
+import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";

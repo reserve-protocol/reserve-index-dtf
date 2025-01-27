@@ -11,7 +11,7 @@ interface IFolioDAOFeeRegistry {
 
     event FeeRecipientSet(address indexed feeRecipient);
     event DefaultFeeNumeratorSet(uint256 defaultFeeNumerator);
-    event TokenFeeFloorSet(address indexed rToken, uint256 feeFloor);
+    event TokenFeeFloorSet(address indexed rToken, uint256 feeFloor, bool isActive);
     event TokenFeeNumeratorSet(address indexed rToken, uint256 feeNumerator, bool isActive);
     event DefaultFeeFloorSet(uint256 feeFloor);
 

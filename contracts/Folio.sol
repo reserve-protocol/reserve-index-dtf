@@ -75,7 +75,7 @@ contract Folio is
      * Fees
      */
     FeeRecipient[] public feeRecipients;
-    uint256 public folioFee; // D18{1/s} demurrage fee on AUM from Folio ride, additional fees by DAO
+    uint256 public folioFee; // D18{1/s} demurrage fee on AUM from Folio side, additional fees by DAO
     uint256 public mintingFee; // D18{1} fee on mint from Folio side; additional fees added by DAO
 
     /**
