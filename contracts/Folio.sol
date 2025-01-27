@@ -591,7 +591,12 @@ contract Folio is
     /// A trade can be killed anywhere in its lifecycle, and cannot be restarted
     /// @dev Callable by TRADE_PROPOSER or TRADE_LAUNCHER
     function killTrade(uint256 tradeId) external nonReentrant {
-        require(hasRole(TRADE_PROPOSER, msg.sender) || hasRole(TRADE_LAUNCHER, msg.sender), Folio__Unauthorized());
+        require(
+            hasRole(TRADE_PROPOSER, msg.sender) ||
+                hasRole(TRADE_LAUNCHER, msg.sender) ||
+                hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            Folio__Unauthorized()
+        );
 
         // do not revert, to prevent griefing
         trades[tradeId].end = 1;

@@ -1299,6 +1299,55 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
+    function test_auctionKillTradeByOwner() public {
+        IFolio.Trade memory tradeStruct = IFolio.Trade({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.tradeDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
+        uint256 amt = D6_TOKEN_10K;
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.TradeApproved(0, address(USDC), address(USDT), tradeStruct);
+        folio.approveTrade(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
+
+        vm.prank(tradeLauncher);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.TradeOpened(0, tradeStruct);
+        folio.openTrade(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.TradeKilled(0);
+        folio.killTrade(0);
+
+        // next auction index should revert
+
+        vm.expectRevert();
+        folio.killTrade(1); // index out of bounds
+
+        (, , , , , , , , , uint256 end, ) = folio.trades(0);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+
+        vm.warp(end);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+
+        vm.warp(end + 1);
+        vm.expectRevert(IFolio.Folio__TradeNotOngoing.selector);
+        folio.bid(0, amt, amt, false, bytes(""));
+        vm.stopPrank();
+    }
+
     function test_auctionAboveMaxTTL() public {
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidTradeTTL.selector);
