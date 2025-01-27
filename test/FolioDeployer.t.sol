@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_MINTING_FEE } from "contracts/Folio.sol";
+import { MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_TVL_FEE, MAX_MINT_FEE } from "contracts/Folio.sol";
 import { FolioDeployer, IFolioDeployer } from "@deployer/FolioDeployer.sol";
 import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
@@ -13,7 +13,7 @@ import "./base/BaseTest.sol";
 
 contract FolioDeployerTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
-    uint256 internal constant MAX_FOLIO_FEE_PER_SECOND = 21979552667; // D18{1/s} 50% annually, per second
+    uint256 internal constant MAX_TVL_FEE_PER_SECOND = 21979552667; // D18{1/s} 50% annually, per second
 
     function test_constructor() public view {
         assertEq(address(folioDeployer.daoFeeRegistry()), address(daoFeeRegistry));
@@ -43,11 +43,11 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE,
-            MAX_MINTING_FEE,
+            MAX_TVL_FEE,
+            MAX_MINT_FEE,
             owner,
             dao,
-            tradeLauncher
+            auctionLauncher
         );
         vm.stopSnapshotGas();
         vm.stopPrank();
@@ -63,7 +63,7 @@ contract FolioDeployerTest is BaseTest {
         assertEq(_assets[1], address(DAI), "wrong second asset");
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
-        assertEq(folio.folioFee(), MAX_FOLIO_FEE_PER_SECOND, "wrong folio fee");
+        assertEq(folio.tvlFee(), MAX_TVL_FEE_PER_SECOND, "wrong tvl fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 0.9e18, "wrong first recipient bps");
@@ -73,11 +73,11 @@ contract FolioDeployerTest is BaseTest {
 
         assertTrue(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), owner), "wrong admin role");
 
-        assertTrue(folio.hasRole(folio.TRADE_PROPOSER(), dao), "wrong trade proposer role");
+        assertTrue(folio.hasRole(folio.AUCTION_APPROVER(), dao), "wrong auction approver role");
 
-        assertTrue(folio.hasRole(folio.TRADE_LAUNCHER(), tradeLauncher), "wrong trade launcher role");
+        assertTrue(folio.hasRole(folio.AUCTION_LAUNCHER(), auctionLauncher), "wrong auction launcher role");
 
-        assertTrue(folio.hasRole(folio.VIBES_OFFICER(), owner), "wrong vibes officer role");
+        assertTrue(folio.hasRole(folio.BRAND_MANAGER(), owner), "wrong brand manager role");
     }
 
     function test_cannotCreateFolioWithLengthMismatch() public {
@@ -102,11 +102,11 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE,
+            MAX_TVL_FEE,
             0,
             owner,
             dao,
-            tradeLauncher
+            auctionLauncher
         );
         vm.stopPrank();
     }
@@ -127,11 +127,11 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE,
+            MAX_TVL_FEE,
             0,
             owner,
             dao,
-            tradeLauncher
+            auctionLauncher
         );
         vm.stopPrank();
     }
@@ -157,11 +157,11 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE,
+            MAX_TVL_FEE,
             0,
             owner,
             dao,
-            tradeLauncher
+            auctionLauncher
         );
         vm.stopPrank();
     }
@@ -187,11 +187,11 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE,
+            MAX_TVL_FEE,
             0,
             owner,
             dao,
-            tradeLauncher
+            auctionLauncher
         );
         vm.stopPrank();
     }
@@ -218,7 +218,7 @@ contract FolioDeployerTest is BaseTest {
             0,
             owner,
             dao,
-            tradeLauncher
+            auctionLauncher
         );
         vm.stopPrank();
 
@@ -234,11 +234,11 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE,
+            MAX_TVL_FEE,
             0,
             owner,
             dao,
-            tradeLauncher
+            auctionLauncher
         );
         vm.stopPrank();
     }
@@ -263,11 +263,11 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             1,
             recipients,
-            MAX_FOLIO_FEE,
+            MAX_TVL_FEE,
             0,
             owner,
             dao,
-            tradeLauncher
+            auctionLauncher
         );
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector); // above max
@@ -278,11 +278,11 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY,
             MAX_AUCTION_LENGTH + 1,
             recipients,
-            MAX_FOLIO_FEE,
+            MAX_TVL_FEE,
             0,
             owner,
             dao,
-            tradeLauncher
+            auctionLauncher
         );
 
         vm.stopPrank();
@@ -308,11 +308,11 @@ contract FolioDeployerTest is BaseTest {
             MAX_TRADE_DELAY + 1,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_FOLIO_FEE,
+            MAX_TVL_FEE,
             0,
             owner,
             dao,
-            tradeLauncher
+            auctionLauncher
         );
 
         vm.stopPrank();
@@ -344,8 +344,8 @@ contract FolioDeployerTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
 
-        address[] memory tradeLaunchers = new address[](1);
-        tradeLaunchers[0] = tradeLauncher;
+        address[] memory auctionLaunchers = new address[](1);
+        auctionLaunchers[0] = auctionLauncher;
 
         vm.startSnapshotGas("deployGovernedFolio");
         address _folioAdmin;
@@ -365,13 +365,13 @@ contract FolioDeployerTest is BaseTest {
                 tradeDelay: MAX_TRADE_DELAY,
                 auctionLength: MAX_AUCTION_LENGTH,
                 feeRecipients: recipients,
-                folioFee: MAX_FOLIO_FEE,
-                mintingFee: MAX_MINTING_FEE,
+                tvlFee: MAX_TVL_FEE,
+                mintFee: MAX_MINT_FEE,
                 mandate: "mandate"
             }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
-            IGovernanceDeployer.GovRoles(new address[](0), tradeLaunchers, new address[](0))
+            IGovernanceDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0))
         );
         vm.stopSnapshotGas("deployGovernedFolio()");
         vm.stopPrank();
@@ -390,7 +390,7 @@ contract FolioDeployerTest is BaseTest {
         assertEq(_assets[1], address(DAI), "wrong second asset");
         assertEq(USDC.balanceOf(address(folio)), D6_TOKEN_10K, "wrong folio usdc balance");
         assertEq(DAI.balanceOf(address(folio)), D18_TOKEN_10K, "wrong folio dai balance");
-        assertEq(folio.folioFee(), MAX_FOLIO_FEE_PER_SECOND, "wrong folio fee");
+        assertEq(folio.tvlFee(), MAX_TVL_FEE_PER_SECOND, "wrong folio fee");
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
         assertEq(bps1, 0.9e18, "wrong first recipient bps");
@@ -461,11 +461,11 @@ contract FolioDeployerTest is BaseTest {
         assertFalse(tradingTimelock.hasRole(tradingTimelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
         assertTrue(tradingTimelock.hasRole(tradingTimelock.CANCELLER_ROLE(), user1), "wrong canceler role");
 
-        // Check trading proposer is properly set
-        assertTrue(folio.hasRole(folio.TRADE_PROPOSER(), address(tradingTimelock)), "wrong trade proposer role");
+        // Check auction approver is properly set
+        assertTrue(folio.hasRole(folio.AUCTION_APPROVER(), address(tradingTimelock)), "wrong auction approver role");
     }
 
-    function test_createGovernedFolio_withExistingTradeProposer() public {
+    function test_createGovernedFolio_withExistingAuctionApprover() public {
         // Deploy Community Governor
 
         (StakingVault stToken, , ) = governanceDeployer.deployGovernedStakingToken(
@@ -491,11 +491,11 @@ contract FolioDeployerTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
 
-        address[] memory tradeProposers = new address[](1);
-        tradeProposers[0] = dao;
+        address[] memory auctionApprovers = new address[](1);
+        auctionApprovers[0] = dao;
 
-        address[] memory tradeLaunchers = new address[](1);
-        tradeLaunchers[0] = tradeLauncher;
+        address[] memory auctionLaunchers = new address[](1);
+        auctionLaunchers[0] = auctionLauncher;
 
         vm.startSnapshotGas("deployGovernedFolio");
         address _folioAdmin;
@@ -513,13 +513,13 @@ contract FolioDeployerTest is BaseTest {
                 tradeDelay: MAX_TRADE_DELAY,
                 auctionLength: MAX_AUCTION_LENGTH,
                 feeRecipients: recipients,
-                folioFee: MAX_FOLIO_FEE,
-                mintingFee: MAX_MINTING_FEE,
+                tvlFee: MAX_TVL_FEE,
+                mintFee: MAX_MINT_FEE,
                 mandate: "mandate"
             }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
-            IGovernanceDeployer.GovRoles(tradeProposers, tradeLaunchers, new address[](0))
+            IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0))
         );
         vm.stopSnapshotGas("deployGovernedFolio()");
         vm.stopPrank();
@@ -558,7 +558,7 @@ contract FolioDeployerTest is BaseTest {
         assertFalse(ownerTimelock.hasRole(ownerTimelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
         assertTrue(ownerTimelock.hasRole(ownerTimelock.CANCELLER_ROLE(), user2), "wrong canceler role");
 
-        // Check trading proposer is properly set
-        assertTrue(folio.hasRole(folio.TRADE_PROPOSER(), dao), "wrong trade proposer role");
+        // Check auction approver is properly set
+        assertTrue(folio.hasRole(folio.AUCTION_APPROVER(), dao), "wrong auction approver role");
     }
 }

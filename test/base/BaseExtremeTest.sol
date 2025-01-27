@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import "./BaseTest.sol";
-import { MAX_FOLIO_FEE, MAX_FEE_RECIPIENTS } from "@src/Folio.sol";
+import { MAX_TVL_FEE, MAX_FEE_RECIPIENTS } from "@src/Folio.sol";
 
 abstract contract BaseExtremeTest is BaseTest {
     struct MintRedeemTestParams {
@@ -20,7 +20,7 @@ abstract contract BaseExtremeTest is BaseTest {
 
     struct FeeTestParams {
         uint256 amount;
-        uint256 folioFee; // D18{1/s}
+        uint256 tvlFee; // D18{1/s}
         uint256 daoFee; // D18{1}
         uint256 timeLapse; // {s}
         uint256 numFeeRecipients;
@@ -41,7 +41,7 @@ abstract contract BaseExtremeTest is BaseTest {
     uint256[] internal testStakingNumTokens = [1, 10];
     uint256[] internal testAmounts = [1, 1e6, 1e18, 1e36];
     uint256[] internal testPrices = [1, 1e6, 1e18, 1e36, 1e54];
-    uint256[] internal testFolioFees = [0, MAX_FOLIO_FEE / 4, MAX_FOLIO_FEE / 2, MAX_FOLIO_FEE];
+    uint256[] internal testTVLFees = [0, MAX_TVL_FEE / 4, MAX_TVL_FEE / 2, MAX_TVL_FEE];
     uint256[] internal testDaoFees = [0, 0.01e18, 0.1e18, 0.15e18];
     uint256[] internal testTimeLapse = [1, 12, 1 days, 30 days, 120 days, YEAR_IN_SECONDS];
     uint256[] internal testRewardHalfLives = [1 days, 3 days, 1 weeks, 2 weeks];
@@ -135,14 +135,14 @@ abstract contract BaseExtremeTest is BaseTest {
 
         index = 0;
         for (uint256 i; i < testAmounts.length; i++) {
-            for (uint256 j; j < testFolioFees.length; j++) {
+            for (uint256 j; j < testTVLFees.length; j++) {
                 for (uint256 k; k < testDaoFees.length; k++) {
                     for (uint256 l; l < testTimeLapse.length; l++) {
                         for (uint256 m; m < testNumFeeRecipients.length; m++) {
                             feeTestParams.push(
                                 FeeTestParams({
                                     amount: testAmounts[i],
-                                    folioFee: testFolioFees[j],
+                                    tvlFee: testTVLFees[j],
                                     daoFee: testDaoFees[k],
                                     timeLapse: testTimeLapse[l],
                                     numFeeRecipients: testNumFeeRecipients[m]

@@ -16,8 +16,8 @@ interface IFolio {
 
     event BasketTokenAdded(address indexed token);
     event BasketTokenRemoved(address indexed token);
-    event FolioFeeSet(uint256 newFee, uint256 feeAnnually);
-    event MintingFeeSet(uint256 newFee);
+    event TVLFeeSet(uint256 newFee, uint256 feeAnnually);
+    event MintFeeSet(uint256 newFee);
     event FeeRecipientSet(address indexed recipient, uint96 portion);
     event TradeDelaySet(uint256 newTradeDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
@@ -35,9 +35,9 @@ interface IFolio {
     error Folio__FeeRecipientInvalidAddress();
     error Folio__FeeRecipientInvalidFeeShare();
     error Folio__BadFeeTotal();
-    error Folio__FolioFeeTooHigh();
-    error Folio__FolioFeeTooLow();
-    error Folio__MintingFeeTooHigh();
+    error Folio__TVLFeeTooHigh();
+    error Folio__TVLFeeTooLow();
+    error Folio__MintFeeTooHigh();
     error Folio__ZeroInitialShares();
 
     error Folio__InvalidAsset();
@@ -76,8 +76,8 @@ interface IFolio {
         uint256 tradeDelay; // {s}
         uint256 auctionLength; // {s}
         FeeRecipient[] feeRecipients;
-        uint256 folioFee; // D18{1/s}
-        uint256 mintingFee; // D18{1}
+        uint256 tvlFee; // D18{1/s}
+        uint256 mintFee; // D18{1}
         string mandate;
     }
 

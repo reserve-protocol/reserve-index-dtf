@@ -23,14 +23,14 @@ interface IBidderCallee {
     function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
 }
 
-uint256 constant MAX_FOLIO_FEE = 0.5e18; // D18{1/year} 50% annually
-uint256 constant MAX_MINTING_FEE = 0.10e18; // D18{1} 10%
+uint256 constant MAX_TVL_FEE = 0.5e18; // D18{1/year} 50% annually
+uint256 constant MAX_MINT_FEE = 0.10e18; // D18{1} 10%
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
-uint256 constant MIN_DAO_MINTING_FEE = 0.0005e18; // D18{1} 5 bps
+uint256 constant MIN_DAO_MINT_FEE = 0.0005e18; // D18{1} 5 bps
 uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 
@@ -59,9 +59,9 @@ contract Folio is
     /**
      * Roles
      */
-    bytes32 public constant TRADE_PROPOSER = keccak256("TRADE_PROPOSER"); // expected to be trading governance's timelock
-    bytes32 public constant TRADE_LAUNCHER = keccak256("TRADE_LAUNCHER"); // optional: EOA or multisig
-    bytes32 public constant VIBES_OFFICER = keccak256("VIBES_OFFICER"); // optional: no permissions
+    bytes32 public constant AUCTION_APPROVER = keccak256("AUCTION_APPROVER"); // expected to be trading governance's timelock
+    bytes32 public constant AUCTION_LAUNCHER = keccak256("AUCTION_LAUNCHER"); // optional: EOA or multisig
+    bytes32 public constant BRAND_MANAGER = keccak256("BRAND_MANAGER"); // optional: no permissions
 
     /**
      * Mandate
@@ -76,8 +76,8 @@ contract Folio is
      * Fees
      */
     FeeRecipient[] public feeRecipients;
-    uint256 public folioFee; // D18{1/s} demurrage fee on AUM
-    uint256 public mintingFee; // D18{1} fee on mint
+    uint256 public tvlFee; // D18{1/s} demurrage fee on AUM
+    uint256 public mintFee; // D18{1} fee on mint
 
     /**
      * System
@@ -89,7 +89,7 @@ contract Folio is
 
     /**
      * Trading
-     *   - Trades have a delay before they can be opened, that TRADE_LAUNCHER can bypass
+     *   - Trades have a delay before they can be opened, that AUCTION_LAUNCHER can bypass
      *   - Multiple trades can be open at once
      *   - Multiple bids can be executed against the same trade
      *   - All trades are dutch auctions, but it's possible to pass startPrice = endPrice
@@ -117,8 +117,8 @@ contract Folio is
         __ReentrancyGuard_init();
 
         _setFeeRecipients(_additionalDetails.feeRecipients);
-        _setFolioFee(_additionalDetails.folioFee);
-        _setMintingFee(_additionalDetails.mintingFee);
+        _setTVLFee(_additionalDetails.tvlFee);
+        _setMintFee(_additionalDetails.mintFee);
         _setTradeDelay(_additionalDetails.tradeDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
@@ -160,19 +160,19 @@ contract Folio is
 
     /// @dev Non-reentrant via distributeFees()
     /// @param _newFee D18{1/s} Fee per second on AUM
-    function setFolioFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setTVLFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
-        _setFolioFee(_newFee);
+        _setTVLFee(_newFee);
     }
 
-    /// A minting fee below 5 bps will result in the entirety of the fee being sent to the DAO
+    /// A mint fee below 5 bps will result in the entirety of the fee being sent to the DAO
     /// @dev Non-reentrant via distributeFees()
     /// @param _newFee D18{1} Fee on mint
-    function setMintingFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setMintFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
-        _setMintingFee(_newFee);
+        _setMintFee(_newFee);
     }
 
     /// @dev Non-reentrant via distributeFees()
@@ -252,11 +252,11 @@ contract Folio is
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(this));
 
         // {share} = {share} * D18{1} / D18
-        uint256 totalFeeShares = (shares * mintingFee + D18 - 1) / D18;
+        uint256 totalFeeShares = (shares * mintFee + D18 - 1) / D18;
         uint256 daoFeeShares = (totalFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
 
-        // ensure DAO's portion of fees is at least MIN_DAO_MINTING_FEE
-        uint256 minDaoShares = (shares * MIN_DAO_MINTING_FEE + D18 - 1) / D18;
+        // ensure DAO's portion of fees is at least MIN_DAO_MINT_FEE
+        uint256 minDaoShares = (shares * MIN_DAO_MINT_FEE + D18 - 1) / D18;
         if (daoFeeShares < minDaoShares) {
             daoFeeShares = minDaoShares;
         }
@@ -419,7 +419,7 @@ contract Folio is
         Range calldata buyLimit,
         Prices calldata prices,
         uint256 ttl
-    ) external nonReentrant onlyRole(TRADE_PROPOSER) {
+    ) external nonReentrant onlyRole(AUCTION_APPROVER) {
         require(!isKilled, Folio__FolioKilled());
 
         require(
@@ -467,7 +467,7 @@ contract Folio is
         emit TradeApproved(trade.id, address(sell), address(buy), trade);
     }
 
-    /// Open a trade as the trade launcher
+    /// Open a trade as the auction launcher
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param startPrice D27{buyTok/sellTok} 1e54 max
@@ -478,10 +478,10 @@ contract Folio is
         uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice
-    ) external nonReentrant onlyRole(TRADE_LAUNCHER) {
+    ) external nonReentrant onlyRole(AUCTION_LAUNCHER) {
         Trade storage trade = trades[tradeId];
 
-        // trade launcher can:
+        // auction launcher can:
         //   - select a sell limit within the approved range
         //   - select a buy limit within the approved range
         //   - raise starting price by up to 100x
@@ -589,11 +589,11 @@ contract Folio is
 
     /// Kill a trade
     /// A trade can be killed anywhere in its lifecycle, and cannot be restarted
-    /// @dev Callable by TRADE_PROPOSER or TRADE_LAUNCHER
+    /// @dev Callable by AUCTION_APPROVER or AUCTION_LAUNCHER or ADMIN
     function killTrade(uint256 tradeId) external nonReentrant {
         require(
-            hasRole(TRADE_PROPOSER, msg.sender) ||
-                hasRole(TRADE_LAUNCHER, msg.sender) ||
+            hasRole(AUCTION_APPROVER, msg.sender) ||
+                hasRole(AUCTION_LAUNCHER, msg.sender) ||
                 hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             Folio__Unauthorized()
         );
@@ -701,7 +701,7 @@ contract Folio is
         uint256 elapsed = block.timestamp - lastPoke;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
-        uint256 feeShares = (supply * D18) / UD60x18.wrap(D18 - folioFee).powu(elapsed).unwrap() - supply;
+        uint256 feeShares = (supply * D18) / UD60x18.wrap(D18 - tvlFee).powu(elapsed).unwrap() - supply;
 
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(this));
 
@@ -710,25 +710,25 @@ contract Folio is
         _feeRecipientsPendingFeeShares += feeShares - daoShares;
     }
 
-    /// @dev Set folio fee by annual percentage
+    /// @dev Set TVL fee by annual percentage
     /// @param _newFeeAnnually {s}
-    function _setFolioFee(uint256 _newFeeAnnually) internal {
-        require(_newFeeAnnually <= MAX_FOLIO_FEE, Folio__FolioFeeTooHigh());
+    function _setTVLFee(uint256 _newFeeAnnually) internal {
+        require(_newFeeAnnually <= MAX_TVL_FEE, Folio__TVLFeeTooHigh());
 
         // convert annual percentage to per-second
         // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
-        folioFee = D18 - UD60x18.wrap(D18 - _newFeeAnnually).pow(ANNUALIZATION_EXP).unwrap();
+        tvlFee = D18 - UD60x18.wrap(D18 - _newFeeAnnually).pow(ANNUALIZATION_EXP).unwrap();
 
-        require(_newFeeAnnually == 0 || folioFee != 0, Folio__FolioFeeTooLow());
+        require(_newFeeAnnually == 0 || tvlFee != 0, Folio__TVLFeeTooLow());
 
-        emit FolioFeeSet(folioFee, _newFeeAnnually);
+        emit TVLFeeSet(tvlFee, _newFeeAnnually);
     }
 
-    function _setMintingFee(uint256 _newFee) internal {
-        require(_newFee <= MAX_MINTING_FEE, Folio__MintingFeeTooHigh());
+    function _setMintFee(uint256 _newFee) internal {
+        require(_newFee <= MAX_MINT_FEE, Folio__MintFeeTooHigh());
 
-        mintingFee = _newFee;
-        emit MintingFeeSet(_newFee);
+        mintFee = _newFee;
+        emit MintFeeSet(_newFee);
     }
 
     function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
