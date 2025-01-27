@@ -20,7 +20,7 @@ contract FolioTest is BaseTest {
     uint256 internal constant MAX_FOLIO_FEE_PER_SECOND = 21979552667; // D18{1/s} 50% annually, per second
 
     IFolio.Range internal FULL_SELL = IFolio.Range(0, 0, MAX_RATE);
-    IFolio.Range internal FULL_BUY = IFolio.Range(MAX_RATE, 0, MAX_RATE);
+    IFolio.Range internal FULL_BUY = IFolio.Range(MAX_RATE, 1, MAX_RATE);
 
     IFolio.Prices internal ZERO_PRICES = IFolio.Prices(0, 0);
 
@@ -1759,7 +1759,7 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotBidWithExcessiveBid() public {
-        IFolio.Range memory buyLimit = IFolio.Range(1, 0, 1);
+        IFolio.Range memory buyLimit = IFolio.Range(1, 1, 1);
 
         IFolio.Trade memory tradeStruct = IFolio.Trade({
             id: 0,

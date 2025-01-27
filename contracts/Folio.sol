@@ -433,7 +433,7 @@ contract Folio is
         );
 
         require(
-            buyLimit.spot != 0 &&
+            buyLimit.low != 0 &&
                 buyLimit.high <= MAX_RATE &&
                 buyLimit.low <= buyLimit.spot &&
                 buyLimit.high >= buyLimit.spot,
