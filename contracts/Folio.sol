@@ -428,16 +428,12 @@ contract Folio is
         );
 
         require(
-            sellLimit.spot <= MAX_RATE &&
-                sellLimit.high <= MAX_RATE &&
-                sellLimit.low <= sellLimit.spot &&
-                sellLimit.high >= sellLimit.spot,
+            sellLimit.high <= MAX_RATE && sellLimit.low <= sellLimit.spot && sellLimit.high >= sellLimit.spot,
             Folio__InvalidSellLimit()
         );
 
         require(
             buyLimit.spot != 0 &&
-                buyLimit.spot <= MAX_RATE &&
                 buyLimit.high <= MAX_RATE &&
                 buyLimit.low <= buyLimit.spot &&
                 buyLimit.high >= buyLimit.spot,
