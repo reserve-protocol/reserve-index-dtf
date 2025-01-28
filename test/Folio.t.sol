@@ -1974,6 +1974,21 @@ contract FolioTest is BaseTest {
         folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
     }
 
+    function test_auctionCannotBidIfFolioKilled() public {
+        vm.prank(dao);
+        folio.approveTrade(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
+
+        vm.prank(tradeLauncher);
+        folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
+
+        vm.prank(owner);
+        folio.killFolio();
+
+        vm.expectRevert(IFolio.Folio__FolioKilled.selector);
+        folio.bid(0, 1e27, 1e27, false, bytes(""));
+        assertEq(folio.isKilled(), true, "wrong killed status");
+    }
+
     function test_redeemMaxSlippage() public {
         assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
         vm.startPrank(user1);

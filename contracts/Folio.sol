@@ -529,6 +529,7 @@ contract Folio is
         bool withCallback,
         bytes calldata data
     ) external nonReentrant returns (uint256 boughtAmt) {
+        require(!isKilled, Folio__FolioKilled());
         Trade storage trade = trades[tradeId];
 
         // checks trade is ongoing
