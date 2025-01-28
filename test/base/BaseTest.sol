@@ -24,8 +24,6 @@ import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.s
 
 abstract contract BaseTest is Script, Test {
     // === Auth roles ===
-    bytes32 constant OWNER = keccak256("OWNER");
-    bytes32 constant PRICE_ORACLE = keccak256("PRICE_ORACLE");
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
     uint256 constant D6_TOKEN_1 = 1e6;
@@ -43,8 +41,8 @@ abstract contract BaseTest is Script, Test {
 
     uint256 constant YEAR_IN_SECONDS = 31536000;
 
-    address tradeLauncher = 0x00000000000000000000000000000000000000cc; // has Trade Launcher
-    address dao = 0xDA00000000000000000000000000000000000000; // has TRADE_PROPOSER
+    address auctionLauncher = 0x00000000000000000000000000000000000000cc; // has AUCTION_LAUNCHER
+    address dao = 0xDA00000000000000000000000000000000000000; // has AUCTION_APPROVER
     address owner = 0xCc00000000000000000000000000000000000000; // has DEFAULT_ADMIN_ROLE
     address user1 = 0xfF00000000000000000000000000000000000000;
     address user2 = 0xbb00000000000000000000000000000000000000;
@@ -103,7 +101,7 @@ abstract contract BaseTest is Script, Test {
     }
 
     function _testSetupAfter() public virtual {
-        vm.label(address(tradeLauncher), "Trade Launcher");
+        vm.label(address(auctionLauncher), "Auction Launcher");
         vm.label(address(dao), "DAO");
         vm.label(address(owner), "Owner");
         vm.label(address(user1), "User 1");
@@ -176,14 +174,14 @@ abstract contract BaseTest is Script, Test {
         address[] memory _assets,
         uint256[] memory _amounts,
         uint256 _initialShares,
-        uint256 _tradeDelay,
+        uint256 _auctionDelay,
         uint256 _auctionLength,
         IFolio.FeeRecipient[] memory _feeRecipients,
-        uint256 _folioFee,
-        uint256 _mintingFee,
+        uint256 _tvlFee,
+        uint256 _mintFee,
         address _owner,
-        address _tradeProposer,
-        address _tradeLauncher
+        address _auctionApprover,
+        address _auctionLauncher
     ) internal returns (Folio, FolioProxyAdmin) {
         IFolio.FolioBasicDetails memory _basicDetails = IFolio.FolioBasicDetails({
             name: "Test Folio",
@@ -194,28 +192,28 @@ abstract contract BaseTest is Script, Test {
         });
 
         IFolio.FolioAdditionalDetails memory _additionalDetails = IFolio.FolioAdditionalDetails({
-            tradeDelay: _tradeDelay,
+            auctionDelay: _auctionDelay,
             auctionLength: _auctionLength,
             feeRecipients: _feeRecipients,
-            folioFee: _folioFee,
-            mintingFee: _mintingFee,
+            tvlFee: _tvlFee,
+            mintFee: _mintFee,
             mandate: "mandate"
         });
 
-        address[] memory _tradeProposers = new address[](1);
-        _tradeProposers[0] = _tradeProposer;
-        address[] memory _tradeLaunchers = new address[](1);
-        _tradeLaunchers[0] = _tradeLauncher;
-        address[] memory _vibesOfficers = new address[](1);
-        _vibesOfficers[0] = _owner;
+        address[] memory _auctionApprovers = new address[](1);
+        _auctionApprovers[0] = _auctionApprover;
+        address[] memory _auctionLaunchers = new address[](1);
+        _auctionLaunchers[0] = _auctionLauncher;
+        address[] memory _brandManagers = new address[](1);
+        _brandManagers[0] = _owner;
 
         (Folio _folio, address _proxyAdmin) = folioDeployer.deployFolio(
             _basicDetails,
             _additionalDetails,
             _owner,
-            _tradeProposers,
-            _tradeLaunchers,
-            _vibesOfficers
+            _auctionApprovers,
+            _auctionLaunchers,
+            _brandManagers
         );
 
         return (_folio, FolioProxyAdmin(_proxyAdmin));

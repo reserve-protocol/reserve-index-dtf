@@ -71,7 +71,7 @@ contract GovernanceTest is BaseTest {
             30 minutes,
             0.01e18 /* 1% proposal threshold */,
             4,
-            0 seconds // 0s execution delay for trading governor
+            0 seconds // 0s execution delay for rebalancing governor
         );
 
         assertEq(address(tradingGovernor.token()), address(votingToken));
