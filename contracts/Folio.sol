@@ -157,7 +157,7 @@ contract Folio is
         require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
     }
 
-    /// An annual folio fee below 15 bps will result in the entirety of the fee being sent to the DAO
+    /// An annual folio fee below the DAO fee floor will result in the entirety of the fee being sent to the DAO
     /// @dev Non-reentrant via distributeFees()
     /// @param _newFee D18{1/s} Fee per second on AUM
     function setTVLFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -166,7 +166,7 @@ contract Folio is
         _setTVLFee(_newFee);
     }
 
-    /// A minting fee below 15 bps will result in the entirety of the fee being sent to the DAO
+    /// A minting fee below the DAO fee floor will result in the entirety of the fee being sent to the DAO
     /// @dev Non-reentrant via distributeFees()
     /// @param _newFee D18{1} Fee on mint
     function setMintFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
