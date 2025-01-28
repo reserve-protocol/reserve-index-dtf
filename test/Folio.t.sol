@@ -1976,10 +1976,10 @@ contract FolioTest is BaseTest {
 
     function test_auctionCannotBidIfFolioKilled() public {
         vm.prank(dao);
-        folio.approveTrade(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
 
-        vm.prank(tradeLauncher);
-        folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
+        vm.prank(auctionLauncher);
+        folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);
 
         vm.prank(owner);
         folio.killFolio();
