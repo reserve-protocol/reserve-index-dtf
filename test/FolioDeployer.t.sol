@@ -13,7 +13,7 @@ import "./base/BaseTest.sol";
 
 contract FolioDeployerTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
-    uint256 internal constant MAX_FOLIO_FEE_PER_SECOND = 21979552667; // D18{1/s} 50% annually, per second
+    uint256 internal constant MAX_FOLIO_FEE_PER_SECOND = 3340960028; // D18{1/s} 50% annually, per second
 
     function test_constructor() public view {
         assertEq(address(folioDeployer.daoFeeRegistry()), address(daoFeeRegistry));
