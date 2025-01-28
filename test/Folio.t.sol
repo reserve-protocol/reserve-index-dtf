@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_MINT_FEE, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TVL_FEE, MAX_MINT_FEE, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
 import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
@@ -17,7 +17,7 @@ import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
-    uint256 internal constant MAX_TVL_FEE_PER_SECOND = 3340960028; // D18{1/s} 50% annually, per second
+    uint256 internal constant MAX_TVL_FEE_PER_SECOND = 3340960028; // D18{1/s} 10% annually, per second
 
     IFolio.Range internal FULL_SELL = IFolio.Range(0, 0, MAX_RATE);
     IFolio.Range internal FULL_BUY = IFolio.Range(MAX_RATE, 1, MAX_RATE);
@@ -313,10 +313,10 @@ contract FolioTest is BaseTest {
             "wrong folio meme balance"
         );
 
-        // mint fee should be manifested in total supply and both streams of fee shares
-        assertEq(folio.totalSupply(), amt * 2, "total supply off"); // genesis supply + new mint + 10% increase
-        uint256 daoPendingFeeShares = (amt * MAX_MINT_FEE) / 1e18;
-        assertEq(folio.daoPendingFeeShares(), daoPendingFeeShares, "wrong dao pending fee shares"); // only 5 bps
+        // mint fee should manifest in total supply and both streams of fee shares
+        assertEq(folio.totalSupply(), amt * 2, "total supply off"); // genesis supply + new mint
+        uint256 daoPendingFeeShares = (amt * MAX_MINT_FEE) / 1e18 / 2; // DAO receives 50% of the full mint fee
+        assertEq(folio.daoPendingFeeShares(), daoPendingFeeShares, "wrong dao pending fee shares");
         assertEq(
             folio.feeRecipientsPendingFeeShares(),
             amt / 20 - daoPendingFeeShares,
@@ -835,7 +835,7 @@ contract FolioTest is BaseTest {
         assertEq(folio.getPendingFeeShares(), 0, "pending fee shares should start 0");
 
         vm.prank(owner);
-        folio.setFolioFee(0);
+        folio.setTVLFee(0);
 
         // fast forward, accumulate fees
         vm.warp(block.timestamp + YEAR_IN_SECONDS);

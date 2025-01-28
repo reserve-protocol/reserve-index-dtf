@@ -23,8 +23,8 @@ interface IBidderCallee {
     function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
 }
 
-uint256 constant MAX_TVL_FEE = 0.1e18; // D18{1/year} 50% annually
-uint256 constant MAX_MINT_FEE = 0.05e18; // D18{1} 10%
+uint256 constant MAX_TVL_FEE = 0.1e18; // D18{1/year} 10% annually
+uint256 constant MAX_MINT_FEE = 0.05e18; // D18{1} 5%
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_AUCTION_DELAY = 604800; // {s} 1 week
@@ -702,19 +702,19 @@ contract Folio is
             address(this)
         );
 
-        // convert annual percentage to per-second for comparison with stored folioFee
-        // D18{1/s} = D18{1} - D18{1} * D18{1} ^ {s}
+        // convert annual percentage to per-second for comparison with stored tvlFee
         // = 1 - (1 - feeFloor) ^ (1 / 31536000)
+        // D18{1/s} = D18{1} - D18{1} * D18{1} ^ {s}
         uint256 feeFloor = D18 - UD60x18.wrap(D18 - daoFeeFloor).pow(ANNUALIZATION_EXP).unwrap();
 
         // D18{1/s}
-        uint256 _folioFee = feeFloor > folioFee ? feeFloor : folioFee;
+        uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
-        uint256 feeShares = (supply * D18) / UD60x18.wrap(D18 - tvlFee).powu(elapsed).unwrap() - supply;
+        uint256 feeShares = (supply * D18) / UD60x18.wrap(D18 - _tvlFee).powu(elapsed).unwrap() - supply;
 
         // D18{1} = D18{1/s} * D18 / D18{1/s}
-        uint256 correction = (feeFloor * D18 + _folioFee - 1) / _folioFee;
+        uint256 correction = (feeFloor * D18 + _tvlFee - 1) / _tvlFee;
 
         // {share} = {share} * D18{1} / D18
         uint256 daoShares = (correction > (daoFeeNumerator * D18 + daoFeeDenominator - 1) / daoFeeDenominator)

@@ -39,7 +39,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
             MAX_AUCTION_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            MAX_TVL_FEE, // 50% annually
+            MAX_TVL_FEE, // 10% annually
             0,
             owner,
             dao,
