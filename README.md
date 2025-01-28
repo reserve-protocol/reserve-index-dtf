@@ -132,7 +132,7 @@ Folios support 2 types of fees. Both have a DAO portion that work the same under
 
 Per-unit time fee on AUM
 
-The DAO takes a cut with a minimum floor of 15 bps. The DAO always receives at least 15 bps of the value of the mint. If the annual tvl fee is set to 15 bps, then 100% of the tvl fee is taken by the DAO.
+The DAO takes a cut with a minimum floor of 15 bps. The Folio always inflates at least 15 bps annually, with this portion going to the DAO. If the tvl fee is set to 15 bps, then 100% of the tvl fee is taken by the DAO.
 
 ##### `mintFee`
 
