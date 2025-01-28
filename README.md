@@ -4,11 +4,11 @@
 
 Reserve Folio is a protocol for creating and managing portfolios of ERC20-compliant assets entirely onchain. Folios are designed to be used as a single-source of truth for asset allocations, enabling composability of complex, multi-asset portfolios.
 
-Folios support rebalancing trades via Dutch Auction over an exponential decay curve between two prices. Control flow over the trade is shared between two parties, with a `TRADE_PROPOSER` approving trades in advance and a `TRADE_LAUNCHER` opening them, optionally providing some amount of additional detail.
+Folios support rebalancing via Dutch Auction over an exponential decay curve between two prices. Control flow over the auction is shared between two parties, with a `AUCTION_APPROVER` approving auctions in advance and a `AUCTION_LAUNCHER` opening them, optionally providing some amount of additional detail.
 
-`TRADE_PROPOSER` is expected to be the timelock of the fast-moving trade governor associated with the Folio.
+`AUCTION_APPROVER` is expected to be the timelock of the fast-moving rebalancing governor associated with the Folio.
 
-`TRADE_LAUNCHER` is expected to be a semi-trusted EOA or multisig; They can open trades within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the trade can be opened permissionlessly after a preset delay. If they are evil, at-best they can deviate trading within the governance-granted range, or prevent a Folio from rebalancing entirely by killing trades. They cannot access the backing directly.
+`AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig; They can open auctions within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the auction can be opened permissionlessly after a preset delay. If they are evil, at-best they can deviate trading within the governance-granted range, or prevent a Folio from rebalancing entirely by killing auctions. They cannot access the backing directly.
 
 ### Architecture
 
@@ -42,15 +42,15 @@ A Folio has 3 roles:
 
 1. `DEFAULT_ADMIN_ROLE`
    - Expected: Timelock of Slow Folio Governor
-   - Can add/remove assets, set fees, configure auction length, and set the trade delay
-   - Can configure the `TRADE_PROPOSER`/ `TRADE_LAUNCHER`
+   - Can add/remove assets, set fees, configure auction length, and set the auction delay
+   - Can configure the `AUCTION_APPROVER`/ `AUCTION_LAUNCHER`
    - Primary owner of the Folio
-2. `TRADE_PROPOSER`
+2. `AUCTION_APPROVER`
    - Expected: Timelock of Fast Folio Governor
-   - Can approve trades
-3. `TRADE_LAUNCHER`
+   - Can approve auctions
+3. `AUCTION_LAUNCHER`
    - Expected: EOA or multisig
-   - Can open and kill trades, optionally altering parameters of the trade within the approved ranges
+   - Can open and kill auctions, optionally altering parameters of the auction within the approved ranges
 
 ##### StakingVault
 
@@ -59,13 +59,13 @@ The staking vault has ONLY a single owner:
 - Expected: Timelock of Community Governor
 - Can add/remove reward tokens, set reward half-life, and set unstaking delay
 
-### Trading
+### Rebalancing
 
-##### Trade Lifecycle
+##### Auction Lifecycle
 
-1. Trade is approved by governance, including an initial price range
-2. Trade is opened, starting a dutch auction
-   a. ...either by the trade launcher (immediately)
+1. Auction is approved by governance, including an initial price range
+2. Auction is opened, initiating the progression through the predetermined price curve
+   a. ...either by the auction launcher (immediately)
    b. ...or permissionlessly (after a delay)
 3. Bids occur
 4. Auction expires
@@ -87,21 +87,19 @@ Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed
 Range buyLimit; // D27{buyTok/share} min ratio of sell token to shares allowed, exclusive
 ```
 
-During `openTrade` the `TRADE_LAUNCHER` can set the buy and sell limits within the approved ranges provided by governance. If the trade is opened permissionlessly instead, the governance pre-approved spot estimates will be used instead.
+During `openAuction` the `AUCTION_LAUNCHER` can set the buy and sell limits within the approved ranges provided by governance. If the auction is opened permissionlessly instead, the governance pre-approved spot estimates will be used instead.
 
 ###### Price
 
-There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `TRADE_PROPOSER`:
+There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `AUCTION_APPROVER`:
 
-1. Can provide `[0, 0]` to _fully_ defer to the trade launcher for pricing. In this mode the auction CANNOT be opened permissionlessly. Loss can arise either due to the trade launcher setting `startPrice` too low, or due to precision issues from traversing too large a range.
-2. Can provide `[startPrice, 0]` to defer to the trade launcher for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
-3. Can provide `[startPrice, endPrice]` to defer to the trade launcher for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Suggested default option.
+1. Can provide `[0, 0]` to _fully_ defer to the auction launcher for pricing. In this mode the auction CANNOT be opened permissionlessly. Loss can arise either due to the auction launcher setting `startPrice` too low, or due to precision issues from traversing too large a range.
+2. Can provide `[startPrice, 0]` to defer to the auction launcher for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
+3. Can provide `[startPrice, endPrice]` to defer to the auction launcher for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Suggested default option.
 
-The `TRADE_LAUNCHER` can always choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
+The `AUCTION_LAUNCHER` can always choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
 
 The price range (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues.
-
-##### Auction Dynamics
 
 ###### Price Curve
 
@@ -111,7 +109,7 @@ Note: The first block may not have a price of exactly `startPrice`, if it does n
 
 ###### Lot Sizing
 
-Auction lots are sized by `Trade.sellLimit` and `Trade.buyLimit`. Both correspond to invariants about the auction that should be maintained throughout the auction:
+Auction lots are sized by `Auction.sellLimit` and `Auction.buyLimit`. Both correspond to invariants about the auction that should be maintained throughout the auction:
 
 - `sellLimit` is the minimum ratio of sell token to the Folio token
 - `buyLimit` is the maximum ratio of buy token to Folio token
@@ -124,23 +122,23 @@ In general it is possible for the `lot` to both increase and decrease over time,
 
 Anyone can bid in any auction in size up to and including the `lot` size. Use `getBid()` to determine the amount of buy tokens required in any given timestamp.
 
-`Folio.getBid(uint256 tradeId, uint256 timestamp, uint256 sellAmount) external view returns (uint256 bidAmount)`
+`Folio.getBid(uint256 auctionId, uint256 timestamp, uint256 sellAmount) external view returns (uint256 bidAmount)`
 
 ### Fee Structure
 
 Folios support 2 types of fee
 
-##### `folioFee`
+##### `tvlFee`
 
 Per-unit time fee on AUM
 
 The DAO takes a cut
 
-##### `mintingFee`
+##### `mintFee`
 
 Fee on mints
 
-The DAO takes a cut with a minimum floor of 5 bps. The DAO always receives at least 5 bps of the value of the mint. If the minting fee is set to 5 bps, then 100% of the minting fee is taken by the DAO.
+The DAO takes a cut with a minimum floor of 5 bps. The DAO always receives at least 5 bps of the value of the mint. If the mint fee is set to 5 bps, then 100% of the mint fee is taken by the DAO.
 
 ### Units
 
@@ -209,7 +207,7 @@ TODO
 2. **alternative community governance systems**
    currently only bring-your-own-erc20 governance is supported but we would like to add alternatives in the future such as (i) NFT-based governance; and (ii) an ERC20 fair launch system
 3. **price-based rebalancing**
-   currently rebalancing is trade-driven, at the quantity level. this requires making projections about how many tokens will be held at the time of execution and what their values will be. in an alternative price-based world, governance provides a target basket in terms of share-by-value and a trusted party provides prices at time of execution to convert this into a concrete set of quantities/quantity-ratios
+   currently rebalancing is auction-driven, at the quantity level. this requires making projections about how many tokens will be held at the time of execution and what their values will be. in an alternative price-based world, governance provides a target basket in terms of share-by-value and a trusted party provides prices at time of execution to convert this into a concrete set of quantities/quantity-ratios
 
 ### Development
 
