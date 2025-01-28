@@ -73,18 +73,14 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     }
 
     function setDefaultFeeFloor(uint256 _defaultFeeFloor) external onlyOwner {
-        if (_defaultFeeFloor > MAX_FEE_FLOOR) {
-            revert FolioDAOFeeRegistry__InvalidFeeFloor();
-        }
+        require(_defaultFeeFloor <= MAX_FEE_FLOOR, FolioDAOFeeRegistry__InvalidFeeFloor());
 
         defaultFeeFloor = _defaultFeeFloor;
         emit DefaultFeeFloorSet(defaultFeeFloor);
     }
 
     function setTokenFeeFloor(address fToken, uint256 _feeFloor) external onlyOwner {
-        if (_feeFloor > defaultFeeFloor) {
-            revert FolioDAOFeeRegistry__InvalidFeeFloor();
-        }
+        require(_feeFloor <= defaultFeeFloor, FolioDAOFeeRegistry__InvalidFeeFloor());
 
         _setTokenFeeFloor(fToken, _feeFloor, true);
     }
