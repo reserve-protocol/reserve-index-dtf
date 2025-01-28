@@ -20,7 +20,7 @@ contract FolioTest is BaseTest {
     uint256 internal constant MAX_TVL_FEE_PER_SECOND = 21979552667; // D18{1/s} 50% annually, per second
 
     IFolio.Range internal FULL_SELL = IFolio.Range(0, 0, MAX_RATE);
-    IFolio.Range internal FULL_BUY = IFolio.Range(MAX_RATE, 0, MAX_RATE);
+    IFolio.Range internal FULL_BUY = IFolio.Range(MAX_RATE, 1, MAX_RATE);
 
     IFolio.Prices internal ZERO_PRICES = IFolio.Prices(0, 0);
 
@@ -1759,7 +1759,7 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotBidWithExcessiveBid() public {
-        IFolio.Range memory buyLimit = IFolio.Range(1, 0, 1);
+        IFolio.Range memory buyLimit = IFolio.Range(1, 1, 1);
 
         IFolio.Auction memory auctionStruct = IFolio.Auction({
             id: 0,
@@ -1972,6 +1972,21 @@ contract FolioTest is BaseTest {
         vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__FolioKilled.selector);
         folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);
+    }
+
+    function test_auctionCannotBidIfFolioKilled() public {
+        vm.prank(dao);
+        folio.approveTrade(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
+
+        vm.prank(tradeLauncher);
+        folio.openTrade(0, 0, MAX_RATE, 1e27, 1e27);
+
+        vm.prank(owner);
+        folio.killFolio();
+
+        vm.expectRevert(IFolio.Folio__FolioKilled.selector);
+        folio.bid(0, 1e27, 1e27, false, bytes(""));
+        assertEq(folio.isKilled(), true, "wrong killed status");
     }
 
     function test_redeemMaxSlippage() public {

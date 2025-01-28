@@ -432,16 +432,12 @@ contract Folio is
         );
 
         require(
-            sellLimit.spot <= MAX_RATE &&
-                sellLimit.high <= MAX_RATE &&
-                sellLimit.low <= sellLimit.spot &&
-                sellLimit.high >= sellLimit.spot,
+            sellLimit.high <= MAX_RATE && sellLimit.low <= sellLimit.spot && sellLimit.high >= sellLimit.spot,
             Folio__InvalidSellLimit()
         );
 
         require(
-            buyLimit.spot != 0 &&
-                buyLimit.spot <= MAX_RATE &&
+            buyLimit.low != 0 &&
                 buyLimit.high <= MAX_RATE &&
                 buyLimit.low <= buyLimit.spot &&
                 buyLimit.high >= buyLimit.spot,
@@ -537,6 +533,7 @@ contract Folio is
         bool withCallback,
         bytes calldata data
     ) external nonReentrant returns (uint256 boughtAmt) {
+        require(!isKilled, Folio__FolioKilled());
         Auction storage auction = auctions[auctionId];
 
         // checks auction is ongoing
@@ -651,7 +648,6 @@ contract Folio is
         // ensure valid price range (startPrice == endPrice is valid)
         require(
             auction.prices.start >= auction.prices.end &&
-                auction.prices.start != 0 &&
                 auction.prices.end != 0 &&
                 auction.prices.start <= MAX_RATE &&
                 auction.prices.start / auction.prices.end <= MAX_PRICE_RANGE,
