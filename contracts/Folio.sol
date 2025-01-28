@@ -88,16 +88,17 @@ contract Folio is
 
     /**
      * Rebalancing
-     *   - Auctions have a delay before they can be opened, that AUCTION_LAUNCHER can bypass
-     *   - Multiple auctions can be open at once
+     *   APPROVED -> OPEN -> CLOSED
+     *   - Approved auctions have a delay before they can be opened, that AUCTION_LAUNCHER can bypass
+     *   - Multiple auctions can be open at once, though a token cannot be bought and sold simultaneously
      *   - Multiple bids can be executed against the same auction
-     *   - All auctions are dutch auctions, but it's possible to pass startPrice = endPrice
+     *   - All auctions are dutch auctions with the same price curve, but it's possible to pass startPrice = endPrice
      */
-    uint256 public auctionDelay; // {s}
-    uint256 public auctionLength; // {s}
+    uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be permissionlessly opened
+    uint256 public auctionLength; // {s} length of an auction
     Auction[] public auctions;
-    mapping(address => uint256) public sellEnds; // {s}
-    mapping(address => uint256) public buyEnds; // {s}
+    mapping(address => uint256) public sellEnds; // {s} timestamp of latest ongoing auction for sells
+    mapping(address => uint256) public buyEnds; // {s} timestamp of latest ongoing auction for bunys
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -388,7 +389,7 @@ contract Folio is
         sellAmount = Math.min(sellAvailable, sellAvailableFromBuy);
     }
 
-    /// @return D27{buyTok/sellTok} The price at the given timestamp as an 18-decimal fixed point
+    /// @return D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
     function getPrice(uint256 auctionId, uint256 timestamp) external view returns (uint256) {
         return _price(auctions[auctionId], timestamp);
     }
@@ -483,7 +484,7 @@ contract Folio is
         //   - select a sell limit within the approved range
         //   - select a buy limit within the approved range
         //   - raise starting price by up to 100x
-        //   - raise ending price arbitrarily (can cause auction not to clear, same as killing)
+        //   - raise ending price arbitrarily (can cause auction not to clear, same as closing auction)
 
         require(
             startPrice >= auction.prices.start &&
@@ -586,10 +587,10 @@ contract Folio is
         require(auction.buy.balanceOf(address(this)) <= maxBuyBal, Folio__ExcessiveBid());
     }
 
-    /// Kill a auction
-    /// A auction can be killed anywhere in its lifecycle, and cannot be restarted
+    /// Close an auction
+    /// A auction can be closed from anywhere in its lifecycle, and cannot be restarted
     /// @dev Callable by AUCTION_APPROVER or AUCTION_LAUNCHER or ADMIN
-    function killAuction(uint256 auctionId) external nonReentrant {
+    function closeAuction(uint256 auctionId) external nonReentrant {
         require(
             hasRole(AUCTION_APPROVER, msg.sender) ||
                 hasRole(AUCTION_LAUNCHER, msg.sender) ||
