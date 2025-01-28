@@ -11,7 +11,7 @@ abstract contract BaseExtremeTest is BaseTest {
         uint256 amount;
     }
 
-    struct TradingTestParams {
+    struct RebalancingTestParams {
         uint8 sellDecimals;
         uint8 buyDecimals;
         uint256 sellAmount; // {sellTok}
@@ -48,7 +48,7 @@ abstract contract BaseExtremeTest is BaseTest {
     uint256[] internal testNumFeeRecipients = [1, 5, 10, MAX_FEE_RECIPIENTS];
 
     MintRedeemTestParams[] internal mintRedeemTestParams;
-    TradingTestParams[] internal tradingTestParams;
+    RebalancingTestParams[] internal tradingTestParams;
     FeeTestParams[] internal feeTestParams;
     StakingRewardsTestParams[] internal stkRewardsTestParams;
 
@@ -120,7 +120,7 @@ abstract contract BaseExtremeTest is BaseTest {
                 for (uint256 k; k < testAmounts.length; k++) {
                     for (uint256 l; l < testPrices.length; l++) {
                         tradingTestParams.push(
-                            TradingTestParams({
+                            RebalancingTestParams({
                                 sellDecimals: testDecimals[i],
                                 buyDecimals: testDecimals[j],
                                 sellAmount: testAmounts[k],

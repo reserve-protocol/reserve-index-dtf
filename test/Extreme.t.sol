@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_TVL_FEE, MAX_TTL, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TVL_FEE, MAX_TTL, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
 import { StakingVault } from "contracts/staking/StakingVault.sol";
 import "./base/BaseExtremeTest.sol";
 
@@ -39,7 +39,7 @@ contract ExtremeTest is BaseExtremeTest {
             _tokens,
             _amounts,
             initialSupply,
-            MAX_TRADE_DELAY,
+            MAX_AUCTION_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
             tvlFee,
@@ -211,7 +211,7 @@ contract ExtremeTest is BaseExtremeTest {
         vm.stopPrank();
     }
 
-    function run_trading_scenario(TradingTestParams memory p) public {
+    function run_trading_scenario(RebalancingTestParams memory p) public {
         IERC20 sell = deployCoin("Sell Token", "SELL", p.sellDecimals);
         IERC20 buy = deployCoin("Buy Token", "BUY", p.buyDecimals);
 
@@ -231,19 +231,19 @@ contract ExtremeTest is BaseExtremeTest {
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
         _deployTestFolio(tokens, amounts, initialSupply, tvlFee, 0, recipients);
 
-        // approveTrade
+        // approveAuction
         vm.prank(dao);
-        folio.approveTrade(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
+        folio.approveAuction(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
 
-        // openTrade
+        // openAuction
         vm.prank(auctionLauncher);
         uint256 endPrice = p.price / MAX_PRICE_RANGE;
-        folio.openTrade(0, 0, MAX_RATE, p.price, endPrice > p.price ? endPrice : p.price);
+        folio.openAuction(0, 0, MAX_RATE, p.price, endPrice > p.price ? endPrice : p.price);
 
         // sellAmount will be up to 1e36
         // buyAmount will be up to 1e54 and down to 1
 
-        (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
 
         uint256 sellAmount = folio.lot(0, start);
         // getBid should work at both ends of auction

@@ -82,12 +82,12 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         emit FolioDeployed(owner, address(folio), folioAdmin);
     }
 
-    /// Deploy a Folio instance with brand new owner + trading governors
+    /// Deploy a Folio instance with brand new owner + rebalancing governors
     /// @return folio The deployed Folio instance
     /// @return proxyAdmin The deployed FolioProxyAdmin instance
     /// @return ownerGovernor The owner governor with attached timelock
     /// @return ownerTimelock The owner timelock
-    /// @return tradingGovernor The trading governor with attached timelock
+    /// @return tradingGovernor The rebalancing governor with attached timelock
     /// @return tradingTimelock The trading timelock
     function deployGovernedFolio(
         IVotes stToken,
@@ -111,7 +111,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         (ownerGovernor, ownerTimelock) = governanceDeployer.deployGovernanceWithTimelock(ownerGovParams, stToken);
 
         if (govRoles.existingAuctionApprovers.length == 0) {
-            // Deploy Trading Governance
+            // Deploy Rebalancing Governance
             (tradingGovernor, tradingTimelock) = governanceDeployer.deployGovernanceWithTimelock(
                 tradingGovParams,
                 stToken

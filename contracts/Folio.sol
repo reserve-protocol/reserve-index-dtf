@@ -27,7 +27,7 @@ uint256 constant MAX_TVL_FEE = 0.5e18; // D18{1/year} 50% annually
 uint256 constant MAX_MINT_FEE = 0.10e18; // D18{1} 10%
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
-uint256 constant MAX_TRADE_DELAY = 604800; // {s} 1 week
+uint256 constant MAX_AUCTION_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MIN_DAO_MINT_FEE = 0.0005e18; // D18{1} 5 bps
@@ -88,15 +88,15 @@ contract Folio is
     bool public isKilled; // {bool} If true, Folio goes into redemption-only mode
 
     /**
-     * Trading
-     *   - Trades have a delay before they can be opened, that AUCTION_LAUNCHER can bypass
-     *   - Multiple trades can be open at once
-     *   - Multiple bids can be executed against the same trade
-     *   - All trades are dutch auctions, but it's possible to pass startPrice = endPrice
+     * Rebalancing
+     *   - Auctions have a delay before they can be opened, that AUCTION_LAUNCHER can bypass
+     *   - Multiple auctions can be open at once
+     *   - Multiple bids can be executed against the same auction
+     *   - All auctions are dutch auctions, but it's possible to pass startPrice = endPrice
      */
+    uint256 public auctionDelay; // {s}
     uint256 public auctionLength; // {s}
-    uint256 public tradeDelay; // {s}
-    Trade[] public trades;
+    Auction[] public auctions;
     mapping(address => uint256) public sellEnds; // {s}
     mapping(address => uint256) public buyEnds; // {s}
 
@@ -119,7 +119,7 @@ contract Folio is
         _setFeeRecipients(_additionalDetails.feeRecipients);
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
-        _setTradeDelay(_additionalDetails.tradeDelay);
+        _setAuctionDelay(_additionalDetails.auctionDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
 
@@ -183,9 +183,9 @@ contract Folio is
         _setFeeRecipients(_newRecipients);
     }
 
-    /// @param _newDelay {s} Delay after a trade has been approved before it can be permissionlessly opened
-    function setTradeDelay(uint256 _newDelay) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setTradeDelay(_newDelay);
+    /// @param _newDelay {s} Delay after a auction has been approved before it can be permissionlessly opened
+    function setAuctionDelay(uint256 _newDelay) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setAuctionDelay(_newDelay);
     }
 
     /// @param _newLength {s} Length of an auction
@@ -354,27 +354,27 @@ contract Folio is
         daoPendingFeeShares = 0;
     }
 
-    // ==== Trading ====
+    // ==== Rebalancing ====
 
-    function nextTradeId() external view returns (uint256) {
-        return trades.length;
+    function nextAuctionId() external view returns (uint256) {
+        return auctions.length;
     }
 
     /// The amount on sale in an auction, dynamically increasing over time
     /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
-    function lot(uint256 tradeId, uint256 timestamp) external view returns (uint256 sellAmount) {
-        Trade storage trade = trades[tradeId];
+    function lot(uint256 auctionId, uint256 timestamp) external view returns (uint256 sellAmount) {
+        Auction storage auction = auctions[auctionId];
 
         uint256 _totalSupply = totalSupply();
-        uint256 sellBal = trade.sell.balanceOf(address(this));
-        uint256 buyBal = trade.buy.balanceOf(address(this));
+        uint256 sellBal = auction.sell.balanceOf(address(this));
+        uint256 buyBal = auction.buy.balanceOf(address(this));
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(trade.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 minSellBal = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // {buyTok} = D27{buyTok/share} * {share} / D27
-        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
+        uint256 maxBuyBal = Math.mulDiv(auction.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
         uint256 buyAvailable = buyBal < maxBuyBal ? maxBuyBal - buyBal : 0;
 
         // avoid overflow
@@ -383,7 +383,7 @@ contract Folio is
         }
 
         // D27{buyTok/sellTok}
-        uint256 price = _price(trade, timestamp);
+        uint256 price = _price(auction, timestamp);
 
         // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
         uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
@@ -391,14 +391,18 @@ contract Folio is
     }
 
     /// @return D27{buyTok/sellTok} The price at the given timestamp as an 18-decimal fixed point
-    function getPrice(uint256 tradeId, uint256 timestamp) external view returns (uint256) {
-        return _price(trades[tradeId], timestamp);
+    function getPrice(uint256 auctionId, uint256 timestamp) external view returns (uint256) {
+        return _price(auctions[auctionId], timestamp);
     }
 
     /// @param sellAmount {sellTok} The amount of sell tokens the bidder is offering the protocol
     /// @return bidAmount {buyTok} The amount of buy tokens required to bid in the auction at a given timestamp
-    function getBid(uint256 tradeId, uint256 timestamp, uint256 sellAmount) external view returns (uint256 bidAmount) {
-        uint256 price = _price(trades[tradeId], timestamp);
+    function getBid(
+        uint256 auctionId,
+        uint256 timestamp,
+        uint256 sellAmount
+    ) external view returns (uint256 bidAmount) {
+        uint256 price = _price(auctions[auctionId], timestamp);
 
         // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
         bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
@@ -409,10 +413,10 @@ contract Folio is
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param prices D27{buyTok/sellTok} Price range
-    /// @param ttl {s} How long a trade can exist in an APPROVED state until it can no longer be OPENED
+    /// @param ttl {s} How long a auction can exist in an APPROVED state until it can no longer be OPENED
     ///     (once opened, it always finishes).
-    ///     Must be longer than tradeDelay if intended to be permissionlessly available.
-    function approveTrade(
+    ///     Must be longer than auctionDelay if intended to be permissionlessly available.
+    function approveAuction(
         IERC20 sell,
         IERC20 buy,
         Range calldata sellLimit,
@@ -424,7 +428,7 @@ contract Folio is
 
         require(
             address(sell) != address(0) && address(buy) != address(0) && address(sell) != address(buy),
-            Folio__InvalidTradeTokens()
+            Folio__InvalidAuctionTokens()
         );
 
         require(
@@ -446,40 +450,40 @@ contract Folio is
 
         require(prices.start >= prices.end, Folio__InvalidPrices());
 
-        require(ttl <= MAX_TTL, Folio__InvalidTradeTTL());
+        require(ttl <= MAX_TTL, Folio__InvalidAuctionTTL());
 
-        Trade memory trade = Trade({
-            id: trades.length,
+        Auction memory auction = Auction({
+            id: auctions.length,
             sell: sell,
             buy: buy,
             sellLimit: sellLimit,
             buyLimit: buyLimit,
             prices: prices,
-            availableAt: block.timestamp + tradeDelay,
+            availableAt: block.timestamp + auctionDelay,
             launchTimeout: block.timestamp + ttl,
             start: 0,
             end: 0,
             k: 0
         });
 
-        trades.push(trade);
+        auctions.push(auction);
 
-        emit TradeApproved(trade.id, address(sell), address(buy), trade);
+        emit AuctionApproved(auction.id, address(sell), address(buy), auction);
     }
 
-    /// Open a trade as the auction launcher
+    /// Open a auction as the auction launcher
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param startPrice D27{buyTok/sellTok} 1e54 max
     /// @param endPrice D27{buyTok/sellTok} 1e54 max
-    function openTrade(
-        uint256 tradeId,
+    function openAuction(
+        uint256 auctionId,
         uint256 sellLimit,
         uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice
     ) external nonReentrant onlyRole(AUCTION_LAUNCHER) {
-        Trade storage trade = trades[tradeId];
+        Auction storage auction = auctions[auctionId];
 
         // auction launcher can:
         //   - select a sell limit within the approved range
@@ -488,33 +492,33 @@ contract Folio is
         //   - raise ending price arbitrarily (can cause auction not to clear, same as killing)
 
         require(
-            startPrice >= trade.prices.start &&
-                endPrice >= trade.prices.end &&
-                (trade.prices.start == 0 || startPrice <= 100 * trade.prices.start),
+            startPrice >= auction.prices.start &&
+                endPrice >= auction.prices.end &&
+                (auction.prices.start == 0 || startPrice <= 100 * auction.prices.start),
             Folio__InvalidPrices()
         );
 
-        require(sellLimit >= trade.sellLimit.low && sellLimit <= trade.sellLimit.high, Folio__InvalidSellLimit());
+        require(sellLimit >= auction.sellLimit.low && sellLimit <= auction.sellLimit.high, Folio__InvalidSellLimit());
 
-        require(buyLimit >= trade.buyLimit.low && buyLimit <= trade.buyLimit.high, Folio__InvalidBuyLimit());
+        require(buyLimit >= auction.buyLimit.low && buyLimit <= auction.buyLimit.high, Folio__InvalidBuyLimit());
 
-        trade.sellLimit.spot = sellLimit;
-        trade.buyLimit.spot = buyLimit;
-        trade.prices.start = startPrice;
-        trade.prices.end = endPrice;
-        // more price checks in _openTrade()
+        auction.sellLimit.spot = sellLimit;
+        auction.buyLimit.spot = buyLimit;
+        auction.prices.start = startPrice;
+        auction.prices.end = endPrice;
+        // more price checks in _openAuction()
 
-        _openTrade(trade);
+        _openAuction(auction);
     }
 
-    /// @dev Permissionless, callable only after the trading delay
-    function openTradePermissionlessly(uint256 tradeId) external nonReentrant {
-        Trade storage trade = trades[tradeId];
+    /// @dev Permissionless, callable only after the auction delay
+    function openAuctionPermissionlessly(uint256 auctionId) external nonReentrant {
+        Auction storage auction = auctions[auctionId];
 
-        // only open trades that have not timed out (ttl check)
-        require(block.timestamp >= trade.availableAt, Folio__TradeCannotBeOpenedPermissionlesslyYet());
+        // only open auctions that have not timed out (ttl check)
+        require(block.timestamp >= auction.availableAt, Folio__AuctionCannotBeOpenedPermissionlesslyYet());
 
-        _openTrade(trade);
+        _openAuction(auction);
     }
 
     /// Bid in an ongoing auction
@@ -527,17 +531,17 @@ contract Folio is
     /// @param data Arbitrary data to pass to the callback
     /// @return boughtAmt {buyTok} The amount bidder receives
     function bid(
-        uint256 tradeId,
+        uint256 auctionId,
         uint256 sellAmount,
         uint256 maxBuyAmount,
         bool withCallback,
         bytes calldata data
     ) external nonReentrant returns (uint256 boughtAmt) {
-        Trade storage trade = trades[tradeId];
+        Auction storage auction = auctions[auctionId];
 
-        // checks trade is ongoing
+        // checks auction is ongoing
         // D27{buyTok/sellTok}
-        uint256 price = _price(trade, block.timestamp);
+        uint256 price = _price(auction, block.timestamp);
 
         // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
         boughtAmt = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
@@ -545,52 +549,52 @@ contract Folio is
 
         // TODO think about fee shares inflating supply over time
         uint256 _totalSupply = totalSupply();
-        uint256 sellBal = trade.sell.balanceOf(address(this));
+        uint256 sellBal = auction.sell.balanceOf(address(this));
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(trade.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 minSellBal = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // ensure auction is large enough to cover bid
         require(sellAmount <= sellAvailable, Folio__InsufficientBalance());
 
         // put buy token in basket
-        _addToBasket(address(trade.buy));
+        _addToBasket(address(auction.buy));
 
         // pay bidder
-        trade.sell.safeTransfer(msg.sender, sellAmount);
+        auction.sell.safeTransfer(msg.sender, sellAmount);
 
-        emit TradeBid(tradeId, sellAmount, boughtAmt);
+        emit AuctionBid(auctionId, sellAmount, boughtAmt);
 
         // QoL feature: close auction and eject token from basket if we have sold all of it
-        if (trade.sell.balanceOf(address(this)) == 0) {
-            _removeFromBasket(address(trade.sell));
+        if (auction.sell.balanceOf(address(this)) == 0) {
+            _removeFromBasket(address(auction.sell));
 
-            trade.end = block.timestamp;
+            auction.end = block.timestamp;
         }
 
         // collect payment from bidder
         if (withCallback) {
-            uint256 balBefore = trade.buy.balanceOf(address(this));
+            uint256 balBefore = auction.buy.balanceOf(address(this));
 
-            IBidderCallee(msg.sender).bidCallback(address(trade.buy), boughtAmt, data);
+            IBidderCallee(msg.sender).bidCallback(address(auction.buy), boughtAmt, data);
 
-            require(trade.buy.balanceOf(address(this)) - balBefore >= boughtAmt, Folio__InsufficientBid());
+            require(auction.buy.balanceOf(address(this)) - balBefore >= boughtAmt, Folio__InsufficientBid());
         } else {
-            trade.buy.safeTransferFrom(msg.sender, address(this), boughtAmt);
+            auction.buy.safeTransferFrom(msg.sender, address(this), boughtAmt);
         }
 
         // D27{buyTok/share} = D27{buyTok/share} * {share} / D27
-        uint256 maxBuyBal = Math.mulDiv(trade.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
+        uint256 maxBuyBal = Math.mulDiv(auction.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
 
         // ensure post-bid buy balance does not exceed max
-        require(trade.buy.balanceOf(address(this)) <= maxBuyBal, Folio__ExcessiveBid());
+        require(auction.buy.balanceOf(address(this)) <= maxBuyBal, Folio__ExcessiveBid());
     }
 
-    /// Kill a trade
-    /// A trade can be killed anywhere in its lifecycle, and cannot be restarted
+    /// Kill a auction
+    /// A auction can be killed anywhere in its lifecycle, and cannot be restarted
     /// @dev Callable by AUCTION_APPROVER or AUCTION_LAUNCHER or ADMIN
-    function killTrade(uint256 tradeId) external nonReentrant {
+    function killAuction(uint256 auctionId) external nonReentrant {
         require(
             hasRole(AUCTION_APPROVER, msg.sender) ||
                 hasRole(AUCTION_LAUNCHER, msg.sender) ||
@@ -599,9 +603,9 @@ contract Folio is
         );
 
         // do not revert, to prevent griefing
-        trades[tradeId].end = 1;
+        auctions[auctionId].end = 1;
 
-        emit TradeKilled(tradeId);
+        emit AuctionKilled(auctionId);
     }
 
     // ==== Internal ====
@@ -625,65 +629,65 @@ contract Folio is
         }
     }
 
-    function _openTrade(Trade storage trade) internal {
+    function _openAuction(Auction storage auction) internal {
         require(!isKilled, Folio__FolioKilled());
 
-        // only open APPROVED trades
-        require(trade.start == 0 && trade.end == 0, Folio__TradeCannotBeOpened());
+        // only open APPROVED auctions
+        require(auction.start == 0 && auction.end == 0, Folio__AuctionCannotBeOpened());
 
-        // do not open trades that have timed out from ttl
-        require(block.timestamp <= trade.launchTimeout, Folio__TradeTimeout());
+        // do not open auctions that have timed out from ttl
+        require(block.timestamp <= auction.launchTimeout, Folio__AuctionTimeout());
 
-        // ensure no conflicting tokens across trades (same sell or sell buy is okay)
+        // ensure no conflicting tokens across auctions (same sell or sell buy is okay)
         // necessary to prevent dutch auctions from taking losses
         require(
-            block.timestamp > sellEnds[address(trade.buy)] && block.timestamp > buyEnds[address(trade.sell)],
-            Folio__TradeCollision()
+            block.timestamp > sellEnds[address(auction.buy)] && block.timestamp > buyEnds[address(auction.sell)],
+            Folio__AuctionCollision()
         );
 
-        sellEnds[address(trade.sell)] = Math.max(sellEnds[address(trade.sell)], block.timestamp + auctionLength);
-        buyEnds[address(trade.buy)] = Math.max(buyEnds[address(trade.buy)], block.timestamp + auctionLength);
+        sellEnds[address(auction.sell)] = Math.max(sellEnds[address(auction.sell)], block.timestamp + auctionLength);
+        buyEnds[address(auction.buy)] = Math.max(buyEnds[address(auction.buy)], block.timestamp + auctionLength);
 
         // ensure valid price range (startPrice == endPrice is valid)
         require(
-            trade.prices.start >= trade.prices.end &&
-                trade.prices.start != 0 &&
-                trade.prices.end != 0 &&
-                trade.prices.start <= MAX_RATE &&
-                trade.prices.start / trade.prices.end <= MAX_PRICE_RANGE,
+            auction.prices.start >= auction.prices.end &&
+                auction.prices.start != 0 &&
+                auction.prices.end != 0 &&
+                auction.prices.start <= MAX_RATE &&
+                auction.prices.start / auction.prices.end <= MAX_PRICE_RANGE,
             Folio__InvalidPrices()
         );
 
-        trade.start = block.timestamp;
-        trade.end = block.timestamp + auctionLength;
+        auction.start = block.timestamp;
+        auction.end = block.timestamp + auctionLength;
 
-        emit TradeOpened(trade.id, trade);
+        emit AuctionOpened(auction.id, auction);
 
         // D18{1}
         // k = ln(P_0 / P_t) / t
-        trade.k = UD60x18.wrap((trade.prices.start * D18) / trade.prices.end).ln().unwrap() / auctionLength;
+        auction.k = UD60x18.wrap((auction.prices.start * D18) / auction.prices.end).ln().unwrap() / auctionLength;
         // gas optimization to avoid recomputing k on every bid
     }
 
     /// @return p D27{buyTok/sellTok}
-    function _price(Trade storage trade, uint256 timestamp) internal view returns (uint256 p) {
+    function _price(Auction storage auction, uint256 timestamp) internal view returns (uint256 p) {
         // ensure auction is ongoing
-        require(timestamp >= trade.start && timestamp <= trade.end, Folio__TradeNotOngoing());
+        require(timestamp >= auction.start && timestamp <= auction.end, Folio__AuctionNotOngoing());
 
-        if (timestamp == trade.start) {
-            return trade.prices.start;
+        if (timestamp == auction.start) {
+            return auction.prices.start;
         }
-        if (timestamp == trade.end) {
-            return trade.prices.end;
+        if (timestamp == auction.end) {
+            return auction.prices.end;
         }
 
-        uint256 elapsed = timestamp - trade.start;
+        uint256 elapsed = timestamp - auction.start;
 
         // P_t = P_0 * e ^ -kt
         // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-        p = (trade.prices.start * intoUint256(exp(SD59x18.wrap(-1 * int256(trade.k * elapsed))))) / D18;
-        if (p < trade.prices.end) {
-            p = trade.prices.end;
+        p = (auction.prices.start * intoUint256(exp(SD59x18.wrap(-1 * int256(auction.k * elapsed))))) / D18;
+        if (p < auction.prices.end) {
+            p = auction.prices.end;
         }
     }
 
@@ -759,11 +763,11 @@ contract Folio is
         require(total == D18, Folio__BadFeeTotal());
     }
 
-    function _setTradeDelay(uint256 _newDelay) internal {
-        require(_newDelay <= MAX_TRADE_DELAY, Folio__InvalidTradeDelay());
+    function _setAuctionDelay(uint256 _newDelay) internal {
+        require(_newDelay <= MAX_AUCTION_DELAY, Folio__InvalidAuctionDelay());
 
-        tradeDelay = _newDelay;
-        emit TradeDelaySet(_newDelay);
+        auctionDelay = _newDelay;
+        emit AuctionDelaySet(_newDelay);
     }
 
     function _setAuctionLength(uint256 _newLength) internal {
