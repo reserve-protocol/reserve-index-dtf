@@ -42,7 +42,7 @@ contract FolioTest is BaseTest {
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
-        // 50% folio fee annually
+        // 50% tvl fee annually
         vm.startPrank(owner);
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
@@ -213,7 +213,7 @@ contract FolioTest is BaseTest {
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
-        // 50% folio fee annually
+        // 50% tvl fee annually
         vm.startPrank(owner);
         USDC.approve(address(folioDeployer), type(uint256).max);
         REENTRANT.approve(address(folioDeployer), type(uint256).max);

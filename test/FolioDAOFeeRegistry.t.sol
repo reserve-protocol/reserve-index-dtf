@@ -27,7 +27,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
-        // 50% folio fee annually -- different from dao fee
+        // 10% tvl fee annually -- different from dao fee
         vm.startPrank(owner);
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
