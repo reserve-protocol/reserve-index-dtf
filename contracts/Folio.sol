@@ -643,7 +643,6 @@ contract Folio is
         // ensure valid price range (startPrice == endPrice is valid)
         require(
             trade.prices.start >= trade.prices.end &&
-                trade.prices.start != 0 &&
                 trade.prices.end != 0 &&
                 trade.prices.start <= MAX_RATE &&
                 trade.prices.start / trade.prices.end <= MAX_PRICE_RANGE,
