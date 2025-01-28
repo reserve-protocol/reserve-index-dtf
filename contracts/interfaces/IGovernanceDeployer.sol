@@ -16,9 +16,9 @@ interface IGovernanceDeployer {
     }
 
     struct GovRoles {
-        address[] existingTradeProposers;
-        address[] tradeLaunchers;
-        address[] vibesOfficers;
+        address[] existingAuctionApprovers;
+        address[] auctionLaunchers;
+        address[] brandManagers;
     }
 
     function deployGovernanceWithTimelock(
