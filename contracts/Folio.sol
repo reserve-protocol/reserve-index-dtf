@@ -18,6 +18,7 @@ import { Versioned } from "@utils/Versioned.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
+/// Optional bidder interface for callback
 interface IBidderCallee {
     /// @param buyAmount {qBuyTok}
     function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
@@ -41,6 +42,31 @@ uint256 constant D27 = 1e27; // D27
 /**
  * @title Folio
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
+ * @notice Folio is a ERC20 token with permissionless minting/redemption and rebalancing via dutch auction.
+ *
+ * There are 3 main roles:
+ *   1. DEFAULT_ADMIN_ROLE: can add/remove assets, set fees, auction length, auction delay, and close auctions
+ *   2. AUCTION_APPROVER: can approve auctions
+ *   3. AUCTION_LAUNCHER: can open auctions, optionally providing some amount of additional detail
+ *
+ * Permissionless execution is available after a delay if the AUCTION_LAUNCHER is not online or the Folio is configured
+ * without an AUCTION_LAUNCHER.
+ *
+ * Auction lifecycle:
+ *   approveAuction() -> openAuction() -> bid() -> [optional] closeAuction()
+ *
+ * Auctions will attempt to close themselves once their sell token's balance in the Folio reach 0. However, they can
+ * also be closed by *any* of the 3 roles, if it is discovered one of the exchange rates has been set incorrectly.
+ *
+ * Rebalancing is described in terms of ratios of asset token to Folio token (share), with units of D27{tok/share}.
+ * This makes mint/redeem orthogonal to rebalancing, since token ratios are (within rounding) invariant under mint/redeem.
+ *
+ * Fees:
+ *   - TVL fee: fee per unit time
+ *   - Mint fee: fee on mint
+ *
+ * After both fees have been applied, the DAO takes a cut based on the configuration of the FolioDAOFeeRegistry.
+ * The remaining portion is distributed to the Folio's fee recipients.
  */
 contract Folio is
     IFolio,
@@ -65,9 +91,10 @@ contract Folio is
     /**
      * Mandate
      */
-    string public mandate;
+    string public mandate; // mutable field that describes mission/brand of the Folio
 
     /**
+     * Basket
      */
     EnumerableSet.AddressSet private basket;
 
@@ -144,16 +171,19 @@ contract Folio is
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
+    /// @dev Testing function, no production use
     function poke() external nonReentrant {
         _poke();
     }
 
     // ==== Governance ====
 
+    /// @dev Does not require a token balance
     function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_addToBasket(address(token)), Folio__BasketModificationFailed());
     }
 
+    /// @dev Enables removal of tokens with nonzero balance
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
     }
@@ -198,6 +228,8 @@ contract Folio is
         _setMandate(_newMandate);
     }
 
+    /// Kill the Folio, callable only by the admin
+    /// @dev Folio cannot be issued and auctions cannot be approved, opened, or bid on
     function killFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
         isKilled = true;
 
@@ -323,6 +355,9 @@ contract Folio is
         return _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
+    /// Distribute all pending fee shares
+    /// @dev Recipients: DAO and fee recipients
+    /// @dev Pending fee shares are already reflected in the total supply, this function only concretizes balances
     function distributeFees() public nonReentrant {
         _poke();
         // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
@@ -359,7 +394,9 @@ contract Folio is
         return auctions.length;
     }
 
-    /// The amount on sale in an auction, dynamically increasing over time
+    /// The amount on sale in an auction
+    /// @dev Can be bid on in chunks
+    /// @dev Dynamically changes over time due to the price curve (can go up or down)
     /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
     function lot(uint256 auctionId, uint256 timestamp) external view returns (uint256 sellAmount) {
         Auction storage auction = auctions[auctionId];
@@ -543,7 +580,7 @@ contract Folio is
         boughtAmt = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
         require(boughtAmt <= maxBuyAmount, Folio__SlippageExceeded());
 
-        // TODO think about fee shares inflating supply over time
+        // totalSupply inflates over time due to TVL fee, causing buyLimits/sellLimits to be slightly stale
         uint256 _totalSupply = totalSupply();
         uint256 sellBal = auction.sell.balanceOf(address(this));
 
