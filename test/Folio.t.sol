@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_TVL_FEE, MAX_AUCTION_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_MINT_FEE, MIN_DAO_MINT_FEE, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TVL_FEE, MAX_MINT_FEE, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
 import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
@@ -17,7 +17,7 @@ import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
-    uint256 internal constant MAX_TVL_FEE_PER_SECOND = 21979552667; // D18{1/s} 50% annually, per second
+    uint256 internal constant MAX_TVL_FEE_PER_SECOND = 3340960028; // D18{1/s} 10% annually, per second
 
     IFolio.Range internal FULL_SELL = IFolio.Range(0, 0, MAX_RATE);
     IFolio.Range internal FULL_BUY = IFolio.Range(MAX_RATE, 1, MAX_RATE);
@@ -42,7 +42,7 @@ contract FolioTest is BaseTest {
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
-        // 50% folio fee annually
+        // 50% tvl fee annually
         vm.startPrank(owner);
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
@@ -213,7 +213,7 @@ contract FolioTest is BaseTest {
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
-        // 50% folio fee annually
+        // 50% tvl fee annually
         vm.startPrank(owner);
         USDC.approve(address(folioDeployer), type(uint256).max);
         REENTRANT.approve(address(folioDeployer), type(uint256).max);
@@ -254,7 +254,7 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
         folio.mint(1e22, user1);
-        assertEq(folio.balanceOf(user1), 1e22 - 1e22 / 2000, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), 1e22 - (1e22 * 3) / 2000, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
             startingUSDCBalance + D6_TOKEN_10K,
@@ -281,10 +281,10 @@ contract FolioTest is BaseTest {
         uint256 startingDAIBalance = DAI.balanceOf(address(folio));
         uint256 startingMEMEBalance = MEME.balanceOf(address(folio));
 
-        // set mintFee to 10%
+        // set mintFee to 5%
         vm.prank(owner);
         folio.setMintFee(MAX_MINT_FEE);
-        // DAO cut is still 0% at this point
+        // DAO cut is at 50%
 
         vm.startPrank(user1);
         USDC.approve(address(folio), type(uint256).max);
@@ -293,7 +293,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = 1e22;
         folio.mint(amt, user1);
-        assertEq(folio.balanceOf(user1), amt - amt / 10, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), amt - amt / 20, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
             startingUSDCBalance + D6_TOKEN_10K,
@@ -313,13 +313,13 @@ contract FolioTest is BaseTest {
             "wrong folio meme balance"
         );
 
-        // mint fee should be manifested in total supply and both streams of fee shares
-        assertEq(folio.totalSupply(), amt * 2, "total supply off"); // genesis supply + new mint + 10% increase
-        uint256 daoPendingFeeShares = (amt * MIN_DAO_MINT_FEE) / 1e18;
-        assertEq(folio.daoPendingFeeShares(), daoPendingFeeShares, "wrong dao pending fee shares"); // only 5 bps
+        // mint fee should manifest in total supply and both streams of fee shares
+        assertEq(folio.totalSupply(), amt * 2, "total supply off"); // genesis supply + new mint
+        uint256 daoPendingFeeShares = (amt * MAX_MINT_FEE) / 1e18 / 2; // DAO receives 50% of the full mint fee
+        assertEq(folio.daoPendingFeeShares(), daoPendingFeeShares, "wrong dao pending fee shares");
         assertEq(
             folio.feeRecipientsPendingFeeShares(),
-            amt / 10 - daoPendingFeeShares,
+            amt / 20 - daoPendingFeeShares,
             "wrong fee recipients pending fee shares"
         );
     }
@@ -330,7 +330,7 @@ contract FolioTest is BaseTest {
         uint256 startingDAIBalance = DAI.balanceOf(address(folio));
         uint256 startingMEMEBalance = MEME.balanceOf(address(folio));
 
-        // set mintFee to 10%
+        // set mintFee to 5%
         vm.prank(owner);
         folio.setMintFee(MAX_MINT_FEE);
         daoFeeRegistry.setDefaultFeeNumerator(MAX_DAO_FEE); // DAO fee 50%
@@ -342,7 +342,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = 1e22;
         folio.mint(amt, user1);
-        assertEq(folio.balanceOf(user1), amt - amt / 10, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), amt - amt / 20, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
             startingUSDCBalance + D6_TOKEN_10K,
@@ -362,13 +362,13 @@ contract FolioTest is BaseTest {
             "wrong folio meme balance"
         );
 
-        // mint fee should be manifested in total supply and both streams of fee shares
-        assertEq(folio.totalSupply(), amt * 2, "total supply off"); // genesis supply + new mint + 10% increase
-        uint256 daoPendingFeeShares = (amt / 10) / 2;
-        assertEq(folio.daoPendingFeeShares(), daoPendingFeeShares, "wrong dao pending fee shares"); // only 5 bps
+        // minting fee should be manifested in total supply and both streams of fee shares
+        assertEq(folio.totalSupply(), amt * 2, "total supply off"); // genesis supply + new mint + 5% increase
+        uint256 daoPendingFeeShares = (amt / 20) / 2;
+        assertEq(folio.daoPendingFeeShares(), daoPendingFeeShares, "wrong dao pending fee shares"); // only 15 bps
         assertEq(
             folio.feeRecipientsPendingFeeShares(),
-            amt / 10 - daoPendingFeeShares,
+            amt / 20 - daoPendingFeeShares,
             "wrong fee recipients pending fee shares"
         );
     }
@@ -380,9 +380,11 @@ contract FolioTest is BaseTest {
         uint256 startingDAIBalance = DAI.balanceOf(address(folio));
         uint256 startingMEMEBalance = MEME.balanceOf(address(folio));
 
-        // set mintFee to MIN_DAO_MINT_FEE, 5 bps
+        uint256 defaultFeeFloor = daoFeeRegistry.defaultFeeFloor();
+
+        // set mintingFee to feeFloor, 15 bps
         vm.prank(owner);
-        folio.setMintFee(MIN_DAO_MINT_FEE);
+        folio.setMintFee(defaultFeeFloor);
         // leave daoFeeRegistry fee at 0 (default)
 
         vm.startPrank(user1);
@@ -392,7 +394,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = 1e22;
         folio.mint(amt, user1);
-        assertEq(folio.balanceOf(user1), amt - (amt * MIN_DAO_MINT_FEE) / 1e18, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), amt - (amt * defaultFeeFloor) / 1e18, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
             startingUSDCBalance + D6_TOKEN_10K,
@@ -414,7 +416,7 @@ contract FolioTest is BaseTest {
 
         // mint fee should be manifested in total supply and ONLY the DAO's side of the stream
         assertEq(folio.totalSupply(), amt * 2, "total supply off");
-        assertEq(folio.daoPendingFeeShares(), (amt * MIN_DAO_MINT_FEE) / 1e18, "wrong dao pending fee shares");
+        assertEq(folio.daoPendingFeeShares(), (amt * defaultFeeFloor) / 1e18, "wrong dao pending fee shares");
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
     }
 
@@ -441,7 +443,7 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
         folio.mint(1e22, user1);
-        assertEq(folio.balanceOf(user1), 1e22 - 1e22 / 2000, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), 1e22 - (1e22 * 3) / 2000, "wrong user1 balance");
         uint256 startingUSDCBalanceFolio = USDC.balanceOf(address(folio));
         uint256 startingDAIBalanceFolio = DAI.balanceOf(address(folio));
         uint256 startingMEMEBalanceFolio = MEME.balanceOf(address(folio));
@@ -597,21 +599,25 @@ contract FolioTest is BaseTest {
         vm.roll(block.number + 1000000);
         uint256 pendingFeeShares = folio.getPendingFeeShares();
 
-        // validate pending fees have been accumulated -- 50% fee = 100% of supply
-        assertApproxEqAbs(supplyBefore, pendingFeeShares, 1e12, "wrong pending fee shares");
+        // validate pending fees have been accumulated -- 5% fee = ~11.1% of supply
+        assertApproxEqAbs(supplyBefore, pendingFeeShares, 1.111e22, "wrong pending fee shares");
 
         uint256 initialOwnerShares = folio.balanceOf(owner);
         folio.distributeFees();
 
         // check receipient balances
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) /
             daoFeeDenominator +
             1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
         uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
+        assertEq(
+            folio.balanceOf(owner),
+            initialOwnerShares + (remainingShares * 0.9e18 + 1e18 - 1) / 1e18,
+            "wrong owner shares"
+        );
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
     }
 
@@ -678,7 +684,7 @@ contract FolioTest is BaseTest {
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
 
         // check receipient balances
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
@@ -695,7 +701,7 @@ contract FolioTest is BaseTest {
         vm.startPrank(owner);
         assertEq(folio.tvlFee(), MAX_TVL_FEE_PER_SECOND, "wrong tvl fee");
         uint256 newTvlFee = MAX_TVL_FEE / 1000;
-        uint256 newTvlFeePerSecond = 15858860;
+        uint256 newTvlFeePerSecond = 3171137;
         vm.expectEmit(true, true, false, true);
         emit IFolio.TVLFeeSet(newTvlFeePerSecond, MAX_TVL_FEE / 1000);
         folio.setTVLFee(newTvlFee);
@@ -812,7 +818,7 @@ contract FolioTest is BaseTest {
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
 
         // check receipient balances
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
         uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 
@@ -823,6 +829,26 @@ contract FolioTest is BaseTest {
             "wrong owner shares"
         );
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
+    }
+
+    function test_pendingFeeSharesAtFeeFloor() public {
+        assertEq(folio.getPendingFeeShares(), 0, "pending fee shares should start 0");
+
+        vm.prank(owner);
+        folio.setTVLFee(0);
+
+        // fast forward, accumulate fees
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        vm.roll(block.number + 1000000);
+        uint256 pendingFeeShares = folio.getPendingFeeShares();
+        uint256 defaultFeeFloor = daoFeeRegistry.defaultFeeFloor();
+        uint256 expectedPendingFeeShares = (INITIAL_SUPPLY * 1e18) / (1e18 - defaultFeeFloor) - INITIAL_SUPPLY;
+        assertApproxEqAbs(
+            pendingFeeShares,
+            expectedPendingFeeShares,
+            expectedPendingFeeShares / 1e7,
+            "wrong pending fee shares"
+        );
     }
 
     function test_setFeeRecipients_InvalidRecipient() public {
@@ -881,14 +907,14 @@ contract FolioTest is BaseTest {
         uint256 initialDaoShares = folio.balanceOf(dao);
         uint256 initialFeeReceiverShares = folio.balanceOf(feeReceiver);
 
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
+        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
+        uint256 remainingShares = pendingFeeShares - expectedDaoShares;
 
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.1e18);
 
         // check receipient balances
-        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares, 1st change");
-        uint256 remainingShares = pendingFeeShares - expectedDaoShares;
         assertEq(
             folio.balanceOf(owner),
             initialOwnerShares + (remainingShares * 0.9e18) / 1e18 + 1,
@@ -905,22 +931,17 @@ contract FolioTest is BaseTest {
         vm.roll(block.number + 1000000);
 
         pendingFeeShares = folio.getPendingFeeShares();
-
         initialOwnerShares = folio.balanceOf(owner);
         initialDaoShares = folio.balanceOf(dao);
         initialFeeReceiverShares = folio.balanceOf(feeReceiver);
-        (, daoFeeNumerator, daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
+        (, daoFeeNumerator, daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
 
         // set new fee numerator, should distribute fees
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.05e18);
 
         // check receipient balances
-        expectedDaoShares =
-            initialDaoShares +
-            (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) /
-            daoFeeDenominator +
-            1;
-        assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares, 2nd change");
+        expectedDaoShares = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator + 1;
+        assertEq(folio.balanceOf(address(dao)), initialDaoShares + expectedDaoShares, "wrong dao shares, 2nd change");
         remainingShares = pendingFeeShares - expectedDaoShares;
         assertApproxEqAbs(
             folio.balanceOf(owner),
@@ -1996,7 +2017,7 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
         folio.mint(1e22, user1);
-        assertEq(folio.balanceOf(user1), 1e22 - 1e22 / 2000, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), 1e22 - (1e22 * 3) / 2000, "wrong user1 balance");
 
         (address[] memory basket, uint256[] memory amounts) = folio.toAssets(5e21, Math.Rounding.Floor);
 
@@ -2046,26 +2067,19 @@ contract FolioTest is BaseTest {
     }
 
     function test_poke() public {
-        uint256 prevBlockTimestamp = folio.lastPoke();
-
-        // fast forward, accumulate fees
-        vm.warp(block.timestamp + YEAR_IN_SECONDS);
-        vm.roll(block.number + 1000000);
-        uint256 pendingFeeShares = folio.getPendingFeeShares();
-
-        assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
-        assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
-
         // call poke
         folio.poke();
         assertEq(folio.lastPoke(), block.timestamp);
-        assertGt(block.timestamp, prevBlockTimestamp);
-
-        // after poke
-        assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
-        assertEq(folio.feeRecipientsPendingFeeShares(), pendingFeeShares, "wrong fee recipients pending fee shares");
+        vm.warp(block.timestamp + 1000);
 
         // no-op if already poked
+        vm.startSnapshotGas("poke()");
         folio.poke(); // collect shares
+        vm.stopSnapshotGas("poke()");
+
+        // no-op if already poked
+        vm.startSnapshotGas("repeat poke()");
+        folio.poke(); // collect shares
+        vm.stopSnapshotGas("repeat poke()");
     }
 }
