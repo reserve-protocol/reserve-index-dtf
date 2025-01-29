@@ -1214,7 +1214,7 @@ contract FolioTest is BaseTest {
         assertEq(folio.getBid(0, end, amt), 1, "wrong end bid amount");
     }
 
-    function test_auctionKillAuctionByAuctionApprover() public {
+    function test_auctioncloseAuctionByAuctionApprover() public {
         IFolio.Auction memory auctionStruct = IFolio.Auction({
             id: 0,
             sell: USDC,
@@ -1239,20 +1239,20 @@ contract FolioTest is BaseTest {
         emit IFolio.AuctionOpened(0, auctionStruct);
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
-        // killAuction should not be callable by just anyone
+        // closeAuction should not be callable by just anyone
         vm.expectRevert(IFolio.Folio__Unauthorized.selector);
-        folio.killAuction(0);
+        folio.closeAuction(0);
 
         (, , , , , , , , , uint256 end, ) = folio.auctions(0);
         vm.startPrank(dao);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.AuctionKilled(0);
-        folio.killAuction(0);
+        emit IFolio.AuctionClosed(0);
+        folio.closeAuction(0);
 
         // next auction index should revert
 
         vm.expectRevert();
-        folio.killAuction(1); // index out of bounds
+        folio.closeAuction(1); // index out of bounds
 
         vm.expectRevert(IFolio.Folio__AuctionNotOngoing.selector);
         folio.bid(0, amt, amt, false, bytes(""));
@@ -1267,7 +1267,7 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_auctionKillAuctionByAuctionLauncher() public {
+    function test_auctioncloseAuctionByAuctionLauncher() public {
         IFolio.Auction memory auctionStruct = IFolio.Auction({
             id: 0,
             sell: USDC,
@@ -1292,19 +1292,19 @@ contract FolioTest is BaseTest {
         emit IFolio.AuctionOpened(0, auctionStruct);
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
-        // killAuction should not be callable by just anyone
+        // closeAuction should not be callable by just anyone
         vm.expectRevert(IFolio.Folio__Unauthorized.selector);
-        folio.killAuction(0);
+        folio.closeAuction(0);
 
         vm.startPrank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.AuctionKilled(0);
-        folio.killAuction(0);
+        emit IFolio.AuctionClosed(0);
+        folio.closeAuction(0);
 
         // next auction index should revert
 
         vm.expectRevert();
-        folio.killAuction(1); // index out of bounds
+        folio.closeAuction(1); // index out of bounds
 
         (, , , , , , , , , uint256 end, ) = folio.auctions(0);
         vm.expectRevert(IFolio.Folio__AuctionNotOngoing.selector);
@@ -1320,7 +1320,7 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_auctionKillAuctionByOwner() public {
+    function test_auctioncloseAuctionByOwner() public {
         IFolio.Auction memory auctionStruct = IFolio.Auction({
             id: 0,
             sell: USDC,
@@ -1347,13 +1347,13 @@ contract FolioTest is BaseTest {
 
         vm.startPrank(owner);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.AuctionKilled(0);
-        folio.killAuction(0);
+        emit IFolio.AuctionClosed(0);
+        folio.closeAuction(0);
 
         // next auction index should revert
 
         vm.expectRevert();
-        folio.killAuction(1); // index out of bounds
+        folio.closeAuction(1); // index out of bounds
 
         (, , , , , , , , , uint256 end, ) = folio.auctions(0);
         vm.expectRevert(IFolio.Folio__AuctionNotOngoing.selector);

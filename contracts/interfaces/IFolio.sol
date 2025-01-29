@@ -9,7 +9,7 @@ interface IFolio {
     event AuctionApproved(uint256 indexed auctionId, address indexed from, address indexed to, Auction auction);
     event AuctionOpened(uint256 indexed auctionId, Auction auction);
     event AuctionBid(uint256 indexed auctionId, uint256 sellAmount, uint256 buyAmount);
-    event AuctionKilled(uint256 indexed auctionId);
+    event AuctionClosed(uint256 indexed auctionId);
 
     event FolioFeePaid(address indexed recipient, uint256 amount);
     event ProtocolFeePaid(address indexed recipient, uint256 amount);

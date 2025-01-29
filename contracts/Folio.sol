@@ -586,10 +586,10 @@ contract Folio is
         require(auction.buy.balanceOf(address(this)) <= maxBuyBal, Folio__ExcessiveBid());
     }
 
-    /// Kill a auction
+    /// Close a auction
     /// A auction can be killed anywhere in its lifecycle, and cannot be restarted
     /// @dev Callable by AUCTION_APPROVER or AUCTION_LAUNCHER or ADMIN
-    function killAuction(uint256 auctionId) external nonReentrant {
+    function closeAuction(uint256 auctionId) external nonReentrant {
         require(
             hasRole(AUCTION_APPROVER, msg.sender) ||
                 hasRole(AUCTION_LAUNCHER, msg.sender) ||
@@ -600,7 +600,7 @@ contract Folio is
         // do not revert, to prevent griefing
         auctions[auctionId].end = 1;
 
-        emit AuctionKilled(auctionId);
+        emit AuctionClosed(auctionId);
     }
 
     // ==== Internal ====
