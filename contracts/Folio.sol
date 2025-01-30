@@ -125,7 +125,7 @@ contract Folio is
      */
     Auction[] public auctions;
     mapping(address => uint256) public sellEnds; // {s} timestamp of latest ongoing auction for sells
-    mapping(address => uint256) public buyEnds; // {s} timestamp of latest ongoing auction for bunys
+    mapping(address => uint256) public buyEnds; // {s} timestamp of latest ongoing auction for buys
     uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be permissionlessly opened
     uint256 public auctionLength; // {s} length of an auction
 
