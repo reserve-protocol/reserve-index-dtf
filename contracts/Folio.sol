@@ -561,11 +561,15 @@ contract Folio is
 
         emit AuctionBid(auctionId, sellAmount, boughtAmt);
 
-        // QoL feature: close auction and eject token from basket if we have sold all of it
-        if (auction.sell.balanceOf(address(this)) == 0) {
-            _removeFromBasket(address(auction.sell));
-
+        // QoL: close auction if we have reached the sell limit
+        sellBal = auction.sell.balanceOf(address(this));
+        if (sellBal <= minSellBal) {
             auction.end = block.timestamp;
+            // cannot update sellEnds/buyEnds due to possibility of parallel auctions
+
+            if (sellBal == 0) {
+                _removeFromBasket(address(auction.sell));
+            }
         }
 
         // collect payment from bidder
