@@ -638,7 +638,7 @@ contract Folio is
         // do not revert, to prevent griefing
         auctions[auctionId].end = 1;
 
-        emit AuctionKilled(auctionId);
+        emit AuctionClosed(auctionId);
     }
 
     // ==== Internal ====

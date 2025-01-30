@@ -1214,7 +1214,7 @@ contract FolioTest is BaseTest {
         assertEq(folio.getBid(0, end, amt), 1, "wrong end bid amount");
     }
 
-    function test_auctionKillAuctionByAuctionApprover() public {
+    function test_auctioncloseAuctionByAuctionApprover() public {
         IFolio.Auction memory auctionStruct = IFolio.Auction({
             id: 0,
             sell: USDC,
@@ -1246,7 +1246,7 @@ contract FolioTest is BaseTest {
         (, , , , , , , , , uint256 end, ) = folio.auctions(0);
         vm.startPrank(dao);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.AuctionKilled(0);
+        emit IFolio.AuctionClosed(0);
         folio.closeAuction(0);
 
         // next auction index should revert
@@ -1267,7 +1267,7 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_auctionKillAuctionByAuctionLauncher() public {
+    function test_auctioncloseAuctionByAuctionLauncher() public {
         IFolio.Auction memory auctionStruct = IFolio.Auction({
             id: 0,
             sell: USDC,
@@ -1298,7 +1298,7 @@ contract FolioTest is BaseTest {
 
         vm.startPrank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.AuctionKilled(0);
+        emit IFolio.AuctionClosed(0);
         folio.closeAuction(0);
 
         // next auction index should revert
@@ -1320,7 +1320,7 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_auctionKillAuctionByOwner() public {
+    function test_auctioncloseAuctionByOwner() public {
         IFolio.Auction memory auctionStruct = IFolio.Auction({
             id: 0,
             sell: USDC,
@@ -1347,7 +1347,7 @@ contract FolioTest is BaseTest {
 
         vm.startPrank(owner);
         vm.expectEmit(true, false, false, true);
-        emit IFolio.AuctionKilled(0);
+        emit IFolio.AuctionClosed(0);
         folio.closeAuction(0);
 
         // next auction index should revert
