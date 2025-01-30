@@ -226,6 +226,11 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     function poke() external accrueRewards(msg.sender, msg.sender) {}
 
     modifier accrueRewards(address _caller, address _receiver) {
+        _accrueRewards(_caller, _receiver);
+        _;
+    }
+
+    function _accrueRewards(address _caller, address _receiver) internal {
         address[] memory _rewardTokens = rewardTokens.values();
         uint256 _rewardTokensLength = _rewardTokens.length;
 
@@ -242,7 +247,6 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
                 _accrueUser(_caller, rewardToken);
             }
         }
-        _;
     }
 
     function _accrueRewards(address _rewardToken) internal {

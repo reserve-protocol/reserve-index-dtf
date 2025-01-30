@@ -48,12 +48,4 @@ contract GovernanceDeployerTest is BaseTest {
         assertTrue(timelock.hasRole(timelock.CANCELLER_ROLE(), user1), "wrong canceler role");
         assertFalse(timelock.hasRole(timelock.CANCELLER_ROLE(), address(0)), "wrong canceler role");
     }
-
-    function test_cannotDeployWithZeroGuardian() public {
-        vm.expectRevert(IGovernanceDeployer.GovernanceDeployer__InvalidGuardian.selector);
-        governanceDeployer.deployGovernanceWithTimelock(
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, new address[](1)),
-            IVotes(address(MEME))
-        );
-    }
 }
