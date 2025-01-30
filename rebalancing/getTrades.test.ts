@@ -121,7 +121,7 @@ describe("getTrades()", () => {
     expectTradeApprox(trades[0], "USDC", "DAI", bn("5e14"), bn("5e26"), bn("0"), bn("0"));
     expect(trades[0].sellLimit.low).toBe(0n);
     expect(trades[0].sellLimit.high).toBe(bn("1e54"));
-    expect(trades[0].buyLimit.low).toBe(0n);
+    expect(trades[0].buyLimit.low).toBe(1n);
     expect(trades[0].buyLimit.high).toBe(bn("1e54"));
   });
 });
