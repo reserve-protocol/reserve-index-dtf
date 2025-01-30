@@ -8,8 +8,8 @@ import { StakingVault } from "contracts/staking/StakingVault.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
-    IFolio.Range internal FULL_SELL = IFolio.Range(0, 0, MAX_RATE);
-    IFolio.Range internal FULL_BUY = IFolio.Range(MAX_RATE, MAX_RATE, MAX_RATE);
+    IFolio.BasketRange internal FULL_SELL = IFolio.BasketRange(0, 0, MAX_RATE);
+    IFolio.BasketRange internal FULL_BUY = IFolio.BasketRange(MAX_RATE, MAX_RATE, MAX_RATE);
 
     function _deployTestFolio(
         address[] memory _tokens,

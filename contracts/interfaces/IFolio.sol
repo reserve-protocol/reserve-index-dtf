@@ -86,7 +86,7 @@ interface IFolio {
         uint96 portion; // D18{1}
     }
 
-    struct Range {
+    struct BasketRange {
         uint256 spot; // D27{buyTok/share}
         uint256 low; // D27{buyTok/share} inclusive
         uint256 high; // D27{buyTok/share} inclusive
@@ -105,8 +105,8 @@ interface IFolio {
         uint256 id;
         IERC20 sell;
         IERC20 buy;
-        Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
-        Range buyLimit; // D27{buyTok/share} max ratio of buy token to shares allowed, exclusive
+        BasketRange sellLimit; // D27{sellTok/share} min ratio of sell token in the basket, inclusive
+        BasketRange buyLimit; // D27{buyTok/share} max ratio of buy token in the basket, exclusive
         Prices prices; // D27{buyTok/sellTok}
         uint256 availableAt; // {s} inclusive
         uint256 launchTimeout; // {s} inclusive

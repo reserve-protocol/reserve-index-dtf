@@ -74,17 +74,17 @@ The staking vault has ONLY a single owner:
 
 ###### Buy/Sell limits
 
-Governance configures a range for the buy and sell limits, including a spot estimate:
+Governance configures buy and sell limits for the basket ratios, including a spot estimate:
 
 ```solidity
-struct Range {
+struct BasketRange {
   uint256 spot; // D27{buyTok/share}
   uint256 low; // D27{buyTok/share} inclusive
   uint256 high; // D27{buyTok/share} inclusive
 }
 
-Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
-Range buyLimit; // D27{buyTok/share} min ratio of sell token to shares allowed, exclusive
+BasketRange sellLimit; // D27{sellTok/share} min ratio of sell tokens in the basket, inclusive
+BasketRange buyLimit; // D27{buyTok/share} max ratio of buy tokens in the basket, exclusive
 ```
 
 During `openAuction` the `AUCTION_LAUNCHER` can set the buy and sell limits within the approved ranges provided by governance. If the auction is opened permissionlessly instead, the governance pre-approved spot estimates will be used instead.
@@ -97,7 +97,7 @@ There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `AUCTIO
 2. Can provide `[startPrice, 0]` to defer to the auction launcher for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
 3. Can provide `[startPrice, endPrice]` to defer to the auction launcher for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Suggested default option.
 
-The `AUCTION_LAUNCHER` can always choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
+The `AUCTION_LAUNCHER` can always choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either price.
 
 The price range (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues.
 
@@ -109,10 +109,10 @@ Note: The first block may not have a price of exactly `startPrice`, if it does n
 
 ###### Lot Sizing
 
-Auction lots are sized by `Auction.sellLimit` and `Auction.buyLimit`. Both correspond to Folio invariants that must be maintained throughout the auction:
+Auction lots are sized by `Auction.sellLimit` and `Auction.buyLimit`. Both correspond to Folio invariants about basket ratios that must be maintained throughout the auction:
 
-- `sellLimit` is the minimum ratio of sell token to the Folio token
-- `buyLimit` is the maximum ratio of buy token to Folio token
+- `sellLimit` is the min amount of sell token in the basket `D27{sellTok/share}`
+- `buyLimit` is the max amount of buy token in the basket `D27{buyTok/share}`
 
 The auction `lot()` represents the single largest quantity of sell token that can be transacted under these invariants.
 
@@ -153,7 +153,6 @@ Units:
 - `{tok}` OR `{share}` OR `{reward}`: token balances
 - `D27`: 1e27
 - `D18`: 1e18
-- `D18{tok}`: a ratio of two token balances with 18 decimals of added precision
 - `D18{1}`: a percentage value with 18 decimals of added precision
 - `D18{tok1/tok2}`: a ratio of two token balances with 18 decimals of added precision
 - `{s}`: seconds

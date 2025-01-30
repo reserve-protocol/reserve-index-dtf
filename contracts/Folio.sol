@@ -34,7 +34,7 @@ uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 
-UD60x18 constant ANNUALIZATION_EXP = UD60x18.wrap(31709791983); // D18{1/s} 1 / 31536000
+UD60x18 constant ANNUALIZER = UD60x18.wrap(31709791983); // D18{1/s} 1 / 31536000
 
 uint256 constant D18 = 1e18; // D18
 uint256 constant D27 = 1e27; // D27
@@ -42,10 +42,10 @@ uint256 constant D27 = 1e27; // D27
 /**
  * @title Folio
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
- * @notice Folio is a ERC20 token with permissionless minting/redemption and rebalancing via dutch auction.
+ * @notice Folio is a backed ERC20 token with permissionless minting/redemption and rebalancing via dutch auction
  *
  * There are 3 main roles:
- *   1. DEFAULT_ADMIN_ROLE: can add/remove assets, set fees, auction length, auction delay, and close auctions
+ *   1. DEFAULT_ADMIN_ROLE: can add/remove erc20 assets, set fees, auction length, auction delay, and close auctions
  *   2. AUCTION_APPROVER: can approve auctions
  *   3. AUCTION_LAUNCHER: can open auctions, optionally providing some amount of additional detail
  *
@@ -55,11 +55,13 @@ uint256 constant D27 = 1e27; // D27
  * Auction lifecycle:
  *   approveAuction() -> openAuction() -> bid() -> [optional] closeAuction()
  *
- * Auctions will attempt to close themselves once their sell token's balance in the Folio reach 0. However, they can
+ * Auctions will attempt to close themselves once the sell token's balance reaches the sellLimit. However, they can
  * also be closed by *any* of the 3 roles, if it is discovered one of the exchange rates has been set incorrectly.
  *
- * Rebalancing is described in terms of ratios of asset token to Folio token (share), with units of D27{tok/share}.
- * This makes mint/redeem orthogonal to rebalancing, since token ratios are (within rounding) invariant under mint/redeem.
+ * A Folio is backed by aa flexible number of ERC20 tokens of any denomination/price (within assumed ranges, see README)
+ * All tokens tracked by the Folio are required to issue/redeem. This forms the basket.
+ *
+ * Rebalancing targets are defined in terms of basket ratios: ratio of token to the Folio share, units D27{tok/share}.
  *
  * Fees:
  *   - TVL fee: fee per unit time
@@ -121,11 +123,11 @@ contract Folio is
      *   - Multiple bids can be executed against the same auction
      *   - All auctions are dutch auctions with the same price curve, but it's possible to pass startPrice = endPrice
      */
-    uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be permissionlessly opened
-    uint256 public auctionLength; // {s} length of an auction
     Auction[] public auctions;
     mapping(address => uint256) public sellEnds; // {s} timestamp of latest ongoing auction for sells
     mapping(address => uint256) public buyEnds; // {s} timestamp of latest ongoing auction for bunys
+    uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be permissionlessly opened
+    uint256 public auctionLength; // {s} length of an auction
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -244,12 +246,14 @@ contract Folio is
         return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
-    // {} -> ({tokAddress}, {tok})
+    /// @return _assets
+    /// @return _amounts {tok}
     function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
         return toAssets(10 ** decimals(), Math.Rounding.Floor);
     }
 
-    // {} -> ({tokAddress}, {tok})
+    /// @return _assets
+    /// @return _amounts {tok}
     function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
         _assets = basket.values();
 
@@ -260,7 +264,9 @@ contract Folio is
         }
     }
 
-    // {share} -> ({tokAddress}, {tok})
+    /// @param shares {share}
+    /// @return _assets
+    /// @return _amounts {tok}
     function toAssets(
         uint256 shares,
         Math.Rounding rounding
@@ -270,7 +276,10 @@ contract Folio is
         return _toAssets(shares, rounding);
     }
 
-    // {share} -> ({tokAddress}, {tok})
+    /// @param shares {share} Amount of shares to redeem
+    /// @return _assets
+    /// @return _amounts {tok}
+    /// @dev Use allowances to set slippage limits
     /// @dev Minting has 3 share-portions: (i) receiver shares, (ii) DAO fee shares, (iii) fee recipients shares
     function mint(
         uint256 shares,
@@ -290,7 +299,7 @@ contract Folio is
         uint256 totalFeeShares = (shares * mintFee + D18 - 1) / D18;
         uint256 daoFeeShares = (totalFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
 
-        // ensure DAO's portion of fees is at least the DAO daoFeeFloor
+        // ensure DAO's portion of fees is at least the DAO feeFloor
         uint256 minDaoShares = (shares * daoFeeFloor + D18 - 1) / D18;
         daoFeeShares = daoFeeShares < minDaoShares ? minDaoShares : daoFeeShares;
 
@@ -332,7 +341,11 @@ contract Folio is
         address[] memory _assets;
         (_assets, _amounts) = _toAssets(shares, Math.Rounding.Floor);
 
+        // === Burn shares ===
+
         _burn(msg.sender, shares);
+
+        // === Transfer assets out ===
 
         uint256 len = _assets.length;
         require(len == assets.length && len == minAmountsOut.length, Folio__InvalidArrayLengths());
@@ -347,7 +360,7 @@ contract Folio is
         }
     }
 
-    // === Fee Shares ===
+    // ==== Fee Shares ====
 
     /// @return {share} Up-to-date sum of DAO and fee recipients pending fee shares
     function getPendingFeeShares() public view returns (uint256) {
@@ -362,7 +375,8 @@ contract Folio is
         _poke();
         // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
 
-        // Fee recipients
+        // === Fee recipients ===
+
         uint256 _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
         feeRecipientsPendingFeeShares = 0;
         uint256 feeRecipientsTotal;
@@ -378,7 +392,9 @@ contract Folio is
             emit FolioFeePaid(feeRecipients[i].recipient, shares);
         }
 
-        // DAO
+        // === DAO ===
+
+        // {share}
         uint256 daoShares = daoPendingFeeShares + _feeRecipientsPendingFeeShares - feeRecipientsTotal;
 
         (address daoRecipient, , , ) = daoFeeRegistry.getFeeDetails(address(this));
@@ -396,7 +412,7 @@ contract Folio is
 
     /// The amount on sale in an auction
     /// @dev Can be bid on in chunks
-    /// @dev Dynamically changes over time due to the price curve (can go up or down)
+    /// @dev Fluctuates changes over time as price changes (can go up or down)
     /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
     function lot(uint256 auctionId, uint256 timestamp) external view returns (uint256 sellAmount) {
         Auction storage auction = auctions[auctionId];
@@ -431,6 +447,7 @@ contract Folio is
         return _price(auctions[auctionId], timestamp);
     }
 
+    /// Get the bid amount required to purchase the sell amount
     /// @param sellAmount {sellTok} The amount of sell tokens the bidder is offering the protocol
     /// @return bidAmount {buyTok} The amount of buy tokens required to bid in the auction at a given timestamp
     function getBid(
@@ -444,6 +461,7 @@ contract Folio is
         bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
     }
 
+    /// Approve an auction to run
     /// @param sell The token to sell, from the perspective of the Folio
     /// @param buy The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
@@ -455,8 +473,8 @@ contract Folio is
     function approveAuction(
         IERC20 sell,
         IERC20 buy,
-        Range calldata sellLimit,
-        Range calldata buyLimit,
+        BasketRange calldata sellLimit,
+        BasketRange calldata buyLimit,
         Prices calldata prices,
         uint256 ttl
     ) external nonReentrant onlyRole(AUCTION_APPROVER) {
@@ -503,7 +521,7 @@ contract Folio is
         emit AuctionApproved(auction.id, address(sell), address(buy), auction);
     }
 
-    /// Open a auction as the auction launcher
+    /// Open an auction as the auction launcher
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param startPrice D27{buyTok/sellTok} 1e54 max
@@ -543,6 +561,7 @@ contract Folio is
         _openAuction(auction);
     }
 
+    /// Open an auction permissionlessly
     /// @dev Permissionless, callable only after the auction delay
     function openAuctionPermissionlessly(uint256 auctionId) external nonReentrant {
         Auction storage auction = auctions[auctionId];
@@ -643,7 +662,9 @@ contract Folio is
 
     // ==== Internal ====
 
-    // {share} -> ({tokAddress}, {tok})
+    /// @param shares {share}
+    /// @return _assets
+    /// @return _amounts {tok}
     function _toAssets(
         uint256 shares,
         Math.Rounding rounding
@@ -743,7 +764,7 @@ contract Folio is
         // convert annual percentage to per-second for comparison with stored tvlFee
         // = 1 - (1 - feeFloor) ^ (1 / 31536000)
         // D18{1/s} = D18{1} - D18{1} * D18{1} ^ {s}
-        uint256 feeFloor = D18 - UD60x18.wrap(D18 - daoFeeFloor).pow(ANNUALIZATION_EXP).unwrap();
+        uint256 feeFloor = D18 - UD60x18.wrap(D18 - daoFeeFloor).pow(ANNUALIZER).unwrap();
 
         // D18{1/s}
         uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
@@ -763,13 +784,14 @@ contract Folio is
         _feeRecipientsPendingFeeShares += feeShares - daoShares;
     }
 
-    /// @dev Set TVL fee by annual percentage
-    /// @param _newFeeAnnually {s}
+    /// Set TVL fee by annual percentage. Different from how it is stored!
+    /// @param _newFeeAnnually D18{1}
     function _setTVLFee(uint256 _newFeeAnnually) internal {
         require(_newFeeAnnually <= MAX_TVL_FEE, Folio__TVLFeeTooHigh());
 
         // convert annual percentage to per-second
         // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
+        // D18{1/s} = D18{1} - D18{1} ^ {s}
         tvlFee = D18 - UD60x18.wrap(D18 - _newFeeAnnually).pow(ANNUALIZATION_EXP).unwrap();
 
         require(_newFeeAnnually == 0 || tvlFee != 0, Folio__TVLFeeTooLow());
@@ -777,6 +799,8 @@ contract Folio is
         emit TVLFeeSet(tvlFee, _newFeeAnnually);
     }
 
+    /// Set mint fee
+    /// @param _newFee D18{1}
     function _setMintFee(uint256 _newFee) internal {
         require(_newFee <= MAX_MINT_FEE, Folio__MintFeeTooHigh());
 
@@ -812,6 +836,7 @@ contract Folio is
         require(total == D18, Folio__BadFeeTotal());
     }
 
+    /// @param _newDelay {s}
     function _setAuctionDelay(uint256 _newDelay) internal {
         require(_newDelay <= MAX_AUCTION_DELAY, Folio__InvalidAuctionDelay());
 
@@ -819,6 +844,7 @@ contract Folio is
         emit AuctionDelaySet(_newDelay);
     }
 
+    /// @param _newLength {s}
     function _setAuctionLength(uint256 _newLength) internal {
         require(_newLength >= MIN_AUCTION_LENGTH && _newLength <= MAX_AUCTION_LENGTH, Folio__InvalidAuctionLength());
 
