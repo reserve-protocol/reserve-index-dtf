@@ -104,6 +104,19 @@ export const makeTrade = (
   endPrice: bigint,
   avgPriceError: bigint = 0n,
 ) => {
+  if (sellLimit >= 10n ** 54n) {
+    sellLimit = 10n ** 54n;
+  }
+  if (buyLimit >= 10n ** 54n) {
+    buyLimit = 10n ** 54n;
+  }
+  if (startPrice >= 10n ** 54n) {
+    startPrice = 10n ** 54n;
+  }
+  if (endPrice >= 10n ** 54n) {
+    endPrice = 10n ** 54n;
+  }
+
   return {
     sell: sell,
     buy: buy,
