@@ -115,7 +115,7 @@ export const makeTrade = (
     },
     buyLimit: {
       spot: buyLimit,
-      low: avgPriceError >= D18n ? 0n : (buyLimit * (D18n - avgPriceError)) / D18n,
+      low: avgPriceError >= D18n ? 1n : (buyLimit * (D18n - avgPriceError)) / D18n,
       high: avgPriceError >= D18n ? 10n ** 54n : (buyLimit * D18n + D18n - avgPriceError - 1n) / (D18n - avgPriceError),
     },
     prices: {
