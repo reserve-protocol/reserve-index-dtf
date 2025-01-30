@@ -96,8 +96,9 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
             address(this)
         );
 
-        if (govParams.guardian != address(0)) {
-            timelockController.grantRole(timelockController.CANCELLER_ROLE(), govParams.guardian);
+        for (uint256 i; i < govParams.guardians.length; i++) {
+            require(govParams.guardians[i] != address(0), GovernanceDeployer__InvalidGuardian());
+            timelockController.grantRole(timelockController.CANCELLER_ROLE(), govParams.guardians[i]);
         }
 
         timelockController.renounceRole(timelockController.DEFAULT_ADMIN_ROLE(), address(this));

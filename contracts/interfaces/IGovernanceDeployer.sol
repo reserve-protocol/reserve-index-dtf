@@ -4,6 +4,8 @@ pragma solidity 0.8.28;
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 
 interface IGovernanceDeployer {
+    error GovernanceDeployer__InvalidGuardian();
+
     struct GovParams {
         // Basic Parameters
         uint48 votingDelay; // {s}
@@ -12,7 +14,7 @@ interface IGovernanceDeployer {
         uint256 quorumPercent; // in percent, e.g 4 for 4%
         uint256 timelockDelay; // {s}
         // Roles
-        address guardian; // Canceller Role
+        address[] guardians; // Canceller Role
     }
 
     struct GovRoles {

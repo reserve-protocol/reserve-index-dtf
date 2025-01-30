@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { IGovernanceDeployer } from "contracts/interfaces/IGovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
@@ -9,12 +10,14 @@ import "./base/BaseTest.sol";
 
 contract GovernanceDeployerTest is BaseTest {
     function test_deployGovernedStakingToken() public {
+        address[] memory guardians = new address[](1);
+        guardians[0] = user1;
         vm.startSnapshotGas("deployGovernedStakingToken()");
         (StakingVault stToken, address _governor, address _timelock) = governanceDeployer.deployGovernedStakingToken(
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians)
         );
         vm.stopSnapshotGas();
 
@@ -43,5 +46,14 @@ contract GovernanceDeployerTest is BaseTest {
         assertTrue(timelock.hasRole(timelock.EXECUTOR_ROLE(), _governor), "wrong executor role");
         assertFalse(timelock.hasRole(timelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
         assertTrue(timelock.hasRole(timelock.CANCELLER_ROLE(), user1), "wrong canceler role");
+        assertFalse(timelock.hasRole(timelock.CANCELLER_ROLE(), address(0)), "wrong canceler role");
+    }
+
+    function test_cannotDeployWithZeroGuardian() public {
+        vm.expectRevert(IGovernanceDeployer.GovernanceDeployer__InvalidGuardian.selector);
+        governanceDeployer.deployGovernanceWithTimelock(
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, new address[](1)),
+            IVotes(address(MEME))
+        );
     }
 }
