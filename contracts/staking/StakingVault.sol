@@ -169,6 +169,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         emit RewardTokenRemoved(_rewardToken);
     }
 
+    /// Allows to claim rewards
+    /// Supports claiming accrued rewards for disallowed/removed tokens
     /// @param _rewardTokens Array of reward tokens to claim
     /// @return claimableRewards Amount claimed for each rewardToken
     function claimRewards(
