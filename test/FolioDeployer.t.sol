@@ -367,7 +367,8 @@ contract FolioDeployerTest is BaseTest {
                 feeRecipients: recipients,
                 tvlFee: MAX_TVL_FEE,
                 mintFee: MAX_MINT_FEE,
-                mandate: "mandate"
+                mandate: "mandate",
+                salt: bytes32(0)
             }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
@@ -515,7 +516,8 @@ contract FolioDeployerTest is BaseTest {
                 feeRecipients: recipients,
                 tvlFee: MAX_TVL_FEE,
                 mintFee: MAX_MINT_FEE,
-                mandate: "mandate"
+                mandate: "mandate",
+                salt: bytes32(0)
             }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
@@ -560,5 +562,80 @@ contract FolioDeployerTest is BaseTest {
 
         // Check auction approver is properly set
         assertTrue(folio.hasRole(folio.AUCTION_APPROVER(), dao), "wrong auction approver role");
+    }
+
+    function test_canMineVanityAddresses() public {
+        // Deploy Community Governor
+
+        (StakingVault stToken, , ) = governanceDeployer.deployGovernedStakingToken(
+            "Test Staked MEME Token",
+            "STKMEME",
+            MEME,
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
+        );
+
+        // Deploy Governed Folio
+
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(DAI);
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = D6_TOKEN_10K;
+        amounts[1] = D18_TOKEN_10K;
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
+
+        vm.startPrank(owner);
+        USDC.approve(address(folioDeployer), type(uint256).max);
+        DAI.approve(address(folioDeployer), type(uint256).max);
+
+        address[] memory auctionApprovers = new address[](1);
+        auctionApprovers[0] = dao;
+
+        address[] memory auctionLaunchers = new address[](1);
+        auctionLaunchers[0] = auctionLauncher;
+
+        Folio folio;
+
+        // Naively mine the salt for something that starts with 0xff
+        // first collision will occur at i = 211: 0xFfF804910Ce6E26a3Fc4ffEAf0D88f355E4ECa6D
+
+        for (uint256 i = 0; i < 1000; i++) {
+            uint256 snapshot = vm.snapshot();
+
+            (folio, , , , , ) = folioDeployer.deployGovernedFolio(
+                stToken,
+                IFolio.FolioBasicDetails({
+                    name: "Test Folio",
+                    symbol: "TFOLIO",
+                    assets: tokens,
+                    amounts: amounts,
+                    initialShares: INITIAL_SUPPLY
+                }),
+                IFolio.FolioAdditionalDetails({
+                    auctionDelay: MAX_AUCTION_DELAY,
+                    auctionLength: MAX_AUCTION_LENGTH,
+                    feeRecipients: recipients,
+                    tvlFee: MAX_TVL_FEE,
+                    mintFee: MAX_MINT_FEE,
+                    mandate: "mandate",
+                    salt: bytes32(i)
+                }),
+                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
+                IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
+                IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0))
+            );
+
+            vm.revertTo(snapshot);
+
+            // get first byte
+            // 152 = 160 - 8 (one byte)
+            if (uint160(address(folio)) >> 152 == uint256(uint160(0xff))) {
+                break;
+            }
+        }
+
+        assertEq(uint160(address(folio)) >> 152, uint256(uint160(0xff)), "failed to mine salt");
     }
 }
