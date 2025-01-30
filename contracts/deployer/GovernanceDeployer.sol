@@ -47,9 +47,10 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
         string memory name,
         string memory symbol,
         IERC20 underlying,
-        IGovernanceDeployer.GovParams calldata govParams
+        IGovernanceDeployer.GovParams calldata govParams,
+        bytes32 salt
     ) external returns (StakingVault stToken, address governor, address timelock) {
-        bytes32 deploymentSalt = keccak256(abi.encode(name, symbol, underlying, govParams));
+        bytes32 deploymentSalt = keccak256(abi.encode(name, symbol, underlying, govParams, salt));
 
         stToken = new StakingVault{ salt: deploymentSalt }(
             name,

@@ -325,7 +325,8 @@ contract FolioDeployerTest is BaseTest {
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1),
+            bytes32(0)
         );
 
         // Deploy Governed Folio
@@ -473,7 +474,8 @@ contract FolioDeployerTest is BaseTest {
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1),
+            bytes32(0)
         );
 
         // Deploy Governed Folio
@@ -564,14 +566,15 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(folio.hasRole(folio.AUCTION_APPROVER(), dao), "wrong auction approver role");
     }
 
-    function test_canMineVanityAddresses() public {
+    function test_canMineVanityAddress() public {
         // Deploy Community Governor
 
         (StakingVault stToken, , ) = governanceDeployer.deployGovernedStakingToken(
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1)
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1),
+            bytes32(0)
         );
 
         // Deploy Governed Folio
@@ -596,13 +599,13 @@ contract FolioDeployerTest is BaseTest {
         address[] memory auctionLaunchers = new address[](1);
         auctionLaunchers[0] = auctionLauncher;
 
-        Folio folio;
-
         // Naively mine the salt for something that starts with 0xff
         // first collision will occur at i = 211: 0xFfF804910Ce6E26a3Fc4ffEAf0D88f355E4ECa6D
 
+        Folio folio;
+
         for (uint256 i = 0; i < 1000; i++) {
-            uint256 snapshot = vm.snapshot();
+            uint256 snapshot = vm.snapshotState();
 
             (folio, , , , , ) = folioDeployer.deployGovernedFolio(
                 stToken,
@@ -627,13 +630,13 @@ contract FolioDeployerTest is BaseTest {
                 IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0))
             );
 
-            vm.revertTo(snapshot);
-
             // get first byte
             // 152 = 160 - 8 (one byte)
             if (uint160(address(folio)) >> 152 == uint256(uint160(0xff))) {
                 break;
             }
+
+            vm.revertToState(snapshot);
         }
 
         assertEq(uint160(address(folio)) >> 152, uint256(uint160(0xff)), "failed to mine salt");
