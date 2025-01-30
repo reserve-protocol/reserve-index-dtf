@@ -34,7 +34,7 @@ uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 
-UD60x18 constant ANNUALIZER = UD60x18.wrap(31709791983); // D18{1/s} 1 / 31536000
+UD60x18 constant ANNUALIZER = UD60x18.wrap(31709791983); // D18{1/s} 1e18 / 31536000
 
 uint256 constant D18 = 1e18; // D18
 uint256 constant D27 = 1e27; // D27
@@ -766,7 +766,7 @@ contract Folio is
 
         // convert annual percentage to per-second for comparison with stored tvlFee
         // = 1 - (1 - feeFloor) ^ (1 / 31536000)
-        // D18{1/s} = D18{1} - D18{1} * D18{1} ^ {s}
+        // D18{1/s} = D18{1} - D18{1} * D18{1} ^ D18{1/s}
         uint256 feeFloor = D18 - UD60x18.wrap(D18 - daoFeeFloor).pow(ANNUALIZER).unwrap();
 
         // D18{1/s}
