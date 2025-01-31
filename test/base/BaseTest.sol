@@ -213,7 +213,8 @@ abstract contract BaseTest is Script, Test {
             _owner,
             _auctionApprovers,
             _auctionLaunchers,
-            _brandManagers
+            _brandManagers,
+            bytes32(0)
         );
 
         return (_folio, FolioProxyAdmin(_proxyAdmin));

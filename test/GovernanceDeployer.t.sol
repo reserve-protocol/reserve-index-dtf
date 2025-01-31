@@ -17,7 +17,8 @@ contract GovernanceDeployerTest is BaseTest {
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians)
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians),
+            bytes32(0)
         );
         vm.stopSnapshotGas();
 
@@ -47,5 +48,36 @@ contract GovernanceDeployerTest is BaseTest {
         assertFalse(timelock.hasRole(timelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
         assertTrue(timelock.hasRole(timelock.CANCELLER_ROLE(), user1), "wrong canceler role");
         assertFalse(timelock.hasRole(timelock.CANCELLER_ROLE(), address(0)), "wrong canceler role");
+    }
+
+    function test_canMineVanityAddress() public {
+        // Naively mine the salt for something that starts with 0xff
+        // first collision will occur at i = 310: 0xFf0E143B405ee08B8a838B57234db15e9A86D672
+
+        StakingVault stToken;
+        address[] memory guardians = new address[](1);
+        guardians[0] = user1;
+
+        for (uint256 i = 0; i < 1000; i++) {
+            uint256 snapshot = vm.snapshotState();
+
+            (stToken, , ) = governanceDeployer.deployGovernedStakingToken(
+                "Test Staked MEME Token",
+                "STKMEME",
+                MEME,
+                IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians),
+                bytes32(i)
+            );
+
+            // get first byte
+            // 152 = 160 - 8 (one byte)
+            if (uint160(address(stToken)) >> 152 == uint256(uint160(0xff))) {
+                break;
+            }
+
+            vm.revertToState(snapshot);
+        }
+
+        assertEq(uint160(address(stToken)) >> 152, uint256(uint160(0xff)), "failed to mine salt");
     }
 }
