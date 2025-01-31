@@ -55,7 +55,7 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
             name,
             symbol,
             underlying,
-            address(this),
+            address(this), // temporary admin
             DEFAULT_REWARD_PERIOD,
             DEFAULT_UNSTAKING_DELAY
         );
@@ -76,9 +76,11 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
         governor = Clones.cloneDeterministic(governorImplementation, deploymentSalt);
         timelock = Clones.cloneDeterministic(timelockImplementation, deploymentSalt);
 
+        TimelockControllerUpgradeable timelockController = TimelockControllerUpgradeable(payable(timelock));
+
         FolioGovernor(payable(governor)).initialize(
             stToken,
-            TimelockControllerUpgradeable(payable(timelock)),
+            timelockController,
             govParams.votingDelay,
             govParams.votingPeriod,
             govParams.proposalThreshold,
@@ -88,16 +90,15 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
         address[] memory proposersAndExecutors = new address[](1);
         proposersAndExecutors[0] = governor;
 
-        TimelockControllerUpgradeable timelockController = TimelockControllerUpgradeable(payable(timelock));
         timelockController.initialize(
             govParams.timelockDelay,
             proposersAndExecutors, // Proposer Role
             proposersAndExecutors, // Executor Role
-            address(this)
+            address(this) // temporary admin
         );
 
-        if (govParams.guardian != address(0)) {
-            timelockController.grantRole(timelockController.CANCELLER_ROLE(), govParams.guardian);
+        for (uint256 i; i < govParams.guardians.length; i++) {
+            timelockController.grantRole(timelockController.CANCELLER_ROLE(), govParams.guardians[i]);
         }
 
         timelockController.renounceRole(timelockController.DEFAULT_ADMIN_ROLE(), address(this));
