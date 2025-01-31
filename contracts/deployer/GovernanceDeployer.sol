@@ -40,6 +40,7 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
     /// @param symbol Symbol of the staking vault
     /// @param underlying Underlying token for the staking vault
     /// @param govParams Governance parameters for the governor
+    /// @param deploymentNonce Nonce for the deployment salt
     /// @return stToken A staking vault that can be used with multiple governors
     /// @return governor A governor responsible for the staking vault
     /// @return timelock Timelock for the governor, owns staking vault
@@ -48,9 +49,9 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
         string memory symbol,
         IERC20 underlying,
         IGovernanceDeployer.GovParams calldata govParams,
-        bytes32 salt
+        bytes32 deploymentNonce
     ) external returns (StakingVault stToken, address governor, address timelock) {
-        bytes32 deploymentSalt = keccak256(abi.encode(name, symbol, underlying, govParams, salt));
+        bytes32 deploymentSalt = keccak256(abi.encode(name, symbol, underlying, govParams, deploymentNonce));
 
         stToken = new StakingVault{ salt: deploymentSalt }(
             name,
@@ -61,7 +62,7 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
             DEFAULT_UNSTAKING_DELAY
         );
 
-        (governor, timelock) = deployGovernanceWithTimelock(govParams, IVotes(stToken));
+        (governor, timelock) = deployGovernanceWithTimelock(govParams, IVotes(stToken), deploymentSalt);
 
         stToken.transferOwnership(timelock);
 
@@ -70,9 +71,10 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
 
     function deployGovernanceWithTimelock(
         IGovernanceDeployer.GovParams calldata govParams,
-        IVotes stToken
+        IVotes stToken,
+        bytes32 deploymentNonce
     ) public returns (address governor, address timelock) {
-        bytes32 deploymentSalt = keccak256(abi.encode(govParams, stToken));
+        bytes32 deploymentSalt = keccak256(abi.encode(govParams, stToken, deploymentNonce));
 
         governor = Clones.cloneDeterministic(governorImplementation, deploymentSalt);
         timelock = Clones.cloneDeterministic(timelockImplementation, deploymentSalt);

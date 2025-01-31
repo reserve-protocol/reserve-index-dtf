@@ -45,12 +45,25 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         address owner,
         address[] memory auctionApprovers,
         address[] memory auctionLaunchers,
-        address[] memory brandManagers
+        address[] memory brandManagers,
+        bytes32 deploymentNonce
     ) public returns (Folio folio, address proxyAdmin) {
         require(basicDetails.assets.length == basicDetails.amounts.length, FolioDeployer__LengthMismatch());
 
         bytes32 deploymentSalt = keccak256(
-            abi.encode(basicDetails, additionalDetails, owner, auctionApprovers, auctionLaunchers, brandManagers)
+            abi.encode(
+                keccak256(
+                    abi.encode(
+                        basicDetails,
+                        additionalDetails,
+                        owner,
+                        auctionApprovers,
+                        auctionLaunchers,
+                        brandManagers
+                    )
+                ),
+                deploymentNonce
+            )
         );
 
         // Deploy Folio
@@ -95,7 +108,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         IGovernanceDeployer.GovParams calldata ownerGovParams,
         IGovernanceDeployer.GovParams calldata tradingGovParams,
-        IGovernanceDeployer.GovRoles calldata govRoles
+        IGovernanceDeployer.GovRoles calldata govRoles,
+        bytes32 deploymentNonce
     )
         external
         returns (
@@ -108,13 +122,19 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         )
     {
         // Deploy Owner Governance
-        (ownerGovernor, ownerTimelock) = governanceDeployer.deployGovernanceWithTimelock(ownerGovParams, stToken);
+        (ownerGovernor, ownerTimelock) = governanceDeployer.deployGovernanceWithTimelock(
+            ownerGovParams,
+            stToken,
+            deploymentNonce
+        );
 
+        // Deploy Rebalancing Governance
         if (govRoles.existingAuctionApprovers.length == 0) {
-            // Deploy Rebalancing Governance
+            // Flip deployment nonce to avoid timelock/governor collisions
             (tradingGovernor, tradingTimelock) = governanceDeployer.deployGovernanceWithTimelock(
                 tradingGovParams,
-                stToken
+                stToken,
+                deploymentNonce ^ bytes32(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
             );
 
             address[] memory auctionApprovers = new address[](1);
@@ -127,7 +147,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 ownerTimelock,
                 auctionApprovers,
                 govRoles.auctionLaunchers,
-                govRoles.brandManagers
+                govRoles.brandManagers,
+                deploymentNonce
             );
         } else {
             // Deploy Folio
@@ -137,7 +158,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 ownerTimelock,
                 govRoles.existingAuctionApprovers,
                 govRoles.auctionLaunchers,
-                govRoles.brandManagers
+                govRoles.brandManagers,
+                deploymentNonce
             );
         }
 

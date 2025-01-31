@@ -376,12 +376,12 @@ contract FolioDeployerTest is BaseTest {
                     feeRecipients: recipients,
                     tvlFee: MAX_TVL_FEE,
                     mintFee: MAX_MINT_FEE,
-                    mandate: "mandate",
-                    salt: bytes32(0)
+                    mandate: "mandate"
                 }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, _guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, _guardians1),
-                IGovernanceDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0))
+                IGovernanceDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
+                bytes32(0)
             );
             vm.stopSnapshotGas("deployGovernedFolio()");
             vm.stopPrank();
@@ -533,12 +533,12 @@ contract FolioDeployerTest is BaseTest {
                 feeRecipients: recipients,
                 tvlFee: MAX_TVL_FEE,
                 mintFee: MAX_MINT_FEE,
-                mandate: "mandate",
-                salt: bytes32(0)
+                mandate: "mandate"
             }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, _guardians2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, _guardians1),
-            IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0))
+            IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0)),
+            bytes32(0)
         );
         vm.stopSnapshotGas("deployGovernedFolio()");
         vm.stopPrank();
@@ -584,11 +584,14 @@ contract FolioDeployerTest is BaseTest {
     function test_canMineVanityAddress() public {
         // Deploy Community Governor
 
+        address[] memory guardians = new address[](1);
+        guardians[0] = user1;
+
         (StakingVault stToken, , ) = governanceDeployer.deployGovernedStakingToken(
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1),
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians),
             bytes32(0)
         );
 
@@ -619,6 +622,11 @@ contract FolioDeployerTest is BaseTest {
 
         Folio folio;
 
+        address[] memory guardians1 = new address[](1);
+        address[] memory guardians2 = new address[](1);
+        guardians1[0] = user1;
+        guardians2[0] = user2;
+
         for (uint256 i = 0; i < 1000; i++) {
             uint256 snapshot = vm.snapshotState();
 
@@ -637,12 +645,12 @@ contract FolioDeployerTest is BaseTest {
                     feeRecipients: recipients,
                     tvlFee: MAX_TVL_FEE,
                     mintFee: MAX_MINT_FEE,
-                    mandate: "mandate",
-                    salt: bytes32(i)
+                    mandate: "mandate"
                 }),
-                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
-                IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
-                IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0))
+                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, guardians2),
+                IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, guardians1),
+                IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0)),
+                bytes32(i)
             );
 
             // get first byte

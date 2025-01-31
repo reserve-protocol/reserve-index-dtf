@@ -23,6 +23,7 @@ interface IGovernanceDeployer {
 
     function deployGovernanceWithTimelock(
         IGovernanceDeployer.GovParams calldata govParams,
-        IVotes stToken
+        IVotes stToken,
+        bytes32 deploymentNonce
     ) external returns (address governor, address timelock);
 }

@@ -124,8 +124,7 @@ contract FolioTest is BaseTest {
             feeRecipients: recipients,
             tvlFee: MAX_TVL_FEE,
             mintFee: 0,
-            mandate: "mandate",
-            salt: bytes32(0)
+            mandate: "mandate"
         });
 
         // Attempt to initialize

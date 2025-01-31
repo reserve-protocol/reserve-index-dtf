@@ -197,8 +197,7 @@ abstract contract BaseTest is Script, Test {
             feeRecipients: _feeRecipients,
             tvlFee: _tvlFee,
             mintFee: _mintFee,
-            mandate: "mandate",
-            salt: bytes32(0)
+            mandate: "mandate"
         });
 
         address[] memory _auctionApprovers = new address[](1);
@@ -214,7 +213,8 @@ abstract contract BaseTest is Script, Test {
             _owner,
             _auctionApprovers,
             _auctionLaunchers,
-            _brandManagers
+            _brandManagers,
+            bytes32(0)
         );
 
         return (_folio, FolioProxyAdmin(_proxyAdmin));
