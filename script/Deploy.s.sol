@@ -38,7 +38,7 @@ contract DeployScript is Script {
 
         deploymentParams[8453] = DeploymentParams({
             roleRegistry: IRoleRegistry(0xBc53d3e1C82F14cf40F69bF58fA4542b55091263), // Canonical Registry for Base
-            feeRecipient: address(1) // @todo Change this
+            feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B // Canonical Fee Recipient for Base
         });
     }
 
