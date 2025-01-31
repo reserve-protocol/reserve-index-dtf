@@ -134,7 +134,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             (tradingGovernor, tradingTimelock) = governanceDeployer.deployGovernanceWithTimelock(
                 tradingGovParams,
                 stToken,
-                deploymentNonce ^ bytes32(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
+                ~deploymentNonce
             );
 
             address[] memory auctionApprovers = new address[](1);
