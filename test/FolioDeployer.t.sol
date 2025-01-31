@@ -371,7 +371,8 @@ contract FolioDeployerTest is BaseTest {
             }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
-            IGovernanceDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0))
+            IGovernanceDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
+            bytes32(0)
         );
         vm.stopSnapshotGas("deployGovernedFolio()");
         vm.stopPrank();
@@ -519,7 +520,8 @@ contract FolioDeployerTest is BaseTest {
             }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
-            IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0))
+            IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0)),
+            bytes32(0)
         );
         vm.stopSnapshotGas("deployGovernedFolio()");
         vm.stopPrank();
