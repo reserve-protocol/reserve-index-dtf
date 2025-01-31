@@ -28,7 +28,7 @@ uint256 constant SCALAR = 1e18; // D18
  * @title StakingVault
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  * @notice StakingVault is a transferrable 1:1 wrapping of an underlying token that uses the ERC4626 interface.
- *         It earns the holder a claimable stream of multi rewards and enables them to vote in governance.
+ *         It earns the holder a claimable stream of multi rewards and enables them to vote in (external) governance.
  *         Unstaking is gated by a delay, implemented by an UnstakingManager.
  */
 contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
@@ -169,6 +169,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         emit RewardTokenRemoved(_rewardToken);
     }
 
+    /// Allows to claim rewards
+    /// Supports claiming accrued rewards for disallowed/removed tokens
     /// @param _rewardTokens Array of reward tokens to claim
     /// @return claimableRewards Amount claimed for each rewardToken
     function claimRewards(
