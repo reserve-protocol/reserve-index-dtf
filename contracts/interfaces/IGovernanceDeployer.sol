@@ -12,7 +12,7 @@ interface IGovernanceDeployer {
         uint256 quorumPercent; // in percent, e.g 4 for 4%
         uint256 timelockDelay; // {s}
         // Roles
-        address guardian; // Canceller Role
+        address[] guardians; // Canceller Role
     }
 
     struct GovRoles {

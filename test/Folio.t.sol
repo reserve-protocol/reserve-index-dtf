@@ -19,8 +19,8 @@ contract FolioTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
     uint256 internal constant MAX_TVL_FEE_PER_SECOND = 3340960028; // D18{1/s} 10% annually, per second
 
-    IFolio.Range internal FULL_SELL = IFolio.Range(0, 0, MAX_RATE);
-    IFolio.Range internal FULL_BUY = IFolio.Range(MAX_RATE, 1, MAX_RATE);
+    IFolio.BasketRange internal FULL_SELL = IFolio.BasketRange(0, 0, MAX_RATE);
+    IFolio.BasketRange internal FULL_BUY = IFolio.BasketRange(MAX_RATE, 1, MAX_RATE);
 
     IFolio.Prices internal ZERO_PRICES = IFolio.Prices(0, 0);
 
@@ -1215,7 +1215,7 @@ contract FolioTest is BaseTest {
         assertEq(folio.getBid(0, end, amt), 1, "wrong end bid amount");
     }
 
-    function test_auctioncloseAuctionByAuctionApprover() public {
+    function test_auctionCloseAuctionByAuctionApprover() public {
         IFolio.Auction memory auctionStruct = IFolio.Auction({
             id: 0,
             sell: USDC,
@@ -1781,7 +1781,7 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotBidWithExcessiveBid() public {
-        IFolio.Range memory buyLimit = IFolio.Range(1, 1, 1);
+        IFolio.BasketRange memory buyLimit = IFolio.BasketRange(1, 1, 1);
 
         IFolio.Auction memory auctionStruct = IFolio.Auction({
             id: 0,
@@ -1825,53 +1825,53 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotApproveAuctionWithInvalidSellLimit() public {
-        IFolio.Range memory sellLimit = IFolio.Range(1, 0, 0);
+        IFolio.BasketRange memory sellLimit = IFolio.BasketRange(1, 0, 0);
 
         vm.startPrank(dao);
         vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
         folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
-        sellLimit = IFolio.Range(0, 1, 1);
+        sellLimit = IFolio.BasketRange(0, 1, 1);
         vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
         folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
-        sellLimit = IFolio.Range(MAX_RATE + 1, MAX_RATE, MAX_RATE);
+        sellLimit = IFolio.BasketRange(MAX_RATE + 1, MAX_RATE, MAX_RATE);
         vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
         folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
-        sellLimit = IFolio.Range(MAX_RATE, MAX_RATE + 1, MAX_RATE);
+        sellLimit = IFolio.BasketRange(MAX_RATE, MAX_RATE + 1, MAX_RATE);
         vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
         folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL);
 
-        sellLimit = IFolio.Range(MAX_RATE, MAX_RATE, MAX_RATE + 1);
+        sellLimit = IFolio.BasketRange(MAX_RATE, MAX_RATE, MAX_RATE + 1);
         vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
         folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL);
     }
 
     function test_auctionCannotApproveAuctionWithInvalidBuyLimit() public {
-        IFolio.Range memory buyLimit = IFolio.Range(MAX_RATE + 1, MAX_RATE + 1, MAX_RATE + 1);
+        IFolio.BasketRange memory buyLimit = IFolio.BasketRange(MAX_RATE + 1, MAX_RATE + 1, MAX_RATE + 1);
 
         vm.startPrank(dao);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
         folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL);
 
-        buyLimit = IFolio.Range(0, 0, 0);
+        buyLimit = IFolio.BasketRange(0, 0, 0);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
         folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL);
 
-        buyLimit = IFolio.Range(1, 0, 0);
+        buyLimit = IFolio.BasketRange(1, 0, 0);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
         folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL);
 
-        buyLimit = IFolio.Range(1, 1, 0);
+        buyLimit = IFolio.BasketRange(1, 1, 0);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
         folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL);
 
-        buyLimit = IFolio.Range(MAX_RATE, MAX_RATE + 1, MAX_RATE);
+        buyLimit = IFolio.BasketRange(MAX_RATE, MAX_RATE + 1, MAX_RATE);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
         folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL);
 
-        buyLimit = IFolio.Range(MAX_RATE, MAX_RATE, MAX_RATE + 1);
+        buyLimit = IFolio.BasketRange(MAX_RATE, MAX_RATE, MAX_RATE + 1);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
         folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL);
     }
@@ -1932,7 +1932,7 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotOpenAuctionWithInvalidSellLimit() public {
-        IFolio.Range memory sellLimit = IFolio.Range(1, 1, MAX_RATE - 1);
+        IFolio.BasketRange memory sellLimit = IFolio.BasketRange(1, 1, MAX_RATE - 1);
         vm.prank(dao);
         folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
 
@@ -1946,7 +1946,7 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotOpenAuctionWithInvalidBuyLimit() public {
-        IFolio.Range memory buyLimit = IFolio.Range(1, 1, MAX_RATE - 1);
+        IFolio.BasketRange memory buyLimit = IFolio.BasketRange(1, 1, MAX_RATE - 1);
         vm.prank(dao);
         folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, IFolio.Prices(0, 0), MAX_TTL);
 

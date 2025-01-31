@@ -4,11 +4,11 @@
 
 Reserve Folio is a protocol for creating and managing portfolios of ERC20-compliant assets entirely onchain. Folios are designed to be used as a single-source of truth for asset allocations, enabling composability of complex, multi-asset portfolios.
 
-Folios support rebalancing via Dutch Auction over an exponential decay curve between two prices. Control flow over the auction is shared between two parties, with a `AUCTION_APPROVER` approving auctions in advance and a `AUCTION_LAUNCHER` opening them, optionally providing some amount of additional detail.
+Folios support rebalancing via Dutch Auction over an exponential decay curve between two prices. Control flow over the auction is shared between two parties, with a `AUCTION_APPROVER` approving auctions in advance and a `AUCTION_LAUNCHER` opening them, optionally providing some amount of additional detail. Permissionless execution is available after a delay.
 
 `AUCTION_APPROVER` is expected to be the timelock of the fast-moving rebalancing governor associated with the Folio.
 
-`AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig; They can open auctions within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the auction can be opened permissionlessly after a preset delay. If they are evil, at-best they can deviate trading within the governance-granted range, or prevent a Folio from rebalancing entirely by killing auctions. They cannot access the backing directly.
+`AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig; They can open auctions within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the auction can be opened permissionlessly after a preset delay. If they are evil, at-best they can deviate rebalancing within the governance-granted range, or prevent a Folio from rebalancing entirely by repeatedly closing-out auctions.
 
 ### Architecture
 
@@ -21,7 +21,7 @@ While not included directly, `FolioVersionRegistry` and `FolioDAOFeeRegistry` al
 
 #### 1. **Folio Contracts**
 
-- **Folio.sol**: The primary contract in the system. Represents a portfolio of ERC20 assets, and contains all trading logic.
+- **Folio.sol**: The primary contract in the system. Represents a portfolio of ERC20 assets, and contains auction logic that enables it to rebalance its holdings.
 - **FolioDeployer.sol**: Manages the deployment of new Folio instances.
 - **FolioProxy.sol**: A proxy contract for delegating calls to a Folio implementation that checks upgrades with `FolioVersionRegistry`.
 
@@ -42,7 +42,7 @@ A Folio has 3 roles:
 
 1. `DEFAULT_ADMIN_ROLE`
    - Expected: Timelock of Slow Folio Governor
-   - Can add/remove assets, set fees, configure auction length, and set the auction delay
+   - Can add/remove assets, set fees, configure auction length, set the auction delay, and closeout auctions
    - Can configure the `AUCTION_APPROVER`/ `AUCTION_LAUNCHER`
    - Primary owner of the Folio
 2. `AUCTION_APPROVER`
@@ -50,7 +50,7 @@ A Folio has 3 roles:
    - Can approve auctions
 3. `AUCTION_LAUNCHER`
    - Expected: EOA or multisig
-   - Can open and kill auctions, optionally altering parameters of the auction within the approved ranges
+   - Can open and close auctions, optionally altering parameters of the auction within the approved ranges
 
 ##### StakingVault
 
@@ -65,8 +65,8 @@ The staking vault has ONLY a single owner:
 
 1. Auction is approved by governance, including an initial price range
 2. Auction is opened, initiating the progression through the predetermined price curve
-   a. ...either by the auction launcher (immediately)
-   b. ...or permissionlessly (after a delay)
+   a. ...either by the auction launcher (immediately, or soon after)
+   b. ...or permissionlessly (after the auction delay passes)
 3. Bids occur
 4. Auction expires
 
@@ -74,17 +74,17 @@ The staking vault has ONLY a single owner:
 
 ###### Buy/Sell limits
 
-Governance configures a range for the buy and sell limits, including a spot estimate:
+Governance configures buy and sell limits for the basket ratios, including a spot estimate:
 
 ```solidity
-struct Range {
+struct BasketRange {
   uint256 spot; // D27{buyTok/share}
   uint256 low; // D27{buyTok/share} inclusive
   uint256 high; // D27{buyTok/share} inclusive
 }
 
-Range sellLimit; // D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
-Range buyLimit; // D27{buyTok/share} min ratio of sell token to shares allowed, exclusive
+BasketRange sellLimit; // D27{sellTok/share} min ratio of sell tokens in the basket, inclusive
+BasketRange buyLimit; // D27{buyTok/share} max ratio of buy tokens in the basket, exclusive
 ```
 
 During `openAuction` the `AUCTION_LAUNCHER` can set the buy and sell limits within the approved ranges provided by governance. If the auction is opened permissionlessly instead, the governance pre-approved spot estimates will be used instead.
@@ -97,7 +97,7 @@ There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `AUCTIO
 2. Can provide `[startPrice, 0]` to defer to the auction launcher for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Loss can arise due solely to precision issues only.
 3. Can provide `[startPrice, endPrice]` to defer to the auction launcher for the `startPrice`. In this mode the auction CAN be opened permissionlessly, after a delay. Suggested default option.
 
-The `AUCTION_LAUNCHER` can always choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either value.
+The `AUCTION_LAUNCHER` can always choose to raise `startPrice` within a limit of 100x, and `endPrice` by any amount. They cannot lower either price.
 
 The price range (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues.
 
@@ -109,14 +109,14 @@ Note: The first block may not have a price of exactly `startPrice`, if it does n
 
 ###### Lot Sizing
 
-Auction lots are sized by `Auction.sellLimit` and `Auction.buyLimit`. Both correspond to invariants about the auction that should be maintained throughout the auction:
+Auction lots are sized by `Auction.sellLimit` and `Auction.buyLimit`. Both correspond to Folio invariants about basket ratios that must be maintained throughout the auction:
 
-- `sellLimit` is the minimum ratio of sell token to the Folio token
-- `buyLimit` is the maximum ratio of buy token to Folio token
+- `sellLimit` is the min amount of sell token in the basket `D27{sellTok/share}`
+- `buyLimit` is the max amount of buy token in the basket `D27{buyTok/share}`
 
 The auction `lot()` represents the single largest quantity of sell token that can be transacted under these invariants.
 
-In general it is possible for the `lot` to both increase and decrease over time, depending on whether `sellLimit` or `buyLimit` is the constraining factor.
+In general it is possible for the `lot` to both increase and decrease over time, depending on whether `sellLimit` or `buyLimit` is the constraining factor in sizing.
 
 ###### Auction Participation
 
@@ -130,15 +130,19 @@ Folios support 2 types of fees. Both have a DAO portion that work the same under
 
 ##### `tvlFee`
 
-Per-unit time fee on AUM
+**Per-unit time fee on AUM**
 
-The DAO takes a cut with a minimum floor of 15 bps. The Folio always inflates at least 15 bps annually, with this portion going to the DAO. If the tvl fee is set to 15 bps, then 100% of the tvl fee is taken by the DAO.
+The DAO takes a cut with a minimum floor of 15 bps. A consequence of this is that the Folio always inflates at least 15 bps annually. If the tvl fee is set to 15 bps, then 100% of this inflation goes towards the DAO.
 
 ##### `mintFee`
 
-Fee on mints
+**Fee on mints**
 
 The DAO takes a cut with a minimum floor of 15 bps. The DAO always receives at least 15 bps of the value of the mint. If the mint fee is set to 15 bps, then 100% of the mint fee is taken by the DAO.
+
+#### Fee Floor
+
+The universal 15 bps fee floor can be lowered by the DAO, as well as set (only lower) on a per Folio basis.
 
 ### Units
 
@@ -149,7 +153,6 @@ Units:
 - `{tok}` OR `{share}` OR `{reward}`: token balances
 - `D27`: 1e27
 - `D18`: 1e18
-- `D18{tok}`: a ratio of two token balances with 18 decimals of added precision
 - `D18{1}`: a percentage value with 18 decimals of added precision
 - `D18{tok1/tok2}`: a ratio of two token balances with 18 decimals of added precision
 - `{s}`: seconds
@@ -196,9 +199,6 @@ Note: While the Folio itself is not susceptible to reentrancy, read-only reentra
 ### Governance Guidelines
 
 - After governors remove a token from the basket via `Folio.removeFromBasket()`, users have a limited amount of time to claim rewards. Removal should only be used if the reward token has become malicious or otherwise compromised.
--
-
-TODO
 
 ### Future Work / Not Implemented Yet
 
@@ -206,8 +206,6 @@ TODO
    currently there is no way to claim rewards, for example to claim AERO as a result of holding a staked Aerodrome position. An autocompounding layer such as beefy or yearn would be required in order to put this kind of position into a Folio
 2. **alternative community governance systems**
    currently only bring-your-own-erc20 governance is supported but we would like to add alternatives in the future such as (i) NFT-based governance; and (ii) an ERC20 fair launch system
-3. **price-based rebalancing**
-   currently rebalancing is auction-driven, at the quantity level. this requires making projections about how many tokens will be held at the time of execution and what their values will be. in an alternative price-based world, governance provides a target basket in terms of share-by-value and a trusted party provides prices at time of execution to convert this into a concrete set of quantities/quantity-ratios
 
 ### Development
 
@@ -221,3 +219,6 @@ TODO
    - Basic Tests: `yarn test`
    - Extreme Tests: `yarn test:extreme`
    - All Tests: `yarn test:all`
+5. Deployment:
+   - Deployment: `yarn deploy --rpc-url <RPC_URL> --verify --verifier etherscan`
+     Set ETHERSCAN_API_KEY env var to the API key for whichever network you're targeting (basescan, etherscan, arbiscan, etc)

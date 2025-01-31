@@ -38,7 +38,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
     /// Deploy a raw Folio instance with previously defined roles
     /// @return folio The deployed Folio instance
-    /// @return folioAdmin The deployed FolioProxyAdmin instance
+    /// @return proxyAdmin The deployed FolioProxyAdmin instance
     function deployFolio(
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
@@ -46,7 +46,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         address[] memory auctionApprovers,
         address[] memory auctionLaunchers,
         address[] memory brandManagers
-    ) public returns (Folio folio, address folioAdmin) {
+    ) public returns (Folio folio, address proxyAdmin) {
         require(basicDetails.assets.length == basicDetails.amounts.length, FolioDeployer__LengthMismatch());
 
         bytes32 deploymentSalt = keccak256(
@@ -54,8 +54,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         );
 
         // Deploy Folio
-        folioAdmin = address(new FolioProxyAdmin{ salt: deploymentSalt }(owner, versionRegistry));
-        folio = Folio(address(new FolioProxy{ salt: deploymentSalt }(folioImplementation, folioAdmin)));
+        proxyAdmin = address(new FolioProxyAdmin{ salt: deploymentSalt }(owner, versionRegistry));
+        folio = Folio(address(new FolioProxy{ salt: deploymentSalt }(folioImplementation, proxyAdmin)));
 
         for (uint256 i; i < basicDetails.assets.length; i++) {
             IERC20(basicDetails.assets[i]).safeTransferFrom(msg.sender, address(folio), basicDetails.amounts[i]);
@@ -79,7 +79,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         // Renounce Ownership
         folio.renounceRole(folio.DEFAULT_ADMIN_ROLE(), address(this));
 
-        emit FolioDeployed(owner, address(folio), folioAdmin);
+        emit FolioDeployed(owner, address(folio), proxyAdmin);
     }
 
     /// Deploy a Folio instance with brand new owner + rebalancing governors

@@ -321,11 +321,13 @@ contract FolioDeployerTest is BaseTest {
     function test_createGovernedFolio() public {
         // Deploy Community Governor
 
+        address[] memory guardians = new address[](1);
+        guardians[0] = user1;
         (StakingVault stToken, , ) = governanceDeployer.deployGovernedStakingToken(
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1),
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians),
             bytes32(0)
         );
 
@@ -348,36 +350,43 @@ contract FolioDeployerTest is BaseTest {
         address[] memory auctionLaunchers = new address[](1);
         auctionLaunchers[0] = auctionLauncher;
 
-        vm.startSnapshotGas("deployGovernedFolio");
-        address _folioAdmin;
         address _ownerGovernor;
         address _tradingGovernor;
+        {
+            // stack-too-deep
+            address _folioAdmin;
+            address[] memory _guardians1 = new address[](1);
+            address[] memory _guardians2 = new address[](1);
+            _guardians1[0] = user1;
+            _guardians2[0] = user2;
 
-        (folio, _folioAdmin, _ownerGovernor, , _tradingGovernor, ) = folioDeployer.deployGovernedFolio(
-            stToken,
-            IFolio.FolioBasicDetails({
-                name: "Test Folio",
-                symbol: "TFOLIO",
-                assets: tokens,
-                amounts: amounts,
-                initialShares: INITIAL_SUPPLY
-            }),
-            IFolio.FolioAdditionalDetails({
-                auctionDelay: MAX_AUCTION_DELAY,
-                auctionLength: MAX_AUCTION_LENGTH,
-                feeRecipients: recipients,
-                tvlFee: MAX_TVL_FEE,
-                mintFee: MAX_MINT_FEE,
-                mandate: "mandate",
-                salt: bytes32(0)
-            }),
-            IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
-            IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
-            IGovernanceDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0))
-        );
-        vm.stopSnapshotGas("deployGovernedFolio()");
-        vm.stopPrank();
-        proxyAdmin = FolioProxyAdmin(_folioAdmin);
+            vm.startSnapshotGas("deployGovernedFolio");
+            (folio, _folioAdmin, _ownerGovernor, , _tradingGovernor, ) = folioDeployer.deployGovernedFolio(
+                stToken,
+                IFolio.FolioBasicDetails({
+                    name: "Test Folio",
+                    symbol: "TFOLIO",
+                    assets: tokens,
+                    amounts: amounts,
+                    initialShares: INITIAL_SUPPLY
+                }),
+                IFolio.FolioAdditionalDetails({
+                    auctionDelay: MAX_AUCTION_DELAY,
+                    auctionLength: MAX_AUCTION_LENGTH,
+                    feeRecipients: recipients,
+                    tvlFee: MAX_TVL_FEE,
+                    mintFee: MAX_MINT_FEE,
+                    mandate: "mandate",
+                    salt: bytes32(0)
+                }),
+                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, _guardians2),
+                IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, _guardians1),
+                IGovernanceDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0))
+            );
+            vm.stopSnapshotGas("deployGovernedFolio()");
+            vm.stopPrank();
+            proxyAdmin = FolioProxyAdmin(_folioAdmin);
+        }
 
         // Check Folio
 
@@ -470,11 +479,13 @@ contract FolioDeployerTest is BaseTest {
     function test_createGovernedFolio_withExistingAuctionApprover() public {
         // Deploy Community Governor
 
+        address[] memory guardians = new address[](1);
+        guardians[0] = user1;
         (StakingVault stToken, , ) = governanceDeployer.deployGovernedStakingToken(
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, user1),
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians),
             bytes32(0)
         );
 
@@ -503,6 +514,10 @@ contract FolioDeployerTest is BaseTest {
         vm.startSnapshotGas("deployGovernedFolio");
         address _folioAdmin;
         address _ownerGovernor;
+        address[] memory _guardians1 = new address[](1);
+        address[] memory _guardians2 = new address[](1);
+        _guardians1[0] = user1;
+        _guardians2[0] = user2;
         (folio, _folioAdmin, _ownerGovernor, , , ) = folioDeployer.deployGovernedFolio(
             stToken,
             IFolio.FolioBasicDetails({
@@ -521,8 +536,8 @@ contract FolioDeployerTest is BaseTest {
                 mandate: "mandate",
                 salt: bytes32(0)
             }),
-            IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, user2),
-            IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, user1),
+            IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, _guardians2),
+            IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, _guardians1),
             IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0))
         );
         vm.stopSnapshotGas("deployGovernedFolio()");
