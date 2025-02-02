@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "moduleResolution": "node",
+    "module": "commonjs",
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "outDir": "dist",
+    "skipLibCheck": true,
+    "paths": {
+      "@typechain/*": ["./typechain/*"],
+      "#/*": ["./*"]
+    }
+  },
+  "exclude": ["./dist/**/*", "./node_modules/**/*"],
+  "include": ["./typechain/**/*"],
+  "files": ["./hardhat.config.ts"]
+}

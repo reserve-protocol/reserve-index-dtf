@@ -7,7 +7,7 @@ import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeab
 
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
-import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
+import { MockRoleRegistry } from "@test-utils/MockRoleRegistry.sol";
 import { FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";

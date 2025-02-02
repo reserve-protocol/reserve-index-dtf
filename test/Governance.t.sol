@@ -6,7 +6,7 @@ import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.so
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { IGovernor } from "@openzeppelin/contracts/governance/IGovernor.sol";
-import { MockERC20Votes } from "utils/MockERC20Votes.sol";
+import { MockERC20Votes } from "@test-utils/MockERC20Votes.sol";
 import "./base/BaseTest.sol";
 
 contract GovernanceTest is BaseTest {

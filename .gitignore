@@ -20,3 +20,6 @@ install-state.gz
 
 # Playground
 Playground.*
+
+typechain/
+cache-hardhat/

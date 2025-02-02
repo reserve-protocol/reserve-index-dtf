@@ -9,10 +9,10 @@ import "forge-std/console2.sol";
 import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { MockERC20 } from "utils/MockERC20.sol";
-import { MockERC20 } from "utils/MockERC20.sol";
-import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
-import { MockBidder } from "utils/MockBidder.sol";
+import { MockERC20 } from "@test-utils/MockERC20.sol";
+import { MockERC20 } from "@test-utils/MockERC20.sol";
+import { MockRoleRegistry } from "@test-utils/MockRoleRegistry.sol";
+import { MockBidder } from "@test-utils/MockBidder.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";

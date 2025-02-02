@@ -7,7 +7,7 @@ import { IERC20, IERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { StakingVault, UnstakingManager } from "contracts/staking/StakingVault.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { MockERC20 } from "utils/MockERC20.sol";
+import { MockERC20 } from "@test-utils/MockERC20.sol";
 
 contract StakingVaultTest is Test {
     MockERC20 private token;
