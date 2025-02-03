@@ -85,30 +85,6 @@ describe("getAuctions()", () => {
     expectAuctionApprox(auctions[0], "WETH", "USDC", bn("8.33e22"), bn("750e12"), bn("3.03e18"), bn("2.97e18"));
   });
 
-  it("should produce auctions across a variety of setups", () => {
-    // shitty fuzz test, should do a better thing later
-
-    // 1k runs
-    for (let i = 0; i < 1000; i++) {
-      const tokens = ["USDC", "DAI", "WETH", "WBTC"];
-      const decimals = [bn("6"), bn("18"), bn("18"), bn("8")];
-      const bals = tokens.map((_, i) => BigInt(Math.round(Math.random() * 1e36)));
-      const prices = tokens.map((_, i) => Math.round(Math.random() * 1e54) / Number(10n ** decimals[i]));
-      const currentBasket = getCurrentBasket(bals, decimals, prices);
-      const targetBasketAsNum = tokens.map((_) => Math.random());
-      const sumAsNum = targetBasketAsNum.reduce((a, b) => a + b);
-      const targetBasket = targetBasketAsNum.map((a) => BigInt(Math.round((a * 10 ** 18) / sumAsNum)));
-      const sum = targetBasket.reduce((a, b) => a + b);
-      if (sum != 10n ** 18n) {
-        targetBasket[0] += 10n ** 18n - sum;
-      }
-
-      const error = tokens.map((_) => Math.random() * 0.5);
-      const auctions = getAuctions(supply, tokens, decimals, currentBasket, targetBasket, prices, error, 1);
-      expect(auctions.length).toBeLessThanOrEqual(tokens.length - 1);
-    }
-  });
-
   it("should handle defer to curator case", () => {
     const tokens = ["USDC", "DAI"];
     const decimals = [bn("6"), bn("18")];

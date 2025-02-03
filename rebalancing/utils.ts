@@ -111,11 +111,8 @@ export const makeAuction = (
   if (buyLimit >= 10n ** 54n) {
     buyLimit = 10n ** 54n;
   }
-  if (startPrice >= 10n ** 54n) {
-    startPrice = 10n ** 54n;
-  }
-  if (endPrice >= 10n ** 54n) {
-    endPrice = 10n ** 54n;
+  if (startPrice >= 10n ** 54n || endPrice >= 10n ** 54n) {
+    throw new Error(`price outside 1e54 range [${startPrice}, ${endPrice}]`);
   }
 
   return {

@@ -27,7 +27,7 @@ describe("checkAuction()", () => {
     const tokens = ["USDC", "DAI"];
     const prices = [1, 1];
     const decimals = [6n, 18n];
-    return checkAuction(trade, tokens, prices, decimals);
+    return checkAuction(trade, tokens, decimals, prices);
   };
 
   it("should handle boundary cases", () => {

@@ -11,11 +11,11 @@ import { makeAuction } from "../utils";
  *   - Breakup large auctions into smaller auctions in advance of using this algo; a large Folio may have to use this
  *     algo multiple times to rebalance gradually to avoid transacting too much volume in any one auction.
  *
- * @param supply {share} Ideal basket
+ * @param _supply {share} Ideal basket
  * @param tokens Addresses of tokens in the basket
  * @param decimals Decimals of each token
- * @param currentBasket D18{1} Current balances
- * @param targetBasket D18{1} Ideal basket
+ * @param _currentBasket D18{1} Current balances
+ * @param _targetBasket D18{1} Ideal basket
  * @param _prices {USD/wholeTok} USD prices for each *whole* token
  * @param _priceError {1} Price error, pass 1 to fully defer to price curator / auction launcher
  * @param _dtfPrice {USD/wholeShare} DTF price
@@ -51,7 +51,7 @@ export const getAuctions = (
   // {1} = D18{1} / D18
   const targetBasket = _targetBasket.map((a) => new Decimal(a.toString()).div(D18d));
 
-  // D27{1} = {1} * D27
+  // {1}
   const priceError = _priceError.map((a) => new Decimal(a));
 
   const tolerance = new Decimal(_tolerance.toString()).div(D18d);
@@ -64,9 +64,6 @@ export const getAuctions = (
   console.log("sharesValue", sharesValue);
 
   // queue up auctions until there are no more auctions-to-make greater than tolerance in size
-  //n
-  // auctions returned will never be longer than tokens.length - 1
-  // proof left as an exercise to the reader
 
   while (true) {
     if (auctions.length > tokens.length - 1) {
@@ -110,13 +107,13 @@ export const getAuctions = (
     const maxAuction = biggestDeficit.lt(biggestSurplus) ? biggestDeficit : biggestSurplus;
 
     // {1} = {USD} / {USD}
-    const backingAuctiond = maxAuction.div(sharesValue);
+    const backingAuctioned = maxAuction.div(sharesValue);
 
-    console.log("backingAuctiond", backingAuctiond);
+    console.log("backingAuctioned", backingAuctioned);
 
     // {1}
-    currentBasket[x] = currentBasket[x].sub(backingAuctiond);
-    currentBasket[y] = currentBasket[y].add(backingAuctiond);
+    currentBasket[x] = currentBasket[x].sub(backingAuctioned);
+    currentBasket[y] = currentBasket[y].add(backingAuctioned);
 
     // {1}
     let avgPriceError = priceError[x].add(priceError[y]).div(TWO);

@@ -101,13 +101,13 @@ export const getBasket = (
     }
 
     // {1} = {USD} / {USD}
-    const backingAuctiond = smallestSwap.div(sharesValue);
+    const backingAuctioned = smallestSwap.div(sharesValue);
 
-    console.log("backingAuctiond", backingAuctiond, smallestSwap, sharesValue);
+    console.log("backingAuctioned", backingAuctioned, smallestSwap, sharesValue);
 
     // {1}
-    currentBasket[x] = currentBasket[x].sub(backingAuctiond);
-    currentBasket[y] = currentBasket[y].add(backingAuctiond);
+    currentBasket[x] = currentBasket[x].sub(backingAuctioned);
+    currentBasket[y] = currentBasket[y].add(backingAuctioned);
 
     // remove the auction
     auctions.splice(auctionIndex, 1);
