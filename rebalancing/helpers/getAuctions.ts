@@ -1,15 +1,15 @@
 import { Decimal } from "decimal.js";
 
-import { Trade } from "./types";
-import { D18d, D27d, ONE, TWO, ZERO } from "./numbers";
-import { makeTrade } from "./utils";
+import { Auction } from "../types";
+import { D18d, D27d, ONE, TWO, ZERO } from "../numbers";
+import { makeAuction } from "../utils";
 
 /**
- * Get trades from basket
+ * Get auctions from basket
  *
  * Warnings:
- *   - Breakup large trades into smaller trades in advance of using this algo; a large Folio may have to use this
- *     algo multiple times to rebalance gradually to avoid transacting too much volume in any one trade.
+ *   - Breakup large auctions into smaller auctions in advance of using this algo; a large Folio may have to use this
+ *     algo multiple times to rebalance gradually to avoid transacting too much volume in any one auction.
  *
  * @param supply {share} Ideal basket
  * @param tokens Addresses of tokens in the basket
@@ -19,9 +19,9 @@ import { makeTrade } from "./utils";
  * @param _prices {USD/wholeTok} USD prices for each *whole* token
  * @param _priceError {1} Price error, pass 1 to fully defer to price curator / auction launcher
  * @param _dtfPrice {USD/wholeShare} DTF price
- * @param tolerance D18{1} Tolerance for rebalancing to determine when to tolerance trade or not, default 0.1%
+ * @param tolerance D18{1} Tolerance for rebalancing to determine when to tolerance auction or not, default 0.1%
  */
-export const getTrades = (
+export const getAuctions = (
   _supply: bigint,
   tokens: string[],
   decimals: bigint[],
@@ -31,8 +31,8 @@ export const getTrades = (
   _priceError: number[],
   _dtfPrice: number,
   _tolerance: bigint = 10n ** 14n, // 0.01%
-): Trade[] => {
-  const trades: Trade[] = [];
+): Auction[] => {
+  const auctions: Auction[] = [];
 
   // convert price number inputs to bigints
 
@@ -63,13 +63,13 @@ export const getTrades = (
 
   console.log("sharesValue", sharesValue);
 
-  // queue up trades until there are no more trades-to-make greater than tolerance in size
+  // queue up auctions until there are no more auctions-to-make greater than tolerance in size
   //n
-  // trades returned will never be longer than tokens.length - 1
+  // auctions returned will never be longer than tokens.length - 1
   // proof left as an exercise to the reader
 
   while (true) {
-    if (trades.length > tokens.length - 1) {
+    if (auctions.length > tokens.length - 1) {
       throw new Error("something has gone very wrong");
     }
 
@@ -99,24 +99,24 @@ export const getTrades = (
       }
     }
 
-    // if we don't find any more trades, we're done
+    // if we don't find any more auctions, we're done
     if (x == tokens.length || y == tokens.length) {
-      return trades;
+      return auctions;
     }
 
     // simulate swap and update currentBasket
 
     // {USD}
-    const maxTrade = biggestDeficit.lt(biggestSurplus) ? biggestDeficit : biggestSurplus;
+    const maxAuction = biggestDeficit.lt(biggestSurplus) ? biggestDeficit : biggestSurplus;
 
     // {1} = {USD} / {USD}
-    const backingTraded = maxTrade.div(sharesValue);
+    const backingAuctiond = maxAuction.div(sharesValue);
 
-    console.log("backingTraded", backingTraded);
+    console.log("backingAuctiond", backingAuctiond);
 
     // {1}
-    currentBasket[x] = currentBasket[x].sub(backingTraded);
-    currentBasket[y] = currentBasket[y].add(backingTraded);
+    currentBasket[x] = currentBasket[x].sub(backingAuctiond);
+    currentBasket[y] = currentBasket[y].add(backingAuctiond);
 
     // {1}
     let avgPriceError = priceError[x].add(priceError[y]).div(TWO);
@@ -135,9 +135,9 @@ export const getTrades = (
     const startPrice = avgPriceError.eq(ONE) ? ZERO : price.div(ONE.sub(avgPriceError));
     const endPrice = avgPriceError.eq(ONE) ? ZERO : price.mul(ONE.sub(avgPriceError));
 
-    // add trade into set
-    trades.push(
-      makeTrade(
+    // add auction into set
+    auctions.push(
+      makeAuction(
         tokens[x],
         tokens[y],
         // D27{tok/share} = {wholeTok/wholeShare} * D27 * {tok/wholeTok} / {share/wholeShare}
@@ -177,10 +177,10 @@ export const getTrades = (
     );
 
     // do not remove console.logs
-    console.log("sellLimit", trades[trades.length - 1].sellLimit.spot);
-    console.log("buyLimit", trades[trades.length - 1].buyLimit.spot);
-    console.log("startPrice", trades[trades.length - 1].prices.start);
-    console.log("endPrice", trades[trades.length - 1].prices.end);
+    console.log("sellLimit", auctions[auctions.length - 1].sellLimit.spot);
+    console.log("buyLimit", auctions[auctions.length - 1].buyLimit.spot);
+    console.log("startPrice", auctions[auctions.length - 1].prices.start);
+    console.log("endPrice", auctions[auctions.length - 1].prices.end);
     console.log("currentBasket", currentBasket);
   }
 };

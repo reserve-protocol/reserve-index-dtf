@@ -1,6 +1,7 @@
 import { Decimal } from "decimal.js";
 
-import { D9d, D18n, D27n, D27d } from "./numbers";
+import { D9d, D18n, D27d } from "./numbers";
+import { Auction } from "./types";
 
 /**
  * @param limit D27{tok/share} Range.buyLimit or Range.sellLimit
@@ -24,7 +25,7 @@ export const getBasketPortion = (
     new Decimal(_price)
       .mul(D27d)
       .div(new Decimal(`1e${decimals}`))
-      .toFixed(),
+      .toFixed(0),
   );
 
   // D27{1} = D27{tok/share} * D27{USD/tok} / D27{USD/share}
@@ -36,7 +37,7 @@ export const getBasketPortion = (
 /**
  * @param bals {tok} Current balances
  * @param decimals Decimals of each token
- * @param prices {USD/wholeTok} USD prices for each *whole* token
+ * @param _prices {USD/wholeTok} USD prices for each *whole* token
  * @returns D18{1} Current basket, total will be around 1e18 but not exactly
  */
 export const getCurrentBasket = (bals: bigint[], decimals: bigint[], _prices: number[]): bigint[] => {
@@ -64,7 +65,7 @@ export const getCurrentBasket = (bals: bigint[], decimals: bigint[], _prices: nu
  * @param supply {share} DTF supply
  * @param bals {tok} Current balances
  * @param decimals Decimals of each token
- * @param prices {USD/wholeTok} USD prices for each *whole* token
+ * @param _prices {USD/wholeTok} USD prices for each *whole* token
  * @returns sharesValue D27{USD} Estimated USD value of all the shares
  * @returns sharePrice {USD/wholeShare} Estimated USD value of each *whole* share
  */
@@ -95,7 +96,7 @@ export const getSharePricing = (
   return [total, per];
 };
 
-export const makeTrade = (
+export const makeAuction = (
   sell: string,
   buy: string,
   sellLimit: bigint,
@@ -103,7 +104,7 @@ export const makeTrade = (
   startPrice: bigint,
   endPrice: bigint,
   avgPriceError: bigint = 0n,
-) => {
+): Auction => {
   if (sellLimit >= 10n ** 54n) {
     sellLimit = 10n ** 54n;
   }

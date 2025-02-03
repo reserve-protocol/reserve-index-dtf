@@ -1,24 +1,24 @@
 import { Decimal } from "decimal.js";
 
-import { Trade } from "./types";
-import { D18d, D27d, ZERO } from "./numbers";
+import { Auction } from "../types";
+import { D18d, D27d, ZERO } from "../numbers";
 
 /**
- * Get basket from a set of trades
+ * Get basket from a set of auctions
  *
- * Works by presuming the smallest trade is executed iteratively until all trades are exhausted
+ * Works by presuming the smallest auction is executed iteratively until all auctions are exhausted
  *
  * @param supply {share} DTF supply
- * @param trades Trades
+ * @param auctions Auctions
  * @param tokens Addresses of tokens in the basket
  * @param decimals Decimals of each token
  * @param currentBasket D18{1} Current basket breakdown
  * @param _prices {USD/wholeTok} USD prices for each *whole* token
- * @returns basket D18{1} Resulting basket from running the smallest trade first
+ * @returns basket D18{1} Resulting basket from running the smallest auction first
  */
 export const getBasket = (
   _supply: bigint,
-  trades: Trade[],
+  auctions: Auction[],
   tokens: string[],
   decimals: bigint[],
   _currentBasket: bigint[],
@@ -44,23 +44,23 @@ export const getBasket = (
 
   console.log("sharesValue", sharesValue);
 
-  // process the smallest trade first until we hit an unbounded traded
+  // process the smallest auction first until we hit an unbounded auctiond
 
-  while (trades.length > 0) {
-    let tradeIndex = 0;
+  while (auctions.length > 0) {
+    let auctionIndex = 0;
 
-    // find index of smallest trade index
+    // find index of smallest auction index
 
     // {USD}
     let smallestSwap = D27d.mul(D27d); // max, 1e54
 
-    for (let i = 0; i < trades.length; i++) {
-      const x = tokens.indexOf(trades[i].sell);
-      const y = tokens.indexOf(trades[i].buy);
+    for (let i = 0; i < auctions.length; i++) {
+      const x = tokens.indexOf(auctions[i].sell);
+      const y = tokens.indexOf(auctions[i].buy);
 
       // D27{tok * wholeShare/share * wholeTok} = D27{tok/share} * {USD/wholeTok} / {USD/wholeShare}
-      let sellTarget = new Decimal(trades[i].sellLimit.spot.toString()).mul(prices[x]).div(dtfPrice);
-      let buyTarget = new Decimal(trades[i].buyLimit.spot.toString()).mul(prices[y]).div(dtfPrice);
+      let sellTarget = new Decimal(auctions[i].sellLimit.spot.toString()).mul(prices[x]).div(dtfPrice);
+      let buyTarget = new Decimal(auctions[i].buyLimit.spot.toString()).mul(prices[y]).div(dtfPrice);
 
       // D27{1} = D27{tok * wholeShare/share * wholeTok} * {share/wholeShare} / {tok/wholeTok}
       sellTarget = sellTarget.mul(D18d).div(new Decimal(`1e${decimals[x]}`));
@@ -76,41 +76,41 @@ export const getBasket = (
       // {USD} = {1} * {USD}
       let surplus = currentBasket[x].gt(sellTarget) ? currentBasket[x].sub(sellTarget).mul(sharesValue) : ZERO;
       const deficit = currentBasket[y].lt(buyTarget) ? buyTarget.sub(currentBasket[y]).mul(sharesValue) : ZERO;
-      const tradeValue = surplus.gt(deficit) ? deficit : surplus;
+      const auctionValue = surplus.gt(deficit) ? deficit : surplus;
 
-      if (tradeValue.gt(ZERO) && tradeValue.lt(smallestSwap)) {
-        smallestSwap = tradeValue;
-        tradeIndex = i;
+      if (auctionValue.gt(ZERO) && auctionValue.lt(smallestSwap)) {
+        smallestSwap = auctionValue;
+        auctionIndex = i;
       }
     }
 
     // simulate swap and update currentBasket
-    // if no trade was smallest, default to 0th index
+    // if no auction was smallest, default to 0th index
 
-    const x = tokens.indexOf(trades[tradeIndex].sell);
-    const y = tokens.indexOf(trades[tradeIndex].buy);
+    const x = tokens.indexOf(auctions[auctionIndex].sell);
+    const y = tokens.indexOf(auctions[auctionIndex].buy);
 
     // check price is within price range
 
     // D27{buyTok/sellTok} = {USD/wholeSellTok} / {USD/wholeBuyTok} * D27 * {buyTok/wholeBuyTok} / {sellTok/wholeSellTok}
     const price = (BigInt(prices[x].div(prices[y]).mul(D27d).toFixed(0)) * 10n ** decimals[y]) / 10n ** decimals[x];
-    if (price > trades[tradeIndex].prices.start || price < trades[tradeIndex].prices.end) {
+    if (price > auctions[auctionIndex].prices.start || price < auctions[auctionIndex].prices.end) {
       throw new Error(
-        `price ${price} out of range [${trades[tradeIndex].prices.start}, ${trades[tradeIndex].prices.end}]`,
+        `price ${price} out of range [${auctions[auctionIndex].prices.start}, ${auctions[auctionIndex].prices.end}]`,
       );
     }
 
     // {1} = {USD} / {USD}
-    const backingTraded = smallestSwap.div(sharesValue);
+    const backingAuctiond = smallestSwap.div(sharesValue);
 
-    console.log("backingTraded", backingTraded, smallestSwap, sharesValue);
+    console.log("backingAuctiond", backingAuctiond, smallestSwap, sharesValue);
 
     // {1}
-    currentBasket[x] = currentBasket[x].sub(backingTraded);
-    currentBasket[y] = currentBasket[y].add(backingTraded);
+    currentBasket[x] = currentBasket[x].sub(backingAuctiond);
+    currentBasket[y] = currentBasket[y].add(backingAuctiond);
 
-    // remove the trade
-    trades.splice(tradeIndex, 1);
+    // remove the auction
+    auctions.splice(auctionIndex, 1);
   }
 
   // D18{1} = {1} * D18
