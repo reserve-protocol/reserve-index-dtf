@@ -44,20 +44,20 @@ contract DeployScript is Script {
             });
         }
 
-        // Base Mainnet
+        // Base Mainnet - Canonical Parameters
         deploymentParams[8453] = DeploymentParams({
-            roleRegistry: 0xBc53d3e1C82F14cf40F69bF58fA4542b55091263, // Canonical Role Registry for Base
-            folioFeeRegistry: address(0),
-            feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B, // Canonical Fee Recipient for Base
-            folioVersionRegistry: address(0)
+            roleRegistry: 0xE1eC57C8EE970280f237863910B606059e9641C9,
+            folioFeeRegistry: 0x0262E3e15cCFD2221b35D05909222f1f5FCdcd80,
+            feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
+            folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB
         });
 
-        // Ethereum Mainnet
+        // Ethereum Mainnet - Canonical Parameters
         deploymentParams[1] = DeploymentParams({
-            roleRegistry: address(0), // Canonical Role Registry for Mainnet
-            folioFeeRegistry: address(0),
-            feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B, // Canonical Fee Recipient for Mainnet
-            folioVersionRegistry: address(0)
+            roleRegistry: 0xE1eC57C8EE970280f237863910B606059e9641C9,
+            folioFeeRegistry: 0x0262E3e15cCFD2221b35D05909222f1f5FCdcd80,
+            feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
+            folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB
         });
     }
 
