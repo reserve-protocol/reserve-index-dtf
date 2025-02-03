@@ -213,6 +213,7 @@ contract Folio is
 
     /// @dev Non-reentrant via distributeFees()
     /// @dev Fee recipients must be unique and sorted by address, and sum to 1e18
+    /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
     function setFeeRecipients(FeeRecipient[] memory _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
@@ -372,7 +373,7 @@ contract Folio is
     }
 
     /// Distribute all pending fee shares
-    /// @dev Recipients: DAO and fee recipients
+    /// @dev Recipients: DAO and fee recipients; if feeRecipients are empty, the DAO gets all the fees
     /// @dev Pending fee shares are already reflected in the total supply, this function only concretizes balances
     function distributeFees() public nonReentrant {
         _poke();
@@ -815,19 +816,27 @@ contract Folio is
         emit MintFeeSet(_newFee);
     }
 
+    /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
     function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
         // Clear existing fee table
         uint256 len = feeRecipients.length;
+
         for (uint256 i; i < len; i++) {
+            emit FeeRecipientSet(feeRecipients[feeRecipients.length - 1].recipient, 0);
+
             feeRecipients.pop();
         }
 
         // Add new items to the fee table
-        uint256 total;
         len = _feeRecipients.length;
+        if (len == 0) {
+            return;
+        }
+
         require(len <= MAX_FEE_RECIPIENTS, Folio__TooManyFeeRecipients());
 
         address previousRecipient;
+        uint256 total;
 
         for (uint256 i; i < len; i++) {
             require(_feeRecipients[i].recipient > previousRecipient, Folio__FeeRecipientInvalidAddress());

@@ -880,9 +880,23 @@ contract FolioTest is BaseTest {
 
     function test_setFeeRecipients_EmptyList() public {
         vm.startPrank(owner);
-        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](0);
-        vm.expectRevert(IFolio.Folio__BadFeeTotal.selector);
-        folio.setFeeRecipients(recipients);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.FeeRecipientSet(feeReceiver, 0);
+        folio.setFeeRecipients(new IFolio.FeeRecipient[](0));
+        vm.stopPrank();
+
+        vm.expectRevert();
+        folio.feeRecipients(0);
+
+        // distributeFees should give all fees to DAO
+
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        vm.roll(block.number + 1);
+
+        folio.distributeFees();
+        assertEq(folio.getPendingFeeShares(), 0);
+        assertApproxEqRel(folio.balanceOf(dao), (INITIAL_SUPPLY * 0.1111e18) / 1e18, 0.001e18);
+        assertEq(folio.balanceOf(feeReceiver), 0);
     }
 
     function test_setFeeRecipients_TooManyRecipients() public {
