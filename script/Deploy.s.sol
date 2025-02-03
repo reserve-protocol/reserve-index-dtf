@@ -21,9 +21,15 @@ contract DeployScript is Script {
     uint256 privateKey = vm.deriveKey(seedPhrase, 0);
     address walletAddress = vm.rememberKey(privateKey);
 
+    // @todo Remove feeRecipient from this once folioFeeRegistry is canonical.
     struct DeploymentParams {
-        IRoleRegistry roleRegistry;
+        // Role Registry Stuff
+        address roleRegistry;
+        // Fee Registry Stuff
+        address folioFeeRegistry;
         address feeRecipient;
+        // Version Registry Stuff
+        address folioVersionRegistry;
     }
 
     mapping(uint256 chainId => DeploymentParams) public deploymentParams;
@@ -31,46 +37,80 @@ contract DeployScript is Script {
     function setUp() external {
         if (block.chainid == 31337) {
             deploymentParams[31337] = DeploymentParams({
-                roleRegistry: IRoleRegistry(address(new MockRoleRegistry())), // Mock Registry for Local Networks
-                feeRecipient: address(1)
+                roleRegistry: address(new MockRoleRegistry()), // Mock Registry for Local Networks
+                folioFeeRegistry: address(0),
+                feeRecipient: address(1), // Burn fees for Local Networks
+                folioVersionRegistry: address(0)
             });
         }
 
+        // Base Mainnet
         deploymentParams[8453] = DeploymentParams({
-            roleRegistry: IRoleRegistry(0xBc53d3e1C82F14cf40F69bF58fA4542b55091263), // Canonical Registry for Base
-            feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B // Canonical Fee Recipient for Base
+            roleRegistry: 0xBc53d3e1C82F14cf40F69bF58fA4542b55091263, // Canonical Role Registry for Base
+            folioFeeRegistry: address(0),
+            feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B, // Canonical Fee Recipient for Base
+            folioVersionRegistry: address(0)
+        });
+
+        // Ethereum Mainnet
+        deploymentParams[1] = DeploymentParams({
+            roleRegistry: address(0), // Canonical Role Registry for Mainnet
+            folioFeeRegistry: address(0),
+            feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B, // Canonical Fee Recipient for Mainnet
+            folioVersionRegistry: address(0)
         });
     }
 
     function run() external {
         DeploymentParams memory params = deploymentParams[block.chainid];
 
-        runGenesisDeployment(params.roleRegistry, params.feeRecipient);
+        require(address(params.roleRegistry) != address(0), "undefined role registry");
+
+        runGenesisDeployment(params);
     }
 
-    function runGenesisDeployment(IRoleRegistry roleRegistry, address feeRecipient) public {
-        require(address(roleRegistry) != address(0), "undefined role registry");
-        require(address(feeRecipient) != address(0), "undefined fee recipient");
+    function runGenesisDeployment(DeploymentParams memory deployParams) public {
+        require(address(deployParams.roleRegistry) != address(0), "undefined role registry");
+        require(address(deployParams.feeRecipient) != address(0), "undefined fee recipient");
 
         vm.startBroadcast(privateKey);
 
-        FolioDAOFeeRegistry daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(roleRegistry), feeRecipient);
-        FolioVersionRegistry versionRegistry = new FolioVersionRegistry(IRoleRegistry(roleRegistry));
+        if (deployParams.folioFeeRegistry == address(0)) {
+            deployParams.folioFeeRegistry = address(
+                new FolioDAOFeeRegistry(IRoleRegistry(deployParams.roleRegistry), deployParams.feeRecipient)
+            );
+        }
+
+        if (deployParams.folioVersionRegistry == address(0)) {
+            deployParams.folioVersionRegistry = address(
+                new FolioVersionRegistry(IRoleRegistry(deployParams.roleRegistry))
+            );
+        }
 
         vm.stopBroadcast();
 
-        require(address(daoFeeRegistry.roleRegistry()) == address(roleRegistry), "wrong role registry");
-        (address feeRecipient_, , , ) = daoFeeRegistry.getFeeDetails(address(0));
-        require(feeRecipient_ == feeRecipient, "wrong fee recipient");
+        console2.log("Folio Fee Registry: %s", address(deployParams.folioFeeRegistry));
+        console2.log("Folio Version Registry: %s", address(deployParams.folioVersionRegistry));
 
-        require(address(versionRegistry.roleRegistry()) == address(roleRegistry), "wrong role registry");
+        require(
+            address(FolioDAOFeeRegistry(deployParams.folioFeeRegistry).roleRegistry()) == deployParams.roleRegistry,
+            "wrong role registry"
+        );
+        require(
+            address(FolioVersionRegistry(deployParams.folioVersionRegistry).roleRegistry()) ==
+                deployParams.roleRegistry,
+            "wrong role registry"
+        );
 
-        runFollowupDeployment(daoFeeRegistry, versionRegistry);
+        (address feeRecipient_, , , ) = FolioDAOFeeRegistry(deployParams.folioFeeRegistry).getFeeDetails(address(0));
+        require(feeRecipient_ == deployParams.feeRecipient, "wrong fee recipient");
+
+        runFollowupDeployment(deployParams);
     }
 
-    function runFollowupDeployment(FolioDAOFeeRegistry daoFeeRegistry, FolioVersionRegistry versionRegistry) public {
-        require(address(daoFeeRegistry) != address(0), "undefined dao fee registry");
-        require(address(versionRegistry) != address(0), "undefined version registry");
+    function runFollowupDeployment(DeploymentParams memory deployParams) public {
+        require(address(deployParams.folioFeeRegistry) != address(0), "undefined dao fee registry");
+        require(address(deployParams.folioVersionRegistry) != address(0), "undefined version registry");
 
         vm.startBroadcast(privateKey);
 
@@ -79,8 +119,8 @@ contract DeployScript is Script {
 
         GovernanceDeployer governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
         FolioDeployer folioDeployer = new FolioDeployer(
-            address(daoFeeRegistry),
-            address(versionRegistry),
+            address(deployParams.folioFeeRegistry),
+            address(deployParams.folioVersionRegistry),
             governanceDeployer
         );
 
@@ -89,8 +129,11 @@ contract DeployScript is Script {
         console2.log("Governance Deployer: %s", address(governanceDeployer));
         console2.log("Folio Deployer: %s", address(folioDeployer));
 
-        require(folioDeployer.daoFeeRegistry() == address(daoFeeRegistry), "wrong dao fee registry");
-        require(folioDeployer.versionRegistry() == address(versionRegistry), "wrong version registry");
+        require(folioDeployer.daoFeeRegistry() == address(deployParams.folioFeeRegistry), "wrong dao fee registry");
+        require(
+            folioDeployer.versionRegistry() == address(deployParams.folioVersionRegistry),
+            "wrong version registry"
+        );
         require(folioDeployer.governanceDeployer() == governanceDeployer, "wrong version registry");
         require(governanceDeployer.governorImplementation() == governorImplementation, "wrong governor implementation");
         require(governanceDeployer.timelockImplementation() == timelockImplementation, "wrong timelock implementation");
