@@ -33,7 +33,7 @@
     "coverage": "forge coverage --report lcov --no-match-coverage '(script|test)'",
     "coverage:summary": "forge coverage --report summary --no-match-coverage '(script|test)'",
     "deploy": "forge script script/Deploy.s.sol:DeployScript --broadcast --slow --skip-simulation",
-    "anvil": "anvil --fork-url https://eth.public-rpc.com --chain-id 31337 --prune-history"
+    "anvil": "anvil --fork-url https://ethereum-rpc.publicnode.com --chain-id 31337 --prune-history"
   },
   "packageManager": "yarn@4.6.0"
 }

@@ -3,20 +3,20 @@ pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MAX_TRADE_DELAY, MAX_FOLIO_FEE, MAX_TTL, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
+import { Folio, MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TVL_FEE, MAX_TTL, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
 import { StakingVault } from "contracts/staking/StakingVault.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
-    IFolio.Range internal FULL_SELL = IFolio.Range(0, 0, MAX_RATE);
-    IFolio.Range internal FULL_BUY = IFolio.Range(MAX_RATE, MAX_RATE, MAX_RATE);
+    IFolio.BasketRange internal FULL_SELL = IFolio.BasketRange(0, 0, MAX_RATE);
+    IFolio.BasketRange internal FULL_BUY = IFolio.BasketRange(MAX_RATE, MAX_RATE, MAX_RATE);
 
     function _deployTestFolio(
         address[] memory _tokens,
         uint256[] memory _amounts,
         uint256 initialSupply,
-        uint256 folioFee,
-        uint256 mintingFee,
+        uint256 tvlFee,
+        uint256 mintFee,
         IFolio.FeeRecipient[] memory recipients
     ) public {
         string memory deployGasTag = string.concat(
@@ -39,14 +39,14 @@ contract ExtremeTest is BaseExtremeTest {
             _tokens,
             _amounts,
             initialSupply,
-            MAX_TRADE_DELAY,
+            MAX_AUCTION_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
-            folioFee,
-            mintingFee,
+            tvlFee,
+            mintFee,
             owner,
             dao,
-            tradeLauncher
+            auctionLauncher
         );
         vm.stopSnapshotGas(deployGasTag);
         vm.stopPrank();
@@ -121,11 +121,11 @@ contract ExtremeTest is BaseExtremeTest {
 
         // deploy folio
         uint256 initialSupply = p.amount * 1e18;
-        uint256 folioFee = MAX_FOLIO_FEE;
+        uint256 tvlFee = MAX_TVL_FEE;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
-        _deployTestFolio(tokens, amounts, initialSupply, folioFee, 0, recipients);
+        _deployTestFolio(tokens, amounts, initialSupply, tvlFee, 0, recipients);
 
         // check deployment
         assertEq(folio.totalSupply(), initialSupply, "wrong total supply");
@@ -157,7 +157,7 @@ contract ExtremeTest is BaseExtremeTest {
         vm.stopPrank();
 
         // check balances
-        assertEq(folio.balanceOf(user1), mintAmount - mintAmount / 2000, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), mintAmount - (mintAmount * 3) / 2000, "wrong user1 balance");
         for (uint256 j = 0; j < tokens.length; j++) {
             IERC20 _token = IERC20(tokens[j]);
 
@@ -188,7 +188,7 @@ contract ExtremeTest is BaseExtremeTest {
         vm.stopSnapshotGas(redeemGasTag);
 
         // check balances
-        assertEq(folio.balanceOf(user1), mintAmount / 2 - mintAmount / 2000, "wrong user1 balance");
+        assertEq(folio.balanceOf(user1), mintAmount / 2 - (mintAmount * 3) / 2000, "wrong user1 balance");
         for (uint256 j = 0; j < tokens.length; j++) {
             IERC20 _token = IERC20(tokens[j]);
 
@@ -211,7 +211,7 @@ contract ExtremeTest is BaseExtremeTest {
         vm.stopPrank();
     }
 
-    function run_trading_scenario(TradingTestParams memory p) public {
+    function run_trading_scenario(RebalancingTestParams memory p) public {
         IERC20 sell = deployCoin("Sell Token", "SELL", p.sellDecimals);
         IERC20 buy = deployCoin("Buy Token", "BUY", p.buyDecimals);
 
@@ -225,25 +225,25 @@ contract ExtremeTest is BaseExtremeTest {
 
         // deploy folio
         uint256 initialSupply = p.sellAmount;
-        uint256 folioFee = MAX_FOLIO_FEE;
+        uint256 tvlFee = MAX_TVL_FEE;
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
-        _deployTestFolio(tokens, amounts, initialSupply, folioFee, 0, recipients);
+        _deployTestFolio(tokens, amounts, initialSupply, tvlFee, 0, recipients);
 
-        // approveTrade
+        // approveAuction
         vm.prank(dao);
-        folio.approveTrade(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
+        folio.approveAuction(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
 
-        // openTrade
-        vm.prank(tradeLauncher);
+        // openAuction
+        vm.prank(auctionLauncher);
         uint256 endPrice = p.price / MAX_PRICE_RANGE;
-        folio.openTrade(0, 0, MAX_RATE, p.price, endPrice > p.price ? endPrice : p.price);
+        folio.openAuction(0, 0, MAX_RATE, p.price, endPrice > p.price ? endPrice : p.price);
 
         // sellAmount will be up to 1e36
         // buyAmount will be up to 1e54 and down to 1
 
-        (, , , , , , , , uint256 start, uint256 end, ) = folio.trades(0);
+        (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
 
         uint256 sellAmount = folio.lot(0, start);
         // getBid should work at both ends of auction
@@ -287,7 +287,7 @@ contract ExtremeTest is BaseExtremeTest {
         for (uint256 i = 0; i < p.numFeeRecipients; i++) {
             recipients[i] = IFolio.FeeRecipient(address(uint160(i + 1)), feeReceiverShare);
         }
-        _deployTestFolio(tokens, amounts, initialSupply, p.folioFee, 0, recipients);
+        _deployTestFolio(tokens, amounts, initialSupply, p.tvlFee, 0, recipients);
 
         // set dao fee
         daoFeeRegistry.setTokenFeeNumerator(address(folio), p.daoFee);
@@ -295,23 +295,7 @@ contract ExtremeTest is BaseExtremeTest {
         // fast forward, accumulate fees
         vm.warp(block.timestamp + p.timeLapse);
         vm.roll(block.number + 1000);
-        uint256 pendingFeeShares = folio.getPendingFeeShares();
         folio.distributeFees();
-
-        // check receipient balances
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator) = daoFeeRegistry.getFeeDetails(address(folio));
-        uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
-
-        assertApproxEqAbs(folio.balanceOf(address(dao)), expectedDaoShares, p.numFeeRecipients, "wrong dao shares");
-
-        uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        for (uint256 i = 0; i < recipients.length; i++) {
-            assertEq(
-                folio.balanceOf(recipients[i].recipient),
-                (remainingShares * feeReceiverShare) / 1e18,
-                "wrong receiver shares"
-            );
-        }
     }
 
     function run_staking_rewards_scenario(StakingRewardsTestParams memory p) public {

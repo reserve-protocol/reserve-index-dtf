@@ -40,6 +40,7 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
     /// @param symbol Symbol of the staking vault
     /// @param underlying Underlying token for the staking vault
     /// @param govParams Governance parameters for the governor
+    /// @param deploymentNonce Nonce for the deployment salt
     /// @return stToken A staking vault that can be used with multiple governors
     /// @return governor A governor responsible for the staking vault
     /// @return timelock Timelock for the governor, owns staking vault
@@ -47,20 +48,21 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
         string memory name,
         string memory symbol,
         IERC20 underlying,
-        IGovernanceDeployer.GovParams calldata govParams
+        IGovernanceDeployer.GovParams calldata govParams,
+        bytes32 deploymentNonce
     ) external returns (StakingVault stToken, address governor, address timelock) {
-        bytes32 deploymentSalt = keccak256(abi.encode(name, symbol, underlying, govParams));
+        bytes32 deploymentSalt = keccak256(abi.encode(name, symbol, underlying, govParams, deploymentNonce));
 
         stToken = new StakingVault{ salt: deploymentSalt }(
             name,
             symbol,
             underlying,
-            address(this),
+            address(this), // temporary admin
             DEFAULT_REWARD_PERIOD,
             DEFAULT_UNSTAKING_DELAY
         );
 
-        (governor, timelock) = deployGovernanceWithTimelock(govParams, IVotes(stToken));
+        (governor, timelock) = deployGovernanceWithTimelock(govParams, IVotes(stToken), deploymentSalt);
 
         stToken.transferOwnership(timelock);
 
@@ -69,16 +71,19 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
 
     function deployGovernanceWithTimelock(
         IGovernanceDeployer.GovParams calldata govParams,
-        IVotes stToken
+        IVotes stToken,
+        bytes32 deploymentNonce
     ) public returns (address governor, address timelock) {
-        bytes32 deploymentSalt = keccak256(abi.encode(govParams, stToken));
+        bytes32 deploymentSalt = keccak256(abi.encode(govParams, stToken, deploymentNonce));
 
         governor = Clones.cloneDeterministic(governorImplementation, deploymentSalt);
         timelock = Clones.cloneDeterministic(timelockImplementation, deploymentSalt);
 
+        TimelockControllerUpgradeable timelockController = TimelockControllerUpgradeable(payable(timelock));
+
         FolioGovernor(payable(governor)).initialize(
             stToken,
-            TimelockControllerUpgradeable(payable(timelock)),
+            timelockController,
             govParams.votingDelay,
             govParams.votingPeriod,
             govParams.proposalThreshold,
@@ -88,16 +93,15 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
         address[] memory proposersAndExecutors = new address[](1);
         proposersAndExecutors[0] = governor;
 
-        TimelockControllerUpgradeable timelockController = TimelockControllerUpgradeable(payable(timelock));
         timelockController.initialize(
             govParams.timelockDelay,
             proposersAndExecutors, // Proposer Role
             proposersAndExecutors, // Executor Role
-            address(this)
+            address(this) // temporary admin
         );
 
-        if (govParams.guardian != address(0)) {
-            timelockController.grantRole(timelockController.CANCELLER_ROLE(), govParams.guardian);
+        for (uint256 i; i < govParams.guardians.length; i++) {
+            timelockController.grantRole(timelockController.CANCELLER_ROLE(), govParams.guardians[i]);
         }
 
         timelockController.renounceRole(timelockController.DEFAULT_ADMIN_ROLE(), address(this));

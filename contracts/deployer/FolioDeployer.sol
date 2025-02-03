@@ -38,26 +38,37 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
     /// Deploy a raw Folio instance with previously defined roles
     /// @return folio The deployed Folio instance
-    /// @return folioAdmin The deployed FolioProxyAdmin instance
+    /// @return proxyAdmin The deployed FolioProxyAdmin instance
     function deployFolio(
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         address owner,
-        address[] memory tradeProposers,
-        address[] memory tradeLaunchers,
-        address[] memory vibesOfficers
-    ) public returns (Folio folio, address folioAdmin) {
-        if (basicDetails.assets.length != basicDetails.amounts.length) {
-            revert FolioDeployer__LengthMismatch();
-        }
+        address[] memory auctionApprovers,
+        address[] memory auctionLaunchers,
+        address[] memory brandManagers,
+        bytes32 deploymentNonce
+    ) public returns (Folio folio, address proxyAdmin) {
+        require(basicDetails.assets.length == basicDetails.amounts.length, FolioDeployer__LengthMismatch());
 
         bytes32 deploymentSalt = keccak256(
-            abi.encode(basicDetails, additionalDetails, owner, tradeProposers, tradeLaunchers, vibesOfficers)
+            abi.encode(
+                keccak256(
+                    abi.encode(
+                        basicDetails,
+                        additionalDetails,
+                        owner,
+                        auctionApprovers,
+                        auctionLaunchers,
+                        brandManagers
+                    )
+                ),
+                deploymentNonce
+            )
         );
 
         // Deploy Folio
-        folioAdmin = address(new FolioProxyAdmin{ salt: deploymentSalt }(owner, versionRegistry));
-        folio = Folio(address(new FolioProxy{ salt: deploymentSalt }(folioImplementation, folioAdmin)));
+        proxyAdmin = address(new FolioProxyAdmin{ salt: deploymentSalt }(owner, versionRegistry));
+        folio = Folio(address(new FolioProxy{ salt: deploymentSalt }(folioImplementation, proxyAdmin)));
 
         for (uint256 i; i < basicDetails.assets.length; i++) {
             IERC20(basicDetails.assets[i]).safeTransferFrom(msg.sender, address(folio), basicDetails.amounts[i]);
@@ -68,28 +79,28 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         // Setup Roles
         folio.grantRole(folio.DEFAULT_ADMIN_ROLE(), owner);
 
-        for (uint256 i; i < tradeProposers.length; i++) {
-            folio.grantRole(folio.TRADE_PROPOSER(), tradeProposers[i]);
+        for (uint256 i; i < auctionApprovers.length; i++) {
+            folio.grantRole(folio.AUCTION_APPROVER(), auctionApprovers[i]);
         }
-        for (uint256 i; i < tradeLaunchers.length; i++) {
-            folio.grantRole(folio.TRADE_LAUNCHER(), tradeLaunchers[i]);
+        for (uint256 i; i < auctionLaunchers.length; i++) {
+            folio.grantRole(folio.AUCTION_LAUNCHER(), auctionLaunchers[i]);
         }
-        for (uint256 i; i < vibesOfficers.length; i++) {
-            folio.grantRole(folio.VIBES_OFFICER(), vibesOfficers[i]);
+        for (uint256 i; i < brandManagers.length; i++) {
+            folio.grantRole(folio.BRAND_MANAGER(), brandManagers[i]);
         }
 
         // Renounce Ownership
         folio.renounceRole(folio.DEFAULT_ADMIN_ROLE(), address(this));
 
-        emit FolioDeployed(owner, address(folio), folioAdmin);
+        emit FolioDeployed(owner, address(folio), proxyAdmin);
     }
 
-    /// Deploy a Folio instance with brand new owner + trading governors
+    /// Deploy a Folio instance with brand new owner + rebalancing governors
     /// @return folio The deployed Folio instance
     /// @return proxyAdmin The deployed FolioProxyAdmin instance
     /// @return ownerGovernor The owner governor with attached timelock
     /// @return ownerTimelock The owner timelock
-    /// @return tradingGovernor The trading governor with attached timelock
+    /// @return tradingGovernor The rebalancing governor with attached timelock
     /// @return tradingTimelock The trading timelock
     function deployGovernedFolio(
         IVotes stToken,
@@ -97,7 +108,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         IGovernanceDeployer.GovParams calldata ownerGovParams,
         IGovernanceDeployer.GovParams calldata tradingGovParams,
-        IGovernanceDeployer.GovRoles calldata govRoles
+        IGovernanceDeployer.GovRoles calldata govRoles,
+        bytes32 deploymentNonce
     )
         external
         returns (
@@ -110,26 +122,33 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         )
     {
         // Deploy Owner Governance
-        (ownerGovernor, ownerTimelock) = governanceDeployer.deployGovernanceWithTimelock(ownerGovParams, stToken);
+        (ownerGovernor, ownerTimelock) = governanceDeployer.deployGovernanceWithTimelock(
+            ownerGovParams,
+            stToken,
+            deploymentNonce
+        );
 
-        if (govRoles.existingTradeProposers.length == 0) {
-            // Deploy Trading Governance
+        // Deploy Rebalancing Governance
+        if (govRoles.existingAuctionApprovers.length == 0) {
+            // Flip deployment nonce to avoid timelock/governor collisions
             (tradingGovernor, tradingTimelock) = governanceDeployer.deployGovernanceWithTimelock(
                 tradingGovParams,
-                stToken
+                stToken,
+                ~deploymentNonce
             );
 
-            address[] memory tradeProposers = new address[](1);
-            tradeProposers[0] = tradingTimelock;
+            address[] memory auctionApprovers = new address[](1);
+            auctionApprovers[0] = tradingTimelock;
 
             // Deploy Folio
             (folio, proxyAdmin) = deployFolio(
                 basicDetails,
                 additionalDetails,
                 ownerTimelock,
-                tradeProposers,
-                govRoles.tradeLaunchers,
-                govRoles.vibesOfficers
+                auctionApprovers,
+                govRoles.auctionLaunchers,
+                govRoles.brandManagers,
+                deploymentNonce
             );
         } else {
             // Deploy Folio
@@ -137,9 +156,10 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 basicDetails,
                 additionalDetails,
                 ownerTimelock,
-                govRoles.existingTradeProposers,
-                govRoles.tradeLaunchers,
-                govRoles.vibesOfficers
+                govRoles.existingAuctionApprovers,
+                govRoles.auctionLaunchers,
+                govRoles.brandManagers,
+                deploymentNonce
             );
         }
 

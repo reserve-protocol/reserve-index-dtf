@@ -28,7 +28,7 @@ uint256 constant SCALAR = 1e18; // D18
  * @title StakingVault
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  * @notice StakingVault is a transferrable 1:1 wrapping of an underlying token that uses the ERC4626 interface.
- *         It earns the holder a claimable stream of multi rewards and enables them to vote in governance.
+ *         It earns the holder a claimable stream of multi rewards and enables them to vote in (external) governance.
  *         Unstaking is gated by a delay, implemented by an UnstakingManager.
  */
 contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
@@ -135,12 +135,9 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
     /// @param _delay {s} New unstaking delay
     function _setUnstakingDelay(uint256 _delay) internal {
-        if (_delay > MAX_UNSTAKING_DELAY) {
-            revert Vault__InvalidUnstakingDelay();
-        }
+        require(_delay <= MAX_UNSTAKING_DELAY, Vault__InvalidUnstakingDelay());
 
         unstakingDelay = _delay;
-
         emit UnstakingDelaySet(_delay);
     }
 
@@ -149,17 +146,11 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
      */
     /// @param _rewardToken Reward token to add
     function addRewardToken(address _rewardToken) external onlyOwner {
-        if (_rewardToken == address(this) || _rewardToken == asset()) {
-            revert Vault__InvalidRewardToken(_rewardToken);
-        }
+        require(_rewardToken != address(this) && _rewardToken != asset(), Vault__InvalidRewardToken(_rewardToken));
 
-        if (disallowedRewardTokens[_rewardToken]) {
-            revert Vault__DisallowedRewardToken(_rewardToken);
-        }
+        require(!disallowedRewardTokens[_rewardToken], Vault__DisallowedRewardToken(_rewardToken));
 
-        if (!rewardTokens.add(_rewardToken)) {
-            revert Vault__RewardAlreadyRegistered();
-        }
+        require(rewardTokens.add(_rewardToken), Vault__RewardAlreadyRegistered());
 
         RewardInfo storage rewardInfo = rewardTrackers[_rewardToken];
 
@@ -173,13 +164,13 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     function removeRewardToken(address _rewardToken) external onlyOwner {
         disallowedRewardTokens[_rewardToken] = true;
 
-        if (!rewardTokens.remove(_rewardToken)) {
-            revert Vault__RewardNotRegistered();
-        }
+        require(rewardTokens.remove(_rewardToken), Vault__RewardNotRegistered());
 
         emit RewardTokenRemoved(_rewardToken);
     }
 
+    /// Allows to claim rewards
+    /// Supports claiming accrued rewards for disallowed/removed tokens
     /// @param _rewardTokens Array of reward tokens to claim
     /// @return claimableRewards Amount claimed for each rewardToken
     function claimRewards(
@@ -221,9 +212,10 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
     /// @param _rewardHalfLife {s}
     function _setRewardRatio(uint256 _rewardHalfLife) internal accrueRewards(msg.sender, msg.sender) {
-        if (_rewardHalfLife > MAX_REWARD_HALF_LIFE || _rewardHalfLife < MIN_REWARD_HALF_LIFE) {
-            revert Vault__InvalidRewardsHalfLife();
-        }
+        require(
+            _rewardHalfLife <= MAX_REWARD_HALF_LIFE && _rewardHalfLife >= MIN_REWARD_HALF_LIFE,
+            Vault__InvalidRewardsHalfLife()
+        );
 
         // D18{1/s} = D18{1} / {s}
         rewardRatio = LN_2 / _rewardHalfLife;
@@ -234,6 +226,11 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     function poke() external accrueRewards(msg.sender, msg.sender) {}
 
     modifier accrueRewards(address _caller, address _receiver) {
+        _accrueRewards(_caller, _receiver);
+        _;
+    }
+
+    function _accrueRewards(address _caller, address _receiver) internal {
         address[] memory _rewardTokens = rewardTokens.values();
         uint256 _rewardTokensLength = _rewardTokens.length;
 
@@ -250,7 +247,6 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
                 _accrueUser(_caller, rewardToken);
             }
         }
-        _;
     }
 
     function _accrueRewards(address _rewardToken) internal {
