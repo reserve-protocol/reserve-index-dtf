@@ -628,9 +628,7 @@ contract FolioTest is BaseTest {
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.05e18);
         recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
         vm.expectEmit(true, true, false, true);
-        emit IFolio.FeeRecipientSet(owner, 0.8e18);
-        emit IFolio.FeeRecipientSet(feeReceiver, 0.05e18);
-        emit IFolio.FeeRecipientSet(user1, 0.15e18);
+        emit IFolio.FeeRecipientsSet(recipients);
         folio.setFeeRecipients(recipients);
 
         (address r1, uint256 bps1) = folio.feeRecipients(0);
@@ -675,9 +673,7 @@ contract FolioTest is BaseTest {
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.05e18);
         recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
         vm.expectEmit(true, true, false, true);
-        emit IFolio.FeeRecipientSet(owner, 0.8e18);
-        emit IFolio.FeeRecipientSet(feeReceiver, 0.05e18);
-        emit IFolio.FeeRecipientSet(user1, 0.15e18);
+        emit IFolio.FeeRecipientsSet(recipients);
         folio.setFeeRecipients(recipients);
 
         assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
@@ -881,7 +877,7 @@ contract FolioTest is BaseTest {
     function test_setFeeRecipients_EmptyList() public {
         vm.startPrank(owner);
         vm.expectEmit(true, true, false, true);
-        emit IFolio.FeeRecipientSet(feeReceiver, 0);
+        emit IFolio.FeeRecipientsSet(new IFolio.FeeRecipient[](0));
         folio.setFeeRecipients(new IFolio.FeeRecipient[](0));
         vm.stopPrank();
 

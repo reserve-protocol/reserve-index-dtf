@@ -18,7 +18,7 @@ interface IFolio {
     event BasketTokenRemoved(address indexed token);
     event TVLFeeSet(uint256 newFee, uint256 feeAnnually);
     event MintFeeSet(uint256 newFee);
-    event FeeRecipientSet(address indexed recipient, uint96 portion);
+    event FeeRecipientsSet(FeeRecipient[] recipients);
     event AuctionDelaySet(uint256 newAuctionDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
     event MandateSet(string newMandate);

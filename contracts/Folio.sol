@@ -818,17 +818,17 @@ contract Folio is
 
     /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
     function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
+        emit FeeRecipientsSet(_feeRecipients);
+
         // Clear existing fee table
         uint256 len = feeRecipients.length;
-
         for (uint256 i; i < len; i++) {
-            emit FeeRecipientSet(feeRecipients[feeRecipients.length - 1].recipient, 0);
-
             feeRecipients.pop();
         }
 
         // Add new items to the fee table
         len = _feeRecipients.length;
+
         if (len == 0) {
             return;
         }
@@ -845,7 +845,6 @@ contract Folio is
             total += _feeRecipients[i].portion;
             previousRecipient = _feeRecipients[i].recipient;
             feeRecipients.push(_feeRecipients[i]);
-            emit FeeRecipientSet(_feeRecipients[i].recipient, _feeRecipients[i].portion);
         }
 
         // ensure table adds up to 100%
