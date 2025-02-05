@@ -79,16 +79,16 @@ export const getAuctions = (
     let biggestDeficit = ZERO;
 
     for (let i = 0; i < tokens.length; i++) {
-      if (currentBasket[i].gt(targetBasket[i]) && currentBasket[i].sub(targetBasket[i]).gt(tolerance)) {
+      if (currentBasket[i].gt(targetBasket[i]) && currentBasket[i].minus(targetBasket[i]).gt(tolerance)) {
         // {USD} = {1} * {USD}
-        const surplus = currentBasket[i].sub(targetBasket[i]).mul(sharesValue);
+        const surplus = currentBasket[i].minus(targetBasket[i]).mul(sharesValue);
         if (surplus.gt(biggestSurplus)) {
           biggestSurplus = surplus;
           x = i;
         }
-      } else if (currentBasket[i].lt(targetBasket[i]) && targetBasket[i].sub(currentBasket[i]).gt(tolerance)) {
+      } else if (currentBasket[i].lt(targetBasket[i]) && targetBasket[i].minus(currentBasket[i]).gt(tolerance)) {
         // {USD} = {1} * {USD}
-        const deficit = targetBasket[i].sub(currentBasket[i]).mul(sharesValue);
+        const deficit = targetBasket[i].minus(currentBasket[i]).mul(sharesValue);
         if (deficit.gt(biggestDeficit)) {
           biggestDeficit = deficit;
           y = i;
@@ -112,11 +112,11 @@ export const getAuctions = (
     console.log("backingAuctioned", backingAuctioned);
 
     // {1}
-    currentBasket[x] = currentBasket[x].sub(backingAuctioned);
-    currentBasket[y] = currentBasket[y].add(backingAuctioned);
+    currentBasket[x] = currentBasket[x].minus(backingAuctioned);
+    currentBasket[y] = currentBasket[y].plus(backingAuctioned);
 
     // {1}
-    let avgPriceError = priceError[x].add(priceError[y]).div(TWO);
+    let avgPriceError = priceError[x].plus(priceError[y]).div(TWO);
     if (priceError[x].gt(ONE) || priceError[y].gt(ONE)) {
       throw new Error("price error too large");
     }
@@ -129,8 +129,8 @@ export const getAuctions = (
     const price = prices[x].div(prices[y]);
 
     // {wholeBuyTok/wholeSellTok} = {wholeBuyTok/wholeSellTok} / {1}
-    const startPrice = avgPriceError.eq(ONE) ? ZERO : price.div(ONE.sub(avgPriceError));
-    const endPrice = avgPriceError.eq(ONE) ? ZERO : price.mul(ONE.sub(avgPriceError));
+    const startPrice = avgPriceError.eq(ONE) ? ZERO : price.div(ONE.minus(avgPriceError));
+    const endPrice = avgPriceError.eq(ONE) ? ZERO : price.mul(ONE.minus(avgPriceError));
 
     // add auction into set
     auctions.push(

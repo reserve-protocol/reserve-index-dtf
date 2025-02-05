@@ -74,8 +74,8 @@ export const getBasket = (
       console.log("buyTarget", buyTarget, currentBasket[y]);
 
       // {USD} = {1} * {USD}
-      let surplus = currentBasket[x].gt(sellTarget) ? currentBasket[x].sub(sellTarget).mul(sharesValue) : ZERO;
-      const deficit = currentBasket[y].lt(buyTarget) ? buyTarget.sub(currentBasket[y]).mul(sharesValue) : ZERO;
+      let surplus = currentBasket[x].gt(sellTarget) ? currentBasket[x].minus(sellTarget).mul(sharesValue) : ZERO;
+      const deficit = currentBasket[y].lt(buyTarget) ? buyTarget.minus(currentBasket[y]).mul(sharesValue) : ZERO;
       const auctionValue = surplus.gt(deficit) ? deficit : surplus;
 
       if (auctionValue.gt(ZERO) && auctionValue.lt(smallestSwap)) {
@@ -106,8 +106,8 @@ export const getBasket = (
     console.log("backingAuctioned", backingAuctioned, smallestSwap, sharesValue);
 
     // {1}
-    currentBasket[x] = currentBasket[x].sub(backingAuctioned);
-    currentBasket[y] = currentBasket[y].add(backingAuctioned);
+    currentBasket[x] = currentBasket[x].minus(backingAuctioned);
+    currentBasket[y] = currentBasket[y].plus(backingAuctioned);
 
     // remove the auction
     auctions.splice(auctionIndex, 1);

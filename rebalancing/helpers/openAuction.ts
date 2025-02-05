@@ -73,14 +73,14 @@ export const openAuction = (
   const price = wholePrice.mul(new Decimal(`1e${decimals[y]}`)).div(new Decimal(`1e${decimals[x]}`));
 
   // {1}
-  let avgPriceError = priceError[x].add(priceError[y]).div(TWO);
+  let avgPriceError = priceError[x].plus(priceError[y]).div(TWO);
   if (priceError[x].gte(ONE) || priceError[y].gte(ONE)) {
     throw new Error("price error too large");
   }
 
   // D27{buyTok/sellTok} = {buyTok/sellTok} / {1} * D27
-  const idealStartPrice = BigInt(price.div(ONE.sub(avgPriceError)).mul(D27d).toFixed(0));
-  const idealEndPrice = BigInt(price.mul(ONE.sub(avgPriceError)).mul(D27d).toFixed(0));
+  const idealStartPrice = BigInt(price.div(ONE.minus(avgPriceError)).mul(D27d).toFixed(0));
+  const idealEndPrice = BigInt(price.mul(ONE.minus(avgPriceError)).mul(D27d).toFixed(0));
 
   if (
     auction.prices.start > 0n &&
