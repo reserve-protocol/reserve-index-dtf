@@ -12,7 +12,7 @@ import { IFolioVersionRegistry } from "@interfaces/IFolioVersionRegistry.sol";
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 contract FolioProxyAdmin is Ownable {
-    address public immutable versionRegistry; // @todo sync with version/upgrade manager
+    address public immutable versionRegistry;
 
     error VersionDeprecated();
     error InvalidVersion();
