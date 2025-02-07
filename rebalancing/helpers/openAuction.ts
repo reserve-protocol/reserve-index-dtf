@@ -4,16 +4,19 @@ import { D18d, D27d, ZERO, ONE, TWO } from "../numbers";
 import { Auction } from "../types";
 
 /**
- * Get the arguments needed to call `openAuction()`
+ * Get the arguments needed to call `openAuction()` by the auction launcher, after prices have already
+ * moved from the initial ones used to approve the auction.
  *
- * @param _supply {share} Ideal basket
+ * @param auction The auction constructed intially by governance
+ * @param _supply {share} Current supply
+ * @param tokens Addresses of tokens in the basket
  * @param decimals Decimals of each token
- * @param _targetBasket D18{1} Ideal basket
+ * @param _targetBasket D18{1} The ideal basket that governance *intended* to target, originally
  * @param _prices {USD/wholeTok} USD prices for each *whole* token
- * @param _priceError {1} Price error, cannot pass 1
+ * @param _priceError {1} Price error, cannot exceed 1
  * @param _dtfPrice {USD/wholeShare} DTF price
- * @return sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive
- * @return buyLimit D27{buyTok/share} max ratio of buy token to shares allowed, exclusive
+ * @return sellLimit D27{sellTok/share} min amount of sell token in basket
+ * @return buyLimit D27{buyTok/share} max amount of buy token in basket
  * @return startPrice D27{buyTok/sellTok}
  * @return endPrice D27{buyTok/sellTok}
  */

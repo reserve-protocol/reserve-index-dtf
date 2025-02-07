@@ -4,7 +4,7 @@ import { D27d } from "../numbers";
 import { Auction } from "../types";
 
 /**
- * Check if a auction contains the current market price of the tokens in the auction, without accounting for slippage
+ * Check if a auction's price range contains the current market price, without accounting for slippage
  *
  * @param auction Auction
  * @param tokens Addresses of tokens in the basket, must match prices

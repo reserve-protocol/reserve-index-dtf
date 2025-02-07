@@ -5,19 +5,20 @@ import { D18d, D27d, ONE, TWO, ZERO } from "../numbers";
 import { makeAuction } from "../utils";
 
 /**
- * Get auctions from basket
+ * Get the set of auctions required to reach the target basket
  *
  * Warnings:
  *   - Breakup large auctions into smaller auctions in advance of using this algo; a large Folio may have to use this
- *     algo multiple times to rebalance gradually to avoid transacting too much volume in any one auction.
+ *     algo multiple times to rebalance gradually to avoid transacting too much volume in any one auction. Basically,
+ *     not trading too much is a responsibility of the user of this algorithm.
  *
- * @param _supply {share} Ideal basket
+ * @param _supply {share}
  * @param tokens Addresses of tokens in the basket
  * @param decimals Decimals of each token
  * @param _currentBasket D18{1} Current balances
  * @param _targetBasket D18{1} Ideal basket
  * @param _prices {USD/wholeTok} USD prices for each *whole* token
- * @param _priceError {1} Price error, pass 1 to fully defer to price curator / auction launcher
+ * @param _priceError {1} Price error, pass 1 to fully defer to auction launcher
  * @param _dtfPrice {USD/wholeShare} DTF price
  * @param tolerance D18{1} Tolerance for rebalancing to determine when to tolerance auction or not, default 0.1%
  */
