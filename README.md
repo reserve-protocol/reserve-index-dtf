@@ -186,7 +186,7 @@ Some ERC20s are NOT supported
 | Multiple Entrypoints           | ❌    | ❌           |
 | Pausable / Blocklist           | ❌    | ❌           |
 | Fee-on-transfer                | ❌    | ❌           |
-| ERC777 / Callback              | ✅    | ❌           |
+| ERC777 / Callback              | ❌    | ❌           |
 | Downward-rebasing              | ✅    | ❌           |
 | Upward-rebasing                | ✅    | ❌           |
 | Revert on zero-value transfers | ✅    | ✅           |
@@ -194,7 +194,7 @@ Some ERC20s are NOT supported
 | Missing return values          | ✅    | ✅           |
 | No revert on failure           | ✅    | ✅           |
 
-Note: While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible.
+Note: While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible for a Folio configured with a reentrant ERC20 token.
 
 ### Governance Guidelines
 
