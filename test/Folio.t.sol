@@ -87,7 +87,7 @@ contract FolioTest is BaseTest {
         (address r2, uint256 bps2) = folio.feeRecipients(1);
         assertEq(r2, feeReceiver, "wrong second recipient");
         assertEq(bps2, 0.1e18, "wrong second recipient bps");
-        assertEq(folio.version(), "1.0.0");
+        assertEq(folio.version(), "1.0.1");
     }
 
     function test_cannotInitializeWithInvalidAsset() public {
@@ -103,7 +103,7 @@ contract FolioTest is BaseTest {
 
         // Create uninitialized Folio
         FolioProxyAdmin folioAdmin = new FolioProxyAdmin(owner, address(versionRegistry));
-        address folioImplementation = versionRegistry.getImplementationForVersion(keccak256("1.0.0"));
+        address folioImplementation = versionRegistry.getImplementationForVersion(keccak256("1.0.1"));
         Folio newFolio = Folio(address(new FolioProxy(folioImplementation, address(folioAdmin))));
 
         vm.startPrank(owner);
@@ -240,7 +240,7 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folio), type(uint256).max);
         REENTRANT.approve(address(folio), type(uint256).max);
         vm.expectRevert(ReentrancyGuardUpgradeable.ReentrancyGuardReentrantCall.selector);
-        folio.mint(1e18, owner);
+        folio.mint(1e18, owner, 0);
         vm.stopPrank();
     }
 
@@ -253,7 +253,7 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folio), type(uint256).max);
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
-        folio.mint(1e22, user1);
+        folio.mint(1e22, user1, 0);
         assertEq(folio.balanceOf(user1), 1e22 - (1e22 * 3) / 2000, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
@@ -275,6 +275,33 @@ contract FolioTest is BaseTest {
         );
     }
 
+    function test_mintSlippageLimits() public {
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+
+        // should revert since there are fees applied
+        vm.expectRevert(IFolio.Folio__InsufficientSharesOut.selector);
+        folio.mint(1e22, user1, 1e22);
+        vm.expectRevert(IFolio.Folio__InsufficientSharesOut.selector);
+        folio.mint(1e22, user1, 1e22 - (1e22 * 3) / 2000 + 1);
+
+        // should succeed
+        folio.mint(1e22, user1, 1e22 - (1e22 * 3) / 2000);
+    }
+
+    function test_mintZero() public {
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+
+        // should revert since there are fees applied
+        vm.expectRevert(IFolio.Folio__InsufficientSharesOut.selector);
+        folio.mint(1, user1, 0);
+    }
+
     function test_mintWithFeeNoDAOCut() public {
         assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
         uint256 startingUSDCBalance = USDC.balanceOf(address(folio));
@@ -292,7 +319,7 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
-        folio.mint(amt, user1);
+        folio.mint(amt, user1, 0);
         assertEq(folio.balanceOf(user1), amt - amt / 20, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
@@ -341,7 +368,7 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
-        folio.mint(amt, user1);
+        folio.mint(amt, user1, 0);
         assertEq(folio.balanceOf(user1), amt - amt / 20, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
@@ -393,7 +420,7 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
-        folio.mint(amt, user1);
+        folio.mint(amt, user1, 0);
         assertEq(folio.balanceOf(user1), amt - (amt * defaultFeeFloor) / 1e18, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
@@ -431,7 +458,7 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         vm.expectRevert(abi.encodeWithSelector(IFolio.Folio__FolioKilled.selector));
-        folio.mint(1e22, user1);
+        folio.mint(1e22, user1, 0);
         vm.stopPrank();
         assertEq(folio.balanceOf(user1), 0, "wrong ending user1 balance");
     }
@@ -442,7 +469,7 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folio), type(uint256).max);
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
-        folio.mint(1e22, user1);
+        folio.mint(1e22, user1, 0);
         assertEq(folio.balanceOf(user1), 1e22 - (1e22 * 3) / 2000, "wrong user1 balance");
         uint256 startingUSDCBalanceFolio = USDC.balanceOf(address(folio));
         uint256 startingDAIBalanceFolio = DAI.balanceOf(address(folio));
@@ -1639,7 +1666,7 @@ contract FolioTest is BaseTest {
         assertEq(impl, newDeployerV2.folioImplementation());
 
         // Check current version
-        assertEq(folio.version(), "1.0.0");
+        assertEq(folio.version(), "1.0.1");
 
         // upgrade to V2 with owner
         vm.prank(owner);
@@ -1649,7 +1676,7 @@ contract FolioTest is BaseTest {
 
     function test_cannotUpgradeToVersionNotInRegistry() public {
         // Check current version
-        assertEq(folio.version(), "1.0.0");
+        assertEq(folio.version(), "1.0.1");
 
         // Attempt to upgrade to V2 (not registered)
         vm.prank(owner);
@@ -1657,7 +1684,7 @@ contract FolioTest is BaseTest {
         proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"), "");
 
         // still on old version
-        assertEq(folio.version(), "1.0.0");
+        assertEq(folio.version(), "1.0.1");
     }
 
     function test_cannotUpgradeToDeprecatedVersion() public {
@@ -1673,7 +1700,7 @@ contract FolioTest is BaseTest {
         versionRegistry.deprecateVersion(keccak256("2.0.0"));
 
         // Check current version
-        assertEq(folio.version(), "1.0.0");
+        assertEq(folio.version(), "1.0.1");
 
         // Attempt to upgrade to V2 (deprecated)
         vm.prank(owner);
@@ -1681,7 +1708,7 @@ contract FolioTest is BaseTest {
         proxyAdmin.upgradeToVersion(address(folio), keccak256("2.0.0"), "");
 
         // still on old version
-        assertEq(folio.version(), "1.0.0");
+        assertEq(folio.version(), "1.0.1");
     }
 
     function test_cannotUpgradeIfNotOwnerOfProxyAdmin() public {
@@ -2026,7 +2053,7 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folio), type(uint256).max);
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
-        folio.mint(1e22, user1);
+        folio.mint(1e22, user1, 0);
         assertEq(folio.balanceOf(user1), 1e22 - (1e22 * 3) / 2000, "wrong user1 balance");
 
         (address[] memory basket, uint256[] memory amounts) = folio.toAssets(5e21, Math.Rounding.Floor);
