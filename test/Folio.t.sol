@@ -240,7 +240,7 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folio), type(uint256).max);
         REENTRANT.approve(address(folio), type(uint256).max);
         vm.expectRevert(ReentrancyGuardUpgradeable.ReentrancyGuardReentrantCall.selector);
-        folio.mint(1e18, owner);
+        folio.mint(1e18, owner, 0);
         vm.stopPrank();
     }
 
@@ -253,7 +253,7 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folio), type(uint256).max);
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
-        folio.mint(1e22, user1);
+        folio.mint(1e22, user1, 0);
         assertEq(folio.balanceOf(user1), 1e22 - (1e22 * 3) / 2000, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
@@ -275,6 +275,22 @@ contract FolioTest is BaseTest {
         );
     }
 
+    function test_mintSlippageLimits() public {
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+
+        // should revert since there are fees applied
+        vm.expectRevert(IFolio.Folio__InsufficientSharesOut.selector);
+        folio.mint(1e22, user1, 1e22);
+        vm.expectRevert(IFolio.Folio__InsufficientSharesOut.selector);
+        folio.mint(1e22, user1, 1e22 - (1e22 * 3) / 2000 + 1);
+
+        // should succeed
+        folio.mint(1e22, user1, 1e22 - (1e22 * 3) / 2000);
+    }
+
     function test_mintWithFeeNoDAOCut() public {
         assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
         uint256 startingUSDCBalance = USDC.balanceOf(address(folio));
@@ -292,7 +308,7 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
-        folio.mint(amt, user1);
+        folio.mint(amt, user1, 0);
         assertEq(folio.balanceOf(user1), amt - amt / 20, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
@@ -341,7 +357,7 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
-        folio.mint(amt, user1);
+        folio.mint(amt, user1, 0);
         assertEq(folio.balanceOf(user1), amt - amt / 20, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
@@ -393,7 +409,7 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
-        folio.mint(amt, user1);
+        folio.mint(amt, user1, 0);
         assertEq(folio.balanceOf(user1), amt - (amt * defaultFeeFloor) / 1e18, "wrong user1 balance");
         assertApproxEqAbs(
             USDC.balanceOf(address(folio)),
@@ -431,7 +447,7 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         vm.expectRevert(abi.encodeWithSelector(IFolio.Folio__FolioKilled.selector));
-        folio.mint(1e22, user1);
+        folio.mint(1e22, user1, 0);
         vm.stopPrank();
         assertEq(folio.balanceOf(user1), 0, "wrong ending user1 balance");
     }
@@ -442,7 +458,7 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folio), type(uint256).max);
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
-        folio.mint(1e22, user1);
+        folio.mint(1e22, user1, 0);
         assertEq(folio.balanceOf(user1), 1e22 - (1e22 * 3) / 2000, "wrong user1 balance");
         uint256 startingUSDCBalanceFolio = USDC.balanceOf(address(folio));
         uint256 startingDAIBalanceFolio = DAI.balanceOf(address(folio));
@@ -2026,7 +2042,7 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folio), type(uint256).max);
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
-        folio.mint(1e22, user1);
+        folio.mint(1e22, user1, 0);
         assertEq(folio.balanceOf(user1), 1e22 - (1e22 * 3) / 2000, "wrong user1 balance");
 
         (address[] memory basket, uint256[] memory amounts) = folio.toAssets(5e21, Math.Rounding.Floor);
