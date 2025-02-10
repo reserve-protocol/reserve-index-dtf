@@ -87,9 +87,9 @@ interface IFolio {
     }
 
     struct BasketRange {
-        uint256 spot; // D27{buyTok/share}
-        uint256 low; // D27{buyTok/share} inclusive
-        uint256 high; // D27{buyTok/share} inclusive
+        uint256 spot; // D27{tok/share}
+        uint256 low; // D27{tok/share} inclusive
+        uint256 high; // D27{tok/share} inclusive
     }
 
     struct Prices {
