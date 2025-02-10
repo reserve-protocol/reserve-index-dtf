@@ -291,6 +291,17 @@ contract FolioTest is BaseTest {
         folio.mint(1e22, user1, 1e22 - (1e22 * 3) / 2000);
     }
 
+    function test_mintZero() public {
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+
+        // should revert since there are fees applied
+        vm.expectRevert(IFolio.Folio__InsufficientSharesOut.selector);
+        folio.mint(1, user1, 0);
+    }
+
     function test_mintWithFeeNoDAOCut() public {
         assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
         uint256 startingUSDCBalance = USDC.balanceOf(address(folio));

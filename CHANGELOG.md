@@ -2,8 +2,9 @@
 
 ## v1.0.1
 
-- Change `mint()` abi to include slippage protection
-- Remove support for ERC777 tokens
+- `Folio.mint()`
+  - Add slippage protection (abi change)
+  - Revert on zero-value mints
 
 ## v1.0.0
 

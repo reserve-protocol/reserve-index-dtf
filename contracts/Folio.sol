@@ -311,7 +311,10 @@ contract Folio is
 
         // 100% to DAO, if necessary
         totalFeeShares = totalFeeShares < daoFeeShares ? daoFeeShares : totalFeeShares;
-        require(shares - totalFeeShares >= minSharesOut, Folio__InsufficientSharesOut());
+
+        // {share}
+        uint256 sharesOut = shares - totalFeeShares;
+        require(sharesOut != 0 && sharesOut >= minSharesOut, Folio__InsufficientSharesOut());
 
         // === Transfer assets in ===
 
@@ -326,7 +329,7 @@ contract Folio is
 
         // === Mint shares ===
 
-        _mint(receiver, shares - totalFeeShares);
+        _mint(receiver, sharesOut);
 
         // defer fee handouts until distributeFees()
         daoPendingFeeShares += daoFeeShares;
