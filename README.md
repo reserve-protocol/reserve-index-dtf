@@ -131,7 +131,7 @@ Anyone can bid in any auction in size up to and including the `lot` size. Use `g
 
 ###### Cowswap
 
-To support cowswap, whenver an auction is _opened_ a request must be relayed to the Cowswap API with a `signature` field that can be decoded into to a valid `Auction` struct.
+To support cowswap, whenver an auction is _opened_ a request must be relayed to the Cowswap API. Another request should be relayed after each issuance or redemption that occurs while the auction is ongoing.
 
 ### Fee Structure
 
