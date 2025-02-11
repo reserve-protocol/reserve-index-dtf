@@ -62,6 +62,9 @@ interface IFolio {
     error Folio__TooManyFeeRecipients();
     error Folio__InvalidArrayLengths();
 
+    error Folio__CowSwapInvalidOrder();
+    error Folio__CowSwapInvalidSignature();
+
     // === Structures ===
 
     struct FolioBasicDetails {

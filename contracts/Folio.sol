@@ -17,6 +17,7 @@ import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
+import { GPv2Order, COW_SETTLEMENT } from "@utils/GPv2OrderLib.sol";
 
 /// Optional bidder interface for callback
 interface IBidderCallee {
@@ -44,10 +45,13 @@ uint256 constant D27 = 1e27; // D27
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  * @notice Folio is a backed ERC20 token with permissionless minting/redemption and rebalancing via dutch auction
  *
- * There are 3 main roles:
+ * A Folio is backed by a flexible number of ERC20 tokens of any denomination/price (within assumed ranges, see README)
+ *
+ * There are 4 roles:
  *   1. DEFAULT_ADMIN_ROLE: can add/remove erc20 assets, set fees, auction length, auction delay, and close auctions
  *   2. AUCTION_APPROVER: can approve auctions
  *   3. AUCTION_LAUNCHER: can open auctions, optionally providing some amount of additional detail
+ *   4. SWAP_RELAYER: trusted to swap assets conditonal on isValidSignature()
  *
  * Permissionless execution is available after a delay if the AUCTION_LAUNCHER is not online or the Folio is configured
  * without an AUCTION_LAUNCHER.
@@ -56,10 +60,13 @@ uint256 constant D27 = 1e27; // D27
  *   approveAuction() -> openAuction() -> bid() -> [optional] closeAuction()
  *
  * Auctions will attempt to close themselves once the sell token's balance reaches the sellLimit. However, they can
- * also be closed by *any* of the 3 roles, if it is discovered one of the exchange rates has been set incorrectly.
+ * also be closed by *any* of the first 3 roles, if it is discovered one of the exchange rates has been set incorrectly.
  *
- * A Folio is backed by aa flexible number of ERC20 tokens of any denomination/price (within assumed ranges, see README)
- * All tokens tracked by the Folio are required to issue/redeem. This forms the basket.
+ * At auction launch, all SWAP_RELAYERs receive allowance of the sell token. They are is trusted to only use that
+ * allowance to swap the sell token for the buy token according to bid exchange rates affirmed by isValidSignature().
+ *
+ * Since allowances may not be consumed, anyone can call resetApproval() to reset approvals on any asset that is not
+ * currently on auction.
  *
  * Rebalancing targets are defined in terms of basket ratios: ratio of token to the Folio share, units D27{tok/share}.
  *
@@ -78,6 +85,7 @@ contract Folio is
     ReentrancyGuardUpgradeable,
     Versioned
 {
+    using GPv2Order for GPv2Order.Data;
     using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
 
@@ -89,6 +97,7 @@ contract Folio is
     bytes32 public constant AUCTION_APPROVER = keccak256("AUCTION_APPROVER"); // expected to be trading governance's timelock
     bytes32 public constant AUCTION_LAUNCHER = keccak256("AUCTION_LAUNCHER"); // optional: EOA or multisig
     bytes32 public constant BRAND_MANAGER = keccak256("BRAND_MANAGER"); // optional: no permissions
+    bytes32 public constant SWAP_RELAYER = keccak256("SWAP_RELAYER"); // cowswap-like entity that has integrated with EIP-1271
 
     /**
      * Mandate
@@ -124,8 +133,8 @@ contract Folio is
      *   - All auctions are dutch auctions with the same price curve, but it's possible to pass startPrice = endPrice
      */
     Auction[] public auctions;
-    mapping(address => uint256) public sellEnds; // {s} timestamp of latest ongoing auction for sells
-    mapping(address => uint256) public buyEnds; // {s} timestamp of latest ongoing auction for buys
+    mapping(address sellToken => uint256 auctionId) public sellAuctionIds; // auction Ids by sell token
+    mapping(address buyToken => uint256 ts) public buyEnds; // {s} timestamp of latest ongoing auction for buys
     uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be permissionlessly opened
     uint256 public auctionLength; // {s} length of an auction
 
@@ -167,6 +176,23 @@ contract Folio is
 
             _addToBasket(_basicDetails.assets[i]);
         }
+
+        // invalidate auction index 0
+        auctions.push(
+            Auction({
+                id: 0,
+                sell: IERC20(address(0)),
+                buy: IERC20(address(0)),
+                sellLimit: BasketRange(0, 0, 0),
+                buyLimit: BasketRange(0, 0, 0),
+                prices: Prices(0, 0),
+                availableAt: 0,
+                launchTimeout: 0,
+                start: 0,
+                end: 0,
+                k: 0
+            })
+        );
 
         lastPoke = block.timestamp;
         _mint(_creator, _basicDetails.initialShares);
@@ -465,6 +491,48 @@ contract Folio is
         bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
     }
 
+    /// @dev Validates a cowswap order for the entire auction lot via EIP-1271
+    function isValidSignature(bytes32 _hash, bytes calldata signature) external view returns (bytes4) {
+        require(!isKilled, Folio__FolioKilled());
+        require(!_reentrancyGuardEntered(), "ReentrancyGuard: reentrant call");
+
+        // decode the signature to get the CowSwap order
+        GPv2Order.Data memory order = abi.decode(signature, (GPv2Order.Data));
+
+        // lookup running auction
+        Auction storage auction = auctions[sellAuctionIds[address(order.sellToken)]];
+
+        // totalSupply inflates over time due to TVL fee, causing buyLimits/sellLimits to be slightly stale
+        uint256 _totalSupply = totalSupply();
+        uint256 sellBal = auction.sell.balanceOf(address(this));
+
+        // {sellTok} = D27{sellTok/share} * {share} / D27
+        uint256 minSellBal = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
+
+        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
+        uint256 boughtAmt = Math.mulDiv(order.sellAmount, _price(auction, block.timestamp), D27, Math.Rounding.Ceil);
+
+        // verify the order details
+        require(_hash == order.hash(COW_SETTLEMENT.domainSeparator()), Folio__CowSwapInvalidSignature());
+        require(order.sellAmount <= sellAvailable, Folio__InsufficientBalance());
+        require(
+            order.sellToken == auction.sell &&
+                order.buyToken == auction.buy &&
+                order.sellAmount != 0 &&
+                order.feeAmount == 0 &&
+                order.partiallyFillable &&
+                order.validTo < auction.end &&
+                order.appData == bytes32(0) &&
+                order.receiver == address(this),
+            Folio__CowSwapInvalidOrder()
+        );
+        require(order.buyAmount >= boughtAmt && boughtAmt != 0, Folio__InsufficientBid());
+
+        // If all checks pass, return the magic value
+        return this.isValidSignature.selector;
+    }
+
     /// Approve an auction to run
     /// @param sell The token to sell, from the perspective of the Folio
     /// @param buy The token to buy, from the perspective of the Folio
@@ -612,10 +680,7 @@ contract Folio is
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // ensure auction is large enough to cover bid
-        require(sellAmount <= sellAvailable, Folio__InsufficientBalance());
-
-        // put buy token in basket
-        _addToBasket(address(auction.buy));
+        require(sellAmount <= sellAvailable && sellAmount != 0, Folio__InsufficientBalance());
 
         // pay bidder
         auction.sell.safeTransfer(msg.sender, sellAmount);
@@ -626,8 +691,10 @@ contract Folio is
         sellBal = auction.sell.balanceOf(address(this));
         if (sellBal <= minSellBal) {
             auction.end = block.timestamp;
-            // cannot update sellEnds/buyEnds due to possibility of parallel auctions
+            // cannot update buyEnds due to possibility of parallel auctions
 
+            // remove token if it's no longer in the basket (nice-to-have)
+            // in most cases it is expected that DEFAULT_ADMIN_ROLE will have to call removeFromBasket()
             if (sellBal == 0) {
                 _removeFromBasket(address(auction.sell));
             }
@@ -668,6 +735,14 @@ contract Folio is
         emit AuctionClosed(auctionId);
     }
 
+    /// Permissionlessly reset approval for any asset that is not currently on-auction
+    /// @param asset The asset to reset approvals on. Must not be on auction
+    /// @param spender The spender to reset approvals for
+    function resetApproval(IERC20 asset, address spender) external nonReentrant {
+        require(block.timestamp > auctions[sellAuctionIds[address(asset)]].end, Folio__AuctionCollision());
+        asset.forceApprove(spender, 0);
+    }
+
     // ==== Internal ====
 
     /// @param shares {share}
@@ -700,14 +775,18 @@ contract Folio is
         // do not open auctions that have timed out from ttl
         require(block.timestamp <= auction.launchTimeout, Folio__AuctionTimeout());
 
-        // ensure no conflicting tokens across auctions (same sell or sell buy is okay)
-        // necessary to prevent dutch auctions from taking losses
+        // ensure no conflicting tokens
+        // - sell: unique, 1 auction per sell token
+        // - buy: many auctions per buy token permitted
+        // - no cross-buy-sell overlaps
         require(
-            block.timestamp > sellEnds[address(auction.buy)] && block.timestamp > buyEnds[address(auction.sell)],
+            block.timestamp > auctions[sellAuctionIds[address(auction.sell)]].end &&
+                block.timestamp > auctions[sellAuctionIds[address(auction.buy)]].end &&
+                block.timestamp > buyEnds[address(auction.sell)],
             Folio__AuctionCollision()
         );
 
-        sellEnds[address(auction.sell)] = Math.max(sellEnds[address(auction.sell)], block.timestamp + auctionLength);
+        sellAuctionIds[address(auction.sell)] = auction.id;
         buyEnds[address(auction.buy)] = Math.max(buyEnds[address(auction.buy)], block.timestamp + auctionLength);
 
         // ensure valid price range (startPrice == endPrice is valid)
@@ -728,6 +807,17 @@ contract Folio is
         // k = ln(P_0 / P_t) / t
         auction.k = UD60x18.wrap((auction.prices.start * D18) / auction.prices.end).ln().unwrap() / auctionLength;
         // gas optimization to avoid recomputing k on every bid
+
+        // grant sell token allowance to SWAP_RELAYERs
+        uint256 len = getRoleMemberCount(SWAP_RELAYER);
+        for (uint256 i; i < len; i++) {
+            IERC20(auction.sell).forceApprove(getRoleMember(SWAP_RELAYER, i), type(uint256).max);
+        }
+
+        // ensure buy token is in basket since swaps can happen out-of-band via SWAP_RELAYER
+        if (!basket.contains(address(auction.buy))) {
+            _addToBasket(address(auction.buy));
+        }
     }
 
     /// @return p D27{buyTok/sellTok}

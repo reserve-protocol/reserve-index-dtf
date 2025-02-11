@@ -38,7 +38,7 @@ While not included directly, `FolioVersionRegistry` and `FolioDAOFeeRegistry` al
 
 ##### Folio
 
-A Folio has 3 roles:
+A Folio has 4 roles:
 
 1. `DEFAULT_ADMIN_ROLE`
    - Expected: Timelock of Slow Folio Governor
@@ -51,6 +51,11 @@ A Folio has 3 roles:
 3. `AUCTION_LAUNCHER`
    - Expected: EOA or multisig
    - Can open and close auctions, optionally altering parameters of the auction within the approved ranges
+4. `SWAP_RELAYER`
+   - Expected: Cowswap-like entity that has integrated with EIP-1271
+   - Trusted to swap assets in auctions out-of-band
+
+⚠️ The SWAP_RELAYER role must ONLY be granted to trusted entities that adhere to EIP-1271. This is VERY important, as these addresses receive approval of the Folio's assets during auction.
 
 ##### StakingVault
 
@@ -123,6 +128,10 @@ In general it is possible for the `lot` to both increase and decrease over time,
 Anyone can bid in any auction in size up to and including the `lot` size. Use `getBid()` to determine the amount of buy tokens required in any given timestamp.
 
 `Folio.getBid(uint256 auctionId, uint256 timestamp, uint256 sellAmount) external view returns (uint256 bidAmount)`
+
+###### Cowswap
+
+To support cowswap, whenver an auction is _opened_ a request must be relayed to the Cowswap API with a `signature` field that can be decoded into to a valid `Auction` struct.
 
 ### Fee Structure
 

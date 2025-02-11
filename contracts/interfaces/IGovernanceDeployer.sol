@@ -19,6 +19,7 @@ interface IGovernanceDeployer {
         address[] existingAuctionApprovers;
         address[] auctionLaunchers;
         address[] brandManagers;
+        address[] swapRelayers;
     }
 
     function deployGovernanceWithTimelock(

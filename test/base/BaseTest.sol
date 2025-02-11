@@ -47,6 +47,7 @@ abstract contract BaseTest is Script, Test {
     address user1 = 0xfF00000000000000000000000000000000000000;
     address user2 = 0xbb00000000000000000000000000000000000000;
     address feeReceiver = 0xdD00000000000000000000000000000000000000;
+    address swapRelayer = 0xee00000000000000000000000000000000000000; // has SWAP_RELAYER
     IERC20 USDC;
     IERC20 DAI;
     IERC20 MEME;
@@ -214,6 +215,7 @@ abstract contract BaseTest is Script, Test {
             _auctionApprovers,
             _auctionLaunchers,
             _brandManagers,
+            new address[](0),
             bytes32(0)
         );
 

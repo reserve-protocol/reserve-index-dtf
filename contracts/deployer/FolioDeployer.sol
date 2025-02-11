@@ -46,6 +46,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         address[] memory auctionApprovers,
         address[] memory auctionLaunchers,
         address[] memory brandManagers,
+        address[] memory swapRelayers,
         bytes32 deploymentNonce
     ) public returns (Folio folio, address proxyAdmin) {
         require(basicDetails.assets.length == basicDetails.amounts.length, FolioDeployer__LengthMismatch());
@@ -59,7 +60,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                         owner,
                         auctionApprovers,
                         auctionLaunchers,
-                        brandManagers
+                        brandManagers,
+                        swapRelayers
                     )
                 ),
                 deploymentNonce
@@ -87,6 +89,9 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         }
         for (uint256 i; i < brandManagers.length; i++) {
             folio.grantRole(folio.BRAND_MANAGER(), brandManagers[i]);
+        }
+        for (uint256 i; i < swapRelayers.length; i++) {
+            folio.grantRole(folio.SWAP_RELAYER(), swapRelayers[i]);
         }
 
         // Renounce Ownership
@@ -148,6 +153,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 auctionApprovers,
                 govRoles.auctionLaunchers,
                 govRoles.brandManagers,
+                govRoles.swapRelayers,
                 deploymentNonce
             );
         } else {
@@ -159,6 +165,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 govRoles.existingAuctionApprovers,
                 govRoles.auctionLaunchers,
                 govRoles.brandManagers,
+                govRoles.swapRelayers,
                 deploymentNonce
             );
         }
