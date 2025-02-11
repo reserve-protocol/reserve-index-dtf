@@ -502,6 +502,10 @@ contract Folio is
         // lookup running auction
         Auction storage auction = auctions[sellAuctionIds[address(order.sellToken)]];
 
+        // checks auction is ongoing
+        // D27{buyTok/sellTok}
+        uint256 price = _price(auction, block.timestamp);
+
         // totalSupply inflates over time due to TVL fee, causing buyLimits/sellLimits to be slightly stale
         uint256 _totalSupply = totalSupply();
         uint256 sellBal = auction.sell.balanceOf(address(this));
@@ -511,10 +515,14 @@ contract Folio is
         uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
 
         // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
-        uint256 boughtAmt = Math.mulDiv(order.sellAmount, _price(auction, block.timestamp), D27, Math.Rounding.Ceil);
+        uint256 boughtAmt = Math.mulDiv(order.sellAmount, price, D27, Math.Rounding.Ceil);
+
+        // D27{buyTok/sellTok} = {buyTok} * D27 / {sellTok}
+        uint256 clearingPrice = Math.mulDiv(order.buyAmount, D27, order.sellAmount, Math.Rounding.Floor);
 
         // verify the order details
         require(_hash == order.hash(COW_SETTLEMENT.domainSeparator()), Folio__CowSwapInvalidSignature());
+        require(clearingPrice >= price, Folio__SlippageExceeded());
         require(order.sellAmount <= sellAvailable, Folio__InsufficientBalance());
         require(
             order.sellToken == auction.sell &&
