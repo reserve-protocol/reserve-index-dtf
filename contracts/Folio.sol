@@ -159,7 +159,7 @@ contract Folio is
         _setAuctionDelay(_additionalDetails.auctionDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
-        _setCowSwapEnabled(_additionalDetails.trustCowSwap);
+        _setCowSwapEnabled(_additionalDetails.enableCowSwap);
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 

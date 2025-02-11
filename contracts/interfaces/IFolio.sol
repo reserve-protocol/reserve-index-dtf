@@ -83,7 +83,7 @@ interface IFolio {
         uint256 tvlFee; // D18{1/s}
         uint256 mintFee; // D18{1}
         string mandate;
-        bool trustCowSwap;
+        bool enableCowSwap;
     }
 
     struct FeeRecipient {

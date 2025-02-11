@@ -127,7 +127,7 @@ contract FolioTest is BaseTest {
             tvlFee: MAX_TVL_FEE,
             mintFee: 0,
             mandate: "mandate",
-            trustCowSwap: false
+            enableCowSwap: false
         });
 
         // Attempt to initialize
