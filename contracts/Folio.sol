@@ -703,14 +703,12 @@ contract Folio is
         auction.k = UD60x18.wrap((auction.prices.start * D18) / auction.prices.end).ln().unwrap() / auctionLength;
         // gas optimization to avoid recomputing k on every bid
 
-        // === 1.0.1 ===
-
-        // if cowswap is enabled, create allowance
+        // grant allowance if cowswap is enabled
         if (isCowSwapEnabled) {
             IERC20(auction.sell).forceApprove(address(COWSWAP_GPV2_SETTLEMENT), type(uint256).max);
         }
 
-        // ensure buy token is in basket since swaps can happen out-of-band via SWAP_RELAYER
+        // ensure buy token is in basket since swaps can happen out-of-band
         _addToBasket(address(auction.buy));
     }
 

@@ -109,10 +109,10 @@ library FolioLib {
         // lookup running auction
         IFolio.Auction storage auction = auctions[auctionId];
 
-        // checks bid is valid
+        // check auction is ongoing and that order.buyAmount is sufficient
         getBid(auction, block.timestamp, totalSupply, order.sellAmount, order.buyAmount);
 
-        // verify the order details
+        // verify order details
         require(_hash == order.hash(COWSWAP_GPV2_SETTLEMENT.domainSeparator()), IFolio.Folio__EIP712InvalidSignature());
         require(
             order.sellToken == address(auction.sell) &&
