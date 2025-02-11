@@ -376,7 +376,8 @@ contract FolioDeployerTest is BaseTest {
                     feeRecipients: recipients,
                     tvlFee: MAX_TVL_FEE,
                     mintFee: MAX_MINT_FEE,
-                    mandate: "mandate"
+                    mandate: "mandate",
+                    trustCowSwap: false
                 }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, _guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, _guardians1),
@@ -533,7 +534,8 @@ contract FolioDeployerTest is BaseTest {
                 feeRecipients: recipients,
                 tvlFee: MAX_TVL_FEE,
                 mintFee: MAX_MINT_FEE,
-                mandate: "mandate"
+                mandate: "mandate",
+                trustCowSwap: false
             }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, _guardians2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, _guardians1),
@@ -645,7 +647,8 @@ contract FolioDeployerTest is BaseTest {
                     feeRecipients: recipients,
                     tvlFee: MAX_TVL_FEE,
                     mintFee: MAX_MINT_FEE,
-                    mandate: "mandate"
+                    mandate: "mandate",
+                    trustCowSwap: false
                 }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, guardians1),

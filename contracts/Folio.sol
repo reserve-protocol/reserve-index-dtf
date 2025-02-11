@@ -13,6 +13,8 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { UD60x18, powu, pow } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 
+import { FolioLib } from "@utils/FolioLib.sol";
+import { COWSWAP_GPV2_SETTLEMENT, GPv2OrderLib } from "@utils/GPv2OrderLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
@@ -78,6 +80,8 @@ contract Folio is
     ReentrancyGuardUpgradeable,
     Versioned
 {
+    using GPv2OrderLib for GPv2OrderLib.Data;
+
     using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
 
@@ -129,6 +133,10 @@ contract Folio is
     uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be permissionlessly opened
     uint256 public auctionLength; // {s} length of an auction
 
+    // === 1.0.1 ===
+
+    bool public isCowSwapEnabled;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -151,6 +159,7 @@ contract Folio is
         _setAuctionDelay(_additionalDetails.auctionDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
+        _setCowSwapEnabled(_additionalDetails.trustCowSwap);
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 
@@ -232,6 +241,11 @@ contract Folio is
 
     function setMandate(string calldata _newMandate) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setMandate(_newMandate);
+    }
+
+    /// @param _newCowSwapEnabled {bool} If true, the Folio will trust CowSwap and grant allowances during auctions
+    function setCowSwapEnabled(bool _newCowSwapEnabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setCowSwapEnabled(_newCowSwapEnabled);
     }
 
     /// Kill the Folio, callable only by the admin
@@ -408,7 +422,7 @@ contract Folio is
         daoPendingFeeShares = 0;
     }
 
-    // ==== Rebalancing ====
+    // ==== Auctions ====
 
     function nextAuctionId() external view returns (uint256) {
         return auctions.length;
@@ -419,36 +433,12 @@ contract Folio is
     /// @dev Fluctuates changes over time as price changes (can go up or down)
     /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
     function lot(uint256 auctionId, uint256 timestamp) external view returns (uint256 sellAmount) {
-        Auction storage auction = auctions[auctionId];
-
-        uint256 _totalSupply = totalSupply();
-        uint256 sellBal = auction.sell.balanceOf(address(this));
-        uint256 buyBal = auction.buy.balanceOf(address(this));
-
-        // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
-        uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
-
-        // {buyTok} = D27{buyTok/share} * {share} / D27
-        uint256 maxBuyBal = Math.mulDiv(auction.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
-        uint256 buyAvailable = buyBal < maxBuyBal ? maxBuyBal - buyBal : 0;
-
-        // avoid overflow
-        if (buyAvailable > MAX_RATE) {
-            return sellAvailable;
-        }
-
-        // D27{buyTok/sellTok}
-        uint256 price = _price(auction, timestamp);
-
-        // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
-        uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
-        sellAmount = Math.min(sellAvailable, sellAvailableFromBuy);
+        return FolioLib.lot(auctions[auctionId], timestamp, totalSupply());
     }
 
     /// @return D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
     function getPrice(uint256 auctionId, uint256 timestamp) external view returns (uint256) {
-        return _price(auctions[auctionId], timestamp);
+        return FolioLib.price(auctions[auctionId], timestamp);
     }
 
     /// Get the bid amount required to purchase the sell amount
@@ -459,10 +449,15 @@ contract Folio is
         uint256 timestamp,
         uint256 sellAmount
     ) external view returns (uint256 bidAmount) {
-        uint256 price = _price(auctions[auctionId], timestamp);
+        bidAmount = FolioLib.getBid(auctions[auctionId], timestamp, totalSupply(), sellAmount, type(uint256).max);
+    }
 
-        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
-        bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
+    /// @dev Validates a cowswap order for a partial fill of the lot via EIP-1271
+    function isValidSignature(bytes32 _hash, bytes calldata signature) external view returns (bytes4) {
+        require(!isKilled, Folio__FolioKilled());
+        require(!_reentrancyGuardEntered(), "ReentrancyGuard: reentrant call");
+
+        return FolioLib.isValidSignature(auctions, totalSupply(), _hash, signature);
     }
 
     /// Approve an auction to run
@@ -594,44 +589,15 @@ contract Folio is
     ) external nonReentrant returns (uint256 boughtAmt) {
         require(!isKilled, Folio__FolioKilled());
         Auction storage auction = auctions[auctionId];
-
-        // checks auction is ongoing
-        // D27{buyTok/sellTok}
-        uint256 price = _price(auction, block.timestamp);
-
-        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
-        boughtAmt = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
-        require(boughtAmt <= maxBuyAmount, Folio__SlippageExceeded());
-
-        // totalSupply inflates over time due to TVL fee, causing buyLimits/sellLimits to be slightly stale
         uint256 _totalSupply = totalSupply();
-        uint256 sellBal = auction.sell.balanceOf(address(this));
 
-        // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
-        uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
-
-        // ensure auction is large enough to cover bid
-        require(sellAmount <= sellAvailable, Folio__InsufficientBalance());
-
-        // put buy token in basket
-        _addToBasket(address(auction.buy));
+        // checks auction is ongoing and bid is valid
+        boughtAmt = FolioLib.getBid(auction, block.timestamp, _totalSupply, sellAmount, maxBuyAmount);
 
         // pay bidder
         auction.sell.safeTransfer(msg.sender, sellAmount);
 
         emit AuctionBid(auctionId, sellAmount, boughtAmt);
-
-        // QoL: close auction if we have reached the sell limit
-        sellBal = auction.sell.balanceOf(address(this));
-        if (sellBal <= minSellBal) {
-            auction.end = block.timestamp;
-            // cannot update sellEnds/buyEnds due to possibility of parallel auctions
-
-            if (sellBal == 0) {
-                _removeFromBasket(address(auction.sell));
-            }
-        }
 
         // collect payment from bidder
         if (withCallback) {
@@ -666,6 +632,14 @@ contract Folio is
         auctions[auctionId].end = 1;
 
         emit AuctionClosed(auctionId);
+    }
+
+    /// Permissionlessly reset approval for any asset that is not currently on-auction
+    /// @param asset The asset to reset approvals on
+    /// @param spender The spender to reset approvals for
+    function resetApproval(IERC20 asset, address spender) external nonReentrant {
+        require(block.timestamp > sellEnds[address(asset)], Folio__AuctionCollision());
+        asset.forceApprove(spender, 0);
     }
 
     // ==== Internal ====
@@ -728,28 +702,16 @@ contract Folio is
         // k = ln(P_0 / P_t) / t
         auction.k = UD60x18.wrap((auction.prices.start * D18) / auction.prices.end).ln().unwrap() / auctionLength;
         // gas optimization to avoid recomputing k on every bid
-    }
 
-    /// @return p D27{buyTok/sellTok}
-    function _price(Auction storage auction, uint256 timestamp) internal view returns (uint256 p) {
-        // ensure auction is ongoing
-        require(timestamp >= auction.start && timestamp <= auction.end, Folio__AuctionNotOngoing());
+        // === 1.0.1 ===
 
-        if (timestamp == auction.start) {
-            return auction.prices.start;
-        }
-        if (timestamp == auction.end) {
-            return auction.prices.end;
+        // if cowswap is enabled, create allowance
+        if (isCowSwapEnabled) {
+            IERC20(auction.sell).forceApprove(address(COWSWAP_GPV2_SETTLEMENT), type(uint256).max);
         }
 
-        uint256 elapsed = timestamp - auction.start;
-
-        // P_t = P_0 * e ^ -kt
-        // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-        p = (auction.prices.start * intoUint256(exp(SD59x18.wrap(-1 * int256(auction.k * elapsed))))) / D18;
-        if (p < auction.prices.end) {
-            p = auction.prices.end;
-        }
+        // ensure buy token is in basket since swaps can happen out-of-band via SWAP_RELAYER
+        _addToBasket(address(auction.buy));
     }
 
     /// @return _daoPendingFeeShares {share}
@@ -870,6 +832,11 @@ contract Folio is
     function _setMandate(string memory _newMandate) internal {
         mandate = _newMandate;
         emit MandateSet(_newMandate);
+    }
+
+    function _setCowSwapEnabled(bool _newCowSwapEnabled) internal {
+        isCowSwapEnabled = _newCowSwapEnabled;
+        emit CowSwapEnabledSet(_newCowSwapEnabled);
     }
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date

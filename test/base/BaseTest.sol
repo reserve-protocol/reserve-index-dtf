@@ -197,7 +197,8 @@ abstract contract BaseTest is Script, Test {
             feeRecipients: _feeRecipients,
             tvlFee: _tvlFee,
             mintFee: _mintFee,
-            mandate: "mandate"
+            mandate: "mandate",
+            trustCowSwap: false
         });
 
         address[] memory _auctionApprovers = new address[](1);

@@ -16,6 +16,7 @@ interface IFolio {
 
     event BasketTokenAdded(address indexed token);
     event BasketTokenRemoved(address indexed token);
+    event CowSwapEnabledSet(bool newCowSwapEnabled);
     event TVLFeeSet(uint256 newFee, uint256 feeAnnually);
     event MintFeeSet(uint256 newFee);
     event FeeRecipientsSet(FeeRecipient[] recipients);
@@ -62,6 +63,9 @@ interface IFolio {
     error Folio__TooManyFeeRecipients();
     error Folio__InvalidArrayLengths();
 
+    error Folio__EIP712InvalidSignature();
+    error Folio__CowSwapInvalidOrder();
+
     // === Structures ===
 
     struct FolioBasicDetails {
@@ -79,6 +83,7 @@ interface IFolio {
         uint256 tvlFee; // D18{1/s}
         uint256 mintFee; // D18{1}
         string mandate;
+        bool trustCowSwap;
     }
 
     struct FeeRecipient {
