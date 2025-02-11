@@ -17,7 +17,8 @@ import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
-import { GPv2Order, COW_SETTLEMENT } from "@utils/GPv2OrderLib.sol";
+import { COW_SETTLEMENT } from "@interfaces/ICowSwap.sol";
+import { GPv2Order } from "@utils/GPv2OrderLib.sol";
 
 /// Optional bidder interface for callback
 interface IBidderCallee {
@@ -823,9 +824,7 @@ contract Folio is
         }
 
         // ensure buy token is in basket since swaps can happen out-of-band via SWAP_RELAYER
-        if (!basket.contains(address(auction.buy))) {
-            _addToBasket(address(auction.buy));
-        }
+        _addToBasket(address(auction.buy));
     }
 
     /// @return p D27{buyTok/sellTok}
