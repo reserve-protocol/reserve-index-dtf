@@ -14,7 +14,7 @@ import { UD60x18, powu, pow } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 
 import { FolioLib } from "@utils/FolioLib.sol";
-import { COWSWAP_GPV2_SETTLEMENT, GPv2OrderLib } from "@utils/GPv2OrderLib.sol";
+import { COWSWAP_GPV2_SETTLEMENT } from "@utils/GPv2OrderLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
@@ -80,7 +80,6 @@ contract Folio is
     ReentrancyGuardUpgradeable,
     Versioned
 {
-    using GPv2OrderLib for GPv2OrderLib.Data;
     using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
 
@@ -134,7 +133,7 @@ contract Folio is
 
     // === 1.0.1 ===
 
-    mapping(bytes32 pairHash => uint256 auctionId) internal auctionIds; // stored as bit inverse to separate from unset
+    mapping(bytes32 pairHash => uint256 bitInverseAuctionId) internal auctionIds; // stored at-rest as bit inverses
     bool public isCowSwapEnabled;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
