@@ -81,7 +81,6 @@ contract Folio is
     Versioned
 {
     using GPv2OrderLib for GPv2OrderLib.Data;
-
     using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
 
@@ -675,19 +674,20 @@ contract Folio is
         // do not open auctions that have timed out from ttl
         require(block.timestamp <= auction.launchTimeout, Folio__AuctionTimeout());
 
-        // ensure no conflicting tokens across auctions (same sell or buy is okay, but not both)
-        // necessary to prevent dutch auctions from taking losses
         bytes32 pairHash = keccak256(abi.encode(address(auction.sell), address(auction.buy)));
-        uint256 bitInverseAuctionId = auctionIds[pairHash];
+        uint256 auctionId = ~auctionIds[pairHash]; // stored as bit inverse
 
+        // ensure no conflicting auctions
+        // no opposing trades or parallel auctions for the same pair
+        // necessary to prevent dutch auctions from taking losses
         require(
             block.timestamp > sellEnds[address(auction.buy)] &&
                 block.timestamp > buyEnds[address(auction.sell)] &&
-                (bitInverseAuctionId == 0 || block.timestamp > auctions[~bitInverseAuctionId].end),
+                (auctionId == type(uint256).max || block.timestamp > auctions[auctionId].end),
             Folio__AuctionCollision()
         );
 
-        auctionIds[pairHash] = ~auction.id; // store as bit inverse to distinguish 0 from unset
+        auctionIds[pairHash] = ~auction.id; // store as bit inverse to distinguish id 0 from unset
 
         sellEnds[address(auction.sell)] = Math.max(sellEnds[address(auction.sell)], block.timestamp + auctionLength);
         buyEnds[address(auction.buy)] = Math.max(buyEnds[address(auction.buy)], block.timestamp + auctionLength);
@@ -704,6 +704,8 @@ contract Folio is
         auction.start = block.timestamp;
         auction.end = block.timestamp + auctionLength;
 
+        // ensure buy token is in basket since swaps can happen out-of-band
+        _addToBasket(address(auction.buy));
         emit AuctionOpened(auction.id, auction);
 
         // D18{1}
@@ -715,9 +717,6 @@ contract Folio is
         if (isCowSwapEnabled) {
             IERC20(auction.sell).forceApprove(address(COWSWAP_GPV2_SETTLEMENT), type(uint256).max);
         }
-
-        // ensure buy token is in basket since swaps can happen out-of-band
-        _addToBasket(address(auction.buy));
     }
 
     /// @return _daoPendingFeeShares {share}
