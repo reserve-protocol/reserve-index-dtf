@@ -97,6 +97,7 @@ library FolioLib {
 
     function isValidSignature(
         IFolio.Auction[] storage auctions,
+        mapping(bytes32 pairHash => uint256 auctionId) storage auctionIds,
         uint256 totalSupply,
         bytes32 _hash,
         bytes calldata signature
@@ -104,11 +105,9 @@ library FolioLib {
         // decode the signature to get the CowSwap order
         GPv2OrderLib.Data memory order = abi.decode(signature, (GPv2OrderLib.Data));
 
-        // get auctionId from appData metadata field
-        uint256 auctionId = abi.decode(abi.encodePacked(order.appData), (uint256));
-
         // lookup running auction
-        IFolio.Auction storage auction = auctions[auctionId];
+        bytes32 pairHash = keccak256(abi.encode(order.sellToken, order.buyToken));
+        IFolio.Auction storage auction = auctions[~auctionIds[pairHash]];
 
         // check auction is ongoing and that order.buyAmount is sufficient
         getBid(auction, block.timestamp, totalSupply, order.sellAmount, order.buyAmount);

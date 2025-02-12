@@ -135,8 +135,7 @@ contract Folio is
 
     // === 1.0.1 ===
 
-    mapping(bytes32 pairHash => uint256 auctionId) internal auctionIds; // reverse mapping of token pair to auction id
-    mapping(bytes32 pairHash => bool) internal auctionIdsSet;
+    mapping(bytes32 pairHash => uint256 auctionId) internal auctionIds; // stored at-rest as the bit inverse of the auctionId
     bool public isCowSwapEnabled;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -459,7 +458,7 @@ contract Folio is
         require(!isKilled, Folio__FolioKilled());
         require(!_reentrancyGuardEntered(), "ReentrancyGuard: reentrant call");
 
-        return FolioLib.isValidSignature(auctions, totalSupply(), _hash, signature);
+        return FolioLib.isValidSignature(auctions, auctionIds, totalSupply(), _hash, signature);
     }
 
     /// Approve an auction to run
@@ -682,11 +681,10 @@ contract Folio is
         require(
             block.timestamp > sellEnds[address(auction.buy)] &&
                 block.timestamp > buyEnds[address(auction.sell)] &&
-                (!auctionIdsSet[pairHash] || block.timestamp > auctions[auctionIds[pairHash]].end),
+                block.timestamp > auctions[~auctionIds[pairHash]].end,
             Folio__AuctionCollision()
         );
-        auctionIds[pairHash] = auction.id;
-        auctionIdsSet[pairHash] = true;
+        auctionIds[pairHash] = ~auction.id; // store as bit inverse of the real auctionId to remove 0 from the set
 
         sellEnds[address(auction.sell)] = Math.max(sellEnds[address(auction.sell)], block.timestamp + auctionLength);
         buyEnds[address(auction.buy)] = Math.max(buyEnds[address(auction.buy)], block.timestamp + auctionLength);
