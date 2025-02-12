@@ -454,7 +454,7 @@ contract Folio is
         bidAmount = FolioLib.getBid(auctions[auctionId], timestamp, totalSupply(), sellAmount, type(uint256).max);
     }
 
-    /// @dev Validates a cowswap order for a partial fill of the lot via EIP-1271
+    /// @dev Validates a cowswap order for a partial fill via EIP-1271
     function isValidSignature(bytes32 _hash, bytes calldata signature) external view returns (bytes4) {
         require(!isKilled, Folio__FolioKilled());
         require(!_reentrancyGuardEntered(), "ReentrancyGuard: reentrant call");
@@ -593,7 +593,7 @@ contract Folio is
         Auction storage auction = auctions[auctionId];
         uint256 _totalSupply = totalSupply();
 
-        // checks auction is ongoing and bid is valid
+        // checks auction is ongoing and sellAmount is valid
         boughtAmt = FolioLib.getBid(auction, block.timestamp, _totalSupply, sellAmount, maxBuyAmount);
 
         // pay bidder

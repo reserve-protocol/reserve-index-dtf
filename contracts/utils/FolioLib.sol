@@ -39,7 +39,7 @@ library FolioLib {
     }
 
     /// The amount on sale in an auction
-    /// @dev Can be bid on in chunks
+    /// @dev Supports partial fills
     /// @dev Fluctuates changes over time as price changes (can go up or down)
     /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
     function lot(
@@ -68,6 +68,7 @@ library FolioLib {
         sellAmount = Math.min(sellAvailable, sellAvailableFromBuy);
     }
 
+    /// @dev Check auction is ongoing and that sellAmount/maxBuyAmount are valid/met
     /// @return bidAmt {buyTok} The buy amount corresponding to the sell amount
     function getBid(
         IFolio.Auction storage auction,
