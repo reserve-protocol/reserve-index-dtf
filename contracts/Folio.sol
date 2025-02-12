@@ -128,13 +128,15 @@ contract Folio is
      *   - All auctions are dutch auctions with the same price curve, but it's possible to pass startPrice = endPrice
      */
     Auction[] public auctions;
-    mapping(address => uint256) public sellEnds; // {s} timestamp of latest ongoing auction for sells
-    mapping(address => uint256) public buyEnds; // {s} timestamp of latest ongoing auction for buys
+    mapping(address token => uint256 ts) public sellEnds; // {s} timestamp of latest ongoing auction for sells
+    mapping(address token => uint256 ts) public buyEnds; // {s} timestamp of latest ongoing auction for buys
     uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be permissionlessly opened
     uint256 public auctionLength; // {s} length of an auction
 
     // === 1.0.1 ===
 
+    mapping(bytes32 pairHash => uint256 auctionId) internal auctionIds; // reverse mapping of token pair to auction id
+    mapping(bytes32 pairHash => bool) internal auctionIdsSet;
     bool public isCowSwapEnabled;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -674,12 +676,17 @@ contract Folio is
         // do not open auctions that have timed out from ttl
         require(block.timestamp <= auction.launchTimeout, Folio__AuctionTimeout());
 
-        // ensure no conflicting tokens across auctions (same sell or sell buy is okay)
+        // ensure no conflicting tokens across auctions (same sell or buy is okay, but not both)
         // necessary to prevent dutch auctions from taking losses
+        bytes32 pairHash = keccak256(abi.encode(address(auction.sell), address(auction.buy)));
         require(
-            block.timestamp > sellEnds[address(auction.buy)] && block.timestamp > buyEnds[address(auction.sell)],
+            block.timestamp > sellEnds[address(auction.buy)] &&
+                block.timestamp > buyEnds[address(auction.sell)] &&
+                (!auctionIdsSet[pairHash] || block.timestamp > auctions[auctionIds[pairHash]].end),
             Folio__AuctionCollision()
         );
+        auctionIds[pairHash] = auction.id;
+        auctionIdsSet[pairHash] = true;
 
         sellEnds[address(auction.sell)] = Math.max(sellEnds[address(auction.sell)], block.timestamp + auctionLength);
         buyEnds[address(auction.buy)] = Math.max(buyEnds[address(auction.buy)], block.timestamp + auctionLength);
