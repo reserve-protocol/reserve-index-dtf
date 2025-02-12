@@ -59,6 +59,12 @@ The staking vault has ONLY a single owner:
 - Expected: Timelock of Community Governor
 - Can add/remove reward tokens, set reward half-life, and set unstaking delay
 
+###### Cowswap
+
+In order to enable CowSwap, call `setCowSwapEnabled(true)` on the Folio, or pass `enableCowSwap: true` in the deployment config. This will cause the Folio to grant allowances to CowSwap on auction open, allowing CowSwap to swap the auctioned tokens while remaining beholden to the auction curve. This does require an external integration with the CowSwap API that submits orders to the CowSwap API whenever the CowSwap quote is more competitive than the price of a currently-live auction (as well as after supply changes).
+
+It's important to note this (optional) integration introduces a centralized dependency on CowSwap. It does not _rely_ on CowSwap, but they could rug with their allowances. Governors may choose to use `setCowSwapEnabled(false)` and conjuction with `resetApproval()` to remove this additional trust assumption at anytime.
+
 ### Rebalancing
 
 ##### Auction Lifecycle
