@@ -135,7 +135,7 @@ contract Folio is
 
     // === 1.0.1 ===
 
-    mapping(bytes32 pairHash => uint256 auctionId) internal auctionIds; // stored at-rest as the bit inverse of the auctionId
+    mapping(bytes32 pairHash => uint256 auctionId) internal auctionIds; // stored as bit inverse to separate from unset
     bool public isCowSwapEnabled;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -678,13 +678,16 @@ contract Folio is
         // ensure no conflicting tokens across auctions (same sell or buy is okay, but not both)
         // necessary to prevent dutch auctions from taking losses
         bytes32 pairHash = keccak256(abi.encode(address(auction.sell), address(auction.buy)));
+        uint256 bitInverseAuctionId = auctionIds[pairHash];
+
         require(
             block.timestamp > sellEnds[address(auction.buy)] &&
                 block.timestamp > buyEnds[address(auction.sell)] &&
-                block.timestamp > auctions[~auctionIds[pairHash]].end,
+                (bitInverseAuctionId == 0 || block.timestamp > auctions[~bitInverseAuctionId].end),
             Folio__AuctionCollision()
         );
-        auctionIds[pairHash] = ~auction.id; // store as bit inverse of the real auctionId to remove 0 from the set
+
+        auctionIds[pairHash] = ~auction.id; // store as bit inverse to distinguish 0 from unset
 
         sellEnds[address(auction.sell)] = Math.max(sellEnds[address(auction.sell)], block.timestamp + auctionLength);
         buyEnds[address(auction.buy)] = Math.max(buyEnds[address(auction.buy)], block.timestamp + auctionLength);
