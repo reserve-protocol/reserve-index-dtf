@@ -15,6 +15,8 @@ import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 import { MockBidder } from "utils/MockBidder.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
+import { ISwapFactory } from "@interfaces/ISwapFactory.sol";
+import { SwapFactory } from "@swap/SwapFactory.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
@@ -58,6 +60,7 @@ abstract contract BaseTest is Script, Test {
     FolioVersionRegistry versionRegistry;
     FolioProxyAdmin proxyAdmin;
     MockRoleRegistry roleRegistry;
+    SwapFactory swapFactory;
 
     GovernanceDeployer governanceDeployer;
 
@@ -90,6 +93,8 @@ abstract contract BaseTest is Script, Test {
         timelockImplementation = address(new TimelockControllerUpgradeable());
         governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
         folioDeployer = new FolioDeployer(address(daoFeeRegistry), address(versionRegistry), governanceDeployer);
+
+        swapFactory = new SwapFactory();
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
@@ -198,7 +203,8 @@ abstract contract BaseTest is Script, Test {
             tvlFee: _tvlFee,
             mintFee: _mintFee,
             mandate: "mandate",
-            enableCowSwap: false
+            swapFactory: swapFactory,
+            swapKinds: new ISwapFactory.SwapKind[](0)
         });
 
         address[] memory _auctionApprovers = new address[](1);

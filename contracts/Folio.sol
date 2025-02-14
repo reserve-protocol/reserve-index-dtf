@@ -19,6 +19,8 @@ import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
+import { ISwapFactory } from "@interfaces/ISwapFactory.sol";
+import { ISwap } from "@interfaces/ISwap.sol";
 
 /// Optional bidder interface for callback
 interface IBidderCallee {
@@ -60,7 +62,11 @@ uint256 constant D27 = 1e27; // D27
  * Auctions will attempt to close themselves once the sell token's balance reaches the sellLimit. However, they can
  * also be closed by *any* of the 3 roles, if it is discovered one of the exchange rates has been set incorrectly.
  *
- * A Folio is backed by aa flexible number of ERC20 tokens of any denomination/price (within assumed ranges, see README)
+ * Auction bids can peformed either directly against the Folio or in a swap via `openSwap()`. This deploys a new contract
+ * that holds the balance being swapped, that the Folio can retrieve at anytime. Before that point, a cowswap order
+ * might be received by the Swap contract, which can be validated via EIP-1271.
+ *
+ * A Folio is backed by a flexible number of ERC20 tokens of any denomination/price (within assumed ranges, see README)
  * All tokens tracked by the Folio are required to issue/redeem. This forms the basket.
  *
  * Rebalancing targets are defined in terms of basket ratios: ratio of token to the Folio share, units D27{tok/share}.
@@ -133,8 +139,12 @@ contract Folio is
 
     // === 1.0.1 ===
 
-    mapping(bytes32 pairHash => uint256 bitInverseAuctionId) internal auctionIds; // stored at-rest as bit inverses
-    bool public isCowSwapEnabled;
+    // hash of (sell, buy) pair => auctionId, stored as a bit-inverse (to distinguish id 0 from unset)
+    mapping(bytes32 pairHash => uint256 bitInverseAuctionId) internal auctionIds;
+
+    ISwapFactory public swapFactory;
+    ISwapFactory.SwapKind[] public swapKinds;
+    ISwap public swap;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -158,7 +168,8 @@ contract Folio is
         _setAuctionDelay(_additionalDetails.auctionDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
-        _setCowSwapEnabled(_additionalDetails.enableCowSwap);
+        _setSwapFactory(_additionalDetails.swapFactory);
+        _setSwapKinds(_additionalDetails.swapKinds);
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 
@@ -242,9 +253,12 @@ contract Folio is
         _setMandate(_newMandate);
     }
 
-    /// @param _newCowSwapEnabled {bool} If true, the Folio will trust CowSwap and grant allowances during auctions
-    function setCowSwapEnabled(bool _newCowSwapEnabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setCowSwapEnabled(_newCowSwapEnabled);
+    function setSwapFactory(ISwapFactory _newSwapFactory) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setSwapFactory(_newSwapFactory);
+    }
+
+    function setSwapKinds(ISwapFactory.SwapKind[] memory _newSwapKinds) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setSwapKinds(_newSwapKinds);
     }
 
     /// Kill the Folio, callable only by the admin
@@ -278,6 +292,10 @@ contract Folio is
         _amounts = new uint256[](assetLength);
         for (uint256 i; i < assetLength; i++) {
             _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
+
+            if (swap != ISwap(address(0))) {
+                _amounts[i] += IERC20(_assets[i]).balanceOf(address(swap));
+            }
         }
     }
 
@@ -451,14 +469,6 @@ contract Folio is
         bidAmount = FolioLib.getBid(auctions[auctionId], timestamp, totalSupply(), sellAmount, type(uint256).max);
     }
 
-    /// @dev Validates a cowswap order for a partial fill via EIP-1271
-    function isValidSignature(bytes32 _hash, bytes calldata signature) external view returns (bytes4) {
-        require(!isKilled, Folio__FolioKilled());
-        require(!_reentrancyGuardEntered(), "ReentrancyGuard: reentrant call");
-
-        return FolioLib.isValidSignature(auctions, auctionIds, totalSupply(), _hash, signature);
-    }
-
     /// Approve an auction to run
     /// @param sell The token to sell, from the perspective of the Folio
     /// @param buy The token to buy, from the perspective of the Folio
@@ -570,6 +580,38 @@ contract Folio is
         _openAuction(auction);
     }
 
+    /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
+    function openSwap(uint256 auctionId, ISwapFactory.SwapKind kind, uint256 buyAmount) external nonReentrant {
+        require(!isKilled, Folio__FolioKilled());
+        _closeSwap();
+
+        bool containsKind;
+        for (uint256 i; i < swapKinds.length; i++) {
+            if (swapKinds[i] == kind) {
+                containsKind = true;
+                break;
+            }
+        }
+        require(containsKind, Folio__InvalidSwapKind());
+
+        Auction storage auction = auctions[auctionId];
+        uint256 _totalSupply = totalSupply();
+
+        // {sellTok}
+        uint256 sellAmount = FolioLib.lot(auction, block.timestamp, _totalSupply);
+
+        // checks auction is ongoing and sellAmount is valid
+        FolioLib.getBid(auction, block.timestamp, _totalSupply, sellAmount, buyAmount);
+
+        ISwapFactory.SwapKind[] memory kinds = new ISwapFactory.SwapKind[](1);
+        kinds[0] = kind;
+
+        // create swap
+        swap = swapFactory.createSwaps(kinds)[0];
+        auction.sell.forceApprove(address(swap), sellAmount);
+        swap.initialize(address(this), auction.sell, auction.buy, sellAmount, buyAmount);
+    }
+
     /// Bid in an ongoing auction
     ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
     ///   If withCallback is false, caller must have provided an allowance in advance
@@ -587,6 +629,8 @@ contract Folio is
         bytes calldata data
     ) external nonReentrant returns (uint256 boughtAmt) {
         require(!isKilled, Folio__FolioKilled());
+        _closeSwap();
+
         Auction storage auction = auctions[auctionId];
         uint256 _totalSupply = totalSupply();
 
@@ -633,14 +677,6 @@ contract Folio is
         emit AuctionClosed(auctionId);
     }
 
-    /// Permissionlessly reset approval for any asset that is not currently on-auction
-    /// @param asset The asset to reset approvals on
-    /// @param spender The spender to reset approvals for
-    function resetApproval(IERC20 asset, address spender) external nonReentrant {
-        require(block.timestamp > sellEnds[address(asset)], Folio__AuctionCollision());
-        asset.forceApprove(spender, 0);
-    }
-
     // ==== Internal ====
 
     /// @param shares {share}
@@ -658,9 +694,20 @@ contract Folio is
         _amounts = new uint256[](len);
         for (uint256 i; i < len; i++) {
             uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
+            if (swap != ISwap(address(0))) {
+                assetBal += IERC20(_assets[i]).balanceOf(address(swap));
+            }
 
             // {tok} = {share} * {tok} / {share}
             _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
+        }
+    }
+
+    /// Claim all token balances from outstanding swap
+    function _closeSwap() internal {
+        if (address(swap) != address(0)) {
+            swap.close();
+            swap = ISwap(address(0));
         }
     }
 
@@ -711,11 +758,6 @@ contract Folio is
         // k = ln(P_0 / P_t) / t
         auction.k = UD60x18.wrap((auction.prices.start * D18) / auction.prices.end).ln().unwrap() / auctionLength;
         // gas optimization to avoid recomputing k on every bid
-
-        // grant allowance if cowswap is enabled
-        if (isCowSwapEnabled) {
-            IERC20(auction.sell).forceApprove(address(COWSWAP_GPV2_SETTLEMENT), type(uint256).max);
-        }
     }
 
     /// @return _daoPendingFeeShares {share}
@@ -833,18 +875,25 @@ contract Folio is
         emit AuctionLengthSet(auctionLength);
     }
 
-    function _setMandate(string memory _newMandate) internal {
+    function _setMandate(string calldata _newMandate) internal {
         mandate = _newMandate;
         emit MandateSet(_newMandate);
     }
 
-    function _setCowSwapEnabled(bool _newCowSwapEnabled) internal {
-        isCowSwapEnabled = _newCowSwapEnabled;
-        emit CowSwapEnabledSet(_newCowSwapEnabled);
+    function _setSwapFactory(ISwapFactory _newSwapFactory) internal {
+        swapFactory = _newSwapFactory;
+        emit SwapFactorySet(address(_newSwapFactory));
+    }
+
+    function _setSwapKinds(ISwapFactory.SwapKind[] memory _newSwapKinds) internal {
+        swapKinds = _newSwapKinds;
+        emit SwapKindsSet(_newSwapKinds);
     }
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
     function _poke() internal {
+        _closeSwap();
+
         if (lastPoke == block.timestamp) {
             return;
         }

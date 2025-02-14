@@ -10,6 +10,8 @@ interface IEIP712 {
 IEIP712 constant COWSWAP_GPV2_SETTLEMENT = IEIP712(0x9008D19f58AAbD9eD0D60971565AA8510560ab41);
 // mainnet, base, arbitrum one
 
+address constant COWSWAP_GPV2_VAULT_RELAYER = address(0xC92E8bdf79f0507f65a392b0ab4667716BFE0110);
+
 /// @title Gnosis Protocol v2 Order Library
 /// @author Gnosis Developers
 library GPv2OrderLib {

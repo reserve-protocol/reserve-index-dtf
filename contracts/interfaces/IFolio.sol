@@ -3,6 +3,8 @@ pragma solidity 0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import { ISwapFactory } from "./ISwapFactory.sol";
+
 interface IFolio {
     // === Events ===
 
@@ -23,6 +25,8 @@ interface IFolio {
     event AuctionDelaySet(uint256 newAuctionDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
     event MandateSet(string newMandate);
+    event SwapFactorySet(address newSwapFactory);
+    event SwapKindsSet(ISwapFactory.SwapKind[] newSwapKinds);
     event FolioKilled();
 
     // === Errors ===
@@ -65,6 +69,8 @@ interface IFolio {
 
     error Folio__EIP712InvalidSignature();
     error Folio__CowSwapInvalidOrder();
+    error Folio__SwapOpen();
+    error Folio__InvalidSwapKind();
 
     // === Structures ===
 
@@ -83,7 +89,8 @@ interface IFolio {
         uint256 tvlFee; // D18{1/s}
         uint256 mintFee; // D18{1}
         string mandate;
-        bool enableCowSwap;
+        ISwapFactory swapFactory;
+        ISwapFactory.SwapKind[] swapKinds;
     }
 
     struct FeeRecipient {
