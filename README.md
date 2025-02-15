@@ -61,9 +61,11 @@ The staking vault has ONLY a single owner:
 
 ###### Cowswap
 
-In order to enable CowSwap, call `setCowSwapEnabled(true)` on the Folio, or pass `enableCowSwap: true` in the deployment config. This will cause the Folio to grant allowances to CowSwap on auction open, allowing CowSwap to swap the auctioned tokens while remaining beholden to the auction curve. This does require an external integration with the CowSwap API that submits orders to the CowSwap API whenever the CowSwap quote is more competitive than the price of a currently-live auction (as well as after supply changes).
+In order to enable CowSwap on upgrade, call `setSwapKinds([ISwapFactory.SwapKind.CowSwapSwap])`. This will enable `openSwap()` to be called for that swap kind, opening a separate contract to hold the balance being swapped. The idea here is that as part of a pre-hook of a CowSwap order, the swap contract can be initialized with the swap balance being transferred to the isolated contract, and that contract can validate an EIP-1271 order.
 
-It's important to note this (optional) integration introduces a centralized dependency on CowSwap. It does not _rely_ on CowSwap, but they could rug with their allowances. Governors may choose to use `setCowSwapEnabled(false)` and conjuction with `resetApproval()` to remove this additional trust assumption at anytime.
+This does require a fairly complicated external integration with the CowSwap API that submits orders to the CowSwap API whenever the CowSwap quote is more competitive than the price of a currently-live auction (as well as after supply changes).
+
+It's important to note this (optional) integration introduces a centralized dependency on CowSwap for balances being swapped. It does not _rely_ on CowSwap and they cannot in general take backing, but they could choose to rug the isolated swap contracts. Governors may choose to use `setSwapKinds([])` to remove this additional trust assumption at anytime.
 
 ### Rebalancing
 
