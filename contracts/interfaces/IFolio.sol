@@ -18,7 +18,6 @@ interface IFolio {
 
     event BasketTokenAdded(address indexed token);
     event BasketTokenRemoved(address indexed token);
-    event CowSwapEnabledSet(bool newCowSwapEnabled);
     event TVLFeeSet(uint256 newFee, uint256 feeAnnually);
     event MintFeeSet(uint256 newFee);
     event FeeRecipientsSet(FeeRecipient[] recipients);
