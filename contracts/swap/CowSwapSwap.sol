@@ -20,6 +20,7 @@ contract CowSwapSwap is Initializable, Versioned, ISwap {
 
     error CowSwapSwap__Unfunded();
     error CowSwapSwap__Unauthorized();
+    error CowSwapSwap__SlippageExceeded();
     error CowSwapSwap__InvalidCowSwapOrder();
     error CowSwapSwap__InvalidEIP1271Signature();
 
@@ -53,7 +54,7 @@ contract CowSwapSwap is Initializable, Versioned, ISwap {
         // D27{buyTok/sellTok} = {buyTok} * D27 / {sellTok}
         price = (_minBuyAmount * D27) / _sellAmount;
 
-        sell.forceApprove(address(COWSWAP_GPV2_VAULT_RELAYER), _sellAmount);
+        sell.forceApprove(COWSWAP_GPV2_VAULT_RELAYER, _sellAmount);
         sell.safeTransferFrom(_beneficiary, address(this), _sellAmount);
     }
 
@@ -73,13 +74,14 @@ contract CowSwapSwap is Initializable, Versioned, ISwap {
         require(
             order.sellToken == address(sell) &&
                 order.buyToken == address(buy) &&
-                order.sellAmount != 0 &&
-                order.sellAmount <= sellAmount &&
-                orderPrice >= price &&
                 order.feeAmount == 0 &&
                 order.partiallyFillable &&
                 order.receiver == address(this),
             CowSwapSwap__InvalidCowSwapOrder()
+        );
+        require(
+            order.sellAmount != 0 && order.sellAmount <= sellAmount && orderPrice >= price,
+            CowSwapSwap__SlippageExceeded()
         );
 
         // If all checks pass, return the magic value

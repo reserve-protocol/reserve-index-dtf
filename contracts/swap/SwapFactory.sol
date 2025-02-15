@@ -16,14 +16,10 @@ contract SwapFactory is ISwapFactory {
         cowSwapSwapImplementation = address(new CowSwapSwap());
     }
 
-    function createSwaps(SwapKind[] calldata kinds) external returns (ISwap[] memory swaps) {
-        uint256 len = kinds.length;
-        swaps = new ISwap[](len);
-
-        for (uint256 i; i < len; i++) {
-            if (kinds[i] == SwapKind.CowSwap) {
-                swaps[i] = ISwap(cowSwapSwapImplementation.clone());
-            }
+    function createSwap(SwapKind kind) external returns (ISwap swap) {
+        if (kind == SwapKind.CowSwap) {
+            swap = ISwap(cowSwapSwapImplementation.clone());
+            emit SwapCreated(ISwap(address(swap)), kind);
         }
     }
 }

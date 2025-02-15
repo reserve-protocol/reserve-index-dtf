@@ -581,7 +581,12 @@ contract Folio is
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
-    function openSwap(uint256 auctionId, ISwapFactory.SwapKind kind, uint256 buyAmount) external nonReentrant {
+    function openSwap(
+        uint256 auctionId,
+        ISwapFactory.SwapKind kind,
+        uint256 sellAmount,
+        uint256 buyAmount
+    ) external nonReentrant returns (ISwap _swap) {
         require(!isKilled, Folio__FolioKilled());
         _closeSwap();
 
@@ -597,19 +602,14 @@ contract Folio is
         Auction storage auction = auctions[auctionId];
         uint256 _totalSupply = totalSupply();
 
-        // {sellTok}
-        uint256 sellAmount = FolioLib.lot(auction, block.timestamp, _totalSupply);
-
-        // checks auction is ongoing and sellAmount is valid
+        // checks auction is ongoing and sellAmount and buyAmount are valid
         FolioLib.getBid(auction, block.timestamp, _totalSupply, sellAmount, buyAmount);
 
-        ISwapFactory.SwapKind[] memory kinds = new ISwapFactory.SwapKind[](1);
-        kinds[0] = kind;
-
         // create swap
-        swap = swapFactory.createSwaps(kinds)[0];
-        auction.sell.forceApprove(address(swap), sellAmount);
-        swap.initialize(address(this), auction.sell, auction.buy, sellAmount, buyAmount);
+        _swap = swapFactory.createSwap(kind);
+        auction.sell.forceApprove(address(_swap), sellAmount);
+        _swap.initialize(address(this), auction.sell, auction.buy, sellAmount, buyAmount);
+        swap = _swap;
     }
 
     /// Bid in an ongoing auction
