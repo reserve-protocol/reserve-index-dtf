@@ -59,6 +59,14 @@ The staking vault has ONLY a single owner:
 - Expected: Timelock of Community Governor
 - Can add/remove reward tokens, set reward half-life, and set unstaking delay
 
+###### Cowswap
+
+In order to enable CowSwap on upgrade, call `setSwapKinds([ISwapFactory.SwapKind.CowSwapSwap])`. This will enable `openSwap()` to be called for that swap kind, opening a separate contract to hold the balance being swapped. The idea here is that as part of a pre-hook of a CowSwap order, the swap contract can be initialized with the swap balance being transferred to the isolated contract, and that contract can validate an EIP-1271 order.
+
+This does require a fairly complicated external integration with the CowSwap API that submits orders to the CowSwap API whenever the CowSwap quote is more competitive than the price of a currently-live auction (as well as after supply changes).
+
+It's important to note this (optional) integration introduces a centralized dependency on CowSwap for balances being swapped. It does not _rely_ on CowSwap and they cannot in general take backing, but they could choose to rug the isolated swap contracts. Governors may choose to use `setSwapKinds([])` to remove this additional trust assumption at anytime.
+
 ### Rebalancing
 
 ##### Auction Lifecycle
