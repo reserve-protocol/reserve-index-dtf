@@ -10,7 +10,7 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import { UD60x18, powu, pow } from "@prb/math/src/UD60x18.sol";
+import { UD60x18 } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 
 import { FolioLib } from "@utils/FolioLib.sol";
@@ -780,13 +780,13 @@ contract Folio is
         // convert annual percentage to per-second for comparison with stored tvlFee
         // = 1 - (1 - feeFloor) ^ (1 / 31536000)
         // D18{1/s} = D18{1} - D18{1} * D18{1} ^ D18{1/s}
-        uint256 feeFloor = D18 - UD60x18.wrap(D18 - daoFeeFloor).pow(ANNUALIZER).unwrap();
+        uint256 feeFloor = D18 - FolioLib.UD_pow(UD60x18.wrap(D18 - daoFeeFloor), ANNUALIZER);
 
         // D18{1/s}
         uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
-        uint256 feeShares = (supply * D18) / UD60x18.wrap(D18 - _tvlFee).powu(elapsed).unwrap() - supply;
+        uint256 feeShares = (supply * D18) / FolioLib.UD_powu(UD60x18.wrap(D18 - _tvlFee), elapsed) - supply;
 
         // D18{1} = D18{1/s} * D18 / D18{1/s}
         uint256 correction = (feeFloor * D18 + _tvlFee - 1) / _tvlFee;
@@ -808,7 +808,7 @@ contract Folio is
         // convert annual percentage to per-second
         // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
         // D18{1/s} = D18{1} - D18{1} ^ {s}
-        tvlFee = D18 - UD60x18.wrap(D18 - _newFeeAnnually).pow(ANNUALIZER).unwrap();
+        tvlFee = D18 - FolioLib.UD_pow(UD60x18.wrap(D18 - _newFeeAnnually), ANNUALIZER);
 
         require(_newFeeAnnually == 0 || tvlFee != 0, Folio__TVLFeeTooLow());
 

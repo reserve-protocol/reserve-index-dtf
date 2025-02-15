@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
+import { UD60x18, powu, pow } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 
 import { IFolio } from "../interfaces/IFolio.sol";
@@ -16,6 +17,7 @@ uint256 constant D27 = 1e27; // D27
 
 library FolioLib {
     using GPv2OrderLib for GPv2OrderLib.Data;
+    using SafeERC20 for IERC20;
 
     function price(IFolio.Auction storage auction, uint256 timestamp) public view returns (uint256 p) {
         // ensure auction is ongoing
@@ -95,38 +97,13 @@ library FolioLib {
         require(sellAmount <= sellAvailable && sellAmount != 0, IFolio.Folio__InsufficientBalance());
     }
 
-    function isValidSignature(
-        IFolio.Auction[] storage auctions,
-        mapping(bytes32 pairHash => uint256 auctionId) storage auctionIds,
-        uint256 totalSupply,
-        bytes32 _hash,
-        bytes calldata signature
-    ) external view returns (bytes4) {
-        // decode the signature to get the CowSwap order
-        GPv2OrderLib.Data memory order = abi.decode(signature, (GPv2OrderLib.Data));
+    // ==== Math ====
 
-        // lookup running auction
-        bytes32 pairHash = keccak256(abi.encode(order.sellToken, order.buyToken));
-        IFolio.Auction storage auction = auctions[~auctionIds[pairHash]];
+    function UD_powu(UD60x18 x, uint256 y) external pure returns (uint256 z) {
+        return powu(x, y).unwrap();
+    }
 
-        // check auction is ongoing and that order.buyAmount is sufficient
-        getBid(auction, block.timestamp, totalSupply, order.sellAmount, order.buyAmount);
-
-        // verify order details
-        require(_hash == order.hash(COWSWAP_GPV2_SETTLEMENT.domainSeparator()), IFolio.Folio__EIP712InvalidSignature());
-        require(
-            order.sellToken == address(auction.sell) &&
-                order.buyToken == address(auction.buy) &&
-                order.sellAmount != 0 &&
-                order.feeAmount == 0 &&
-                order.partiallyFillable &&
-                order.validTo <= auction.end &&
-                order.receiver == address(this),
-            IFolio.Folio__CowSwapInvalidOrder()
-        );
-
-        // If all checks pass, return the magic value
-        // bytes4(keccak256("isValidSignature(bytes32,bytes)")
-        return 0x1626ba7e;
+    function UD_pow(UD60x18 x, UD60x18 y) external pure returns (uint256 z) {
+        return pow(x, y).unwrap();
     }
 }
