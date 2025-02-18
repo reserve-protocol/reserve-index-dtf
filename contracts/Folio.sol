@@ -16,7 +16,7 @@ import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 import { COWSWAP_GPV2_SETTLEMENT } from "@utils/GPv2OrderLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
-import { FolioLib } from "@folio/FolioLib.sol";
+import { FolioLib } from "@utils/FolioLib.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 import { ISwapFactory } from "@interfaces/ISwapFactory.sol";
