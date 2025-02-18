@@ -91,8 +91,14 @@ abstract contract BaseTest is Script, Test {
 
         governorImplementation = address(new FolioGovernor());
         timelockImplementation = address(new TimelockControllerUpgradeable());
+        swapFactory = new SwapFactory();
         governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
-        folioDeployer = new FolioDeployer(address(daoFeeRegistry), address(versionRegistry), governanceDeployer);
+        folioDeployer = new FolioDeployer(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            address(swapFactory),
+            governanceDeployer
+        );
 
         swapFactory = new SwapFactory();
 
@@ -196,22 +202,14 @@ abstract contract BaseTest is Script, Test {
             initialShares: _initialShares
         });
 
-        IFolio.FolioAdditionalDetails memory _additionalDetails;
-        {
-            ISwapFactory.SwapKind[] memory kinds = new ISwapFactory.SwapKind[](1);
-            kinds[0] = ISwapFactory.SwapKind.CowSwap;
-
-            _additionalDetails = IFolio.FolioAdditionalDetails({
-                auctionDelay: _auctionDelay,
-                auctionLength: _auctionLength,
-                feeRecipients: _feeRecipients,
-                tvlFee: _tvlFee,
-                mintFee: _mintFee,
-                mandate: "mandate",
-                swapFactory: swapFactory,
-                swapKinds: kinds
-            });
-        }
+        IFolio.FolioAdditionalDetails memory _additionalDetails = IFolio.FolioAdditionalDetails({
+            auctionDelay: _auctionDelay,
+            auctionLength: _auctionLength,
+            feeRecipients: _feeRecipients,
+            tvlFee: _tvlFee,
+            mintFee: _mintFee,
+            mandate: "mandate"
+        });
 
         address[] memory _auctionApprovers = new address[](1);
         _auctionApprovers[0] = _auctionApprover;

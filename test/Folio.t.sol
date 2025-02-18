@@ -130,14 +130,18 @@ contract FolioTest is BaseTest {
             feeRecipients: recipients,
             tvlFee: MAX_TVL_FEE,
             mintFee: 0,
-            mandate: "mandate",
-            swapFactory: swapFactory,
-            swapKinds: new ISwapFactory.SwapKind[](0)
+            mandate: "mandate"
         });
 
         // Attempt to initialize
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
-        newFolio.initialize(basicDetails, additionalDetails, address(this), address(daoFeeRegistry));
+        newFolio.initialize(
+            basicDetails,
+            additionalDetails,
+            address(this),
+            address(daoFeeRegistry),
+            address(swapFactory)
+        );
     }
 
     function test_cannotCreateWithZeroInitialShares() public {
@@ -1440,13 +1444,13 @@ contract FolioTest is BaseTest {
         // swap 1st time
 
         vm.startPrank(cowswap);
-        ISwap swap = folio.openSwap(0, ISwapFactory.SwapKind.CowSwap, amt / 2, amt * 5);
+        ISwap swap = folio.openSwap(0, amt / 2, amt * 5, bytes32(block.timestamp));
         USDC.transferFrom(address(swap), cowswap, amt / 2);
         MockERC20(address(USDT)).mint(address(swap), amt * 5);
         vm.warp(end);
 
         // bid a 2nd time for the rest of the volume, at end time
-        ISwap swap2 = folio.openSwap(0, ISwapFactory.SwapKind.CowSwap, amt / 2, amt / 2);
+        ISwap swap2 = folio.openSwap(0, amt / 2, amt / 2, bytes32(block.timestamp));
         USDC.transferFrom(address(swap2), cowswap, amt / 2);
         MockERC20(address(USDT)).mint(address(swap2), amt / 2);
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
@@ -1493,7 +1497,7 @@ contract FolioTest is BaseTest {
         // isValidSignature should return true for the correct bid
 
         uint256 amt = D6_TOKEN_10K;
-        ISwap swap = folio.openSwap(0, ISwapFactory.SwapKind.CowSwap, amt, amt * 10);
+        ISwap swap = folio.openSwap(0, amt, amt * 10, bytes32(0));
 
         GPv2OrderLib.Data memory order = GPv2OrderLib.Data({
             sellToken: address(USDC),
@@ -1521,6 +1525,79 @@ contract FolioTest is BaseTest {
         order.buyAmount -= 1;
         vm.expectRevert(CowSwapSwap.CowSwapSwap__SlippageExceeded.selector);
         swap.isValidSignature(GPv2OrderLib.hash(order, domainSeparator), abi.encode(order));
+    }
+
+    function test_swapNegativeCases() public {
+        uint256 amt = D6_TOKEN_10K;
+        // openSwap should not be executable until auction is open
+
+        vm.expectRevert();
+        folio.openSwap(0, amt, amt * 10, bytes32(0));
+
+        // open auction
+
+        // bid in two chunks, one at start time and one at end time
+
+        IFolio.Auction memory auctionStruct = IFolio.Auction({
+            id: 0,
+            sell: USDC,
+            buy: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            availableAt: block.timestamp + folio.auctionDelay(),
+            launchTimeout: block.timestamp + MAX_TTL,
+            start: 0,
+            end: 0,
+            k: 0
+        });
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL);
+
+        vm.prank(auctionLauncher);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.AuctionOpened(0, auctionStruct);
+        folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
+
+        // now openSwap should work
+
+        ISwap swap = folio.openSwap(0, amt, amt * 10, bytes32(block.timestamp));
+        assertEq(address(swap), address(folio.swap()));
+
+        // should mint, closing swap
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+        folio.mint(1e22, user1);
+        assertEq(address(folio.swap()), address(0));
+
+        // open another swap, should include swap balance in toAssets()
+
+        swap = folio.openSwap(0, amt, amt * 10, bytes32(block.timestamp + 1));
+        assertNotEq(address(swap), address(0));
+        assertEq(address(swap), address(folio.swap()));
+
+        // USDT should have been added to the basket beforehand
+
+        uint256 redeemAmt = (1e22 * 3) / 20;
+        (address[] memory basket, uint256[] memory amounts) = folio.toAssets(redeemAmt, Math.Rounding.Floor);
+        assertEq(basket.length, 4);
+        assertEq(basket[3], address(USDT));
+        assertEq(amounts[3], 0);
+
+        // amount of USDC in the basket should show Swap balance
+
+        assertEq(basket[0], address(USDC));
+        assertEq(amounts[0], redeemAmt / 1e12);
+
+        // should redeem, closing swap
+
+        folio.redeem((1e22 * 3) / 20, user1, basket, amounts);
+        assertEq(address(folio.swap()), address(0));
     }
 
     function test_auctionNotOpenableUntilApproved() public {
@@ -1767,6 +1844,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
+            address(swapFactory),
             governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
@@ -1803,6 +1881,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
+            address(swapFactory),
             governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
@@ -1827,6 +1906,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
+            address(swapFactory),
             governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
@@ -1849,6 +1929,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
+            address(swapFactory),
             governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);

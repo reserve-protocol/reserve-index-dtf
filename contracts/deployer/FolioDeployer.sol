@@ -8,6 +8,7 @@ import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/Saf
 
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
+import { ISwapFactory } from "@interfaces/ISwapFactory.sol";
 
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { Folio, IFolio } from "@src/Folio.sol";
@@ -21,16 +22,23 @@ import { Versioned } from "@utils/Versioned.sol";
 contract FolioDeployer is IFolioDeployer, Versioned {
     using SafeERC20 for IERC20;
 
-    address public immutable versionRegistry;
     address public immutable daoFeeRegistry;
+    address public immutable versionRegistry;
+    address public immutable swapFactory;
 
     address public immutable folioImplementation;
 
     IGovernanceDeployer public immutable governanceDeployer;
 
-    constructor(address _daoFeeRegistry, address _versionRegistry, IGovernanceDeployer _governanceDeployer) {
+    constructor(
+        address _daoFeeRegistry,
+        address _versionRegistry,
+        address _swapFactory,
+        IGovernanceDeployer _governanceDeployer
+    ) {
         daoFeeRegistry = _daoFeeRegistry;
         versionRegistry = _versionRegistry;
+        swapFactory = _swapFactory;
 
         folioImplementation = address(new Folio());
         governanceDeployer = _governanceDeployer;
@@ -74,7 +82,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             IERC20(basicDetails.assets[i]).safeTransferFrom(msg.sender, address(folio), basicDetails.amounts[i]);
         }
 
-        folio.initialize(basicDetails, additionalDetails, msg.sender, daoFeeRegistry);
+        folio.initialize(basicDetails, additionalDetails, msg.sender, daoFeeRegistry, swapFactory);
 
         // Setup Roles
         folio.grantRole(folio.DEFAULT_ADMIN_ROLE(), owner);

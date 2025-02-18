@@ -7,7 +7,9 @@ import { ISwap } from "@interfaces/ISwap.sol";
 import { ISwapFactory } from "@interfaces/ISwapFactory.sol";
 import { CowSwapSwap } from "./CowSwapSwap.sol";
 
-contract SwapFactory is ISwapFactory {
+import { Versioned } from "@utils/Versioned.sol";
+
+contract SwapFactory is ISwapFactory, Versioned {
     using Clones for address;
 
     address public immutable cowSwapSwapImplementation;
@@ -16,10 +18,8 @@ contract SwapFactory is ISwapFactory {
         cowSwapSwapImplementation = address(new CowSwapSwap());
     }
 
-    function createSwap(SwapKind kind) external returns (ISwap swap) {
-        if (kind == SwapKind.CowSwap) {
-            swap = ISwap(cowSwapSwapImplementation.clone());
-            emit SwapCreated(ISwap(address(swap)), kind);
-        }
+    function createSwap(bytes32 deploymentSalt) external returns (ISwap swap) {
+        swap = ISwap(cowSwapSwapImplementation.cloneDeterministic(deploymentSalt));
+        emit SwapCreated(ISwap(address(swap)));
     }
 }

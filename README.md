@@ -61,11 +61,17 @@ The staking vault has ONLY a single owner:
 
 ###### Cowswap
 
-In order to enable CowSwap on upgrade, call `setSwapKinds([ISwapFactory.SwapKind.CowSwapSwap])`. This will enable `openSwap()` to be called for that swap kind, opening a separate contract to hold the balance being swapped. The idea here is that as part of a pre-hook of a CowSwap order, the swap contract can be initialized with the swap balance being transferred to the isolated contract, and that contract can validate an EIP-1271 order.
+In order to enable CowSwap on upgrade, set the swap factory to a non-zero address. This opens a separate contract to hold the balance being swapped. As part of a pre-hook of a CowSwap order, the swap contract can be initialized with a swap balance and validate an EIP-1271 order, isolating the swap from the rest of the Folio.
 
-This does require a fairly complicated external integration with the CowSwap API that submits orders to the CowSwap API whenever the CowSwap quote is more competitive than the price of a currently-live auction (as well as after supply changes).
+However, this does require a fairly complicated external integration with the CowSwap API that submits orders to the CowSwap API whenever the CowSwap quote is more competitive than the price of a currently-live auction (as well as after supply changes).
 
-It's important to note this (optional) integration introduces a centralized dependency on CowSwap for balances being swapped. It does not _rely_ on CowSwap and they cannot in general take backing, but they could choose to rug the isolated swap contracts. Governors may choose to use `setSwapKinds([])` to remove this additional trust assumption at anytime.
+A bundle should be constructed:
+
+1. pre-hook: call `Folio.openSwap() returns (ISwap swap)`
+2. call: CowSwap swap against the swap contract (Note this requires computing the address of the swap contract in step 1, which can be gotten from `Clones.predictDeterministicAddress()` or other method)
+3. post-hook: call `swap.close()`
+
+It's important to note this (optional) integration introduces a centralized dependency on CowSwap for at-flight balances being swapped. It does not _rely_ on CowSwap and they cannot in general take the backing, but they could choose to rug the isolated swap contracts.
 
 ### Rebalancing
 

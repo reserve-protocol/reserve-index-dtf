@@ -13,6 +13,7 @@ import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
+import { SwapFactory } from "@swap/SwapFactory.sol";
 
 string constant junkSeedPhrase = "test test test test test test test test test test test junk";
 
@@ -116,11 +117,13 @@ contract DeployScript is Script {
 
         address governorImplementation = address(new FolioGovernor());
         address timelockImplementation = address(new TimelockControllerUpgradeable());
+        address swapFactory = address(new SwapFactory());
 
         GovernanceDeployer governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
         FolioDeployer folioDeployer = new FolioDeployer(
             address(deployParams.folioFeeRegistry),
             address(deployParams.folioVersionRegistry),
+            swapFactory,
             governanceDeployer
         );
 

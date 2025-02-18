@@ -4,11 +4,7 @@ pragma solidity 0.8.28;
 import { ISwap } from "@interfaces/ISwap.sol";
 
 interface ISwapFactory {
-    event SwapCreated(ISwap indexed swap, SwapKind kind);
+    event SwapCreated(ISwap indexed swap);
 
-    enum SwapKind {
-        CowSwap
-        // ...
-    }
-    function createSwap(SwapKind kind) external returns (ISwap _swap);
+    function createSwap(bytes32 deploymentSalt) external returns (ISwap _swap);
 }

@@ -62,7 +62,8 @@ uint256 constant D27 = 1e27; // D27
  * Auctions will attempt to close themselves once the sell token's balance reaches the sellLimit. However, they can
  * also be closed by *any* of the 3 roles, if it is discovered one of the exchange rates has been set incorrectly.
  *
- * Auction bids can peformed either directly against the Folio or in a swap via `openSwap()`. This deploys a new contract
+ * Auction bids can peformed either directly against the Folio or in a swap via `openSwap()`, if `swapFactory` is set.
+ * This deploys a new contract
  * that holds the balance being swapped, that the Folio can retrieve at anytime. Before that point, a cowswap order
  * might be received by the Swap contract, which can be validated via EIP-1271.
  *
@@ -143,7 +144,6 @@ contract Folio is
     mapping(bytes32 pairHash => uint256 bitInverseAuctionId) internal auctionIds;
 
     ISwapFactory public swapFactory;
-    ISwapFactory.SwapKind[] public swapKinds;
     ISwap public swap;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -155,7 +155,8 @@ contract Folio is
         FolioBasicDetails calldata _basicDetails,
         FolioAdditionalDetails calldata _additionalDetails,
         address _creator,
-        address _daoFeeRegistry
+        address _daoFeeRegistry,
+        address _swapFactory
     ) external initializer {
         __ERC20_init(_basicDetails.name, _basicDetails.symbol);
         __AccessControlEnumerable_init();
@@ -168,8 +169,8 @@ contract Folio is
         _setAuctionDelay(_additionalDetails.auctionDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
-        _setSwapFactory(_additionalDetails.swapFactory);
-        _setSwapKinds(_additionalDetails.swapKinds);
+
+        _setSwapFactory(_swapFactory);
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 
@@ -253,12 +254,9 @@ contract Folio is
         _setMandate(_newMandate);
     }
 
-    function setSwapFactory(ISwapFactory _newSwapFactory) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    /// @param _newSwapFactory New Swap factory to use; set to zero to disable swaps
+    function setSwapFactory(address _newSwapFactory) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setSwapFactory(_newSwapFactory);
-    }
-
-    function setSwapKinds(ISwapFactory.SwapKind[] memory _newSwapKinds) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setSwapKinds(_newSwapKinds);
     }
 
     /// Kill the Folio, callable only by the admin
@@ -362,7 +360,7 @@ contract Folio is
     }
 
     /// @param shares {share} Amount of shares to redeem
-    /// @param assets Assets to receive, must match basket exactly
+    /// @param assets Assets to receive, must match basket exactly. DO NOT pass empty array
     /// @param minAmountsOut {tok} Minimum amounts of each asset to receive
     /// @return _amounts {tok} Actual amounts transferred of each asset
     function redeem(
@@ -583,30 +581,20 @@ contract Folio is
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
     function openSwap(
         uint256 auctionId,
-        ISwapFactory.SwapKind kind,
         uint256 sellAmount,
-        uint256 buyAmount
+        uint256 buyAmount,
+        bytes32 swapDeploymentSalt
     ) external nonReentrant returns (ISwap _swap) {
         require(!isKilled, Folio__FolioKilled());
+        require(address(swapFactory) != address(0), Folio__SwapFactoryUnset());
+        Auction storage auction = auctions[auctionId];
         _closeSwap();
 
-        bool containsKind;
-        for (uint256 i; i < swapKinds.length; i++) {
-            if (swapKinds[i] == kind) {
-                containsKind = true;
-                break;
-            }
-        }
-        require(containsKind, Folio__InvalidSwapKind());
-
-        Auction storage auction = auctions[auctionId];
-        uint256 _totalSupply = totalSupply();
-
         // checks auction is ongoing and sellAmount and buyAmount are valid
-        FolioLib.getBid(auction, block.timestamp, _totalSupply, sellAmount, buyAmount);
+        FolioLib.getBid(auction, block.timestamp, totalSupply(), sellAmount, buyAmount);
 
         // create swap
-        _swap = swapFactory.createSwap(kind);
+        _swap = swapFactory.createSwap(swapDeploymentSalt);
         auction.sell.forceApprove(address(_swap), sellAmount);
         _swap.initialize(address(this), auction.sell, auction.buy, sellAmount, buyAmount);
         swap = _swap;
@@ -880,14 +868,9 @@ contract Folio is
         emit MandateSet(_newMandate);
     }
 
-    function _setSwapFactory(ISwapFactory _newSwapFactory) internal {
-        swapFactory = _newSwapFactory;
-        emit SwapFactorySet(address(_newSwapFactory));
-    }
-
-    function _setSwapKinds(ISwapFactory.SwapKind[] memory _newSwapKinds) internal {
-        swapKinds = _newSwapKinds;
-        emit SwapKindsSet(_newSwapKinds);
+    function _setSwapFactory(address _newSwapFactory) internal {
+        swapFactory = ISwapFactory(_newSwapFactory);
+        emit SwapFactorySet(_newSwapFactory);
     }
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
