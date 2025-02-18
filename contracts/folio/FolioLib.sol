@@ -101,10 +101,6 @@ library FolioLib {
 
     // ==== Math ====
 
-    function UD_powu(UD60x18 x, uint256 y) external pure returns (uint256 z) {
-        return powu(x, y).unwrap();
-    }
-
     function UD_pow(UD60x18 x, UD60x18 y) external pure returns (uint256 z) {
         return pow(x, y).unwrap();
     }

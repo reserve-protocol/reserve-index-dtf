@@ -10,7 +10,7 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import { UD60x18 } from "@prb/math/src/UD60x18.sol";
+import { UD60x18, powu, pow } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 
 import { COWSWAP_GPV2_SETTLEMENT } from "@utils/GPv2OrderLib.sol";
@@ -583,7 +583,7 @@ contract Folio is
         uint256 auctionId,
         uint256 sellAmount,
         uint256 buyAmount,
-        bytes32 swapDeploymentSalt
+        bytes32 deploymentSalt
     ) external nonReentrant returns (ISwap _swap) {
         require(!isKilled, Folio__FolioKilled());
         require(address(swapFactory) != address(0), Folio__SwapFactoryUnset());
@@ -594,6 +594,9 @@ contract Folio is
         FolioLib.getBid(auction, block.timestamp, totalSupply(), sellAmount, buyAmount);
 
         // create swap
+        bytes32 swapDeploymentSalt = keccak256(
+            abi.encode(msg.sender, auctionId, sellAmount, buyAmount, deploymentSalt)
+        );
         _swap = swapFactory.createSwap(swapDeploymentSalt);
         auction.sell.forceApprove(address(_swap), sellAmount);
         _swap.initialize(address(this), auction.sell, auction.buy, sellAmount, buyAmount);
@@ -774,7 +777,7 @@ contract Folio is
         uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
-        uint256 feeShares = (supply * D18) / FolioLib.UD_powu(UD60x18.wrap(D18 - _tvlFee), elapsed) - supply;
+        uint256 feeShares = (supply * D18) / UD60x18.wrap(D18 - _tvlFee).powu(elapsed).unwrap() - supply;
 
         // D18{1} = D18{1/s} * D18 / D18{1/s}
         uint256 correction = (feeFloor * D18 + _tvlFee - 1) / _tvlFee;

@@ -1444,13 +1444,13 @@ contract FolioTest is BaseTest {
         // swap 1st time
 
         vm.startPrank(cowswap);
-        ISwap swap = folio.openSwap(0, amt / 2, amt * 5, bytes32(block.timestamp));
+        ISwap swap = folio.openSwap(0, amt / 2, amt * 5, bytes32(0));
         USDC.transferFrom(address(swap), cowswap, amt / 2);
         MockERC20(address(USDT)).mint(address(swap), amt * 5);
         vm.warp(end);
 
         // bid a 2nd time for the rest of the volume, at end time
-        ISwap swap2 = folio.openSwap(0, amt / 2, amt / 2, bytes32(block.timestamp));
+        ISwap swap2 = folio.openSwap(0, amt / 2, amt / 2, bytes32(0));
         USDC.transferFrom(address(swap2), cowswap, amt / 2);
         MockERC20(address(USDT)).mint(address(swap2), amt / 2);
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
@@ -1563,7 +1563,7 @@ contract FolioTest is BaseTest {
 
         // now openSwap should work
 
-        ISwap swap = folio.openSwap(0, amt, amt * 10, bytes32(block.timestamp));
+        ISwap swap = folio.openSwap(0, amt, amt * 10, bytes32(0));
         assertEq(address(swap), address(folio.swap()));
 
         // should mint, closing swap

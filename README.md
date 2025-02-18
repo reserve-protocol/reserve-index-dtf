@@ -69,9 +69,9 @@ A bundle should be constructed:
 
 1. pre-hook: call `Folio.openSwap() returns (ISwap swap)`
 2. call: CowSwap swap against the swap contract (Note this requires computing the address of the swap contract in step 1, which can be gotten from `Clones.predictDeterministicAddress()` or other method)
-3. post-hook: call `swap.close()`
+3. post-hook: call `swap.close()` (not required, but please do it)
 
-It's important to note this (optional) integration introduces a centralized dependency on CowSwap for at-flight balances being swapped. It does not _rely_ on CowSwap and they cannot in general take the backing, but they could choose to rug the isolated swap contracts.
+It's important to note this (optional) integration introduces a centralized dependency on CowSwap for at-flight balances being swapped. It does not _rely_ on CowSwap and they cannot in general take the backing, but they could choose to rug any balances out-on-auction.
 
 ### Rebalancing
 
