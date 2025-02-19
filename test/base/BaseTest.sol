@@ -15,6 +15,9 @@ import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 import { MockBidder } from "utils/MockBidder.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
+import { ISwapper } from "@interfaces/ISwapper.sol";
+import { Swapper } from "@swap/Swapper.sol";
+import { FolioSwapperRegistry } from "@folio/FolioSwapperRegistry.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
@@ -56,6 +59,7 @@ abstract contract BaseTest is Script, Test {
     FolioDeployer folioDeployer;
     FolioDAOFeeRegistry daoFeeRegistry;
     FolioVersionRegistry versionRegistry;
+    FolioSwapperRegistry swapperRegistry;
     FolioProxyAdmin proxyAdmin;
     MockRoleRegistry roleRegistry;
 
@@ -85,14 +89,22 @@ abstract contract BaseTest is Script, Test {
         roleRegistry = new MockRoleRegistry();
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
+        swapperRegistry = new FolioSwapperRegistry(IRoleRegistry(address(roleRegistry)));
 
         governorImplementation = address(new FolioGovernor());
         timelockImplementation = address(new TimelockControllerUpgradeable());
         governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
-        folioDeployer = new FolioDeployer(address(daoFeeRegistry), address(versionRegistry), governanceDeployer);
+        folioDeployer = new FolioDeployer(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            address(swapperRegistry),
+            governanceDeployer
+        );
+        Swapper swapper = new Swapper();
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
+        swapperRegistry.setLatestSwapper(swapper);
 
         deployCoins();
         mintTokens();

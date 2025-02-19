@@ -56,10 +56,18 @@ abstract contract BaseExtremeTest is BaseTest {
         roleRegistry = new MockRoleRegistry();
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
-        folioDeployer = new FolioDeployer(address(daoFeeRegistry), address(versionRegistry), governanceDeployer);
+        swapperRegistry = new FolioSwapperRegistry(IRoleRegistry(address(roleRegistry)));
+        folioDeployer = new FolioDeployer(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            address(swapperRegistry),
+            governanceDeployer
+        );
+        Swapper swapper = new Swapper();
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
+        swapperRegistry.setLatestSwapper(swapper);
 
         _processParameters();
     }

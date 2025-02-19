@@ -3,6 +3,8 @@ pragma solidity 0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import { ISwapper } from "./ISwapper.sol";
+
 interface IFolio {
     // === Events ===
 
@@ -22,6 +24,7 @@ interface IFolio {
     event AuctionDelaySet(uint256 newAuctionDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
     event MandateSet(string newMandate);
+    event SwapperSet(address newSwapper);
     event FolioKilled();
 
     // === Errors ===
@@ -61,6 +64,9 @@ interface IFolio {
     error Folio__InvalidAuctionTTL();
     error Folio__TooManyFeeRecipients();
     error Folio__InvalidArrayLengths();
+    error Folio__SwapperDeprecated();
+    error Folio__SwapperRegistryUnset();
+    error Folio__SwapperUnset();
 
     // === Structures ===
 
