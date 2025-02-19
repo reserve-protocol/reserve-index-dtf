@@ -141,11 +141,12 @@ contract Folio is
 
     // === 1.0.1 ===
 
-    // hash of (sell, buy) pair => auctionId, stored as a bit-inverse (to distinguish id 0 from unset)
+    // hash of (sell, buy) pair => auctionId, stored as a bit-inverse to distinguish id 0 from unset
     mapping(bytes32 pairHash => uint256 bitInverseAuctionId) internal auctionIds;
 
+    IFolioSwapperRegistry public swapperRegistry;
     ISwapper public swapper;
-    ISwap public swap;
+    ISwap public activeSwap;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -173,6 +174,7 @@ contract Folio is
         _setSwapper(IFolioSwapperRegistry(_swapperRegistry).getLatestSwapper());
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
+        swapperRegistry = IFolioSwapperRegistry(_swapperRegistry);
 
         require(_basicDetails.initialShares != 0, Folio__ZeroInitialShares());
 
@@ -291,8 +293,8 @@ contract Folio is
         for (uint256 i; i < assetLength; i++) {
             _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
 
-            if (swap != ISwap(address(0))) {
-                _amounts[i] += IERC20(_assets[i]).balanceOf(address(swap));
+            if (activeSwap != ISwap(address(0))) {
+                _amounts[i] += IERC20(_assets[i]).balanceOf(address(activeSwap));
             }
         }
     }
@@ -584,9 +586,12 @@ contract Folio is
         uint256 sellAmount,
         uint256 buyAmount,
         bytes32 deploymentSalt
-    ) external nonReentrant returns (ISwap _swap) {
+    ) external nonReentrant returns (ISwap swap) {
         require(!isKilled, Folio__FolioKilled());
         require(address(swapper) != address(0), Folio__SwapperUnset());
+        require(address(swapperRegistry) != address(0), Folio__SwapperRegistryUnset());
+        require(!swapperRegistry.isDeprecated(address(swapper)), Folio__SwapperDeprecated());
+
         Auction storage auction = auctions[auctionId];
         _closeSwap();
 
@@ -597,10 +602,10 @@ contract Folio is
         bytes32 swapDeploymentSalt = keccak256(
             abi.encode(msg.sender, auctionId, sellAmount, buyAmount, deploymentSalt)
         );
-        _swap = swapper.createSwap(swapDeploymentSalt);
-        auction.sell.forceApprove(address(_swap), sellAmount);
-        _swap.initialize(address(this), auction.sell, auction.buy, sellAmount, buyAmount);
-        swap = _swap;
+        swap = swapper.createSwap(swapDeploymentSalt);
+        auction.sell.forceApprove(address(swap), sellAmount);
+        swap.initialize(address(this), auction.sell, auction.buy, sellAmount, buyAmount);
+        activeSwap = swap;
     }
 
     /// Bid in an ongoing auction
@@ -685,8 +690,8 @@ contract Folio is
         _amounts = new uint256[](len);
         for (uint256 i; i < len; i++) {
             uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
-            if (swap != ISwap(address(0))) {
-                assetBal += IERC20(_assets[i]).balanceOf(address(swap));
+            if (activeSwap != ISwap(address(0))) {
+                assetBal += IERC20(_assets[i]).balanceOf(address(activeSwap));
             }
 
             // {tok} = {share} * {tok} / {share}
@@ -696,9 +701,9 @@ contract Folio is
 
     /// Claim all token balances from outstanding swap
     function _closeSwap() internal {
-        if (address(swap) != address(0)) {
-            swap.close();
-            swap = ISwap(address(0));
+        if (address(activeSwap) != address(0)) {
+            activeSwap.close();
+            activeSwap = ISwap(address(0));
         }
     }
 

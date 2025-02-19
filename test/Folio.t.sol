@@ -1564,7 +1564,7 @@ contract FolioTest is BaseTest {
         // now openSwap should work
 
         ISwap swap = folio.openSwap(0, amt, amt * 10, bytes32(0));
-        assertEq(address(swap), address(folio.swap()));
+        assertEq(address(swap), address(folio.activeSwap()));
 
         // should mint, closing swap
 
@@ -1573,13 +1573,13 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
         folio.mint(1e22, user1);
-        assertEq(address(folio.swap()), address(0));
+        assertEq(address(folio.activeSwap()), address(0));
 
         // open another swap, should include swap balance in toAssets()
 
         swap = folio.openSwap(0, amt, amt * 10, bytes32(block.timestamp + 1));
         assertNotEq(address(swap), address(0));
-        assertEq(address(swap), address(folio.swap()));
+        assertEq(address(swap), address(folio.activeSwap()));
 
         // USDT should have been added to the basket beforehand
 
@@ -1597,7 +1597,7 @@ contract FolioTest is BaseTest {
         // should redeem, closing swap
 
         folio.redeem((1e22 * 3) / 20, user1, basket, amounts);
-        assertEq(address(folio.swap()), address(0));
+        assertEq(address(folio.activeSwap()), address(0));
     }
 
     function test_auctionNotOpenableUntilApproved() public {
