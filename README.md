@@ -61,15 +61,15 @@ The staking vault has ONLY a single owner:
 
 ###### Cowswap
 
-In order to enable CowSwap on upgrade, set the swap factory to a non-zero address. This opens a separate contract to hold the balance being swapped. As part of a pre-hook of a CowSwap order, the swap contract can be initialized with a swap balance and validate an EIP-1271 order, isolating the swap from the rest of the Folio.
+In order to enable CowSwap on upgrade, set the Swapper (`setSwapper`) to a non-zero address. This opens a separate contract to hold the balance being swapped. As part of a pre-hook of a CowSwap order, the swap contract can be initialized with a swap balance and validate an EIP-1271 order, isolating the swap from the rest of the Folio.
 
 However, this does require a fairly complicated external integration with the CowSwap API that submits orders to the CowSwap API whenever the CowSwap quote is more competitive than the price of a currently-live auction (as well as after supply changes).
 
 A bundle should be constructed:
 
 1. pre-hook: call `Folio.openSwap() returns (ISwap swap)`
-2. call: CowSwap swap against the swap contract (Note this requires computing the address of the swap contract in step 1, which can be gotten from `Clones.predictDeterministicAddress()` or other method)
-3. post-hook: call `swap.close()` (not required, but please do it)
+2. call: CowSwap swap against the swap contract (Note this requires computing the address of the swap contract in step 1)
+3. post-hook: call `swap.close()` (not required, but please do it as a nicety)
 
 It's important to note this (optional) integration introduces a centralized dependency on CowSwap for at-flight balances being swapped. It does not _rely_ on CowSwap and they cannot in general take the backing, but they could choose to rug any balances out-on-auction.
 

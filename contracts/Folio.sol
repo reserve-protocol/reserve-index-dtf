@@ -254,7 +254,7 @@ contract Folio is
         _setMandate(_newMandate);
     }
 
-    /// @param _newSwapper New Swap factory to use; set to zero to disable swaps
+    /// @param _newSwapper New Swapper to use; set to zero to disable swaps
     function setSwapper(ISwapper _newSwapper) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setSwapper(_newSwapper);
     }
