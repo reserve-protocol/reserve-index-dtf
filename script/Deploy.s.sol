@@ -13,7 +13,7 @@ import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
-import { FolioDAOSwapperRegistry } from "@folio/FolioDAOSwapperRegistry.sol";
+import { FolioSwapperRegistry } from "@folio/FolioSwapperRegistry.sol";
 
 string constant junkSeedPhrase = "test test test test test test test test test test test junk";
 
@@ -94,9 +94,7 @@ contract DeployScript is Script {
         }
 
         if (deployParams.swapperRegistry == address(0)) {
-            deployParams.swapperRegistry = address(
-                new FolioDAOSwapperRegistry(IRoleRegistry(deployParams.roleRegistry))
-            );
+            deployParams.swapperRegistry = address(new FolioSwapperRegistry(IRoleRegistry(deployParams.roleRegistry)));
         }
 
         vm.stopBroadcast();
@@ -115,7 +113,7 @@ contract DeployScript is Script {
             "wrong role registry"
         );
         require(
-            address(FolioDAOSwapperRegistry(deployParams.swapperRegistry).roleRegistry()) == deployParams.roleRegistry,
+            address(FolioSwapperRegistry(deployParams.swapperRegistry).roleRegistry()) == deployParams.roleRegistry,
             "wrong role registry"
         );
 
@@ -128,6 +126,7 @@ contract DeployScript is Script {
     function runFollowupDeployment(DeploymentParams memory deployParams) public {
         require(address(deployParams.folioFeeRegistry) != address(0), "undefined dao fee registry");
         require(address(deployParams.folioVersionRegistry) != address(0), "undefined version registry");
+        require(address(deployParams.swapperRegistry) != address(0), "undefined swapper registry");
 
         vm.startBroadcast(privateKey);
 

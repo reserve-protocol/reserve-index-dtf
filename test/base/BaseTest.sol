@@ -17,7 +17,7 @@ import { MockBidder } from "utils/MockBidder.sol";
 import { IFolio, Folio } from "@src/Folio.sol";
 import { ISwapper } from "@interfaces/ISwapper.sol";
 import { Swapper } from "@swap/Swapper.sol";
-import { FolioDAOSwapperRegistry } from "@folio/FolioDAOSwapperRegistry.sol";
+import { FolioSwapperRegistry } from "@folio/FolioSwapperRegistry.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
@@ -59,7 +59,7 @@ abstract contract BaseTest is Script, Test {
     FolioDeployer folioDeployer;
     FolioDAOFeeRegistry daoFeeRegistry;
     FolioVersionRegistry versionRegistry;
-    FolioDAOSwapperRegistry swapperRegistry;
+    FolioSwapperRegistry swapperRegistry;
     FolioProxyAdmin proxyAdmin;
     MockRoleRegistry roleRegistry;
 
@@ -89,7 +89,7 @@ abstract contract BaseTest is Script, Test {
         roleRegistry = new MockRoleRegistry();
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
-        swapperRegistry = new FolioDAOSwapperRegistry(IRoleRegistry(address(roleRegistry)));
+        swapperRegistry = new FolioSwapperRegistry(IRoleRegistry(address(roleRegistry)));
 
         governorImplementation = address(new FolioGovernor());
         timelockImplementation = address(new TimelockControllerUpgradeable());

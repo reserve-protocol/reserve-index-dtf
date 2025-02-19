@@ -18,7 +18,7 @@ import { Versioned } from "@utils/Versioned.sol";
 
 import { FolioLib } from "@utils/FolioLib.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
-import { IFolioDAOSwapperRegistry } from "@interfaces/IFolioDAOSwapperRegistry.sol";
+import { IFolioSwapperRegistry } from "@interfaces/IFolioSwapperRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 import { ISwapper } from "@interfaces/ISwapper.sol";
 import { ISwap } from "@interfaces/ISwap.sol";
@@ -170,7 +170,7 @@ contract Folio is
         _setAuctionDelay(_additionalDetails.auctionDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
-        _setSwapper(IFolioDAOSwapperRegistry(_swapperRegistry).getLatestSwapper());
+        _setSwapper(IFolioSwapperRegistry(_swapperRegistry).getLatestSwapper());
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 

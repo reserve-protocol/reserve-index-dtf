@@ -3,11 +3,11 @@ pragma solidity 0.8.28;
 
 import { ISwapper } from "@interfaces/ISwapper.sol";
 
-interface IFolioDAOSwapperRegistry {
-    error FolioDAOSwapperRegistry__SwapperDeprecated();
-    error FolioDAOSwapperRegistry__InvalidRoleRegistry();
-    error FolioDAOSwapperRegistry__InvalidSwapper();
-    error FolioDAOSwapperRegistry__InvalidCaller();
+interface IFolioSwapperRegistry {
+    error FolioSwapperRegistry__SwapperDeprecated();
+    error FolioSwapperRegistry__InvalidRoleRegistry();
+    error FolioSwapperRegistry__InvalidSwapper();
+    error FolioSwapperRegistry__InvalidCaller();
 
     event SwapperSet(ISwapper swapper);
     event SwapperDeprecated(ISwapper swapper);
