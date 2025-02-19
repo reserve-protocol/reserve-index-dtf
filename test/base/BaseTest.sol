@@ -15,8 +15,9 @@ import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 import { MockBidder } from "utils/MockBidder.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
-import { ISwapFactory } from "@interfaces/ISwapFactory.sol";
-import { SwapFactory } from "@swap/SwapFactory.sol";
+import { ISwapper } from "@interfaces/ISwapper.sol";
+import { Swapper } from "@swap/Swapper.sol";
+import { FolioDAOSwapperRegistry } from "@folio/FolioDAOSwapperRegistry.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
@@ -58,9 +59,9 @@ abstract contract BaseTest is Script, Test {
     FolioDeployer folioDeployer;
     FolioDAOFeeRegistry daoFeeRegistry;
     FolioVersionRegistry versionRegistry;
+    FolioDAOSwapperRegistry swapperRegistry;
     FolioProxyAdmin proxyAdmin;
     MockRoleRegistry roleRegistry;
-    SwapFactory swapFactory;
 
     GovernanceDeployer governanceDeployer;
 
@@ -88,22 +89,22 @@ abstract contract BaseTest is Script, Test {
         roleRegistry = new MockRoleRegistry();
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
+        swapperRegistry = new FolioDAOSwapperRegistry(IRoleRegistry(address(roleRegistry)));
 
         governorImplementation = address(new FolioGovernor());
         timelockImplementation = address(new TimelockControllerUpgradeable());
-        swapFactory = new SwapFactory();
         governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
         folioDeployer = new FolioDeployer(
             address(daoFeeRegistry),
             address(versionRegistry),
-            address(swapFactory),
+            address(swapperRegistry),
             governanceDeployer
         );
-
-        swapFactory = new SwapFactory();
+        Swapper swapper = new Swapper();
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
+        swapperRegistry.setLatestSwapper(swapper);
 
         deployCoins();
         mintTokens();

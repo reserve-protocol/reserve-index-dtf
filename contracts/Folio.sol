@@ -18,8 +18,9 @@ import { Versioned } from "@utils/Versioned.sol";
 
 import { FolioLib } from "@utils/FolioLib.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
+import { IFolioDAOSwapperRegistry } from "@interfaces/IFolioDAOSwapperRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
-import { ISwapFactory } from "@interfaces/ISwapFactory.sol";
+import { ISwapper } from "@interfaces/ISwapper.sol";
 import { ISwap } from "@interfaces/ISwap.sol";
 
 /// Optional bidder interface for callback
@@ -62,7 +63,7 @@ uint256 constant D27 = 1e27; // D27
  * Auctions will attempt to close themselves once the sell token's balance reaches the sellLimit. However, they can
  * also be closed by *any* of the 3 roles, if it is discovered one of the exchange rates has been set incorrectly.
  *
- * Auction bids can peformed either directly against the Folio or in a swap via `openSwap()`, if `swapFactory` is set.
+ * Auction bids can peformed either directly against the Folio or in a swap via `openSwap()`, if `swapper` is set.
  * This deploys a new contract
  * that holds the balance being swapped, that the Folio can retrieve at anytime. Before that point, a cowswap order
  * might be received by the Swap contract, which can be validated via EIP-1271.
@@ -143,7 +144,7 @@ contract Folio is
     // hash of (sell, buy) pair => auctionId, stored as a bit-inverse (to distinguish id 0 from unset)
     mapping(bytes32 pairHash => uint256 bitInverseAuctionId) internal auctionIds;
 
-    ISwapFactory public swapFactory;
+    ISwapper public swapper;
     ISwap public swap;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -156,7 +157,7 @@ contract Folio is
         FolioAdditionalDetails calldata _additionalDetails,
         address _creator,
         address _daoFeeRegistry,
-        address _swapFactory
+        address _swapperRegistry
     ) external initializer {
         __ERC20_init(_basicDetails.name, _basicDetails.symbol);
         __AccessControlEnumerable_init();
@@ -169,8 +170,7 @@ contract Folio is
         _setAuctionDelay(_additionalDetails.auctionDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
-
-        _setSwapFactory(_swapFactory);
+        _setSwapper(IFolioDAOSwapperRegistry(_swapperRegistry).getLatestSwapper());
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 
@@ -254,9 +254,9 @@ contract Folio is
         _setMandate(_newMandate);
     }
 
-    /// @param _newSwapFactory New Swap factory to use; set to zero to disable swaps
-    function setSwapFactory(address _newSwapFactory) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setSwapFactory(_newSwapFactory);
+    /// @param _newSwapper New Swap factory to use; set to zero to disable swaps
+    function setSwapper(ISwapper _newSwapper) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setSwapper(_newSwapper);
     }
 
     /// Kill the Folio, callable only by the admin
@@ -586,7 +586,7 @@ contract Folio is
         bytes32 deploymentSalt
     ) external nonReentrant returns (ISwap _swap) {
         require(!isKilled, Folio__FolioKilled());
-        require(address(swapFactory) != address(0), Folio__SwapFactoryUnset());
+        require(address(swapper) != address(0), Folio__SwapperUnset());
         Auction storage auction = auctions[auctionId];
         _closeSwap();
 
@@ -597,7 +597,7 @@ contract Folio is
         bytes32 swapDeploymentSalt = keccak256(
             abi.encode(msg.sender, auctionId, sellAmount, buyAmount, deploymentSalt)
         );
-        _swap = swapFactory.createSwap(swapDeploymentSalt);
+        _swap = swapper.createSwap(swapDeploymentSalt);
         auction.sell.forceApprove(address(_swap), sellAmount);
         _swap.initialize(address(this), auction.sell, auction.buy, sellAmount, buyAmount);
         swap = _swap;
@@ -871,9 +871,9 @@ contract Folio is
         emit MandateSet(_newMandate);
     }
 
-    function _setSwapFactory(address _newSwapFactory) internal {
-        swapFactory = ISwapFactory(_newSwapFactory);
-        emit SwapFactorySet(_newSwapFactory);
+    function _setSwapper(ISwapper _newSwapper) internal {
+        swapper = _newSwapper;
+        emit SwapperSet(address(_newSwapper));
     }
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date

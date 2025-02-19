@@ -13,7 +13,7 @@ import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
-import { SwapFactory } from "@swap/SwapFactory.sol";
+import { FolioDAOSwapperRegistry } from "@folio/FolioDAOSwapperRegistry.sol";
 
 string constant junkSeedPhrase = "test test test test test test test test test test test junk";
 
@@ -31,6 +31,8 @@ contract DeployScript is Script {
         address feeRecipient;
         // Version Registry Stuff
         address folioVersionRegistry;
+        // Swapper Stuff
+        address swapperRegistry;
     }
 
     mapping(uint256 chainId => DeploymentParams) public deploymentParams;
@@ -41,7 +43,8 @@ contract DeployScript is Script {
                 roleRegistry: address(new MockRoleRegistry()), // Mock Registry for Local Networks
                 folioFeeRegistry: address(0),
                 feeRecipient: address(1), // Burn fees for Local Networks
-                folioVersionRegistry: address(0)
+                folioVersionRegistry: address(0),
+                swapperRegistry: address(0)
             });
         }
 
@@ -50,7 +53,8 @@ contract DeployScript is Script {
             roleRegistry: 0xE1eC57C8EE970280f237863910B606059e9641C9,
             folioFeeRegistry: 0x0262E3e15cCFD2221b35D05909222f1f5FCdcd80,
             feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
-            folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB
+            folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
+            swapperRegistry: 0x0000000000000000000000000000000000000000 // TODO
         });
 
         // Ethereum Mainnet - Canonical Parameters
@@ -58,7 +62,8 @@ contract DeployScript is Script {
             roleRegistry: 0xE1eC57C8EE970280f237863910B606059e9641C9,
             folioFeeRegistry: 0x0262E3e15cCFD2221b35D05909222f1f5FCdcd80,
             feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
-            folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB
+            folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
+            swapperRegistry: 0x0000000000000000000000000000000000000000 // TODO
         });
     }
 
@@ -88,10 +93,17 @@ contract DeployScript is Script {
             );
         }
 
+        if (deployParams.swapperRegistry == address(0)) {
+            deployParams.swapperRegistry = address(
+                new FolioDAOSwapperRegistry(IRoleRegistry(deployParams.roleRegistry))
+            );
+        }
+
         vm.stopBroadcast();
 
         console2.log("Folio Fee Registry: %s", address(deployParams.folioFeeRegistry));
         console2.log("Folio Version Registry: %s", address(deployParams.folioVersionRegistry));
+        console2.log("Folio Swapper Registry: %s", address(deployParams.swapperRegistry));
 
         require(
             address(FolioDAOFeeRegistry(deployParams.folioFeeRegistry).roleRegistry()) == deployParams.roleRegistry,
@@ -100,6 +112,10 @@ contract DeployScript is Script {
         require(
             address(FolioVersionRegistry(deployParams.folioVersionRegistry).roleRegistry()) ==
                 deployParams.roleRegistry,
+            "wrong role registry"
+        );
+        require(
+            address(FolioDAOSwapperRegistry(deployParams.swapperRegistry).roleRegistry()) == deployParams.roleRegistry,
             "wrong role registry"
         );
 
@@ -117,13 +133,12 @@ contract DeployScript is Script {
 
         address governorImplementation = address(new FolioGovernor());
         address timelockImplementation = address(new TimelockControllerUpgradeable());
-        address swapFactory = address(new SwapFactory());
 
         GovernanceDeployer governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
         FolioDeployer folioDeployer = new FolioDeployer(
             address(deployParams.folioFeeRegistry),
             address(deployParams.folioVersionRegistry),
-            swapFactory,
+            address(deployParams.swapperRegistry),
             governanceDeployer
         );
 
@@ -131,12 +146,14 @@ contract DeployScript is Script {
 
         console2.log("Governance Deployer: %s", address(governanceDeployer));
         console2.log("Folio Deployer: %s", address(folioDeployer));
+        console2.log("Folio Swapper Registry: %s", address(deployParams.swapperRegistry));
 
         require(folioDeployer.daoFeeRegistry() == address(deployParams.folioFeeRegistry), "wrong dao fee registry");
         require(
             folioDeployer.versionRegistry() == address(deployParams.folioVersionRegistry),
             "wrong version registry"
         );
+        require(folioDeployer.swapperRegistry() == address(deployParams.swapperRegistry), "wrong swapper registry");
         require(folioDeployer.governanceDeployer() == governanceDeployer, "wrong version registry");
         require(governanceDeployer.governorImplementation() == governorImplementation, "wrong governor implementation");
         require(governanceDeployer.timelockImplementation() == timelockImplementation, "wrong timelock implementation");

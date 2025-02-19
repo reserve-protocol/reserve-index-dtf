@@ -7,7 +7,7 @@ import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
-import { ISwapFactory } from "contracts/interfaces/ISwapFactory.sol";
+import { ISwapper } from "contracts/interfaces/ISwapper.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -15,7 +15,7 @@ import { ERC1967Utils } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils
 import { FolioDeployerV2 } from "test/utils/upgrades/FolioDeployerV2.sol";
 import { GPv2OrderLib, COWSWAP_GPV2_SETTLEMENT, COWSWAP_GPV2_VAULT_RELAYER } from "contracts/utils/GPv2OrderLib.sol";
 import { ISwap } from "contracts/interfaces/ISwap.sol";
-import { ISwapFactory } from "contracts/interfaces/ISwapFactory.sol";
+import { ISwapper } from "contracts/interfaces/ISwapper.sol";
 import { MockEIP712 } from "test/utils/MockEIP712.sol";
 import { MockReentrantERC20 } from "test/utils/MockReentrantERC20.sol";
 import { CowSwapSwap } from "contracts/swap/CowSwapSwap.sol";
@@ -140,7 +140,7 @@ contract FolioTest is BaseTest {
             additionalDetails,
             address(this),
             address(daoFeeRegistry),
-            address(swapFactory)
+            address(swapperRegistry)
         );
     }
 
@@ -1844,7 +1844,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            address(swapFactory),
+            address(swapperRegistry),
             governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
@@ -1881,7 +1881,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            address(swapFactory),
+            address(swapperRegistry),
             governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
@@ -1906,7 +1906,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            address(swapFactory),
+            address(swapperRegistry),
             governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
@@ -1929,7 +1929,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            address(swapFactory),
+            address(swapperRegistry),
             governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);

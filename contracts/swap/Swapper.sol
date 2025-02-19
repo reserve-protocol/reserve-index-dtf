@@ -4,12 +4,17 @@ pragma solidity 0.8.28;
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 
 import { ISwap } from "@interfaces/ISwap.sol";
-import { ISwapFactory } from "@interfaces/ISwapFactory.sol";
+import { ISwapper } from "@interfaces/ISwapper.sol";
 import { CowSwapSwap } from "./CowSwapSwap.sol";
 
 import { Versioned } from "@utils/Versioned.sol";
 
-contract SwapFactory is ISwapFactory, Versioned {
+/**
+ * @title Swapper
+ * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
+ * @notice Swapper is a factory for creating new swaps
+ */
+contract Swapper is ISwapper, Versioned {
     using Clones for address;
 
     address public immutable cowSwapSwapImplementation;

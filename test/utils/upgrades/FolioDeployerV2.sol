@@ -8,9 +8,9 @@ contract FolioDeployerV2 is FolioDeployer {
     constructor(
         address _daoFeeRegistry,
         address _versionRegistry,
-        address _swapFactory,
+        address _swapper,
         IGovernanceDeployer _governanceDeployer
-    ) FolioDeployer(_daoFeeRegistry, _versionRegistry, _swapFactory, _governanceDeployer) {
+    ) FolioDeployer(_daoFeeRegistry, _versionRegistry, _swapper, _governanceDeployer) {
         folioImplementation = address(new FolioV2());
     }
 

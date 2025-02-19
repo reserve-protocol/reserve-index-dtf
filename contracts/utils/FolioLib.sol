@@ -10,7 +10,7 @@ import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 import { IFolio } from "../interfaces/IFolio.sol";
 import { GPv2OrderLib, COWSWAP_GPV2_SETTLEMENT } from "../utils/GPv2OrderLib.sol";
 
-import { ISwapFactory } from "../interfaces/ISwapFactory.sol";
+import { ISwapper } from "../interfaces/ISwapper.sol";
 
 uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
 

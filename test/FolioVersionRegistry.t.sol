@@ -47,7 +47,7 @@ contract FolioVersionRegistryTest is BaseTest {
         FolioDeployer newFactoryV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            address(swapFactory),
+            address(swapperRegistry),
             governanceDeployer
         );
         vm.expectEmit(true, true, false, true);
@@ -76,7 +76,7 @@ contract FolioVersionRegistryTest is BaseTest {
         FolioDeployer newFactory = new FolioDeployer(
             address(daoFeeRegistry),
             address(versionRegistry),
-            address(swapFactory),
+            address(swapperRegistry),
             governanceDeployer
         );
         vm.expectRevert(abi.encodeWithSelector(IFolioVersionRegistry.VersionRegistry__InvalidRegistration.selector));
@@ -87,7 +87,7 @@ contract FolioVersionRegistryTest is BaseTest {
         FolioDeployer newFactoryV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
-            address(swapFactory),
+            address(swapperRegistry),
             governanceDeployer
         );
 

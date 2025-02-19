@@ -59,12 +59,14 @@ abstract contract BaseExtremeTest is BaseTest {
         folioDeployer = new FolioDeployer(
             address(daoFeeRegistry),
             address(versionRegistry),
-            address(swapFactory),
+            address(swapperRegistry),
             governanceDeployer
         );
+        Swapper swapper = new Swapper();
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
+        swapperRegistry.setLatestSwapper(swapper);
 
         _processParameters();
     }
