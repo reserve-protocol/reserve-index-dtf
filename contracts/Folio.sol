@@ -13,6 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { UD60x18, powu, pow } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 
+import { FolioLib } from "@utils/FolioLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
@@ -776,7 +777,7 @@ contract Folio is
         // convert annual percentage to per-second for comparison with stored tvlFee
         // = 1 - (1 - feeFloor) ^ (1 / 31536000)
         // D18{1/s} = D18{1} - D18{1} * D18{1} ^ D18{1/s}
-        uint256 feeFloor = D18 - UD60x18.wrap(D18 - daoFeeFloor).pow(ANNUALIZER).unwrap();
+        uint256 feeFloor = D18 - FolioLib.UD_pow(UD60x18.wrap(D18 - daoFeeFloor), ANNUALIZER);
 
         // D18{1/s}
         uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
@@ -804,7 +805,7 @@ contract Folio is
         // convert annual percentage to per-second
         // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
         // D18{1/s} = D18{1} - D18{1} ^ {s}
-        tvlFee = D18 - UD60x18.wrap(D18 - _newFeeAnnually).pow(ANNUALIZER).unwrap();
+        tvlFee = D18 - FolioLib.UD_pow(UD60x18.wrap(D18 - _newFeeAnnually), ANNUALIZER);
 
         require(_newFeeAnnually == 0 || tvlFee != 0, Folio__TVLFeeTooLow());
 
