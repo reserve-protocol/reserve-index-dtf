@@ -517,7 +517,8 @@ contract Folio is
             launchTimeout: block.timestamp + ttl,
             start: 0,
             end: 0,
-            k: 0
+            k: 0,
+            initialPrices: prices
         });
 
         auctions.push(auction);
@@ -546,9 +547,9 @@ contract Folio is
         //   - raise ending price arbitrarily (can cause auction not to clear, same as closing auction)
 
         require(
-            startPrice >= auction.prices.start &&
-                endPrice >= auction.prices.end &&
-                (auction.prices.start == 0 || startPrice <= 100 * auction.prices.start),
+            startPrice >= auction.initialPrices.start &&
+                endPrice >= auction.initialPrices.end &&
+                (auction.initialPrices.start == 0 || startPrice <= 100 * auction.initialPrices.start),
             Folio__InvalidPrices()
         );
 
@@ -572,6 +573,9 @@ contract Folio is
 
         // only open auctions that have not timed out (ttl check)
         require(block.timestamp >= auction.availableAt, Folio__AuctionCannotBeOpenedPermissionlesslyYet());
+
+        auction.prices = auction.initialPrices;
+        // more price checks in _openAuction()
 
         _openAuction(auction);
     }
@@ -695,7 +699,7 @@ contract Folio is
         require(!isKilled, Folio__FolioKilled());
 
         // only open APPROVED auctions
-        require(auction.start == 0 && auction.end == 0, Folio__AuctionCannotBeOpened());
+        require(block.timestamp > auction.end, Folio__AuctionCannotBeOpened());
 
         // do not open auctions that have timed out from ttl
         require(block.timestamp <= auction.launchTimeout, Folio__AuctionTimeout());
