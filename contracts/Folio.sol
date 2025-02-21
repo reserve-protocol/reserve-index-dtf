@@ -668,7 +668,7 @@ contract Folio is
         );
 
         // do not revert, to prevent griefing
-        auctions[auctionId].end = 1;
+        auctions[auctionId].end = 1; // special-cased value for never resurructing the auction
 
         emit AuctionClosed(auctionId);
     }
@@ -699,8 +699,8 @@ contract Folio is
     function _openAuction(Auction storage auction) internal {
         require(!isKilled, Folio__FolioKilled());
 
-        // only open APPROVED auctions
-        require(block.timestamp > auction.end, Folio__AuctionCannotBeOpened());
+        // only open APPROVED auctions or expired auctions. Exclude closed auctions
+        require(block.timestamp > auction.end && auction.end != 1, Folio__AuctionCannotBeOpened());
 
         // do not open auctions that have timed out from ttl
         require(block.timestamp <= auction.launchTimeout, Folio__AuctionTimeout());
