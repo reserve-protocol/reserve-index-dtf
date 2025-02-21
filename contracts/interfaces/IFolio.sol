@@ -107,7 +107,7 @@ interface IFolio {
         IERC20 buy;
         BasketRange sellLimit; // D27{sellTok/share} min ratio of sell token in the basket, inclusive
         BasketRange buyLimit; // D27{buyTok/share} max ratio of buy token in the basket, exclusive
-        Prices prices; // D27{buyTok/sellTok} over the price curve
+        Prices prices; // D27{buyTok/sellTok}
         uint256 availableAt; // {s} inclusive
         uint256 launchTimeout; // {s} inclusive
         uint256 start; // {s} inclusive
@@ -115,7 +115,7 @@ interface IFolio {
         // === Gas optimization ===
         uint256 k; // D18{1} price = startPrice * e ^ -kt
         // === 1.0.1 ===
-        Prices initialPrices; // D27{buyTok/sellTok} initially approved priced
+        Prices initialPrices; // D27{buyTok/sellTok} initially approved prices
     }
 
     function distributeFees() external;
