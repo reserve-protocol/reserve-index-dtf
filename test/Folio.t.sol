@@ -1017,7 +1017,8 @@ contract FolioTest is BaseTest {
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         vm.stopPrank();
 
-        assertEq(folio.lot(0, block.timestamp), 0, "auction should be empty");
+        (, , , , , , , , , end, , ) = folio.auctions(0);
+        assertLt(end, block.timestamp, "auction should be closed");
     }
 
     function test_atomicBidWithCallback() public {
@@ -1078,7 +1079,8 @@ contract FolioTest is BaseTest {
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         vm.stopPrank();
 
-        assertEq(folio.lot(0, block.timestamp), 0, "auction should be empty");
+        (, , , , , , , , , end, , ) = folio.auctions(0);
+        assertLt(end, block.timestamp, "auction should be closed");
     }
 
     function test_auctionBidWithoutCallback() public {
@@ -1644,7 +1646,8 @@ contract FolioTest is BaseTest {
 
         // auctions are over, should have no USDC + DAI left
 
-        assertEq(folio.lot(0, end), 0, "unfinished auction 1");
+        (, , , , , , , , , end, , ) = folio.auctions(0);
+        assertLt(end, block.timestamp, "auction should be closed");
         assertEq(folio.lot(1, start + (end - start) / 2), 0, "unfinished auction 2");
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         assertEq(DAI.balanceOf(address(folio)), 0, "wrong dai balance");

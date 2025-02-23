@@ -630,7 +630,7 @@ contract Folio is
         // QoL: close auction if we have reached the sell limit
         sellBal = auction.sell.balanceOf(address(this));
         if (sellBal <= minSellBal) {
-            auction.end = block.timestamp;
+            auction.end = block.timestamp - 1;
             // cannot update sellEnds/buyEnds due to possibility of parallel auctions
 
             if (sellBal == 0) {
