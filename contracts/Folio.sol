@@ -281,7 +281,7 @@ contract Folio is
         return _toAssets(shares, rounding);
     }
 
-    /// @param shares {share} Amount of shares to redeem
+    /// @param shares {share} Amount of shares to mint
     /// @return _assets
     /// @return _amounts {tok}
     /// @dev Use allowances to set slippage limits
@@ -668,7 +668,7 @@ contract Folio is
         );
 
         // do not revert, to prevent griefing
-        auctions[auctionId].end = 1; // special-cased value for never resurructing the auction
+        auctions[auctionId].end = 1; // special-cased value for not resurrecting the auction
 
         emit AuctionClosed(auctionId);
     }
