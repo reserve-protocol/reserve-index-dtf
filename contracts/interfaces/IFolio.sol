@@ -114,6 +114,8 @@ interface IFolio {
         uint256 end; // {s} inclusive
         // === Gas optimization ===
         uint256 k; // D18{1} price = startPrice * e ^ -kt
+        // === 1.0.1 ===
+        Prices initialPrices; // D27{buyTok/sellTok} initially approved prices
     }
 
     function distributeFees() external;

@@ -13,6 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { UD60x18, powu, pow } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 
+import { FolioLib } from "@utils/FolioLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
@@ -34,7 +35,7 @@ uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 
-UD60x18 constant ANNUALIZER = UD60x18.wrap(31709791983); // D18{1/s} 1e18 / 31536000
+uint256 constant ANNUALIZER = 31709791983; // D18{1/s} 1e18 / 31536000
 
 uint256 constant D18 = 1e18; // D18
 uint256 constant D27 = 1e27; // D27
@@ -280,7 +281,7 @@ contract Folio is
         return _toAssets(shares, rounding);
     }
 
-    /// @param shares {share} Amount of shares to redeem
+    /// @param shares {share} Amount of shares to mint
     /// @return _assets
     /// @return _amounts {tok}
     /// @dev Use allowances to set slippage limits
@@ -512,12 +513,13 @@ contract Folio is
             buy: buy,
             sellLimit: sellLimit,
             buyLimit: buyLimit,
-            prices: prices,
+            prices: Prices(0, 0),
             availableAt: block.timestamp + auctionDelay,
             launchTimeout: block.timestamp + ttl,
             start: 0,
             end: 0,
-            k: 0
+            k: 0,
+            initialPrices: prices
         });
 
         auctions.push(auction);
@@ -546,9 +548,9 @@ contract Folio is
         //   - raise ending price arbitrarily (can cause auction not to clear, same as closing auction)
 
         require(
-            startPrice >= auction.prices.start &&
-                endPrice >= auction.prices.end &&
-                (auction.prices.start == 0 || startPrice <= 100 * auction.prices.start),
+            startPrice >= auction.initialPrices.start &&
+                endPrice >= auction.initialPrices.end &&
+                (auction.initialPrices.start == 0 || startPrice <= 100 * auction.initialPrices.start),
             Folio__InvalidPrices()
         );
 
@@ -572,6 +574,9 @@ contract Folio is
 
         // only open auctions that have not timed out (ttl check)
         require(block.timestamp >= auction.availableAt, Folio__AuctionCannotBeOpenedPermissionlesslyYet());
+
+        auction.prices = auction.initialPrices;
+        // more price checks in _openAuction()
 
         _openAuction(auction);
     }
@@ -625,7 +630,7 @@ contract Folio is
         // QoL: close auction if we have reached the sell limit
         sellBal = auction.sell.balanceOf(address(this));
         if (sellBal <= minSellBal) {
-            auction.end = block.timestamp;
+            auction.end = block.timestamp - 1;
             // cannot update sellEnds/buyEnds due to possibility of parallel auctions
 
             if (sellBal == 0) {
@@ -663,7 +668,7 @@ contract Folio is
         );
 
         // do not revert, to prevent griefing
-        auctions[auctionId].end = 1;
+        auctions[auctionId].end = 1; // special-cased value for not resurrecting the auction
 
         emit AuctionClosed(auctionId);
     }
@@ -694,8 +699,8 @@ contract Folio is
     function _openAuction(Auction storage auction) internal {
         require(!isKilled, Folio__FolioKilled());
 
-        // only open APPROVED auctions
-        require(auction.start == 0 && auction.end == 0, Folio__AuctionCannotBeOpened());
+        // only open APPROVED auctions or expired auctions. Exclude closed auctions
+        require(block.timestamp > auction.end && auction.end != 1, Folio__AuctionCannotBeOpened());
 
         // do not open auctions that have timed out from ttl
         require(block.timestamp <= auction.launchTimeout, Folio__AuctionTimeout());
@@ -772,7 +777,7 @@ contract Folio is
         // convert annual percentage to per-second for comparison with stored tvlFee
         // = 1 - (1 - feeFloor) ^ (1 / 31536000)
         // D18{1/s} = D18{1} - D18{1} * D18{1} ^ D18{1/s}
-        uint256 feeFloor = D18 - UD60x18.wrap(D18 - daoFeeFloor).pow(ANNUALIZER).unwrap();
+        uint256 feeFloor = D18 - FolioLib.UD_pow(D18 - daoFeeFloor, ANNUALIZER);
 
         // D18{1/s}
         uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
@@ -800,7 +805,7 @@ contract Folio is
         // convert annual percentage to per-second
         // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
         // D18{1/s} = D18{1} - D18{1} ^ {s}
-        tvlFee = D18 - UD60x18.wrap(D18 - _newFeeAnnually).pow(ANNUALIZER).unwrap();
+        tvlFee = D18 - FolioLib.UD_pow(D18 - _newFeeAnnually, ANNUALIZER);
 
         require(_newFeeAnnually == 0 || tvlFee != 0, Folio__TVLFeeTooLow());
 
