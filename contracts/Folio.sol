@@ -513,7 +513,7 @@ contract Folio is
             buy: buy,
             sellLimit: sellLimit,
             buyLimit: buyLimit,
-            prices: prices,
+            prices: Prices(0, 0),
             availableAt: block.timestamp + auctionDelay,
             launchTimeout: block.timestamp + ttl,
             start: 0,
