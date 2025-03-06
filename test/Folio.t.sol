@@ -1657,6 +1657,16 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt, amt, true, bytes(""));
     }
 
+    function test_cannotApproveConflictingAuctions() public {
+        vm.startPrank(dao);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
+        vm.expectRevert(IFolio.Folio__ConflictingAuctions.selector);
+        folio.approveAuction(DAI, USDC, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
+        vm.expectRevert(IFolio.Folio__ConflictingAuctions.selector);
+        folio.approveAuction(USDT, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
+        folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
+    }
+
     function test_parallelAuctionsOnBuyToken() public {
         // launch two auction in parallel to sell ALL USDC/DAI
 
@@ -1703,19 +1713,11 @@ contract FolioTest is BaseTest {
     function test_parallelAuctionsOnSellToken() public {
         vm.startPrank(dao);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
-        folio.approveAuction(DAI, USDC, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
         folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
-        folio.approveAuction(USDT, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.startPrank(auctionLauncher);
         folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);
-
-        // auction 2 should be launchable
-        vm.expectRevert(IFolio.Folio__AuctionCollision.selector);
         folio.openAuction(1, 0, MAX_RATE, 1e27, 1e27);
-        folio.openAuction(2, 0, MAX_RATE, 1e27, 1e27);
-        vm.expectRevert(IFolio.Folio__AuctionCollision.selector);
-        folio.openAuction(3, 0, MAX_RATE, 1e27, 1e27);
     }
 
     function test_auctionPriceRange() public {

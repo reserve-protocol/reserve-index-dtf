@@ -63,6 +63,7 @@ interface IFolio {
     error Folio__TooManyFeeRecipients();
     error Folio__InvalidArrayLengths();
     error Folio__InvalidAuctionRuns();
+    error Folio__ConflictingAuctions();
 
     // === Structures ===
 

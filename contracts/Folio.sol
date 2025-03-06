@@ -131,6 +131,10 @@ contract Folio is
     uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be permissionlessly opened
     uint256 public auctionLength; // {s} length of an auction
 
+    // === 2.0.0 ===
+    mapping(address => uint256) public sellLaunchTimeouts; // {s} timestamp of latest approved auction for sells
+    mapping(address => uint256) public buyLaunchTimeouts; // {s} timestamp of latest approved auction for buys
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -519,6 +523,18 @@ contract Folio is
         require(ttl <= MAX_TTL, Folio__InvalidAuctionTTL());
 
         require(runs != 0, Folio__InvalidAuctionRuns());
+
+        // do not sell and buy the same token simultaneously
+        require(
+            block.timestamp > sellLaunchTimeouts[address(buy)] &&
+                block.timestamp > buyLaunchTimeouts[address(sell)] &&
+                block.timestamp > sellEnds[address(buy)] &&
+                block.timestamp > buyEnds[address(sell)],
+            Folio__ConflictingAuctions()
+        );
+
+        sellLaunchTimeouts[address(sell)] = Math.max(sellLaunchTimeouts[address(sell)], block.timestamp + ttl);
+        buyLaunchTimeouts[address(buy)] = Math.max(buyLaunchTimeouts[address(buy)], block.timestamp + ttl);
 
         Auction memory auction = Auction({
             id: auctions.length,
