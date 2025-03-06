@@ -55,6 +55,7 @@ interface IFolio {
     error Folio__SlippageExceeded();
     error Folio__InsufficientBalance();
     error Folio__InsufficientBid();
+    error Folio__InsufficientSharesOut();
     error Folio__ExcessiveBid();
     error Folio__InvalidAuctionTokens();
     error Folio__InvalidAuctionDelay();
