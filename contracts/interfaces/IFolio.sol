@@ -11,6 +11,8 @@ interface IFolio {
     event AuctionBid(uint256 indexed auctionId, uint256 sellAmount, uint256 buyAmount);
     event AuctionClosed(uint256 indexed auctionId);
 
+    event AuctionDetailsApproved(uint256 indexed auctionId, AuctionDetails auctionDetails);
+
     event FolioFeePaid(address indexed recipient, uint256 amount);
     event ProtocolFeePaid(address indexed recipient, uint256 amount);
 
@@ -114,10 +116,15 @@ interface IFolio {
         uint256 launchDeadline; // {s} inclusive
         uint256 start; // {s} inclusive
         uint256 end; // {s} inclusive
-        // uint256 k; // deprecated in 2.0.0
-        // === 2.0.0 ===
-        uint256 runs; // {runs} remaining number of runs
+        // === Gas optimization ===
+        uint256 k; // D18{1} price = startPrice * e ^ -kt
+    }
+
+    /// Added in 2.0.0
+    struct AuctionDetails {
         Prices initialPrices; // D27{buyTok/sellTok} initially approved prices
+        uint256 runs; // {runs} remaining number of runs
+        uint256 dustAmount; // {sellTok} amount of sellTok below which we consider dust
     }
 
     function distributeFees() external;

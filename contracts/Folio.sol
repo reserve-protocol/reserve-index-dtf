@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { UD60x18, powu, pow } from "@prb/math/src/UD60x18.sol";
 import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
 
-import { FolioLib } from "@utils/FolioLib.sol";
+import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
@@ -130,6 +130,9 @@ contract Folio is
     mapping(address => uint256) public buyEnds; // {s} timestamp of last possible second we could buy the token
     uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be permissionlessly opened
     uint256 public auctionLength; // {s} length of an auction
+
+    // === 2.0.0 ===
+    mapping(uint256 auctionId => AuctionDetails) public auctionDetails;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -483,6 +486,7 @@ contract Folio is
     ///     (once opened, it always finishes).
     ///     Must be longer than auctionDelay if intended to be permissionlessly available.
     /// @param runs {runs} How many times the auction can be opened before it is permanently closed
+    /// @param dustAmount {buyTok} amount of buyTok below which we consider dust and remove it from the basket
     function approveAuction(
         IERC20 sell,
         IERC20 buy,
@@ -490,7 +494,8 @@ contract Folio is
         BasketRange calldata buyLimit,
         Prices calldata prices,
         uint256 ttl,
-        uint256 runs
+        uint256 runs,
+        uint256 dustAmount
     ) external nonReentrant onlyRole(AUCTION_APPROVER) {
         require(!isKilled, Folio__FolioKilled());
 
@@ -518,7 +523,7 @@ contract Folio is
 
         require(runs != 0, Folio__InvalidAuctionRuns());
 
-        // do not buy or sell the same token simultaneously
+        // do not buy and sell the same token simultaneously
         require(
             block.timestamp > sellEnds[address(buy)] && block.timestamp > buyEnds[address(sell)],
             Folio__AuctionCollision()
@@ -538,13 +543,15 @@ contract Folio is
             launchDeadline: block.timestamp + ttl,
             start: 0,
             end: 0,
-            runs: runs,
-            initialPrices: prices
+            k: 0
         });
-
         auctions.push(auction);
 
+        AuctionDetails memory details = AuctionDetails({ initialPrices: prices, runs: runs, dustAmount: dustAmount });
+        auctionDetails[auction.id] = details;
+
         emit AuctionApproved(auction.id, address(sell), address(buy), auction);
+        emit AuctionDetailsApproved(auction.id, details);
     }
 
     /// Open an auction as the auction launcher
@@ -560,6 +567,7 @@ contract Folio is
         uint256 endPrice
     ) external nonReentrant onlyRole(AUCTION_LAUNCHER) {
         Auction storage auction = auctions[auctionId];
+        AuctionDetails storage details = auctionDetails[auctionId];
 
         // auction launcher can:
         //   - select a sell limit within the approved range
@@ -568,9 +576,9 @@ contract Folio is
         //   - raise ending price arbitrarily (can cause auction not to clear, same as closing auction)
 
         require(
-            startPrice >= auction.initialPrices.start &&
-                endPrice >= auction.initialPrices.end &&
-                (auction.initialPrices.start == 0 || startPrice <= 100 * auction.initialPrices.start),
+            startPrice >= details.initialPrices.start &&
+                endPrice >= details.initialPrices.end &&
+                (details.initialPrices.start == 0 || startPrice <= 100 * details.initialPrices.start),
             Folio__InvalidPrices()
         );
 
@@ -584,21 +592,22 @@ contract Folio is
         auction.prices.end = endPrice;
         // more price checks in _openAuction()
 
-        _openAuction(auction, 0);
+        _openAuction(auction, details, 0);
     }
 
     /// Open an auction permissionlessly
     /// @dev Permissionless, callable only after the auction delay
     function openAuctionPermissionlessly(uint256 auctionId) external nonReentrant {
         Auction storage auction = auctions[auctionId];
+        AuctionDetails storage details = auctionDetails[auctionId];
 
         // only open auctions that are permissonlessly available
         require(block.timestamp >= auction.permissionlesslyAvailableAt, Folio__AuctionCannotBeOpenedPermissionlessly());
 
-        auction.prices = auction.initialPrices;
+        auction.prices = details.initialPrices;
         // more price checks in _openAuction()
 
-        _openAuction(auction, PERMISSIONED_BUFFER);
+        _openAuction(auction, details, PERMISSIONED_BUFFER);
     }
 
     /// Bid in an ongoing auction
@@ -649,7 +658,7 @@ contract Folio is
 
         // QoL: remove token from basket if zero balance
         // This cannot be relied on strongly. In most cases a small dust balance will be leftover
-        if (auction.sell.balanceOf(address(this)) == 0) {
+        if (auction.sell.balanceOf(address(this)) <= auctionDetails[auctionId].dustAmount) {
             _removeFromBasket(address(auction.sell));
         }
 
@@ -675,8 +684,6 @@ contract Folio is
     /// A auction can be closed from anywhere in its lifecycle, and cannot be restarted
     /// @dev Callable by AUCTION_APPROVER or AUCTION_LAUNCHER or ADMIN
     function closeAuction(uint256 auctionId) external nonReentrant {
-        Auction storage auction = auctions[auctionId];
-
         require(
             hasRole(AUCTION_APPROVER, msg.sender) ||
                 hasRole(AUCTION_LAUNCHER, msg.sender) ||
@@ -685,8 +692,8 @@ contract Folio is
         );
 
         // do not revert, to prevent griefing
-        auction.end = block.timestamp - 1;
-        auction.runs = 0;
+        auctions[auctionId].end = block.timestamp - 1;
+        auctionDetails[auctionId].runs = 0;
 
         emit AuctionClosed(auctionId);
     }
@@ -715,7 +722,7 @@ contract Folio is
     }
 
     /// @param buffer {s} Additional time buffer that must pass before auction can be opened
-    function _openAuction(Auction storage auction, uint256 buffer) internal {
+    function _openAuction(Auction storage auction, AuctionDetails storage details, uint256 buffer) internal {
         require(!isKilled, Folio__FolioKilled());
 
         // only open APPROVED or expired auctions, with buffer
@@ -737,15 +744,20 @@ contract Folio is
         );
 
         // ensure auction has enough runs remaining
-        require(auction.runs != 0, Folio__InvalidAuctionRuns());
+        require(details.runs != 0, Folio__InvalidAuctionRuns());
         unchecked {
-            auction.runs--;
+            details.runs--;
         }
 
         auction.start = block.timestamp;
         auction.end = block.timestamp + auctionLength;
 
         emit AuctionOpened(auction.id, auction);
+
+        // D18{1}
+        // k = ln(P_0 / P_t) / t
+        auction.k = UD60x18.wrap((auction.prices.start * D18) / auction.prices.end).ln().unwrap() / auctionLength;
+        // gas optimization to avoid recomputing k on every bid
     }
 
     /// @return p D27{buyTok/sellTok}
@@ -760,17 +772,11 @@ contract Folio is
             return auction.prices.end;
         }
 
-        // {s}
         uint256 elapsed = timestamp - auction.start;
-        uint256 _auctionLength = auction.end - auction.start;
-
-        // D18{1}
-        // k = ln(P_0 / P_t) / t
-        uint256 k = UD60x18.wrap((auction.prices.start * D18) / auction.prices.end).ln().unwrap() / _auctionLength;
 
         // P_t = P_0 * e ^ -kt
         // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-        p = (auction.prices.start * intoUint256(exp(SD59x18.wrap(-1 * int256(k * elapsed))))) / D18;
+        p = (auction.prices.start * intoUint256(exp(SD59x18.wrap(-1 * int256(auction.k * elapsed))))) / D18;
         if (p < auction.prices.end) {
             p = auction.prices.end;
         }
@@ -796,7 +802,7 @@ contract Folio is
         // convert annual percentage to per-second for comparison with stored tvlFee
         // = 1 - (1 - feeFloor) ^ (1 / 31536000)
         // D18{1/s} = D18{1} - D18{1} * D18{1} ^ D18{1/s}
-        uint256 feeFloor = D18 - FolioLib.UD_pow(D18 - daoFeeFloor, ANNUALIZER);
+        uint256 feeFloor = D18 - MathLib.pow(D18 - daoFeeFloor, ANNUALIZER);
 
         // D18{1/s}
         uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
@@ -824,7 +830,7 @@ contract Folio is
         // convert annual percentage to per-second
         // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
         // D18{1/s} = D18{1} - D18{1} ^ {s}
-        tvlFee = D18 - FolioLib.UD_pow(D18 - _newFeeAnnually, ANNUALIZER);
+        tvlFee = D18 - MathLib.pow(D18 - _newFeeAnnually, ANNUALIZER);
 
         require(_newFeeAnnually == 0 || tvlFee != 0, Folio__TVLFeeTooLow());
 
