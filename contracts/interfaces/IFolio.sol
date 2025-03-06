@@ -53,7 +53,7 @@ interface IFolio {
     error Folio__InvalidSellLimit();
     error Folio__InvalidBuyLimit();
     error Folio__AuctionCannotBeOpenedYet();
-    error Folio__AuctionCannotBeOpenedPermissionlessly();
+    error Folio__AuctionCannotBeOpenedWithoutRestriction();
     error Folio__AuctionNotOngoing();
     error Folio__AuctionCollision();
     error Folio__InvalidPrices();
@@ -111,24 +111,24 @@ interface IFolio {
     ///   - CLOSED: block.timestamp > end
     struct Auction {
         uint256 id;
-        IERC20 sell;
-        IERC20 buy;
+        IERC20 sellToken;
+        IERC20 buyToken;
         BasketRange sellLimit; // D27{sellTok/share} min ratio of sell token in the basket, inclusive
         BasketRange buyLimit; // D27{buyTok/share} max ratio of buy token in the basket, exclusive
         Prices prices; // D27{buyTok/sellTok}
-        uint256 permissionlesslyAvailableAt; // {s} inclusive
+        uint256 freelyAvailableAt; // {s} inclusive
         uint256 launchDeadline; // {s} inclusive
-        uint256 start; // {s} inclusive
-        uint256 end; // {s} inclusive
-        // === Gas optimization ===
+        uint256 startTime; // {s} inclusive
+        uint256 endTime; // {s} inclusive
+        // === Gas Optimization ===
         uint256 k; // D18{1} price = startPrice * e ^ -kt
     }
 
     /// Added in 2.0.0
     struct AuctionDetails {
         Prices initialPrices; // D27{buyTok/sellTok} initially approved prices
-        uint256 runs; // {runs} remaining number of runs
-        uint256 dustAmount; // {sellTok} amount of sellTok below which we consider dust
+        uint256 availableRuns; // {runs} remaining number of runs
+        uint256 minDustAmount; // {sellTok} amount of sellTok below which we consider dust
     }
 
     function distributeFees() external;
