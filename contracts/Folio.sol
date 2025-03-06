@@ -549,7 +549,7 @@ contract Folio is
         AuctionDetails memory details = AuctionDetails({ initialPrices: prices, runs: runs, dustAmount: dustAmount });
         auctionDetails[auction.id] = details;
 
-        emit AuctionWithDetailsApproved(auction.id, address(sell), address(buy), auction, details);
+        emit AuctionApproved(auction.id, address(sell), address(buy), auction, details);
     }
 
     /// Open an auction as the auction launcher

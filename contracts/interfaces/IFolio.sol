@@ -6,7 +6,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface IFolio {
     // === Events ===
 
-    event AuctionWithDetailsApproved(
+    event AuctionApproved(
         uint256 indexed auctionId,
         address indexed from,
         address indexed to,

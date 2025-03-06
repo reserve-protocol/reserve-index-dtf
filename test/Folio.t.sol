@@ -1018,7 +1018,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
 
         vm.prank(auctionLauncher);
@@ -1075,7 +1075,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
 
         vm.prank(auctionLauncher);
@@ -1140,7 +1140,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
 
         vm.prank(auctionLauncher);
@@ -1195,7 +1195,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
 
         vm.prank(auctionLauncher);
@@ -1260,7 +1260,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D27_TOKEN_1;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(MEME), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(MEME), address(USDT), auctionStruct, details);
         folio.approveAuction(MEME, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
 
         vm.prank(auctionLauncher);
@@ -1298,7 +1298,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
 
         vm.prank(auctionLauncher);
@@ -1356,7 +1356,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
 
         vm.prank(auctionLauncher);
@@ -1414,7 +1414,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
 
         vm.prank(auctionLauncher);
@@ -1481,7 +1481,7 @@ contract FolioTest is BaseTest {
         });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
 
         vm.prank(auctionLauncher);
@@ -1564,7 +1564,7 @@ contract FolioTest is BaseTest {
         });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, origPrices, MAX_TTL, 3, 0);
 
         uint256 sellLimit = 1e18;
@@ -1917,7 +1917,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
 
         vm.prank(auctionLauncher);
@@ -1954,7 +1954,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
 
         vm.prank(auctionLauncher);
@@ -1993,7 +1993,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1, 0);
 
         vm.prank(auctionLauncher);
@@ -2106,7 +2106,7 @@ contract FolioTest is BaseTest {
         });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(1e27, 1e27), MAX_TTL, 1, 0);
 
         //  Revert if tried to open (smaller start price)
@@ -2179,7 +2179,7 @@ contract FolioTest is BaseTest {
         });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
-        emit IFolio.AuctionWithDetailsApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
 
         //  Revert if tried to open with zero price
