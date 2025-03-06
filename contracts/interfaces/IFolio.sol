@@ -111,7 +111,7 @@ interface IFolio {
         BasketRange buyLimit; // D27{buyTok/share} max ratio of buy token in the basket, exclusive
         Prices prices; // D27{buyTok/sellTok}
         uint256 permissionlesslyAvailableAt; // {s} inclusive
-        uint256 launchTimeout; // {s} inclusive
+        uint256 launchDeadline; // {s} inclusive
         uint256 start; // {s} inclusive
         uint256 end; // {s} inclusive
         // uint256 k; // deprecated in 2.0.0

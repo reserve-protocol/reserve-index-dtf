@@ -535,7 +535,7 @@ contract Folio is
             buyLimit: buyLimit,
             prices: Prices(0, 0),
             permissionlesslyAvailableAt: block.timestamp + auctionDelay,
-            launchTimeout: block.timestamp + ttl,
+            launchDeadline: block.timestamp + ttl,
             start: 0,
             end: 0,
             runs: runs,
@@ -722,7 +722,7 @@ contract Folio is
         require(block.timestamp > auction.end + buffer, Folio__AuctionCannotBeOpenedYet());
 
         // do not open auctions that have timed out from ttl
-        require(block.timestamp <= auction.launchTimeout, Folio__AuctionTimeout());
+        require(block.timestamp <= auction.launchDeadline, Folio__AuctionTimeout());
 
         sellEnds[address(auction.sell)] = Math.max(sellEnds[address(auction.sell)], block.timestamp + auctionLength);
         buyEnds[address(auction.buy)] = Math.max(buyEnds[address(auction.buy)], block.timestamp + auctionLength);

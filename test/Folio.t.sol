@@ -1004,7 +1004,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
@@ -1058,7 +1058,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
@@ -1119,7 +1119,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
@@ -1169,7 +1169,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
@@ -1231,7 +1231,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
@@ -1265,7 +1265,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
@@ -1319,7 +1319,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
@@ -1373,7 +1373,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
@@ -1437,7 +1437,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
@@ -1463,10 +1463,10 @@ contract FolioTest is BaseTest {
         vm.prank(dao);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_AUCTION_DELAY, 1);
 
-        // should not be openable after launchTimeout
+        // should not be openable after launchDeadline
 
-        (, , , , , , , uint256 launchTimeout, , , , ) = folio.auctions(0);
-        vm.warp(launchTimeout + 1);
+        (, , , , , , , uint256 launchDeadline, , , , ) = folio.auctions(0);
+        vm.warp(launchDeadline + 1);
         vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__AuctionTimeout.selector);
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
@@ -1516,7 +1516,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: origPrices,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 3, // 3 runs
@@ -1861,7 +1861,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
@@ -1894,7 +1894,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
@@ -1929,7 +1929,7 @@ contract FolioTest is BaseTest {
             buyLimit: buyLimit,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
@@ -2039,7 +2039,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
@@ -2108,7 +2108,7 @@ contract FolioTest is BaseTest {
             buyLimit: FULL_BUY,
             prices: ZERO_PRICES,
             permissionlesslyAvailableAt: block.timestamp + folio.auctionDelay(),
-            launchTimeout: block.timestamp + MAX_TTL,
+            launchDeadline: block.timestamp + MAX_TTL,
             start: 0,
             end: 0,
             runs: 1,
