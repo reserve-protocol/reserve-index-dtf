@@ -47,7 +47,7 @@ interface IFolio {
     error Folio__InvalidSellLimit();
     error Folio__InvalidBuyLimit();
     error Folio__AuctionCannotBeOpened();
-    error Folio__AuctionCannotBeOpenedPermissionlesslyYet();
+    error Folio__AuctionCannotBeOpenedPermissionlessly();
     error Folio__AuctionNotOngoing();
     error Folio__AuctionCollision();
     error Folio__InvalidPrices();
@@ -61,6 +61,7 @@ interface IFolio {
     error Folio__InvalidAuctionTTL();
     error Folio__TooManyFeeRecipients();
     error Folio__InvalidArrayLengths();
+    error Folio__InvalidAuctionRuns();
 
     // === Structures ===
 
@@ -108,13 +109,13 @@ interface IFolio {
         BasketRange sellLimit; // D27{sellTok/share} min ratio of sell token in the basket, inclusive
         BasketRange buyLimit; // D27{buyTok/share} max ratio of buy token in the basket, exclusive
         Prices prices; // D27{buyTok/sellTok}
-        uint256 availableAt; // {s} inclusive
+        uint256 permissionlesslyAvailableAt; // {s} inclusive
         uint256 launchTimeout; // {s} inclusive
         uint256 start; // {s} inclusive
         uint256 end; // {s} inclusive
-        // === Gas optimization ===
-        uint256 k; // D18{1} price = startPrice * e ^ -kt
-        // === 1.0.1 ===
+        // uint256 k; // deprecated in 2.0.0
+        // === 2.0.0 ===
+        uint256 runs; // {runs} remaining number of runs
         Prices initialPrices; // D27{buyTok/sellTok} initially approved prices
     }
 

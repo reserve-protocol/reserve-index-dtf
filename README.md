@@ -72,6 +72,10 @@ The staking vault has ONLY a single owner:
 
 ##### Auction Usage
 
+Auctions can be repeated any number of times. The `runs` parameter controls how many times the auction can be opened before it is permanently closed.
+
+It is VERY important that the AUCTION_LAUNCHER does not approve concurrent auctions that simultaneously buy and sell the same token. This can result in undefined behavior and unnecessary losses for Folio holders. If multiple runs are enabled, two conflicting auctions can alternate execution and lose value to slippage over time.
+
 ###### Buy/Sell limits
 
 Governance configures buy and sell limits for the basket ratios, including a spot estimate:
@@ -195,6 +199,10 @@ Some ERC20s are NOT supported
 | No revert on failure           | ✅    | ✅           |
 
 Note: While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible for a Folio configured with a reentrant ERC20 token.
+
+### Chain Assumptions
+
+The chain is assumed to have block times under 60s.
 
 ### Governance Guidelines
 

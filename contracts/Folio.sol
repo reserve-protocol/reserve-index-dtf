@@ -34,6 +34,7 @@ uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
+uint256 constant PERMISSIONED_BUFFER = 60; // {s} 1 min
 
 uint256 constant ANNUALIZER = 31709791983; // D18{1/s} 1e18 / 31536000
 
@@ -467,6 +468,8 @@ contract Folio is
     }
 
     /// Approve an auction to run
+    /// @dev DO NOT approve concurrent auctions that both buy AND sell the same token
+    ///      This can result in undefined behavior and unnecessary losses for Folio holders
     /// @param sell The token to sell, from the perspective of the Folio
     /// @param buy The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
@@ -475,13 +478,15 @@ contract Folio is
     /// @param ttl {s} How long a auction can exist in an APPROVED state until it can no longer be OPENED
     ///     (once opened, it always finishes).
     ///     Must be longer than auctionDelay if intended to be permissionlessly available.
+    /// @param runs {runs} How many times the auction can be opened before it is permanently closed
     function approveAuction(
         IERC20 sell,
         IERC20 buy,
         BasketRange calldata sellLimit,
         BasketRange calldata buyLimit,
         Prices calldata prices,
-        uint256 ttl
+        uint256 ttl,
+        uint256 runs
     ) external nonReentrant onlyRole(AUCTION_APPROVER) {
         require(!isKilled, Folio__FolioKilled());
 
@@ -507,6 +512,8 @@ contract Folio is
 
         require(ttl <= MAX_TTL, Folio__InvalidAuctionTTL());
 
+        require(runs != 0, Folio__InvalidAuctionRuns());
+
         Auction memory auction = Auction({
             id: auctions.length,
             sell: sell,
@@ -514,11 +521,11 @@ contract Folio is
             sellLimit: sellLimit,
             buyLimit: buyLimit,
             prices: Prices(0, 0),
-            availableAt: block.timestamp + auctionDelay,
+            permissionlesslyAvailableAt: block.timestamp + auctionDelay,
             launchTimeout: block.timestamp + ttl,
             start: 0,
             end: 0,
-            k: 0,
+            runs: runs,
             initialPrices: prices
         });
 
@@ -564,7 +571,7 @@ contract Folio is
         auction.prices.end = endPrice;
         // more price checks in _openAuction()
 
-        _openAuction(auction);
+        _openAuction(auction, 0);
     }
 
     /// Open an auction permissionlessly
@@ -572,13 +579,13 @@ contract Folio is
     function openAuctionPermissionlessly(uint256 auctionId) external nonReentrant {
         Auction storage auction = auctions[auctionId];
 
-        // only open auctions that have not timed out (ttl check)
-        require(block.timestamp >= auction.availableAt, Folio__AuctionCannotBeOpenedPermissionlesslyYet());
+        // only open auctions that are permissonlessly available
+        require(block.timestamp >= auction.permissionlesslyAvailableAt, Folio__AuctionCannotBeOpenedPermissionlessly());
 
         auction.prices = auction.initialPrices;
         // more price checks in _openAuction()
 
-        _openAuction(auction);
+        _openAuction(auction, PERMISSIONED_BUFFER);
     }
 
     /// Bid in an ongoing auction
@@ -627,15 +634,10 @@ contract Folio is
 
         emit AuctionBid(auctionId, sellAmount, boughtAmt);
 
-        // QoL: close auction if we have reached the sell limit
-        sellBal = auction.sell.balanceOf(address(this));
-        if (sellBal <= minSellBal) {
-            auction.end = block.timestamp - 1;
-            // cannot update sellEnds/buyEnds due to possibility of parallel auctions
-
-            if (sellBal == 0) {
-                _removeFromBasket(address(auction.sell));
-            }
+        // QoL: remove token from basket if zero balance
+        // This cannot be relied on strongly. In most cases a small dust balance will be leftover
+        if (auction.sell.balanceOf(address(this)) == 0) {
+            _removeFromBasket(address(auction.sell));
         }
 
         // collect payment from bidder
@@ -660,6 +662,8 @@ contract Folio is
     /// A auction can be closed from anywhere in its lifecycle, and cannot be restarted
     /// @dev Callable by AUCTION_APPROVER or AUCTION_LAUNCHER or ADMIN
     function closeAuction(uint256 auctionId) external nonReentrant {
+        Auction storage auction = auctions[auctionId];
+
         require(
             hasRole(AUCTION_APPROVER, msg.sender) ||
                 hasRole(AUCTION_LAUNCHER, msg.sender) ||
@@ -668,7 +672,8 @@ contract Folio is
         );
 
         // do not revert, to prevent griefing
-        auctions[auctionId].end = 1; // special-cased value for not resurrecting the auction
+        auction.end = block.timestamp - 1;
+        auction.runs = 0;
 
         emit AuctionClosed(auctionId);
     }
@@ -696,17 +701,20 @@ contract Folio is
         }
     }
 
-    function _openAuction(Auction storage auction) internal {
+    /// @param buffer {s} Additional time buffer that must pass before auction can be opened
+    function _openAuction(Auction storage auction, uint256 buffer) internal {
         require(!isKilled, Folio__FolioKilled());
 
-        // only open APPROVED auctions or expired auctions. Exclude purposefully closed auctions
-        require(block.timestamp > auction.end && auction.end != 1, Folio__AuctionCannotBeOpened());
+        // only open APPROVED or expired auctions
+        require(block.timestamp > auction.end + buffer, Folio__AuctionCannotBeOpened());
 
         // do not open auctions that have timed out from ttl
         require(block.timestamp <= auction.launchTimeout, Folio__AuctionTimeout());
 
-        // ensure no conflicting tokens across auctions (same sell or sell buy is okay)
+        // ensure no conflicting tokens across auctions (same sell or same buy is okay)
         // necessary to prevent dutch auctions from taking losses
+        // Note: it's still possible to take unnecessary losses from slippage via repeated runs
+        //       if the AUCTION_LAUNCHER has irresponsibly approved conflicting auctions
         require(
             block.timestamp > sellEnds[address(auction.buy)] && block.timestamp > buyEnds[address(auction.sell)],
             Folio__AuctionCollision()
@@ -724,15 +732,16 @@ contract Folio is
             Folio__InvalidPrices()
         );
 
+        // ensure auction has enough runs remaining
+        require(auction.runs != 0, Folio__InvalidAuctionRuns());
+        unchecked {
+            auction.runs--;
+        }
+
         auction.start = block.timestamp;
         auction.end = block.timestamp + auctionLength;
 
         emit AuctionOpened(auction.id, auction);
-
-        // D18{1}
-        // k = ln(P_0 / P_t) / t
-        auction.k = UD60x18.wrap((auction.prices.start * D18) / auction.prices.end).ln().unwrap() / auctionLength;
-        // gas optimization to avoid recomputing k on every bid
     }
 
     /// @return p D27{buyTok/sellTok}
@@ -747,11 +756,17 @@ contract Folio is
             return auction.prices.end;
         }
 
+        // {s}
         uint256 elapsed = timestamp - auction.start;
+        uint256 _auctionLength = auction.end - auction.start;
+
+        // D18{1}
+        // k = ln(P_0 / P_t) / t
+        uint256 k = UD60x18.wrap((auction.prices.start * D18) / auction.prices.end).ln().unwrap() / _auctionLength;
 
         // P_t = P_0 * e ^ -kt
         // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-        p = (auction.prices.start * intoUint256(exp(SD59x18.wrap(-1 * int256(auction.k * elapsed))))) / D18;
+        p = (auction.prices.start * intoUint256(exp(SD59x18.wrap(-1 * int256(k * elapsed))))) / D18;
         if (p < auction.prices.end) {
             p = auction.prices.end;
         }
