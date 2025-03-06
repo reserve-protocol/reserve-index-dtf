@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 // This value should be updated on each release
-string constant VERSION = "1.0.1";
+string constant VERSION = "2.0.0";
 
 /**
  * @title Versioned
