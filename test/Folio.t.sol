@@ -1660,9 +1660,9 @@ contract FolioTest is BaseTest {
     function test_cannotApproveConflictingAuctions() public {
         vm.startPrank(dao);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
-        vm.expectRevert(IFolio.Folio__ConflictingAuctions.selector);
+        vm.expectRevert(IFolio.Folio__AuctionCollision.selector);
         folio.approveAuction(DAI, USDC, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
-        vm.expectRevert(IFolio.Folio__ConflictingAuctions.selector);
+        vm.expectRevert(IFolio.Folio__AuctionCollision.selector);
         folio.approveAuction(USDT, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
         folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
     }

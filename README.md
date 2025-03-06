@@ -72,9 +72,7 @@ The staking vault has ONLY a single owner:
 
 ##### Auction Usage
 
-Auctions can be repeated any number of times. The `runs` parameter controls how many times the auction can be opened before it is permanently closed.
-
-It is VERY important that the AUCTION_LAUNCHER does not approve concurrent auctions that simultaneously buy and sell the same token. This can result in undefined behavior and unnecessary losses for Folio holders. If multiple runs are enabled, two conflicting auctions can alternate execution and lose value to slippage over time.
+Auctions can be repeated up to a number of times specified by the AUCTION_APPROVER.
 
 ###### Buy/Sell limits
 

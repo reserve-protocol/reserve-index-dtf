@@ -126,14 +126,10 @@ contract Folio is
      *   - All auctions are dutch auctions with the same price curve, but it's possible to pass startPrice = endPrice
      */
     Auction[] public auctions;
-    mapping(address => uint256) public sellEnds; // {s} timestamp of latest ongoing auction for sells
-    mapping(address => uint256) public buyEnds; // {s} timestamp of latest ongoing auction for buys
+    mapping(address => uint256) public sellEnds; // {s} timestamp of last possible second we could sell the token
+    mapping(address => uint256) public buyEnds; // {s} timestamp of last possible second we could buy the token
     uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be permissionlessly opened
     uint256 public auctionLength; // {s} length of an auction
-
-    // === 2.0.0 ===
-    mapping(address => uint256) public sellLaunchTimeouts; // {s} timestamp of latest approved auction for sells
-    mapping(address => uint256) public buyLaunchTimeouts; // {s} timestamp of latest approved auction for buys
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -524,17 +520,14 @@ contract Folio is
 
         require(runs != 0, Folio__InvalidAuctionRuns());
 
-        // do not sell and buy the same token simultaneously
+        // do not buy or sell the same token simultaneously
         require(
-            block.timestamp > sellLaunchTimeouts[address(buy)] &&
-                block.timestamp > buyLaunchTimeouts[address(sell)] &&
-                block.timestamp > sellEnds[address(buy)] &&
-                block.timestamp > buyEnds[address(sell)],
-            Folio__ConflictingAuctions()
+            block.timestamp > sellEnds[address(buy)] && block.timestamp > buyEnds[address(sell)],
+            Folio__AuctionCollision()
         );
 
-        sellLaunchTimeouts[address(sell)] = Math.max(sellLaunchTimeouts[address(sell)], block.timestamp + ttl);
-        buyLaunchTimeouts[address(buy)] = Math.max(buyLaunchTimeouts[address(buy)], block.timestamp + ttl);
+        sellEnds[address(sell)] = Math.max(sellEnds[address(sell)], block.timestamp + ttl);
+        buyEnds[address(buy)] = Math.max(buyEnds[address(buy)], block.timestamp + ttl);
 
         Auction memory auction = Auction({
             id: auctions.length,
@@ -732,15 +725,6 @@ contract Folio is
 
         // do not open auctions that have timed out from ttl
         require(block.timestamp <= auction.launchTimeout, Folio__AuctionTimeout());
-
-        // ensure no conflicting tokens across auctions (same sell or same buy is okay)
-        // Note: it's still possible to take unnecessary losses from slippage via repeated runs
-        //       if the AUCTION_LAUNCHER has irresponsibly approved conflicting auctions
-        require(
-            block.timestamp > sellEnds[address(auction.buy)] + buffer &&
-                block.timestamp > buyEnds[address(auction.sell)] + buffer,
-            Folio__AuctionCollision()
-        );
 
         sellEnds[address(auction.sell)] = Math.max(sellEnds[address(auction.sell)], block.timestamp + auctionLength);
         buyEnds[address(auction.buy)] = Math.max(buyEnds[address(auction.buy)], block.timestamp + auctionLength);
