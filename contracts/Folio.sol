@@ -282,14 +282,16 @@ contract Folio is
         return _toAssets(shares, rounding);
     }
 
-    /// @param shares {share} Amount of shares to redeem
+    /// @dev Use allowances to set slippage limits for provided assets
+    /// @dev Minting has 3 share-portions: (i) receiver shares, (ii) DAO fee shares, (iii) fee recipients shares
+    /// @param shares {share} Amount of shares to mint
+    /// @param minSharesOut {share} Minimum amount of shares the caller must receive after fees
     /// @return _assets
     /// @return _amounts {tok}
-    /// @dev Use allowances to set slippage limits
-    /// @dev Minting has 3 share-portions: (i) receiver shares, (ii) DAO fee shares, (iii) fee recipients shares
     function mint(
         uint256 shares,
-        address receiver
+        address receiver,
+        uint256 minSharesOut
     ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
         require(!isKilled, Folio__FolioKilled());
 
@@ -312,6 +314,10 @@ contract Folio is
         // 100% to DAO, if necessary
         totalFeeShares = totalFeeShares < daoFeeShares ? daoFeeShares : totalFeeShares;
 
+        // {share}
+        uint256 sharesOut = shares - totalFeeShares;
+        require(sharesOut != 0 && sharesOut >= minSharesOut, Folio__InsufficientSharesOut());
+
         // === Transfer assets in ===
 
         (_assets, _amounts) = _toAssets(shares, Math.Rounding.Ceil);
@@ -325,7 +331,7 @@ contract Folio is
 
         // === Mint shares ===
 
-        _mint(receiver, shares - totalFeeShares);
+        _mint(receiver, sharesOut);
 
         // defer fee handouts until distributeFees()
         daoPendingFeeShares += daoFeeShares;
