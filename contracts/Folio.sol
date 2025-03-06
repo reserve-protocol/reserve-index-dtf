@@ -474,8 +474,6 @@ contract Folio is
     }
 
     /// Approve an auction to run
-    /// @dev DO NOT approve concurrent auctions that both buy AND sell the same token
-    ///      This can result in undefined behavior and unnecessary losses for Folio holders
     /// @param sell The token to sell, from the perspective of the Folio
     /// @param buy The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
