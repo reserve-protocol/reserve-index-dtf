@@ -233,7 +233,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // approveAuction
         vm.prank(dao);
-        folio.approveAuction(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1);
+        folio.approveAuction(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1, 0);
 
         // openAuction
         vm.prank(auctionLauncher);
@@ -243,7 +243,7 @@ contract ExtremeTest is BaseExtremeTest {
         // sellAmount will be up to 1e36
         // buyAmount will be up to 1e54 and down to 1
 
-        (, , , , , , , , uint256 start, uint256 end, , ) = folio.auctions(0);
+        (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
 
         uint256 sellAmount = folio.lot(0, start);
         // getBid should work at both ends of auction

@@ -6,12 +6,16 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface IFolio {
     // === Events ===
 
-    event AuctionApproved(uint256 indexed auctionId, address indexed from, address indexed to, Auction auction);
+    event AuctionWithDetailsApproved(
+        uint256 indexed auctionId,
+        address indexed from,
+        address indexed to,
+        Auction auction,
+        AuctionDetails details
+    );
     event AuctionOpened(uint256 indexed auctionId, Auction auction);
     event AuctionBid(uint256 indexed auctionId, uint256 sellAmount, uint256 buyAmount);
     event AuctionClosed(uint256 indexed auctionId);
-
-    event AuctionDetailsApproved(uint256 indexed auctionId, AuctionDetails auctionDetails);
 
     event FolioFeePaid(address indexed recipient, uint256 amount);
     event ProtocolFeePaid(address indexed recipient, uint256 amount);
