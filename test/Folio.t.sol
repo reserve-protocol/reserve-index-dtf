@@ -1455,7 +1455,7 @@ contract FolioTest is BaseTest {
 
         // Revert if tried to reopen
         vm.prank(auctionLauncher);
-        vm.expectRevert(IFolio.Folio__AuctionCannotBeOpened.selector);
+        vm.expectRevert(IFolio.Folio__AuctionCannotBeOpenedYet.selector);
         folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);
     }
 
@@ -1541,7 +1541,7 @@ contract FolioTest is BaseTest {
         // Auction should not be relaunchable at end exactly
 
         vm.warp(end);
-        vm.expectRevert(IFolio.Folio__AuctionCannotBeOpened.selector);
+        vm.expectRevert(IFolio.Folio__AuctionCannotBeOpenedYet.selector);
         folio.openAuction(0, sellLimit, buyLimit, 1e27, 1e27);
 
         // Auction should be relaunchable after end, with higher start
@@ -1557,13 +1557,13 @@ contract FolioTest is BaseTest {
 
         // Auction should not be relaunchable immediately
 
-        vm.expectRevert(IFolio.Folio__AuctionCannotBeOpened.selector);
+        vm.expectRevert(IFolio.Folio__AuctionCannotBeOpenedYet.selector);
         folio.openAuction(0, sellLimit, buyLimit, 1e29, 1e27);
 
         // Permissionless launch should not be available until PERMISSIONED_BUFFER passes
 
         vm.warp(end + 1);
-        vm.expectRevert(IFolio.Folio__AuctionCannotBeOpened.selector);
+        vm.expectRevert(IFolio.Folio__AuctionCannotBeOpenedYet.selector);
         folio.openAuctionPermissionlessly(0);
 
         // Permissionless launch should be possible using origPrices and LATEST limits provided by AUCTION_LAUNCHER

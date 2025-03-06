@@ -46,7 +46,7 @@ interface IFolio {
     error Folio__InvalidAuctionLength();
     error Folio__InvalidSellLimit();
     error Folio__InvalidBuyLimit();
-    error Folio__AuctionCannotBeOpened();
+    error Folio__AuctionCannotBeOpenedYet();
     error Folio__AuctionCannotBeOpenedPermissionlessly();
     error Folio__AuctionNotOngoing();
     error Folio__AuctionCollision();

@@ -711,18 +711,18 @@ contract Folio is
     function _openAuction(Auction storage auction, uint256 buffer) internal {
         require(!isKilled, Folio__FolioKilled());
 
-        // only open APPROVED or expired auctions
-        require(block.timestamp > auction.end + buffer, Folio__AuctionCannotBeOpened());
+        // only open APPROVED or expired auctions, with buffer
+        require(block.timestamp > auction.end + buffer, Folio__AuctionCannotBeOpenedYet());
 
         // do not open auctions that have timed out from ttl
         require(block.timestamp <= auction.launchTimeout, Folio__AuctionTimeout());
 
         // ensure no conflicting tokens across auctions (same sell or same buy is okay)
-        // necessary to prevent dutch auctions from taking losses
         // Note: it's still possible to take unnecessary losses from slippage via repeated runs
         //       if the AUCTION_LAUNCHER has irresponsibly approved conflicting auctions
         require(
-            block.timestamp > sellEnds[address(auction.buy)] && block.timestamp > buyEnds[address(auction.sell)],
+            block.timestamp > sellEnds[address(auction.buy)] + buffer &&
+                block.timestamp > buyEnds[address(auction.sell)] + buffer,
             Folio__AuctionCollision()
         );
 
