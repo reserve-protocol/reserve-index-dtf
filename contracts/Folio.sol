@@ -281,7 +281,7 @@ contract Folio is
         return _toAssets(shares, rounding);
     }
 
-    /// @param shares {share} Amount of shares to mint
+    /// @param shares {share} Amount of shares to redeem
     /// @return _assets
     /// @return _amounts {tok}
     /// @dev Use allowances to set slippage limits
@@ -699,7 +699,7 @@ contract Folio is
     function _openAuction(Auction storage auction) internal {
         require(!isKilled, Folio__FolioKilled());
 
-        // only open APPROVED auctions or expired auctions. Exclude closed auctions
+        // only open APPROVED auctions or expired auctions. Exclude purposefully closed auctions
         require(block.timestamp > auction.end && auction.end != 1, Folio__AuctionCannotBeOpened());
 
         // do not open auctions that have timed out from ttl
