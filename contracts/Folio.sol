@@ -10,8 +10,7 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import { UD60x18, powu, pow } from "@prb/math/src/UD60x18.sol";
-import { SD59x18, exp, intoUint256 } from "@prb/math/src/SD59x18.sol";
+import { UD60x18, powu } from "@prb/math/src/UD60x18.sol";
 
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
@@ -775,7 +774,7 @@ contract Folio is
 
         // P_t = P_0 * e ^ -kt
         // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-        p = (auction.prices.start * intoUint256(exp(SD59x18.wrap(-1 * int256(auction.k * elapsed))))) / D18;
+        p = (auction.prices.start * MathLib.exp(-1 * int256(auction.k * elapsed))) / D18;
         if (p < auction.prices.end) {
             p = auction.prices.end;
         }
