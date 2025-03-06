@@ -280,10 +280,10 @@ contract Folio is
         return _toAssets(shares, rounding);
     }
 
-    /// @dev Use allowances to set slippage limits
+    /// @dev Use allowances to set slippage limits for provided assets
     /// @dev Minting has 3 share-portions: (i) receiver shares, (ii) DAO fee shares, (iii) fee recipients shares
-    /// @param shares {share} Amount of shares to redeem
-    /// @param minSharesOut {share} Minimum amount of shares the caller must receive
+    /// @param shares {share} Amount of shares to mint
+    /// @param minSharesOut {share} Minimum amount of shares the caller must receive after fees
     /// @return _assets
     /// @return _amounts {tok}
     function mint(
