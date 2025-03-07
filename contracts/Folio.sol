@@ -33,7 +33,7 @@ uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
-uint256 constant RESTRICTED_AUCTION_BUFFER = 60; // {s} 1 min
+uint256 constant RESTRICTED_AUCTION_BUFFER = 120; // {s} 2 min
 
 uint256 constant ONE_OVER_YEAR = 31709791983; // D18{1/s} 1e18 / 31536000
 
