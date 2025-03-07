@@ -538,7 +538,7 @@ contract Folio is
             sellLimit: sellLimit,
             buyLimit: buyLimit,
             prices: Prices(0, 0),
-            freelyAvailableAt: block.timestamp + auctionDelay,
+            restrictedUntil: block.timestamp + auctionDelay,
             launchDeadline: block.timestamp + ttl,
             startTime: 0,
             endTime: 0,
@@ -604,7 +604,7 @@ contract Folio is
         AuctionDetails storage details = auctionDetails[auctionId];
 
         // only open auctions that are unrestricted
-        require(block.timestamp >= auction.freelyAvailableAt, Folio__AuctionCannotBeOpenedWithoutRestriction());
+        require(block.timestamp >= auction.restrictedUntil, Folio__AuctionCannotBeOpenedWithoutRestriction());
 
         auction.prices = details.initialPrices;
         // more price checks in _openAuction()
