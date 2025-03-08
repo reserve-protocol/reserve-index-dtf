@@ -901,6 +901,7 @@ contract Folio is
         require(total == D18, Folio__BadFeeTotal());
     }
 
+    /// @dev Overrules RESTRICTED_AUCTION_BUFFER on first auction run
     /// @param _newDelay {s}
     function _setAuctionDelay(uint256 _newDelay) internal {
         require(_newDelay <= MAX_AUCTION_DELAY, Folio__InvalidAuctionDelay());
