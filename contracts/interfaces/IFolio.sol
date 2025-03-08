@@ -128,7 +128,7 @@ interface IFolio {
     struct AuctionDetails {
         Prices initialPrices; // D27{buyTok/sellTok} initially approved prices
         uint256 availableRuns; // {runs} remaining number of runs
-        uint256 minDustAmount; // {sellTok} amount of sellTok below which we consider dust
+        uint256 dustAmount; // {sellTok} amount of sellTok below which we consider dust
     }
 
     function distributeFees() external;

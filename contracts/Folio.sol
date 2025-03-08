@@ -45,31 +45,40 @@ uint256 constant D27 = 1e27; // D27
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  * @notice Folio is a backed ERC20 token with permissionless minting/redemption and rebalancing via dutch auction
  *
- * There are 3 main roles:
- *   1. DEFAULT_ADMIN_ROLE: can add/remove erc20 assets, set fees, auction length, auction delay, and close auctions
- *   2. AUCTION_APPROVER: can approve auctions
- *   3. AUCTION_LAUNCHER: can open auctions, optionally providing some amount of additional detail
+ * A Folio is backed by a flexible number of ERC20 tokens of any denomination/price (within assumed ranges, see README)
+ * All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
  *
- * Permissionless execution is available after a delay if the AUCTION_LAUNCHER is not online or the Folio is configured
- * without an AUCTION_LAUNCHER.
+ * There are 3 main roles:
+ *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, auction delay, close auctions, and killFolio
+ *   2. AUCTION_APPROVER: can approve auctions and close auctions
+ *   3. AUCTION_LAUNCHER: can open auctions optionally providing some amount of additional detail, and close auctions
+ *
+ * There is also an additional BRAND_MANAGER role that does not have any permissions. It is used off-chain.
  *
  * Auction lifecycle:
  *   approveAuction() -> openAuction() -> bid() -> [optional] closeAuction()
  *
- * Auctions will attempt to close themselves once the sell token's balance reaches the sellLimit. However, they can
- * also be closed by *any* of the 3 roles, if it is discovered one of the exchange rates has been set incorrectly.
+ * After an auction is first approved there is an `auctionDelay` before it can be opened by anyone. This provides
+ * an isolated period of time where the AUCTION_LAUNCHER can open the auction, optionally providing additional pricing
+ * and basket information within the pre-approved ranges.
  *
- * A Folio is backed by aa flexible number of ERC20 tokens of any denomination/price (within assumed ranges, see README)
- * All tokens tracked by the Folio are required to issue/redeem. This forms the basket.
+ * However, sometimes an auction may not fill. As long as it is before the `auction.launchDeadline` the auction can be
+ * re-launched, up to the remaining number of `auction.availableRuns`. Between re-runs of the same auction, an
+ * additional RESTRICTED_AUCTION_BUFFER (120s) is applied to give the AUCTION_LAUNCHER time to act first.
  *
- * Rebalancing targets are defined in terms of basket ratios: ratio of token to the Folio share, units D27{tok/share}.
+ * An approved auction cannot block another approved auction from being opened. If an auction has been approved, then
+ * it can be executed in parallel with any of the other approved auctions. Two auctions conflict on approval
+ * if they share opposing tokens: if the sell token in one auction equals the buy token in the other.
+ *
+ * Rebalancing targets for auctions are defined in basket ratios: ratios of token to Folio shares, units D27{tok/share}
  *
  * Fees:
- *   - TVL fee: fee per unit time
- *   - Mint fee: fee on mint
+ *   - TVL fee: fee per unit time. Max 10% annually
+ *   - Mint fee: fee on mint. Max 5%
  *
- * After both fees have been applied, the DAO takes a cut based on the configuration of the FolioDAOFeeRegistry.
- * The remaining portion is distributed to the Folio's fee recipients.
+ * After fees have been applied, the DAO takes a cut based on the configuration of the FolioDAOFeeRegistry including
+ * a minimum fee floor of 15bps. The remaining portion above 15bps is distributed to the Folio's fee recipients.
+ * Note that this means it is possible for the fee recipients to receive nothing despite configuring a nonzero fee.
  */
 contract Folio is
     IFolio,
@@ -114,20 +123,21 @@ contract Folio is
     uint256 public lastPoke; // {s}
     uint256 public daoPendingFeeShares; // {share} shares pending to be distributed ONLY to the DAO
     uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
-    bool public isKilled; // {bool} If true, Folio goes into redemption-only mode
+    bool public isKilled; // {bool} if true, Folio goes into redemption-only mode
 
     /**
      * Rebalancing
-     *   APPROVED -> OPEN -> CLOSED
-     *   - Approved auctions have a delay before they can be opened, that AUCTION_LAUNCHER can bypass
-     *   - Multiple auctions can be open at once, though a token cannot be bought and sold simultaneously
+     *   APPROVED -> OPEN -> REOPENED N times (optional) -> CLOSED
+     *   - Approved auctions have a `auctionDelay` before they can be opened that AUCTION_LAUNCHER can bypass
+     *   - Approved auctions can always be opened together without conflict
+     *   - Auctions can re-opened based on their `availableRuns` property
      *   - Multiple bids can be executed against the same auction
-     *   - All auctions are dutch auctions with the same price curve, but it's possible to pass startPrice = endPrice
+     *   - All auctions are dutch auctions with an exponential decay curve, but startPrice can equal endPrice
      */
     Auction[] public auctions;
     mapping(address => uint256) public sellEnds; // {s} timestamp of last possible second we could sell the token
     mapping(address => uint256) public buyEnds; // {s} timestamp of last possible second we could buy the token
-    uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be opened unrestricted
+    uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be opened by anyone
     uint256 public auctionLength; // {s} length of an auction
 
     // === 2.0.0 ===
@@ -224,7 +234,7 @@ contract Folio is
         _setFeeRecipients(_newRecipients);
     }
 
-    /// @param _newDelay {s} Delay after a auction has been approved before it can be opened unrestricted
+    /// @param _newDelay {s} Delay after a auction has been approved before it can be opened by anyone
     function setAuctionDelay(uint256 _newDelay) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         _setAuctionDelay(_newDelay);
     }
@@ -234,12 +244,13 @@ contract Folio is
         _setAuctionLength(_newLength);
     }
 
+    /// @param _newMandate New mandate, a schelling point to guide governance
     function setMandate(string calldata _newMandate) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setMandate(_newMandate);
     }
 
     /// Kill the Folio, callable only by the admin
-    /// @dev Folio cannot be issued and auctions cannot be approved, opened, or bid on
+    /// @dev Folio cannot be minted and auctions cannot be approved, opened, or bid on
     function killFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
         isKilled = true;
 
@@ -483,9 +494,10 @@ contract Folio is
     /// @param prices D27{buyTok/sellTok} Price range
     /// @param ttl {s} How long a auction can exist in an APPROVED state until it can no longer be OPENED
     ///     (once opened, it always finishes).
-    ///     Must be longer than auctionDelay if intended to be openly available.
+    ///     Must be >= auctionDelay if intended to be openly available
+    ///     Set < auctionDelay to restrict launching to the AUCTION_LAUNCHER
     /// @param runs {runs} How many times the auction can be opened before it is permanently closed
-    /// @param dustAmount {buyTok} amount of buyTok below which we consider dust and remove it from the basket
+    /// @param dustAmount {sellTok} Amount of sell token below which we consider dust and remove from basket
     function approveAuction(
         IERC20 sell,
         IERC20 buy,
@@ -528,8 +540,11 @@ contract Folio is
             Folio__AuctionCollision()
         );
 
-        sellEnds[address(sell)] = Math.max(sellEnds[address(sell)], block.timestamp + ttl);
-        buyEnds[address(buy)] = Math.max(buyEnds[address(buy)], block.timestamp + ttl);
+        // {s}
+        uint256 launchDeadline = block.timestamp + ttl;
+
+        sellEnds[address(sell)] = Math.max(sellEnds[address(sell)], launchDeadline);
+        buyEnds[address(buy)] = Math.max(buyEnds[address(buy)], launchDeadline);
 
         Auction memory auction = Auction({
             id: auctions.length,
@@ -539,7 +554,7 @@ contract Folio is
             buyLimit: buyLimit,
             prices: Prices(0, 0),
             restrictedUntil: block.timestamp + auctionDelay,
-            launchDeadline: block.timestamp + ttl,
+            launchDeadline: launchDeadline,
             startTime: 0,
             endTime: 0,
             k: 0
@@ -549,7 +564,7 @@ contract Folio is
         AuctionDetails memory details = AuctionDetails({
             initialPrices: prices,
             availableRuns: runs,
-            minDustAmount: dustAmount
+            dustAmount: dustAmount
         });
         auctionDetails[auction.id] = details;
 
@@ -598,7 +613,7 @@ contract Folio is
     }
 
     /// Open an auction without restrictions
-    /// @dev Permissionless, callable only after the auction delay
+    /// @dev Unrestricted, callable only after the `auctionDelay`
     function openAuctionUnrestricted(uint256 auctionId) external nonReentrant {
         Auction storage auction = auctions[auctionId];
         AuctionDetails storage details = auctionDetails[auctionId];
@@ -615,7 +630,7 @@ contract Folio is
     /// Bid in an ongoing auction
     ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
     ///   If withCallback is false, caller must have provided an allowance in advance
-    /// @dev Permissionless
+    /// @dev Callable by anyone
     /// @param sellAmount {sellTok} Sell token, the token the bidder receives
     /// @param maxBuyAmount {buyTok} Max buy token, the token the bidder provides
     /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
@@ -658,9 +673,9 @@ contract Folio is
 
         emit AuctionBid(auctionId, sellAmount, boughtAmt);
 
-        // QoL: remove token from basket if zero balance
-        // This cannot be relied on strongly. In most cases a small dust balance will be leftover
-        if (auction.sellToken.balanceOf(address(this)) <= auctionDetails[auctionId].minDustAmount) {
+        // QoL: remove token from basket if below the `dustAmount`
+        // This cannot be relied on strongly. Griefers can choose to leave a balance in slight excess
+        if (auction.sellToken.balanceOf(address(this)) <= auctionDetails[auctionId].dustAmount) {
             _removeFromBasket(address(auction.sellToken));
         }
 
@@ -684,12 +699,12 @@ contract Folio is
 
     /// Close an auction
     /// A auction can be closed from anywhere in its lifecycle, and cannot be restarted
-    /// @dev Callable by AUCTION_APPROVER or AUCTION_LAUNCHER or ADMIN
+    /// @dev Callable by ADMIN or AUCTION_APPROVER or AUCTION_LAUNCHER
     function closeAuction(uint256 auctionId) external nonReentrant {
         require(
-            hasRole(AUCTION_APPROVER, msg.sender) ||
-                hasRole(AUCTION_LAUNCHER, msg.sender) ||
-                hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
+                hasRole(AUCTION_APPROVER, msg.sender) ||
+                hasRole(AUCTION_LAUNCHER, msg.sender),
             Folio__Unauthorized()
         );
 
@@ -723,7 +738,7 @@ contract Folio is
         }
     }
 
-    /// @param buffer {s} Additional time buffer that must pass before auction can be opened
+    /// @param buffer {s} Additional time buffer that must pass from `endTime` before auction can be opened
     function _openAuction(Auction storage auction, AuctionDetails storage details, uint256 buffer) internal {
         require(!isKilled, Folio__FolioKilled());
 
@@ -733,14 +748,11 @@ contract Folio is
         // do not open auctions that have timed out from ttl
         require(block.timestamp <= auction.launchDeadline, Folio__AuctionTimeout());
 
-        sellEnds[address(auction.sellToken)] = Math.max(
-            sellEnds[address(auction.sellToken)],
-            block.timestamp + auctionLength
-        );
-        buyEnds[address(auction.buyToken)] = Math.max(
-            buyEnds[address(auction.buyToken)],
-            block.timestamp + auctionLength
-        );
+        // {s}
+        uint256 endTime = block.timestamp + auctionLength;
+
+        sellEnds[address(auction.sellToken)] = Math.max(sellEnds[address(auction.sellToken)], endTime);
+        buyEnds[address(auction.buyToken)] = Math.max(buyEnds[address(auction.buyToken)], endTime);
 
         // ensure valid price range (startPrice == endPrice is valid)
         require(
@@ -758,7 +770,7 @@ contract Folio is
         }
 
         auction.startTime = block.timestamp;
-        auction.endTime = block.timestamp + auctionLength;
+        auction.endTime = endTime;
 
         emit AuctionOpened(auction.id, auction);
 

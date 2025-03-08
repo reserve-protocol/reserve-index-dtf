@@ -1012,7 +1012,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
 
         uint256 amt = D6_TOKEN_10K;
@@ -1070,7 +1070,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
 
         vm.prank(dao);
@@ -1135,7 +1135,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
@@ -1189,7 +1189,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
 
         uint256 amt = D6_TOKEN_10K;
@@ -1255,7 +1255,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
         uint256 amt = D27_TOKEN_1;
         vm.prank(dao);
@@ -1293,7 +1293,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
@@ -1351,7 +1351,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
@@ -1409,7 +1409,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
@@ -1477,7 +1477,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -1560,7 +1560,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: origPrices,
             availableRuns: 3, // 3 runs
-            minDustAmount: 0
+            dustAmount: 0
         });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -1912,7 +1912,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
@@ -1949,7 +1949,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
@@ -1988,7 +1988,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
@@ -2102,7 +2102,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -2175,7 +2175,7 @@ contract FolioTest is BaseTest {
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: ZERO_PRICES,
             availableRuns: 1,
-            minDustAmount: 0
+            dustAmount: 0
         });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
