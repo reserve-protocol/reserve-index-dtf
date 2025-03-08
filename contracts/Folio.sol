@@ -16,7 +16,6 @@ import { COWSWAP_GPV2_SETTLEMENT } from "@utils/GPv2OrderLib.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
-import { FolioLib } from "@utils/FolioLib.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IFolioSwapperRegistry } from "@interfaces/IFolioSwapperRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
@@ -499,7 +498,7 @@ contract Folio is
 
     /// @return D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
     function getPrice(uint256 auctionId, uint256 timestamp) external view returns (uint256) {
-        return FolioLib.price(auctions[auctionId], timestamp);
+        return _price(auctions[auctionId], timestamp);
     }
 
     /// Get the bid amount required to purchase the sell amount
@@ -510,7 +509,10 @@ contract Folio is
         uint256 timestamp,
         uint256 sellAmount
     ) external view returns (uint256 bidAmount) {
-        bidAmount = FolioLib.getBid(auctions[auctionId], timestamp, totalSupply(), sellAmount, type(uint256).max);
+        uint256 price = _price(auctions[auctionId], timestamp);
+
+        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
+        bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
     }
 
     /// Approve an auction to run
@@ -670,15 +672,15 @@ contract Folio is
         _closeSwap();
 
         // checks auction is ongoing and sellAmount and buyAmount are valid
-        FolioLib.getBid(auction, block.timestamp, totalSupply(), sellAmount, buyAmount);
+        _bid(auction, totalSupply(), block.timestamp, sellAmount, buyAmount);
 
         // create swap
         bytes32 swapDeploymentSalt = keccak256(
             abi.encode(msg.sender, auctionId, sellAmount, buyAmount, deploymentSalt)
         );
         swap = swapper.createSwap(swapDeploymentSalt);
-        auction.sell.forceApprove(address(swap), sellAmount);
-        swap.initialize(address(this), auction.sell, auction.buy, sellAmount, buyAmount);
+        auction.sellToken.forceApprove(address(swap), sellAmount);
+        swap.initialize(address(this), auction.sellToken, auction.buyToken, sellAmount, buyAmount);
         activeSwap = swap;
     }
 
@@ -703,17 +705,9 @@ contract Folio is
 
         Auction storage auction = auctions[auctionId];
         uint256 _totalSupply = totalSupply();
-        uint256 sellBal = auction.sellToken.balanceOf(address(this));
 
-        // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
-        uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
-
-        // ensure auction is large enough to cover bid
-        require(sellAmount <= sellAvailable, Folio__InsufficientBalance());
-
-        // put buy token in basket
-        _addToBasket(address(auction.buyToken));
+        // checks auction is ongoing and that sellAmount/maxBuyAmount are valid/met
+        boughtAmt = _bid(auction, _totalSupply, block.timestamp, sellAmount, maxBuyAmount);
 
         // pay bidder
         auction.sellToken.safeTransfer(msg.sender, sellAmount);
@@ -806,19 +800,7 @@ contract Folio is
         // do not open auctions that have timed out from ttl
         require(block.timestamp <= auction.launchDeadline, Folio__AuctionTimeout());
 
-        bytes32 pairHash = keccak256(abi.encode(address(auction.sell), address(auction.buy)));
-        uint256 auctionId = ~auctionIds[pairHash]; // stored as bit inverse
-
-        // ensure no conflicting auctions
-        // no opposing trades or parallel auctions for the same pair
-        // necessary to prevent dutch auctions from taking losses
-        require(
-            block.timestamp > sellEnds[address(auction.buy)] &&
-                block.timestamp > buyEnds[address(auction.sell)] &&
-                (auctionId == type(uint256).max || block.timestamp > auctions[auctionId].end),
-            Folio__AuctionCollision()
-        );
-
+        bytes32 pairHash = keccak256(abi.encode(address(auction.sellToken), address(auction.buyToken)));
         auctionIds[pairHash] = ~auction.id; // store as bit inverse to distinguish id 0 from unset
 
         // {s}
@@ -846,7 +828,7 @@ contract Folio is
         auction.endTime = endTime;
 
         // ensure buy token is in basket since swaps can happen out-of-band
-        _addToBasket(address(auction.buy));
+        _addToBasket(address(auction.buyToken));
         emit AuctionOpened(auction.id, auction);
 
         // D18{1}
@@ -875,6 +857,33 @@ contract Folio is
         if (p < auction.prices.end) {
             p = auction.prices.end;
         }
+    }
+
+    /// @dev Check auction is ongoing and that sellAmount/maxBuyAmount are valid/met
+    /// @return bidAmount {buyTok} The buy amount corresponding to the sell amount
+    function _bid(
+        Auction storage auction,
+        uint256 _totalSupply,
+        uint256 timestamp,
+        uint256 sellAmount,
+        uint256 maxBuyAmount
+    ) internal view returns (uint256 bidAmount) {
+        // checks auction is ongoing
+        // D27{buyTok/sellTok}
+        uint256 price = _price(auction, timestamp);
+
+        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
+        bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
+        require(bidAmount <= maxBuyAmount && bidAmount != 0, Folio__SlippageExceeded());
+
+        uint256 sellBal = auction.sellToken.balanceOf(address(this));
+
+        // {sellTok} = D27{sellTok/share} * {share} / D27
+        uint256 minSellBal = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
+
+        // ensure auction is large enough to cover bid
+        require(sellAmount <= sellAvailable && sellAmount != 0, Folio__InsufficientBalance());
     }
 
     /// @return _daoPendingFeeShares {share}
