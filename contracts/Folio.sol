@@ -12,11 +12,15 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import { UD60x18, powu } from "@prb/math/src/UD60x18.sol";
 
+import { COWSWAP_GPV2_SETTLEMENT } from "@utils/GPv2OrderLib.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
+import { IFolioSwapperRegistry } from "@interfaces/IFolioSwapperRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
+import { ISwapper } from "@interfaces/ISwapper.sol";
+import { ISwap } from "@interfaces/ISwap.sol";
 
 /// Optional bidder interface for callback
 interface IBidderCallee {
@@ -71,6 +75,10 @@ uint256 constant D27 = 1e27; // D27
  * if they share opposing tokens: if the sell token in one auction equals the buy token in the other.
  *
  * Rebalancing targets for auctions are defined in basket ratios: ratios of token to Folio shares, units D27{tok/share}
+ *
+ * Auction bids can peformed either directly against the Folio or in a swap via `openSwap()`, if `swapper` is set.
+ * This deploys a new contract that holds the balance being swapped, that the Folio can retrieve at anytime.
+ * Before that point, a cowswap order might be received by the Swap contract, which can be validated via EIP-1271.
  *
  * Fees:
  *   - TVL fee: fee per unit time. Max 10% annually
@@ -135,13 +143,16 @@ contract Folio is
      *   - All auctions are dutch auctions with an exponential decay curve, but startPrice can equal endPrice
      */
     Auction[] public auctions;
-    mapping(address => uint256) public sellEnds; // {s} timestamp of last possible second we could sell the token
-    mapping(address => uint256) public buyEnds; // {s} timestamp of last possible second we could buy the token
+    mapping(address token => uint256 ts) public sellEnds; // {s} timestamp of last possible second we could sell the token
+    mapping(address token => uint256 ts) public buyEnds; // {s} timestamp of last possible second we could buy the token
     uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be opened by anyone
     uint256 public auctionLength; // {s} length of an auction
 
     // === 2.0.0 ===
     mapping(uint256 auctionId => AuctionDetails) public auctionDetails;
+
+    IFolioSwapperRegistry public swapperRegistry;
+    ISwap public activeSwap;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -152,7 +163,8 @@ contract Folio is
         FolioBasicDetails calldata _basicDetails,
         FolioAdditionalDetails calldata _additionalDetails,
         address _creator,
-        address _daoFeeRegistry
+        address _daoFeeRegistry,
+        address _swapperRegistry
     ) external initializer {
         __ERC20_init(_basicDetails.name, _basicDetails.symbol);
         __AccessControlEnumerable_init();
@@ -165,8 +177,10 @@ contract Folio is
         _setAuctionDelay(_additionalDetails.auctionDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
+        _setSwapperRegistry(IFolioSwapperRegistry(_swapperRegistry));
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
+        swapperRegistry = IFolioSwapperRegistry(_swapperRegistry);
 
         require(_basicDetails.initialShares != 0, Folio__ZeroInitialShares());
 
@@ -249,6 +263,11 @@ contract Folio is
         _setMandate(_newMandate);
     }
 
+    /// @param _newSwapperRegistry New SwapperRegistry to use; set to zero to disable swaps
+    function setSwapperRegistry(IFolioSwapperRegistry _newSwapperRegistry) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setSwapperRegistry(_newSwapperRegistry);
+    }
+
     /// Kill the Folio, callable only by the admin
     /// @dev Folio cannot be minted and auctions cannot be approved, opened, or bid on
     function killFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -282,6 +301,10 @@ contract Folio is
         _amounts = new uint256[](assetLength);
         for (uint256 i; i < assetLength; i++) {
             _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
+
+            if (activeSwap != ISwap(address(0))) {
+                _amounts[i] += IERC20(_assets[i]).balanceOf(address(activeSwap));
+            }
         }
     }
 
@@ -354,7 +377,7 @@ contract Folio is
     }
 
     /// @param shares {share} Amount of shares to redeem
-    /// @param assets Assets to receive, must match basket exactly
+    /// @param assets Assets to receive, must match basket exactly. DO NOT pass empty array
     /// @param minAmountsOut {tok} Minimum amounts of each asset to receive
     /// @return _amounts {tok} Actual amounts transferred of each asset
     function redeem(
@@ -431,7 +454,7 @@ contract Folio is
         daoPendingFeeShares = 0;
     }
 
-    // ==== Rebalancing ====
+    // ==== Auctions ====
 
     function nextAuctionId() external view returns (uint256) {
         return auctions.length;
@@ -629,6 +652,32 @@ contract Folio is
         _openAuction(auction, details, RESTRICTED_AUCTION_BUFFER);
     }
 
+    /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
+    function openSwap(
+        uint256 auctionId,
+        uint256 sellAmount,
+        uint256 buyAmount,
+        bytes32 deploymentSalt
+    ) external nonReentrant returns (ISwap swap) {
+        require(!isKilled, Folio__FolioKilled());
+        require(address(swapperRegistry) != address(0), Folio__SwapperRegistryUnset());
+
+        Auction storage auction = auctions[auctionId];
+        _closeSwap();
+
+        // checks auction is ongoing and sellAmount and buyAmount are valid
+        _getBid(auction, totalSupply(), block.timestamp, sellAmount, buyAmount);
+
+        // create swap
+        bytes32 swapDeploymentSalt = keccak256(
+            abi.encode(msg.sender, auctionId, sellAmount, buyAmount, deploymentSalt)
+        );
+        swap = swapperRegistry.getLatestSwapper().createSwap(swapDeploymentSalt);
+        auction.sellToken.forceApprove(address(swap), sellAmount);
+        swap.initialize(address(this), auction.sellToken, auction.buyToken, sellAmount, buyAmount);
+        activeSwap = swap;
+    }
+
     /// Bid in an ongoing auction
     ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
     ///   If withCallback is false, caller must have provided an allowance in advance
@@ -646,29 +695,13 @@ contract Folio is
         bytes calldata data
     ) external nonReentrant returns (uint256 boughtAmt) {
         require(!isKilled, Folio__FolioKilled());
+        _closeSwap();
+
         Auction storage auction = auctions[auctionId];
-
-        // checks auction is ongoing
-        // D27{buyTok/sellTok}
-        uint256 price = _price(auction, block.timestamp);
-
-        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
-        boughtAmt = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
-        require(boughtAmt <= maxBuyAmount, Folio__SlippageExceeded());
-
-        // totalSupply inflates over time due to TVL fee, causing buyLimits/sellLimits to be slightly stale
         uint256 _totalSupply = totalSupply();
-        uint256 sellBal = auction.sellToken.balanceOf(address(this));
 
-        // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
-        uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
-
-        // ensure auction is large enough to cover bid
-        require(sellAmount <= sellAvailable, Folio__InsufficientBalance());
-
-        // put buy token in basket
-        _addToBasket(address(auction.buyToken));
+        // checks auction is ongoing and that sellAmount/maxBuyAmount are valid/met
+        boughtAmt = _getBid(auction, _totalSupply, block.timestamp, sellAmount, maxBuyAmount);
 
         // pay bidder
         auction.sellToken.safeTransfer(msg.sender, sellAmount);
@@ -734,9 +767,20 @@ contract Folio is
         _amounts = new uint256[](len);
         for (uint256 i; i < len; i++) {
             uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
+            if (activeSwap != ISwap(address(0))) {
+                assetBal += IERC20(_assets[i]).balanceOf(address(activeSwap));
+            }
 
             // {tok} = {share} * {tok} / {share}
             _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
+        }
+    }
+
+    /// Claim all token balances from outstanding swap
+    function _closeSwap() internal {
+        if (address(activeSwap) != address(0)) {
+            activeSwap.close();
+            delete activeSwap;
         }
     }
 
@@ -774,6 +818,8 @@ contract Folio is
         auction.startTime = block.timestamp;
         auction.endTime = endTime;
 
+        // ensure buy token is in basket since swaps can happen out-of-band
+        _addToBasket(address(auction.buyToken));
         emit AuctionOpened(auction.id, auction);
 
         // D18{1}
@@ -802,6 +848,33 @@ contract Folio is
         if (p < auction.prices.end) {
             p = auction.prices.end;
         }
+    }
+
+    /// @dev Check auction is ongoing and that sellAmount/maxBuyAmount are valid/met
+    /// @return bidAmount {buyTok} The buy amount corresponding to the sell amount
+    function _getBid(
+        Auction storage auction,
+        uint256 _totalSupply,
+        uint256 timestamp,
+        uint256 sellAmount,
+        uint256 maxBuyAmount
+    ) internal view returns (uint256 bidAmount) {
+        // checks auction is ongoing
+        // D27{buyTok/sellTok}
+        uint256 price = _price(auction, timestamp);
+
+        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
+        bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
+        require(bidAmount <= maxBuyAmount && bidAmount != 0, Folio__SlippageExceeded());
+
+        uint256 sellBal = auction.sellToken.balanceOf(address(this));
+
+        // {sellTok} = D27{sellTok/share} * {share} / D27
+        uint256 minSellBal = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
+
+        // ensure auction is large enough to cover bid
+        require(sellAmount <= sellAvailable && sellAmount != 0, Folio__InsufficientBalance());
     }
 
     /// @return _daoPendingFeeShares {share}
@@ -920,13 +993,20 @@ contract Folio is
         emit AuctionLengthSet(auctionLength);
     }
 
-    function _setMandate(string memory _newMandate) internal {
+    function _setMandate(string calldata _newMandate) internal {
         mandate = _newMandate;
         emit MandateSet(_newMandate);
     }
 
+    function _setSwapperRegistry(IFolioSwapperRegistry _newSwapperRegistry) internal {
+        swapperRegistry = _newSwapperRegistry;
+        emit SwapperRegistrySet(address(_newSwapperRegistry));
+    }
+
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
     function _poke() internal {
+        _closeSwap();
+
         if (lastPoke == block.timestamp) {
             return;
         }
