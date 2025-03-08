@@ -274,6 +274,8 @@ contract Folio is
     /// @return _assets
     /// @return _amounts {tok}
     function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
+        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
+
         _assets = basket.values();
 
         uint256 assetLength = _assets.length;
