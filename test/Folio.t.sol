@@ -1535,6 +1535,36 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt, amt, false, bytes(""));
     }
 
+    function test_auctionBidRemovesTokenFromBasketBelowDustAmount() public {
+        // should not remove token from basket above dust amount
+
+        uint256 amt = D6_TOKEN_10K;
+        vm.prank(dao);
+        folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 1);
+
+        vm.prank(auctionLauncher);
+        folio.openAuction(0, 0, MAX_RATE, 1e39, 1e39);
+
+        vm.startPrank(user1);
+        DAI.approve(address(folio), amt * 1e12);
+        folio.bid(0, amt - 2, (amt - 2) * 1e12, false, bytes(""));
+
+        (address[] memory tripleBasket, ) = folio.folio();
+        assertEq(tripleBasket.length, 3);
+        assertEq(tripleBasket[0], address(USDC));
+        assertEq(tripleBasket[1], address(DAI));
+        assertEq(tripleBasket[2], address(MEME));
+
+        // should remove token from basket at dust amount or below
+
+        folio.bid(0, 1, 1e12, false, bytes(""));
+
+        (address[] memory doubleBasket, ) = folio.folio();
+        assertEq(doubleBasket.length, 2);
+        assertEq(doubleBasket[0], address(MEME)); // order reverses after removal
+        assertEq(doubleBasket[1], address(DAI));
+    }
+
     function test_auctionCannotBeCreatedWithZeroRuns() public {
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidAuctionRuns.selector);
