@@ -5,6 +5,6 @@ import { Folio } from "@src/Folio.sol";
 
 contract FolioV2 is Folio {
     function version() public pure override returns (string memory) {
-        return "2.0.0";
+        return "10.0.0";
     }
 }

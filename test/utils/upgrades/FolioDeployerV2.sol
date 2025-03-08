@@ -15,6 +15,6 @@ contract FolioDeployerV2 is FolioDeployer {
     }
 
     function version() public pure override returns (string memory) {
-        return "2.0.0";
+        return "10.0.0";
     }
 }

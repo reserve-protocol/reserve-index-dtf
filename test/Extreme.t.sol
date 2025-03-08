@@ -152,7 +152,7 @@ contract ExtremeTest is BaseExtremeTest {
         // mint folio
         uint256 mintAmount = p.amount * 1e18;
         vm.startSnapshotGas(mintGasTag);
-        folio.mint(mintAmount, user1);
+        folio.mint(mintAmount, user1, 0);
         vm.stopSnapshotGas(mintGasTag);
         vm.stopPrank();
 
@@ -233,7 +233,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // approveAuction
         vm.prank(dao);
-        folio.approveAuction(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL);
+        folio.approveAuction(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1, 0);
 
         // openAuction
         vm.prank(auctionLauncher);

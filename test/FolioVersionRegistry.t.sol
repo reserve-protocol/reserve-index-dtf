@@ -27,19 +27,19 @@ contract FolioVersionRegistryTest is BaseTest {
         (bytes32 versionHash, string memory version, IFolioDeployer regfolioDeployer, bool deprecated) = versionRegistry
             .getLatestVersion();
 
-        assertEq(versionHash, keccak256("1.0.0"));
-        assertEq(version, "1.0.0");
+        assertEq(versionHash, keccak256("2.0.0"));
+        assertEq(version, "2.0.0");
         assertEq(address(regfolioDeployer), address(folioDeployer));
         assertEq(deprecated, false);
     }
 
     function test_getImplementationForVersion() public {
-        address impl = versionRegistry.getImplementationForVersion(keccak256("1.0.0"));
+        address impl = versionRegistry.getImplementationForVersion(keccak256("2.0.0"));
         assertEq(impl, folioDeployer.folioImplementation());
 
         // reverts if version is not registered
         vm.expectRevert();
-        versionRegistry.getImplementationForVersion(keccak256("2.0.0"));
+        versionRegistry.getImplementationForVersion(keccak256("10.0.0"));
     }
 
     function test_registerVersion() public {
@@ -51,18 +51,18 @@ contract FolioVersionRegistryTest is BaseTest {
             governanceDeployer
         );
         vm.expectEmit(true, true, false, true);
-        emit IFolioVersionRegistry.VersionRegistered(keccak256("2.0.0"), newFactoryV2);
+        emit IFolioVersionRegistry.VersionRegistered(keccak256("10.0.0"), newFactoryV2);
         versionRegistry.registerVersion(newFactoryV2);
 
         // get implementation for new version
-        address impl = versionRegistry.getImplementationForVersion(keccak256("2.0.0"));
+        address impl = versionRegistry.getImplementationForVersion(keccak256("10.0.0"));
         assertEq(impl, newFactoryV2.folioImplementation());
 
         // Retrieves the latest version
         (bytes32 versionHash, string memory version, IFolioDeployer regfolioDeployer, bool deprecated) = versionRegistry
             .getLatestVersion();
-        assertEq(versionHash, keccak256("2.0.0"));
-        assertEq(version, "2.0.0");
+        assertEq(versionHash, keccak256("10.0.0"));
+        assertEq(version, "10.0.0");
         assertEq(address(regfolioDeployer), address(newFactoryV2));
         assertEq(deprecated, false);
     }
@@ -105,44 +105,44 @@ contract FolioVersionRegistryTest is BaseTest {
         // get latest version
         (bytes32 versionHash, string memory version, IFolioDeployer regfolioDeployer, bool deprecated) = versionRegistry
             .getLatestVersion();
-        assertEq(versionHash, keccak256("1.0.0"));
-        assertEq(version, "1.0.0");
+        assertEq(versionHash, keccak256("2.0.0"));
+        assertEq(version, "2.0.0");
         assertEq(address(regfolioDeployer), address(folioDeployer));
         assertEq(deprecated, false);
 
         // deprecate version
         vm.expectEmit(true, false, false, true);
-        emit IFolioVersionRegistry.VersionDeprecated(keccak256("1.0.0"));
-        versionRegistry.deprecateVersion(keccak256("1.0.0"));
+        emit IFolioVersionRegistry.VersionDeprecated(keccak256("2.0.0"));
+        versionRegistry.deprecateVersion(keccak256("2.0.0"));
 
         // now its deprecated
         (versionHash, version, regfolioDeployer, deprecated) = versionRegistry.getLatestVersion();
-        assertEq(versionHash, keccak256("1.0.0"));
-        assertEq(version, "1.0.0");
+        assertEq(versionHash, keccak256("2.0.0"));
+        assertEq(version, "2.0.0");
         assertEq(address(regfolioDeployer), address(folioDeployer));
         assertEq(deprecated, true);
     }
 
     function test_cannotDeprecateVersionAlreadyDeprecated() public {
         // deprecate version
-        versionRegistry.deprecateVersion(keccak256("1.0.0"));
+        versionRegistry.deprecateVersion(keccak256("2.0.0"));
 
         // now its deprecated
         (bytes32 versionHash, string memory version, IFolioDeployer regfolioDeployer, bool deprecated) = versionRegistry
             .getLatestVersion();
-        assertEq(versionHash, keccak256("1.0.0"));
-        assertEq(version, "1.0.0");
+        assertEq(versionHash, keccak256("2.0.0"));
+        assertEq(version, "2.0.0");
         assertEq(address(regfolioDeployer), address(folioDeployer));
         assertEq(deprecated, true);
 
         // attempt to deprecate version again
         vm.expectRevert(abi.encodeWithSelector(IFolioVersionRegistry.VersionRegistry__AlreadyDeprecated.selector));
-        versionRegistry.deprecateVersion(keccak256("1.0.0"));
+        versionRegistry.deprecateVersion(keccak256("2.0.0"));
     }
 
     function test_cannotDeprecateVersionIfNotOwner() public {
         vm.prank(user1);
         vm.expectRevert(IFolioVersionRegistry.VersionRegistry__InvalidCaller.selector);
-        versionRegistry.deprecateVersion(keccak256("1.0.0"));
+        versionRegistry.deprecateVersion(keccak256("2.0.0"));
     }
 }

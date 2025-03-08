@@ -8,7 +8,13 @@ import { ISwapper } from "./ISwapper.sol";
 interface IFolio {
     // === Events ===
 
-    event AuctionApproved(uint256 indexed auctionId, address indexed from, address indexed to, Auction auction);
+    event AuctionApproved(
+        uint256 indexed auctionId,
+        address indexed from,
+        address indexed to,
+        Auction auction,
+        AuctionDetails details
+    );
     event AuctionOpened(uint256 indexed auctionId, Auction auction);
     event AuctionBid(uint256 indexed auctionId, uint256 sellAmount, uint256 buyAmount);
     event AuctionClosed(uint256 indexed auctionId);
@@ -49,8 +55,8 @@ interface IFolio {
     error Folio__InvalidAuctionLength();
     error Folio__InvalidSellLimit();
     error Folio__InvalidBuyLimit();
-    error Folio__AuctionCannotBeOpened();
-    error Folio__AuctionCannotBeOpenedPermissionlesslyYet();
+    error Folio__AuctionCannotBeOpenedYet();
+    error Folio__AuctionCannotBeOpenedWithoutRestriction();
     error Folio__AuctionNotOngoing();
     error Folio__AuctionCollision();
     error Folio__InvalidPrices();
@@ -58,6 +64,7 @@ interface IFolio {
     error Folio__SlippageExceeded();
     error Folio__InsufficientBalance();
     error Folio__InsufficientBid();
+    error Folio__InsufficientSharesOut();
     error Folio__ExcessiveBid();
     error Folio__InvalidAuctionTokens();
     error Folio__InvalidAuctionDelay();
@@ -67,6 +74,7 @@ interface IFolio {
     error Folio__SwapperDeprecated();
     error Folio__SwapperRegistryUnset();
     error Folio__SwapperUnset();
+    error Folio__InvalidAuctionRuns();
 
     // === Structures ===
 
@@ -109,17 +117,24 @@ interface IFolio {
     ///   - CLOSED: block.timestamp > end
     struct Auction {
         uint256 id;
-        IERC20 sell;
-        IERC20 buy;
+        IERC20 sellToken;
+        IERC20 buyToken;
         BasketRange sellLimit; // D27{sellTok/share} min ratio of sell token in the basket, inclusive
         BasketRange buyLimit; // D27{buyTok/share} max ratio of buy token in the basket, exclusive
         Prices prices; // D27{buyTok/sellTok}
-        uint256 availableAt; // {s} inclusive
-        uint256 launchTimeout; // {s} inclusive
-        uint256 start; // {s} inclusive
-        uint256 end; // {s} inclusive
-        // === Gas optimization ===
+        uint256 restrictedUntil; // {s} inclusive
+        uint256 launchDeadline; // {s} inclusive
+        uint256 startTime; // {s} inclusive
+        uint256 endTime; // {s} inclusive
+        // === Gas Optimization ===
         uint256 k; // D18{1} price = startPrice * e ^ -kt
+    }
+
+    /// Added in 2.0.0
+    struct AuctionDetails {
+        Prices initialPrices; // D27{buyTok/sellTok} initially approved prices
+        uint256 availableRuns; // {runs} remaining number of runs
+        uint256 dustAmount; // {sellTok} amount of sellTok below which we consider dust
     }
 
     function distributeFees() external;
