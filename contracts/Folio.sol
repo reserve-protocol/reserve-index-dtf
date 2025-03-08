@@ -151,9 +151,6 @@ contract Folio is
     // === 2.0.0 ===
     mapping(uint256 auctionId => AuctionDetails) public auctionDetails;
 
-    // hash of (sell, buy) pair => auctionId, stored as a bit-inverse to distinguish id 0 from unset
-    mapping(bytes32 pairHash => uint256 bitInverseAuctionId) internal auctionIds;
-
     IFolioSwapperRegistry public swapperRegistry;
     ISwapper public swapper;
     ISwap public activeSwap;
@@ -664,15 +661,17 @@ contract Folio is
         bytes32 deploymentSalt
     ) external nonReentrant returns (ISwap swap) {
         require(!isKilled, Folio__FolioKilled());
-        require(address(swapper) != address(0), Folio__SwapperUnset());
         require(address(swapperRegistry) != address(0), Folio__SwapperRegistryUnset());
-        require(!swapperRegistry.isDeprecated(address(swapper)), Folio__SwapperDeprecated());
+        require(
+            address(swapper) != address(0) && !swapperRegistry.isDeprecated(address(swapper)),
+            Folio__SwapperInvalid()
+        );
 
         Auction storage auction = auctions[auctionId];
         _closeSwap();
 
         // checks auction is ongoing and sellAmount and buyAmount are valid
-        _bid(auction, totalSupply(), block.timestamp, sellAmount, buyAmount);
+        _getBid(auction, totalSupply(), block.timestamp, sellAmount, buyAmount);
 
         // create swap
         bytes32 swapDeploymentSalt = keccak256(
@@ -707,7 +706,7 @@ contract Folio is
         uint256 _totalSupply = totalSupply();
 
         // checks auction is ongoing and that sellAmount/maxBuyAmount are valid/met
-        boughtAmt = _bid(auction, _totalSupply, block.timestamp, sellAmount, maxBuyAmount);
+        boughtAmt = _getBid(auction, _totalSupply, block.timestamp, sellAmount, maxBuyAmount);
 
         // pay bidder
         auction.sellToken.safeTransfer(msg.sender, sellAmount);
@@ -786,7 +785,7 @@ contract Folio is
     function _closeSwap() internal {
         if (address(activeSwap) != address(0)) {
             activeSwap.close();
-            activeSwap = ISwap(address(0));
+            delete activeSwap;
         }
     }
 
@@ -799,9 +798,6 @@ contract Folio is
 
         // do not open auctions that have timed out from ttl
         require(block.timestamp <= auction.launchDeadline, Folio__AuctionTimeout());
-
-        bytes32 pairHash = keccak256(abi.encode(address(auction.sellToken), address(auction.buyToken)));
-        auctionIds[pairHash] = ~auction.id; // store as bit inverse to distinguish id 0 from unset
 
         // {s}
         uint256 endTime = block.timestamp + auctionLength;
@@ -861,7 +857,7 @@ contract Folio is
 
     /// @dev Check auction is ongoing and that sellAmount/maxBuyAmount are valid/met
     /// @return bidAmount {buyTok} The buy amount corresponding to the sell amount
-    function _bid(
+    function _getBid(
         Auction storage auction,
         uint256 _totalSupply,
         uint256 timestamp,

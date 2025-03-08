@@ -71,9 +71,8 @@ interface IFolio {
     error Folio__InvalidAuctionTTL();
     error Folio__TooManyFeeRecipients();
     error Folio__InvalidArrayLengths();
-    error Folio__SwapperDeprecated();
     error Folio__SwapperRegistryUnset();
-    error Folio__SwapperUnset();
+    error Folio__SwapperInvalid();
     error Folio__InvalidAuctionRuns();
 
     // === Structures ===
