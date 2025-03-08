@@ -30,8 +30,8 @@ interface IFolio {
     event AuctionDelaySet(uint256 newAuctionDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
     event MandateSet(string newMandate);
-    event SwapperSet(address newSwapper);
     event FolioKilled();
+    event SwapperRegistrySet(address newSwapperRegistry);
 
     // === Errors ===
 
@@ -72,7 +72,6 @@ interface IFolio {
     error Folio__TooManyFeeRecipients();
     error Folio__InvalidArrayLengths();
     error Folio__SwapperRegistryUnset();
-    error Folio__SwapperInvalid();
     error Folio__InvalidAuctionRuns();
 
     // === Structures ===

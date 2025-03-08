@@ -152,7 +152,6 @@ contract Folio is
     mapping(uint256 auctionId => AuctionDetails) public auctionDetails;
 
     IFolioSwapperRegistry public swapperRegistry;
-    ISwapper public swapper;
     ISwap public activeSwap;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -178,7 +177,7 @@ contract Folio is
         _setAuctionDelay(_additionalDetails.auctionDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
-        _setSwapper(IFolioSwapperRegistry(_swapperRegistry).getLatestSwapper());
+        _setSwapperRegistry(IFolioSwapperRegistry(_swapperRegistry));
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
         swapperRegistry = IFolioSwapperRegistry(_swapperRegistry);
@@ -264,9 +263,9 @@ contract Folio is
         _setMandate(_newMandate);
     }
 
-    /// @param _newSwapper New Swapper to use; set to zero to disable swaps
-    function setSwapper(ISwapper _newSwapper) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setSwapper(_newSwapper);
+    /// @param _newSwapperRegistry New SwapperRegistry to use; set to zero to disable swaps
+    function setSwapperRegistry(IFolioSwapperRegistry _newSwapperRegistry) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setSwapperRegistry(_newSwapperRegistry);
     }
 
     /// Kill the Folio, callable only by the admin
@@ -662,10 +661,6 @@ contract Folio is
     ) external nonReentrant returns (ISwap swap) {
         require(!isKilled, Folio__FolioKilled());
         require(address(swapperRegistry) != address(0), Folio__SwapperRegistryUnset());
-        require(
-            address(swapper) != address(0) && !swapperRegistry.isDeprecated(address(swapper)),
-            Folio__SwapperInvalid()
-        );
 
         Auction storage auction = auctions[auctionId];
         _closeSwap();
@@ -677,7 +672,7 @@ contract Folio is
         bytes32 swapDeploymentSalt = keccak256(
             abi.encode(msg.sender, auctionId, sellAmount, buyAmount, deploymentSalt)
         );
-        swap = swapper.createSwap(swapDeploymentSalt);
+        swap = swapperRegistry.getLatestSwapper().createSwap(swapDeploymentSalt);
         auction.sellToken.forceApprove(address(swap), sellAmount);
         swap.initialize(address(this), auction.sellToken, auction.buyToken, sellAmount, buyAmount);
         activeSwap = swap;
@@ -1003,9 +998,9 @@ contract Folio is
         emit MandateSet(_newMandate);
     }
 
-    function _setSwapper(ISwapper _newSwapper) internal {
-        swapper = _newSwapper;
-        emit SwapperSet(address(_newSwapper));
+    function _setSwapperRegistry(IFolioSwapperRegistry _newSwapperRegistry) internal {
+        swapperRegistry = _newSwapperRegistry;
+        emit SwapperRegistrySet(address(_newSwapperRegistry));
     }
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
