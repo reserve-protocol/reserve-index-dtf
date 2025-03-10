@@ -233,7 +233,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         // approveAuction
         vm.prank(dao);
-        folio.approveAuction(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1, 0);
+        folio.approveAuction(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1);
 
         // openAuction
         vm.prank(auctionLauncher);

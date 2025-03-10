@@ -577,7 +577,19 @@ contract FolioTest is BaseTest {
         assertEq(_assets[1], address(DAI), "wrong second asset");
         assertEq(_assets[2], address(MEME), "wrong third asset");
 
+        // D27{tok/share} = {tok} * D27 / {share}
+        uint256 dustLimit = (MEME.balanceOf(address(folio)) * 1e27) / folio.totalSupply();
+
+        // should not be able to remove from basket when balance is above dust limit
+
         vm.startPrank(owner);
+        folio.setDustLimit(address(USDT), dustLimit); // set for wrong token, deliberately
+        vm.expectRevert(IFolio.Folio__BalanceNotDust.selector);
+        folio.removeFromBasket(MEME);
+
+        // should be able to remove after dust limit is reached
+
+        folio.setDustLimit(address(MEME), dustLimit);
         vm.expectEmit(true, true, false, true);
         emit IFolio.BasketTokenRemoved(address(MEME));
         folio.removeFromBasket(MEME);
@@ -1009,17 +1021,13 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
 
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
@@ -1067,16 +1075,12 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
 
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
@@ -1132,16 +1136,12 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
@@ -1186,17 +1186,13 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
 
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
@@ -1252,16 +1248,12 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
         uint256 amt = D27_TOKEN_1;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(MEME), address(USDT), auctionStruct, details);
-        folio.approveAuction(MEME, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(MEME, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
@@ -1290,16 +1282,12 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
@@ -1348,16 +1336,12 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
@@ -1406,16 +1390,12 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
@@ -1449,7 +1429,7 @@ contract FolioTest is BaseTest {
     function test_auctionAboveMaxTTL() public {
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidAuctionTTL.selector);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL + 1, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL + 1, 1);
     }
 
     function test_auctionNotOpenableUntilApproved() public {
@@ -1474,15 +1454,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
@@ -1497,7 +1473,7 @@ contract FolioTest is BaseTest {
 
     function test_auctionNotLaunchableAfterTimeout() public {
         vm.prank(dao);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_AUCTION_DELAY, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_AUCTION_DELAY, 1);
 
         // should not be openable after launchDeadline
 
@@ -1511,7 +1487,7 @@ contract FolioTest is BaseTest {
     function test_auctionNotAvailableBeforeOpen() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         // auction should not be biddable before openAuction
 
@@ -1522,7 +1498,7 @@ contract FolioTest is BaseTest {
     function test_auctionNotAvailableAfterEnd() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
@@ -1535,12 +1511,16 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt, amt, false, bytes(""));
     }
 
-    function test_auctionBidRemovesTokenFromBasketBelowDustAmount() public {
+    function test_auctionBidRemovesTokenFromBasketBelowDustLimit() public {
         // should not remove token from basket above dust amount
 
         uint256 amt = D6_TOKEN_10K;
+        uint256 dustLimit = 1e27 / folio.totalSupply();
+        vm.prank(owner);
+        folio.setDustLimit(address(USDC), dustLimit);
+
         vm.prank(dao);
-        folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 1);
+        folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         folio.openAuction(0, 0, MAX_RATE, 1e39, 1e39);
@@ -1568,7 +1548,7 @@ contract FolioTest is BaseTest {
     function test_auctionCannotBeCreatedWithZeroRuns() public {
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidAuctionRuns.selector);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 0, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 0);
     }
 
     function test_auctionMultipleRuns() public {
@@ -1589,13 +1569,12 @@ contract FolioTest is BaseTest {
         });
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: origPrices,
-            availableRuns: 3, // 3 runs
-            dustAmount: 0
+            availableRuns: 3 // 3 runs
         });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, origPrices, MAX_TTL, 3, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, origPrices, MAX_TTL, 3);
 
         uint256 sellLimit = 1e18;
         uint256 buyLimit = 1e21;
@@ -1604,7 +1583,7 @@ contract FolioTest is BaseTest {
 
         folio.openAuction(0, sellLimit, buyLimit, 1e27, 1e27);
         (, , , , , IFolio.Prices memory prices, , , , uint256 end, ) = folio.auctions(0);
-        (, uint256 runs, ) = folio.auctionDetails(0);
+        (, uint256 runs) = folio.auctionDetails(0);
         assertEq(prices.start, 1e27, "wrong start price 1");
         assertEq(prices.end, 1e27, "wrong end price 1");
         assertEq(runs, 2, "wrong runs 1");
@@ -1622,7 +1601,7 @@ contract FolioTest is BaseTest {
         IFolio.BasketRange memory sellLimits;
         IFolio.BasketRange memory buyLimits;
         (, , , sellLimits, buyLimits, prices, , , , end, ) = folio.auctions(0);
-        (, runs, ) = folio.auctionDetails(0);
+        (, runs) = folio.auctionDetails(0);
         assertEq(prices.start, 1e29, "wrong start price 2");
         assertEq(prices.end, 1e27, "wrong end price 2");
         assertEq(runs, 1, "wrong runs 2");
@@ -1645,7 +1624,7 @@ contract FolioTest is BaseTest {
         uint256 sellLimitBefore = sellLimits.spot;
         uint256 buyLimitBefore = buyLimits.spot;
         (, , , sellLimits, buyLimits, prices, , , , end, ) = folio.auctions(0);
-        (, runs, ) = folio.auctionDetails(0);
+        (, runs) = folio.auctionDetails(0);
         assertEq(sellLimits.spot, sellLimitBefore, "wrong sell limit");
         assertEq(buyLimits.spot, buyLimitBefore, "wrong buy limit");
         assertEq(prices.start, origPrices.start, "wrong orig start price");
@@ -1663,7 +1642,7 @@ contract FolioTest is BaseTest {
 
     function test_auctionOnlyAuctionLauncherCanBypassDelay() public {
         vm.startPrank(dao);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(1, 1), MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(1, 1), MAX_TTL, 1);
 
         // dao should not be able to open auction because not auctionLauncher
 
@@ -1689,7 +1668,7 @@ contract FolioTest is BaseTest {
 
     function test_permissionlessAuctionNotAvailableForZeroPricedAuctions() public {
         vm.startPrank(dao);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(1e27, 1e27), MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(1e27, 1e27), MAX_TTL, 1);
 
         // dao should not be able to open auction because not auctionLauncher
 
@@ -1716,7 +1695,7 @@ contract FolioTest is BaseTest {
     function test_auctionDishonestCallback() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27); // 1x
@@ -1732,12 +1711,12 @@ contract FolioTest is BaseTest {
 
     function test_cannotApproveConflictingAuctions() public {
         vm.startPrank(dao);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
         vm.expectRevert(IFolio.Folio__AuctionCollision.selector);
-        folio.approveAuction(DAI, USDC, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(DAI, USDC, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
         vm.expectRevert(IFolio.Folio__AuctionCollision.selector);
-        folio.approveAuction(USDT, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
-        folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDT, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
+        folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
     }
 
     function test_parallelAuctionsOnBuyToken() public {
@@ -1746,9 +1725,9 @@ contract FolioTest is BaseTest {
         uint256 amt1 = USDC.balanceOf(address(folio));
         uint256 amt2 = DAI.balanceOf(address(folio));
         vm.prank(dao);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
         vm.prank(dao);
-        folio.approveAuction(DAI, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(DAI, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
@@ -1785,8 +1764,8 @@ contract FolioTest is BaseTest {
 
     function test_parallelAuctionsOnSellToken() public {
         vm.startPrank(dao);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
-        folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
+        folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.startPrank(auctionLauncher);
         folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);
@@ -1798,7 +1777,7 @@ contract FolioTest is BaseTest {
             uint256 index = folio.nextAuctionId();
 
             vm.prank(dao);
-            folio.approveAuction(MEME, USDC, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+            folio.approveAuction(MEME, USDC, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
             // should not revert at top or bottom end
             vm.prank(auctionLauncher);
@@ -1813,7 +1792,7 @@ contract FolioTest is BaseTest {
 
     function test_priceCalculationGasCost() public {
         vm.prank(dao);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
@@ -1939,16 +1918,12 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
@@ -1976,16 +1951,12 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
@@ -2015,16 +1986,12 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
@@ -2041,11 +2008,11 @@ contract FolioTest is BaseTest {
     function test_auctionCannotApproveAuctionWithInvalidTokens() public {
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidAuctionTokens.selector);
-        folio.approveAuction(IERC20(address(0)), USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(IERC20(address(0)), USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidAuctionTokens.selector);
-        folio.approveAuction(USDC, IERC20(address(0)), FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, IERC20(address(0)), FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
     }
 
     function test_auctionCannotApproveAuctionWithInvalidSellLimit() public {
@@ -2053,23 +2020,23 @@ contract FolioTest is BaseTest {
 
         vm.startPrank(dao);
         vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
-        folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         sellLimit = IFolio.BasketRange(0, 1, 1);
         vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
-        folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         sellLimit = IFolio.BasketRange(MAX_RATE + 1, MAX_RATE, MAX_RATE);
         vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
-        folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         sellLimit = IFolio.BasketRange(MAX_RATE, MAX_RATE + 1, MAX_RATE);
         vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
-        folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         sellLimit = IFolio.BasketRange(MAX_RATE, MAX_RATE, MAX_RATE + 1);
         vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
-        folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
     }
 
     function test_auctionCannotApproveAuctionWithInvalidBuyLimit() public {
@@ -2077,33 +2044,33 @@ contract FolioTest is BaseTest {
 
         vm.startPrank(dao);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
-        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1);
 
         buyLimit = IFolio.BasketRange(0, 0, 0);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
-        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1);
 
         buyLimit = IFolio.BasketRange(1, 0, 0);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
-        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1);
 
         buyLimit = IFolio.BasketRange(1, 1, 0);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
-        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1);
 
         buyLimit = IFolio.BasketRange(MAX_RATE, MAX_RATE + 1, MAX_RATE);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
-        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1);
 
         buyLimit = IFolio.BasketRange(MAX_RATE, MAX_RATE, MAX_RATE + 1);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
-        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, ZERO_PRICES, MAX_TTL, 1);
     }
 
     function test_auctionCannotApproveAuctionWithInvalidPrices() public {
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 1), MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 1), MAX_TTL, 1);
     }
 
     function test_auctionCannotApproveAuctionIfFolioKilled() public {
@@ -2112,7 +2079,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__FolioKilled.selector);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 1), MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 1), MAX_TTL, 1);
     }
 
     function test_auctionCannotOpenAuctionWithInvalidPrices() public {
@@ -2129,15 +2096,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(1e27, 1e27), MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(1e27, 1e27), MAX_TTL, 1);
 
         //  Revert if tried to open (smaller start price)
         vm.prank(auctionLauncher);
@@ -2163,7 +2126,7 @@ contract FolioTest is BaseTest {
     function test_auctionCannotOpenAuctionWithInvalidSellLimit() public {
         IFolio.BasketRange memory sellLimit = IFolio.BasketRange(1, 1, MAX_RATE - 1);
         vm.prank(dao);
-        folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, sellLimit, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__InvalidSellLimit.selector);
@@ -2177,7 +2140,7 @@ contract FolioTest is BaseTest {
     function test_auctionCannotOpenAuctionWithInvalidBuyLimit() public {
         IFolio.BasketRange memory buyLimit = IFolio.BasketRange(1, 1, MAX_RATE - 1);
         vm.prank(dao);
-        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, IFolio.Prices(0, 0), MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, buyLimit, IFolio.Prices(0, 0), MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__InvalidBuyLimit.selector);
@@ -2202,15 +2165,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
-            initialPrices: ZERO_PRICES,
-            availableRuns: 1,
-            dustAmount: 0
-        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
 
         //  Revert if tried to open with zero price
         vm.prank(auctionLauncher);
@@ -2220,7 +2179,7 @@ contract FolioTest is BaseTest {
 
     function test_auctionCannotOpenAuctionIfFolioKilled() public {
         vm.prank(dao);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1);
 
         vm.prank(owner);
         folio.killFolio();
@@ -2232,7 +2191,7 @@ contract FolioTest is BaseTest {
 
     function test_auctionCannotBidIfFolioKilled() public {
         vm.prank(dao);
-        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1, 0);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1);
 
         vm.prank(auctionLauncher);
         folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);

@@ -27,6 +27,7 @@ interface IFolio {
     event FeeRecipientsSet(FeeRecipient[] recipients);
     event AuctionDelaySet(uint256 newAuctionDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
+    event DustLimitSet(address token, uint256 newDustLimit);
     event MandateSet(string newMandate);
     event FolioKilled();
 
@@ -37,6 +38,7 @@ interface IFolio {
 
     error Folio__EmptyAssets();
     error Folio__BasketModificationFailed();
+    error Folio__BalanceNotDust();
 
     error Folio__FeeRecipientInvalidAddress();
     error Folio__FeeRecipientInvalidFeeShare();
@@ -128,7 +130,6 @@ interface IFolio {
     struct AuctionDetails {
         Prices initialPrices; // D27{buyTok/sellTok} initially approved prices
         uint256 availableRuns; // {runs} remaining number of runs
-        uint256 dustAmount; // {sellTok} amount of sellTok below which we consider dust
     }
 
     function distributeFees() external;
