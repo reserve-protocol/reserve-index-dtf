@@ -1031,7 +1031,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
-        emit IFolio.AuctionOpened(0, auctionStruct);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);
 
         // bid once at start time
@@ -1084,7 +1084,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
-        emit IFolio.AuctionOpened(0, auctionStruct);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);
 
         // bid once at start time
@@ -1145,7 +1145,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
-        emit IFolio.AuctionOpened(0, auctionStruct);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         // bid once at start time
@@ -1196,7 +1196,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
-        emit IFolio.AuctionOpened(0, auctionStruct);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         // bid once at start time
@@ -1257,7 +1257,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
-        emit IFolio.AuctionOpened(0, auctionStruct);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, MAX_RATE, 1e5, 1);
 
         // should have right bid at start, middle, and end of auction
@@ -1291,7 +1291,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
-        emit IFolio.AuctionOpened(0, auctionStruct);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         // closeAuction should not be callable by just anyone
@@ -1345,7 +1345,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
-        emit IFolio.AuctionOpened(0, auctionStruct);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         // closeAuction should not be callable by just anyone
@@ -1399,7 +1399,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
-        emit IFolio.AuctionOpened(0, auctionStruct);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
         vm.startPrank(owner);
@@ -1462,7 +1462,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
-        emit IFolio.AuctionOpened(0, auctionStruct);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);
 
         // Revert if tried to reopen
@@ -1927,7 +1927,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
-        emit IFolio.AuctionOpened(0, auctionStruct);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);
 
         // bid once at start time
@@ -1960,7 +1960,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
-        emit IFolio.AuctionOpened(0, auctionStruct);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);
 
         // bid once at start time
@@ -1995,7 +1995,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
-        emit IFolio.AuctionOpened(0, auctionStruct);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, 1, 1e18, 1e18);
 
         // bid once (excessive bid)

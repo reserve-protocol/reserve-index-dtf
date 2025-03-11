@@ -792,7 +792,7 @@ contract Folio is
         auction.startTime = block.timestamp;
         auction.endTime = endTime;
 
-        emit AuctionOpened(auction.id, auction);
+        emit AuctionOpened(auction.id, auction, details.availableRuns);
 
         // D18{1}
         // k = ln(P_0 / P_t) / t

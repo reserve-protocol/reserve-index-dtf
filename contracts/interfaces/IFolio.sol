@@ -13,7 +13,7 @@ interface IFolio {
         Auction auction,
         AuctionDetails details
     );
-    event AuctionOpened(uint256 indexed auctionId, Auction auction);
+    event AuctionOpened(uint256 indexed auctionId, Auction auction, uint256 runsRemaining);
     event AuctionBid(uint256 indexed auctionId, uint256 sellAmount, uint256 buyAmount);
     event AuctionClosed(uint256 indexed auctionId);
 
