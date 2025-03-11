@@ -679,6 +679,9 @@ contract Folio is
         // ensure auction is large enough to cover bid
         require(sellAmount <= sellAvailable, Folio__InsufficientBalance());
 
+        // put buy token in basket
+        _addToBasket(address(auction.buyToken));
+
         // pay bidder
         auction.sellToken.safeTransfer(msg.sender, sellAmount);
 
@@ -711,14 +714,6 @@ contract Folio is
 
         // ensure post-bid buy balance does not exceed max
         require(auction.buyToken.balanceOf(address(this)) <= maxBuyBal, Folio__ExcessiveBid());
-
-        // D27{buyTok/share} = {buyTok} * D27 / {share}
-        uint256 buyTokenPresence = Math.mulDiv(auction.buyToken.balanceOf(address(this)), D27, _totalSupply);
-
-        // add buy token to basket once above dust limit
-        if (buyTokenPresence > dustLimits[address(auction.buyToken)]) {
-            _addToBasket(address(auction.buyToken));
-        }
     }
 
     /// Close an auction
