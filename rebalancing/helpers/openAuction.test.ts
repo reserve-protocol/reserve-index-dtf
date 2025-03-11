@@ -5,7 +5,7 @@ import { makeAuction } from "../utils";
 import { bn } from "../numbers";
 import { openAuction } from "./openAuction";
 
-const D18: bigint = BigInt(1e18);
+const D18: bigint = bn("1e18");
 
 const assertApproxEq = (a: bigint, b: bigint, precision: bigint) => {
   const delta = a > b ? a - b : b - a;
@@ -16,7 +16,7 @@ const assertApproxEq = (a: bigint, b: bigint, precision: bigint) => {
 const checkResult = (
   result: bigint[],
   expectedResult: bigint[],
-  precision: bigint = BigInt(1e15), // 0.1%
+  precision: bigint = bn("1e15"), // 0.1%
 ) => {
   expect(result.length).toBe(expectedResult.length);
   for (let i = 0; i < result.length; i++) {

@@ -1,6 +1,6 @@
 import { Decimal } from "decimal.js";
 
-import { D18d, D27d, ZERO, ONE, TWO } from "../numbers";
+import { bn, D18d, D27d, ZERO, ONE, TWO } from "../numbers";
 import { Auction } from "../types";
 
 /**
@@ -82,8 +82,8 @@ export const openAuction = (
   }
 
   // D27{buyTok/sellTok} = {buyTok/sellTok} / {1} * D27
-  const idealStartPrice = BigInt(price.div(ONE.minus(avgPriceError)).mul(D27d).toFixed(0));
-  const idealEndPrice = BigInt(price.mul(ONE.minus(avgPriceError)).mul(D27d).toFixed(0));
+  const idealStartPrice = bn(price.div(ONE.minus(avgPriceError)).mul(D27d));
+  const idealEndPrice = bn(price.mul(ONE.minus(avgPriceError)).mul(D27d));
 
   if (
     auction.prices.start > 0n &&
@@ -102,20 +102,18 @@ export const openAuction = (
   const wholeBuyLimit = targetBasket[y].mul(sharesValue).div(prices[y]).div(supply);
 
   // D27{tok/share} = {wholeTok/wholeShare} * D27 * {tok/wholeTok} / {share/wholeShare}
-  const sellLimit = BigInt(
+  const sellLimit = bn(
     wholeSellLimit
       .mul(D27d)
       .mul(new Decimal(`1e${decimals[x]}`))
-      .div(D18d)
-      .toFixed(0),
+      .div(D18d),
   );
 
-  const buyLimit = BigInt(
+  const buyLimit = bn(
     wholeBuyLimit
       .mul(D27d)
       .mul(new Decimal(`1e${decimals[y]}`))
-      .div(D18d)
-      .toFixed(0),
+      .div(D18d),
   );
 
   if (

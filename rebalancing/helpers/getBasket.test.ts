@@ -7,7 +7,7 @@ import { makeAuction } from "../utils";
 import { Auction } from "../types";
 import { getBasket } from "./getBasket";
 
-const D18: bigint = BigInt(1e18);
+const D18: bigint = bn("1e18");
 const precision: bigint = bn("1e15"); // should be pretty exact
 
 const assertApproxEq = (a: bigint, b: bigint, precision: bigint) => {
@@ -86,12 +86,12 @@ describe("getBasket()", () => {
 
       const tokens = ["USDC", "DAI", "WETH", "WBTC"];
       const decimals = [bn("6"), bn("18"), bn("18"), bn("8")];
-      const bals = tokens.map((_, i) => BigInt(Math.round(Math.random() * 1e36)));
+      const bals = tokens.map((_, i) => bn(Math.round(Math.random() * 1e36).toString()));
       const prices = tokens.map((_, i) => Math.round(Math.random() * 1e9));
       const currentBasket = getCurrentBasket(bals, decimals, prices);
       const sellIndex = Math.floor(Math.random() * tokens.length);
       const buyIndex = Math.floor(Math.random() * tokens.length);
-      let price = BigInt(Math.round((prices[sellIndex] * 1e27) / prices[buyIndex]));
+      let price = bn(Math.round((prices[sellIndex] * 1e27) / prices[buyIndex]).toString());
       price = (price * 10n ** decimals[buyIndex]) / 10n ** decimals[sellIndex];
 
       const startPrice = (price * 10n) / 9n;

@@ -1,6 +1,6 @@
 import { Decimal } from "decimal.js";
 
-import { D27d } from "../numbers";
+import { bn, D27d } from "../numbers";
 import { Auction } from "../types";
 
 /**
@@ -46,7 +46,7 @@ export const checkAuction = (auction: Auction, tokens: string[], decimals: bigin
   const price = wholePrice.mul(new Decimal(`1e${decimals[y]}`)).div(new Decimal(`1e${decimals[x]}`));
 
   // D27{buyTok/sellTok} = D27 * {buyTok/sellTok}
-  const priceD27 = BigInt(price.mul(D27d).toFixed(0));
+  const priceD27 = bn(price.mul(D27d));
 
   return priceD27 >= auction.prices.end && priceD27 <= auction.prices.start;
 };
