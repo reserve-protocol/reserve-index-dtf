@@ -206,9 +206,9 @@ contract Folio is
     /// @dev Enables removal of tokens if balance is below dust limit
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         // D27{tok/share} = {tok} * D27 / {share}
-        uint256 basketRatio = (IERC20(token).balanceOf(address(this)) * D27) / totalSupply();
+        uint256 basketPresence = (IERC20(token).balanceOf(address(this)) * D27) / totalSupply();
 
-        require(basketRatio <= dustLimits[address(token)], Folio__BalanceNotDust());
+        require(basketPresence <= dustLimits[address(token)], Folio__BalanceNotDust());
         require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
     }
 
@@ -653,13 +653,16 @@ contract Folio is
         require(!isKilled, Folio__FolioKilled());
         Auction storage auction = auctions[auctionId];
 
-        // checks auction is ongoing
-        // D27{buyTok/sellTok}
-        uint256 price = _price(auction, block.timestamp);
+        // stack-too-deep
+        {
+            // checks auction is ongoing
+            // D27{buyTok/sellTok}
+            uint256 price = _price(auction, block.timestamp);
 
-        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
-        boughtAmt = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
-        require(boughtAmt <= maxBuyAmount, Folio__SlippageExceeded());
+            // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
+            boughtAmt = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
+            require(boughtAmt <= maxBuyAmount, Folio__SlippageExceeded());
+        }
 
         // totalSupply inflates over time due to TVL fee, causing buyLimits/sellLimits to be slightly stale
         uint256 _totalSupply = totalSupply();
@@ -678,10 +681,13 @@ contract Folio is
         emit AuctionBid(auctionId, sellAmount, boughtAmt);
 
         // D27{sellTok/share} = {sellTok} * D27 / {share}
-        uint256 sellBasketRatio = Math.mulDiv(auction.sellToken.balanceOf(address(this)), D27, _totalSupply);
+        uint256 sellBasketPresence = Math.mulDiv(auction.sellToken.balanceOf(address(this)), D27, _totalSupply);
 
         // remove sell token from basket once below dust limit
-        if (sellBasketRatio <= dustLimits[address(auction.sellToken)]) {
+        if (sellBasketPresence <= dustLimits[address(auction.sellToken)]) {
+            auction.endTime = block.timestamp; // okay to allow more bids in this block if they come in
+            auctionDetails[auctionId].availableRuns = 0;
+
             _removeFromBasket(address(auction.sellToken));
         }
 
@@ -703,10 +709,10 @@ contract Folio is
         require(auction.buyToken.balanceOf(address(this)) <= maxBuyBal, Folio__ExcessiveBid());
 
         // D27{buyTok/share} = {buyTok} * D27 / {share}
-        uint256 buyTokenRatio = Math.mulDiv(auction.buyToken.balanceOf(address(this)), D27, _totalSupply);
+        uint256 buyTokenPresence = Math.mulDiv(auction.buyToken.balanceOf(address(this)), D27, _totalSupply);
 
         // add buy token to basket once above dust limit
-        if (buyTokenRatio > dustLimits[address(auction.buyToken)]) {
+        if (buyTokenPresence > dustLimits[address(auction.buyToken)]) {
             _addToBasket(address(auction.buyToken));
         }
     }
