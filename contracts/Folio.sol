@@ -206,7 +206,7 @@ contract Folio is
     /// @dev Enables removal of tokens if balance is below dust limit
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         // D27{tok/share} = {tok} * D27 / {share}
-        uint256 basketPresence = (IERC20(token).balanceOf(address(this)) * D27) / totalSupply();
+        uint256 basketPresence = Math.mulDiv(IERC20(token).balanceOf(address(this)), D27, totalSupply());
 
         require(basketPresence <= dustLimits[address(token)], Folio__BalanceNotDust());
         require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
@@ -214,7 +214,11 @@ contract Folio is
 
     /// @dev Set basket ratio at which tokens can be removed from basket
     /// @param newDustLimit D27{tok/share}
-    function setDustLimit(address token, uint256 newDustLimit) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setDustLimit(address token, uint256 newDustLimit) external {
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || hasRole(AUCTION_APPROVER, msg.sender),
+            Folio__Unauthorized()
+        );
         _setDustLimit(token, newDustLimit);
     }
 
@@ -683,9 +687,9 @@ contract Folio is
         // D27{sellTok/share} = {sellTok} * D27 / {share}
         uint256 sellBasketPresence = Math.mulDiv(auction.sellToken.balanceOf(address(this)), D27, _totalSupply);
 
-        // remove sell token from basket once below dust limit
+        // remove sell token from basket once below dust limit and end auction
         if (sellBasketPresence <= dustLimits[address(auction.sellToken)]) {
-            auction.endTime = block.timestamp; // okay to allow more bids in this block if they come in
+            auction.endTime = block.timestamp - 1;
             auctionDetails[auctionId].availableRuns = 0;
 
             _removeFromBasket(address(auction.sellToken));
