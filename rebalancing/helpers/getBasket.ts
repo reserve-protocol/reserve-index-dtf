@@ -1,7 +1,7 @@
 import { Decimal } from "decimal.js";
 
 import { Auction } from "../types";
-import { D18d, D27d, ZERO } from "../numbers";
+import { bn, D18d, D27d, ZERO } from "../numbers";
 
 /**
  * Get basket from a set of auctions
@@ -93,7 +93,7 @@ export const getBasket = (
     // check price is within price range
 
     // D27{buyTok/sellTok} = {USD/wholeSellTok} / {USD/wholeBuyTok} * D27 * {buyTok/wholeBuyTok} / {sellTok/wholeSellTok}
-    const price = (BigInt(prices[x].div(prices[y]).mul(D27d).toFixed(0)) * 10n ** decimals[y]) / 10n ** decimals[x];
+    const price = (bn(prices[x].div(prices[y]).mul(D27d)) * 10n ** decimals[y]) / 10n ** decimals[x];
     if (price > auctions[auctionIndex].prices.start || price < auctions[auctionIndex].prices.end) {
       throw new Error(
         `price ${price} out of range [${auctions[auctionIndex].prices.start}, ${auctions[auctionIndex].prices.end}]`,
@@ -114,5 +114,5 @@ export const getBasket = (
   }
 
   // D18{1} = {1} * D18
-  return currentBasket.map((a) => BigInt(a.mul(D18d).toFixed(0)));
+  return currentBasket.map((a) => bn(a.mul(D18d)));
 };
