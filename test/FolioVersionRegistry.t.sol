@@ -75,7 +75,8 @@ contract FolioVersionRegistryTest is BaseTest {
         // attempt to register new factory with same version
         FolioDeployer newFactory = new FolioDeployer(
             address(daoFeeRegistry),
-            address(versionRegistry),address(trustedFillerRegistry),
+            address(versionRegistry),
+            address(trustedFillerRegistry),
             governanceDeployer
         );
         vm.expectRevert(abi.encodeWithSelector(IFolioVersionRegistry.VersionRegistry__InvalidRegistration.selector));
@@ -85,7 +86,8 @@ contract FolioVersionRegistryTest is BaseTest {
     function test_cannotRegisterVersionIfNotOwner() public {
         FolioDeployer newFactoryV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
-            address(versionRegistry),address(trustedFillerRegistry),
+            address(versionRegistry),
+            address(trustedFillerRegistry),
             governanceDeployer
         );
 
