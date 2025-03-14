@@ -23,14 +23,21 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
     address public immutable versionRegistry;
     address public immutable daoFeeRegistry;
+    address public immutable trustedFillerRegistry;
 
     address public immutable folioImplementation;
 
     IGovernanceDeployer public immutable governanceDeployer;
 
-    constructor(address _daoFeeRegistry, address _versionRegistry, IGovernanceDeployer _governanceDeployer) {
+    constructor(
+        address _daoFeeRegistry,
+        address _versionRegistry,
+        address _trustedFillerRegistry,
+        IGovernanceDeployer _governanceDeployer
+    ) {
         daoFeeRegistry = _daoFeeRegistry;
         versionRegistry = _versionRegistry;
+        trustedFillerRegistry = _trustedFillerRegistry;
 
         folioImplementation = address(new Folio());
         governanceDeployer = _governanceDeployer;
@@ -74,7 +81,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             IERC20(basicDetails.assets[i]).safeTransferFrom(msg.sender, address(folio), basicDetails.amounts[i]);
         }
 
-        folio.initialize(basicDetails, additionalDetails, msg.sender, daoFeeRegistry);
+        folio.initialize(basicDetails, additionalDetails, msg.sender, daoFeeRegistry, trustedFillerRegistry);
 
         // Setup Roles
         folio.grantRole(folio.DEFAULT_ADMIN_ROLE(), owner);
