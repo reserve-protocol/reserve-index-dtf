@@ -129,7 +129,13 @@ contract FolioTest is BaseTest {
 
         // Attempt to initialize
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
-        newFolio.initialize(basicDetails, additionalDetails, address(this), address(daoFeeRegistry));
+        newFolio.initialize(
+            basicDetails,
+            additionalDetails,
+            address(this),
+            address(trustedFillerRegistry),
+            address(daoFeeRegistry)
+        );
     }
 
     function test_cannotCreateWithZeroInitialShares() public {
@@ -1808,6 +1814,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
+            address(trustedFillerRegistry),
             governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
@@ -1844,6 +1851,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
+            address(trustedFillerRegistry),
             governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
@@ -1868,6 +1876,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
+            address(trustedFillerRegistry),
             governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);
@@ -1890,6 +1899,7 @@ contract FolioTest is BaseTest {
         FolioDeployer newDeployerV2 = new FolioDeployerV2(
             address(daoFeeRegistry),
             address(versionRegistry),
+            address(trustedFillerRegistry),
             governanceDeployer
         );
         versionRegistry.registerVersion(newDeployerV2);

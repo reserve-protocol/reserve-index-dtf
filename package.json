@@ -7,7 +7,7 @@
     "@openzeppelin/contracts": "^5.1.0",
     "@openzeppelin/contracts-upgradeable": "^5.1.0",
     "@prb/math": "^4.1.0",
-    "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#93eb34db9f7588a15c2e410bba5ecf96eb1bc3a6",
+    "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#64b083a2731011fb2737b0e38620fe4ca3765fac",
     "forge-std": "github:foundry-rs/forge-std#v1.9.4"
   },
   "devDependencies": {
