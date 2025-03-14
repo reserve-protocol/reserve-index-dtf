@@ -11,7 +11,6 @@ import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/Saf
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/interfaces/ITrustedFillerRegistry.sol";
-import { UD60x18, powu } from "@prb/math/src/UD60x18.sol";
 
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
@@ -826,7 +825,7 @@ contract Folio is
 
         // D18{1}
         // k = ln(P_0 / P_t) / t
-        auction.k = UD60x18.wrap((auction.prices.start * D18) / auction.prices.end).ln().unwrap() / auctionLength;
+        auction.k = MathLib.ln((auction.prices.start * D18) / auction.prices.end) / auctionLength;
         // gas optimization to avoid recomputing k on every bid
     }
 
@@ -905,7 +904,7 @@ contract Folio is
         uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
-        uint256 feeShares = (supply * D18) / UD60x18.wrap(D18 - _tvlFee).powu(elapsed).unwrap() - supply;
+        uint256 feeShares = (supply * D18) / MathLib.powu(D18 - _tvlFee, elapsed) - supply;
 
         // D18{1} = D18{1/s} * D18 / D18{1/s}
         uint256 correction = (feeFloor * D18 + _tvlFee - 1) / _tvlFee;
