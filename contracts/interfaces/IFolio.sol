@@ -30,6 +30,7 @@ interface IFolio {
     event DustLimitSet(address token, uint256 newDustLimit);
     event MandateSet(string newMandate);
     event FolioKilled();
+    event TrustedFillerRegistrySet(address newRegistry);
 
     // === Errors ===
 
@@ -71,6 +72,9 @@ interface IFolio {
     error Folio__TooManyFeeRecipients();
     error Folio__InvalidArrayLengths();
     error Folio__InvalidAuctionRuns();
+
+    error Folio__TrustedFillerRegistryNotSet();
+    error Folio__TrustedFillerRegistryAlreadySet();
 
     // === Structures ===
 

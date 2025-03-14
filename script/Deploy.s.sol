@@ -30,6 +30,8 @@ contract DeployScript is Script {
         address feeRecipient;
         // Version Registry Stuff
         address folioVersionRegistry;
+        // Trusted Filler Stuff
+        address trustedFillerRegistry;
     }
 
     mapping(uint256 chainId => DeploymentParams) public deploymentParams;
@@ -40,7 +42,8 @@ contract DeployScript is Script {
                 roleRegistry: address(new MockRoleRegistry()), // Mock Registry for Local Networks
                 folioFeeRegistry: address(0),
                 feeRecipient: address(1), // Burn fees for Local Networks
-                folioVersionRegistry: address(0)
+                folioVersionRegistry: address(0),
+                trustedFillerRegistry: address(0)
             });
         }
 
@@ -49,7 +52,8 @@ contract DeployScript is Script {
             roleRegistry: 0xE1eC57C8EE970280f237863910B606059e9641C9,
             folioFeeRegistry: 0x0262E3e15cCFD2221b35D05909222f1f5FCdcd80,
             feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
-            folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB
+            folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
+            trustedFillerRegistry: address(0) // TODO
         });
 
         // Ethereum Mainnet - Canonical Parameters
@@ -57,7 +61,8 @@ contract DeployScript is Script {
             roleRegistry: 0xE1eC57C8EE970280f237863910B606059e9641C9,
             folioFeeRegistry: 0x0262E3e15cCFD2221b35D05909222f1f5FCdcd80,
             feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
-            folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB
+            folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
+            trustedFillerRegistry: address(0) // TODO
         });
     }
 
@@ -91,6 +96,7 @@ contract DeployScript is Script {
 
         console2.log("Folio Fee Registry: %s", address(deployParams.folioFeeRegistry));
         console2.log("Folio Version Registry: %s", address(deployParams.folioVersionRegistry));
+        console2.log("Trusted Filler Registry: %s", address(deployParams.trustedFillerRegistry));
 
         require(
             address(FolioDAOFeeRegistry(deployParams.folioFeeRegistry).roleRegistry()) == deployParams.roleRegistry,
@@ -109,8 +115,9 @@ contract DeployScript is Script {
     }
 
     function runFollowupDeployment(DeploymentParams memory deployParams) public {
-        require(address(deployParams.folioFeeRegistry) != address(0), "undefined dao fee registry");
-        require(address(deployParams.folioVersionRegistry) != address(0), "undefined version registry");
+        require(deployParams.folioFeeRegistry != address(0), "undefined dao fee registry");
+        require(deployParams.folioVersionRegistry != address(0), "undefined version registry");
+        // require(deployParams.trustedFillerRegistry != address(0), "undefined trusted filler registry"); // TODO: Uncomment when deployed
 
         vm.startBroadcast(privateKey);
 
@@ -119,8 +126,9 @@ contract DeployScript is Script {
 
         GovernanceDeployer governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
         FolioDeployer folioDeployer = new FolioDeployer(
-            address(deployParams.folioFeeRegistry),
-            address(deployParams.folioVersionRegistry),
+            deployParams.folioFeeRegistry,
+            deployParams.folioVersionRegistry,
+            deployParams.trustedFillerRegistry,
             governanceDeployer
         );
 
@@ -129,12 +137,10 @@ contract DeployScript is Script {
         console2.log("Governance Deployer: %s", address(governanceDeployer));
         console2.log("Folio Deployer: %s", address(folioDeployer));
 
-        require(folioDeployer.daoFeeRegistry() == address(deployParams.folioFeeRegistry), "wrong dao fee registry");
-        require(
-            folioDeployer.versionRegistry() == address(deployParams.folioVersionRegistry),
-            "wrong version registry"
-        );
+        require(folioDeployer.daoFeeRegistry() == deployParams.folioFeeRegistry, "wrong dao fee registry");
+        require(folioDeployer.versionRegistry() == deployParams.folioVersionRegistry, "wrong version registry");
         require(folioDeployer.governanceDeployer() == governanceDeployer, "wrong version registry");
+        require(folioDeployer.trustedFillerRegistry() == deployParams.trustedFillerRegistry, "wrong swapper registry");
         require(governanceDeployer.governorImplementation() == governorImplementation, "wrong governor implementation");
         require(governanceDeployer.timelockImplementation() == timelockImplementation, "wrong timelock implementation");
     }
