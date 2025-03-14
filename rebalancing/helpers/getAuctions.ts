@@ -1,7 +1,7 @@
 import { Decimal } from "decimal.js";
 
 import { Auction } from "../types";
-import { D18d, D27d, ONE, TWO, ZERO } from "../numbers";
+import { bn, D18d, D27d, ONE, TWO, ZERO } from "../numbers";
 import { makeAuction } from "../utils";
 
 /**
@@ -139,38 +139,34 @@ export const getAuctions = (
         tokens[x],
         tokens[y],
         // D27{tok/share} = {wholeTok/wholeShare} * D27 * {tok/wholeTok} / {share/wholeShare}
-        BigInt(
+        bn(
           sellLimit
             .mul(D27d)
             .mul(new Decimal(`1e${decimals[x]}`))
-            .div(D18d)
-            .toFixed(0),
+            .div(D18d),
         ),
         // D27{tok/share} = {wholeTok/wholeShare} * D27 * {tok/wholeTok} / {share/wholeShare}
-        BigInt(
+        bn(
           buyLimit
             .mul(D27d)
             .mul(new Decimal(`1e${decimals[y]}`))
-            .div(D18d)
-            .toFixed(0),
+            .div(D18d),
         ),
         // D27{buyTok/sellTok} = {USD/wholeSellTok} / {USD/wholeBuyTok} * D27 * {buyTok/wholeBuyTok} / {sellTok/wholeSellTok}
-        BigInt(
+        bn(
           startPrice
             .mul(D27d)
             .mul(new Decimal(`1e${decimals[y]}`))
-            .div(new Decimal(`1e${decimals[x]}`))
-            .toFixed(0),
+            .div(new Decimal(`1e${decimals[x]}`)),
         ),
         // D27{buyTok/sellTok} = {USD/wholeSellTok} / {USD/wholeBuyTok} * D27 * {buyTok/wholeBuyTok} / {sellTok/wholeSellTok}
-        BigInt(
+        bn(
           endPrice
             .mul(D27d)
             .mul(new Decimal(`1e${decimals[y]}`))
-            .div(new Decimal(`1e${decimals[x]}`))
-            .toFixed(0),
+            .div(new Decimal(`1e${decimals[x]}`)),
         ),
-        BigInt(avgPriceError.mul(D18d).toFixed(0)),
+        bn(avgPriceError.mul(D18d)),
       ),
     );
 

@@ -6,7 +6,7 @@ import { bn } from "../numbers";
 import { Auction } from "../types";
 import { getAuctions } from "./getAuctions";
 
-const D18: bigint = BigInt(1e18);
+const D18: bigint = bn("1e18");
 
 const assertApproxEq = (a: bigint, b: bigint, precision: bigint) => {
   const delta = a > b ? a - b : b - a;
@@ -22,7 +22,7 @@ const expectAuctionApprox = (
   buyLimit: bigint,
   startPrice: bigint,
   endPrice: bigint,
-  precision: bigint = BigInt(1e15), // 0.1%
+  precision: bigint = bn("1e15"), // 0.1%
 ) => {
   expect(auction.sell).toBe(sell);
   expect(auction.buy).toBe(buy);

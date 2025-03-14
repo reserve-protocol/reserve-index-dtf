@@ -137,7 +137,8 @@ contract Folio is
     uint256 public auctionLength; // {s} length of an auction
 
     // === 2.0.0 ===
-    mapping(uint256 auctionId => AuctionDetails) public auctionDetails;
+    mapping(uint256 auctionId => AuctionDetails details) public auctionDetails;
+    mapping(address token => uint256 dustLimit) public dustLimits; // D27{tok/share}
 
     ITrustedFillerRegistry public trustedFillerRegistry;
     IBaseTrustedFiller private activeTrustedFill;
@@ -203,9 +204,23 @@ contract Folio is
         require(_addToBasket(address(token)), Folio__BasketModificationFailed());
     }
 
-    /// @dev Enables removal of tokens with nonzero balance
-    function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    /// @dev Enables removal of tokens if balance is below dust limit
+    function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+        // D27{tok/share} = {tok} * D27 / {share}
+        uint256 basketPresence = Math.mulDiv(IERC20(token).balanceOf(address(this)), D27, totalSupply());
+
+        require(basketPresence <= dustLimits[address(token)], Folio__BalanceNotDust());
         require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
+    }
+
+    /// @dev Set basket ratio at which tokens can be removed from basket
+    /// @param newDustLimit D27{tok/share}
+    function setDustLimit(address token, uint256 newDustLimit) external {
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || hasRole(AUCTION_APPROVER, msg.sender),
+            Folio__Unauthorized()
+        );
+        _setDustLimit(token, newDustLimit);
     }
 
     /// An annual tvl fee below the DAO fee floor will result in the entirety of the fee being sent to the DAO
@@ -504,7 +519,6 @@ contract Folio is
     ///     Must be >= auctionDelay if intended to be openly available
     ///     Set < auctionDelay to restrict launching to the AUCTION_LAUNCHER
     /// @param runs {runs} How many times the auction can be opened before it is permanently closed
-    /// @param dustAmount {sellTok} Amount of sell token below which we consider dust and remove from basket
     function approveAuction(
         IERC20 sell,
         IERC20 buy,
@@ -512,8 +526,7 @@ contract Folio is
         BasketRange calldata buyLimit,
         Prices calldata prices,
         uint256 ttl,
-        uint256 runs,
-        uint256 dustAmount
+        uint256 runs
     ) external nonReentrant onlyRole(AUCTION_APPROVER) {
         require(!isKilled, Folio__FolioKilled());
 
@@ -568,11 +581,7 @@ contract Folio is
         });
         auctions.push(auction);
 
-        AuctionDetails memory details = AuctionDetails({
-            initialPrices: prices,
-            availableRuns: runs,
-            dustAmount: dustAmount
-        });
+        AuctionDetails memory details = AuctionDetails({ initialPrices: prices, availableRuns: runs });
         auctionDetails[auction.id] = details;
 
         emit AuctionApproved(auction.id, address(sell), address(buy), auction, details);
@@ -654,6 +663,19 @@ contract Folio is
         _closeTrustedFill();
 
         Auction storage auction = auctions[auctionId];
+
+        // stack-too-deep
+        {
+            // checks auction is ongoing
+            // D27{buyTok/sellTok}
+            uint256 price = _price(auction, block.timestamp);
+
+            // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
+            boughtAmt = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
+            require(boughtAmt <= maxBuyAmount, Folio__SlippageExceeded());
+        }
+
+        // totalSupply inflates over time due to TVL fee, causing buyLimits/sellLimits to be slightly stale
         uint256 _totalSupply = totalSupply();
 
         // checks auction is ongoing and that sellAmount/maxBuyAmount are valid/met
@@ -664,9 +686,14 @@ contract Folio is
 
         emit AuctionBid(auctionId, sellAmount, boughtAmt);
 
-        // QoL: remove token from basket if below the `dustAmount`
-        // This cannot be relied on strongly. Griefers can choose to leave a balance in slight excess
-        if (auction.sellToken.balanceOf(address(this)) <= auctionDetails[auctionId].dustAmount) {
+        // D27{sellTok/share} = {sellTok} * D27 / {share}
+        uint256 sellBasketPresence = Math.mulDiv(auction.sellToken.balanceOf(address(this)), D27, _totalSupply);
+
+        // remove sell token from basket once below dust limit and end auction
+        if (sellBasketPresence <= dustLimits[address(auction.sellToken)]) {
+            auction.endTime = block.timestamp - 1;
+            auctionDetails[auctionId].availableRuns = 0;
+
             _removeFromBasket(address(auction.sellToken));
         }
 
@@ -795,7 +822,7 @@ contract Folio is
 
         // ensure buy token is in basket since swaps can happen out-of-band
         _addToBasket(address(auction.buyToken));
-        emit AuctionOpened(auction.id, auction);
+        emit AuctionOpened(auction.id, auction, details.availableRuns);
 
         // D18{1}
         // k = ln(P_0 / P_t) / t
@@ -966,6 +993,12 @@ contract Folio is
 
         auctionLength = _newLength;
         emit AuctionLengthSet(auctionLength);
+    }
+
+    /// @param newDustLimit D27{tok/share}
+    function _setDustLimit(address token, uint256 newDustLimit) internal {
+        dustLimits[token] = newDustLimit;
+        emit DustLimitSet(token, newDustLimit);
     }
 
     function _setMandate(string memory _newMandate) internal {
