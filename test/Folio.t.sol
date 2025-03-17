@@ -578,18 +578,18 @@ contract FolioTest is BaseTest {
         assertEq(_assets[2], address(MEME), "wrong third asset");
 
         // D27{tok/share} = {tok} * D27 / {share}
-        uint256 dustLimit = (MEME.balanceOf(address(folio)) * 1e27) / folio.totalSupply();
+        uint256 dustAmount = (MEME.balanceOf(address(folio)) * 1e27) / folio.totalSupply();
 
         // should not be able to remove from basket when balance is above dust limit
 
         vm.startPrank(owner);
-        folio.setDustLimit(address(USDT), dustLimit); // set for wrong token, deliberately
+        folio.setDustAmount(address(USDT), dustAmount); // set for wrong token, deliberately
         vm.expectRevert(IFolio.Folio__BalanceNotDust.selector);
         folio.removeFromBasket(MEME);
 
         // should be able to remove after dust limit is reached
 
-        folio.setDustLimit(address(MEME), dustLimit);
+        folio.setDustAmount(address(MEME), dustAmount);
         vm.expectEmit(true, true, false, true);
         emit IFolio.BasketTokenRemoved(address(MEME));
         folio.removeFromBasket(MEME);
@@ -1511,13 +1511,13 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt, amt, false, bytes(""));
     }
 
-    function test_auctionBidRemovesTokenFromBasketBelowDustLimit() public {
-        // should not remove token from basket above dust amount
+    function test_auctionBidRemovesTokenFromBasketBelowDustAmount() public {
+        // should not remove token from basket above dust amount, sellLimit = 0 case
 
         uint256 amt = D6_TOKEN_10K;
-        uint256 dustLimit = 1e27 / folio.totalSupply();
+        uint256 dustAmount = 1e27 / folio.totalSupply();
         vm.prank(owner);
-        folio.setDustLimit(address(USDC), dustLimit);
+        folio.setDustAmount(address(USDC), dustAmount);
 
         vm.prank(dao);
         folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
@@ -1543,6 +1543,43 @@ contract FolioTest is BaseTest {
         assertEq(doubleBasket.length, 2);
         assertEq(doubleBasket[0], address(MEME)); // order reverses after removal
         assertEq(doubleBasket[1], address(DAI));
+    }
+
+    function test_auctionBidEndsAuctionEarlyWithinDustAmountOfSellLimit() public {
+        // should not end auction early above dust amount of sellLimit
+
+        uint256 amt = D6_TOKEN_10K;
+        uint256 dustAmount = 1e27 / folio.totalSupply();
+        vm.prank(owner);
+        folio.setDustAmount(address(USDC), dustAmount);
+
+        vm.prank(dao);
+        folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 2);
+
+        vm.prank(auctionLauncher);
+        folio.openAuction(0, 1, MAX_RATE, 1e39, 1e39);
+
+        vm.startPrank(user1);
+        DAI.approve(address(folio), amt * 1e12);
+        folio.bid(0, amt - 2, (amt - 2) * 1e12, false, bytes(""));
+
+        // auction should not be over yet
+
+        (, , , , , , , , , uint256 end, ) = folio.auctions(0);
+        assertGt(end, block.timestamp);
+
+        (, uint256 runs) = folio.auctionDetails(0);
+        assertEq(runs, 1);
+
+        // auction should be over after 1 more wei bid
+
+        folio.bid(0, 1, 1e12, false, bytes(""));
+
+        (, , , , , , , , , end, ) = folio.auctions(0);
+        assertLt(end, block.timestamp);
+
+        (, runs) = folio.auctionDetails(0);
+        assertEq(runs, 0);
     }
 
     function test_auctionCannotBeCreatedWithZeroRuns() public {

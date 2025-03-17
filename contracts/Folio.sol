@@ -142,7 +142,7 @@ contract Folio is
 
     // === 2.0.0 ===
     mapping(uint256 auctionId => AuctionDetails details) public auctionDetails;
-    mapping(address token => uint256 dustLimit) public dustLimits; // D27{tok/share}
+    mapping(address token => uint256 amount) public dustAmount; // D27{tok/share}
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -203,23 +203,24 @@ contract Folio is
         require(_addToBasket(address(token)), Folio__BasketModificationFailed());
     }
 
-    /// @dev Enables removal of tokens if balance is below dust limit
+    /// @dev Enables removal of tokens if balance is indistinguishable from dust
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         // D27{tok/share} = {tok} * D27 / {share}
         uint256 basketPresence = Math.mulDiv(IERC20(token).balanceOf(address(this)), D27, totalSupply());
+        // TODO make sure to look at open fill balances in 2.1.0
 
-        require(basketPresence <= dustLimits[address(token)], Folio__BalanceNotDust());
+        require(basketPresence <= dustAmount[address(token)], Folio__BalanceNotDust());
         require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
     }
 
-    /// @dev Set basket ratio at which tokens can be removed from basket
-    /// @param newDustLimit D27{tok/share}
-    function setDustLimit(address token, uint256 newDustLimit) external {
+    /// @dev Set dust amount, the presence in the basket below which loss is acceptable
+    /// @param newDustAmount D27{tok/share}
+    function setDustAmount(address token, uint256 newDustAmount) external {
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || hasRole(AUCTION_APPROVER, msg.sender),
             Folio__Unauthorized()
         );
-        _setDustLimit(token, newDustLimit);
+        _setDustAmount(token, newDustAmount);
     }
 
     /// An annual tvl fee below the DAO fee floor will result in the entirety of the fee being sent to the DAO
@@ -688,14 +689,22 @@ contract Folio is
         emit AuctionBid(auctionId, sellAmount, boughtAmt);
 
         // D27{sellTok/share} = {sellTok} * D27 / {share}
-        uint256 sellBasketPresence = Math.mulDiv(auction.sellToken.balanceOf(address(this)), D27, _totalSupply);
+        uint256 basketPresence = Math.mulDiv(auction.sellToken.balanceOf(address(this)), D27, _totalSupply);
 
-        // remove sell token from basket once below dust limit and end auction
-        if (sellBasketPresence <= dustLimits[address(auction.sellToken)]) {
+        // adjust basketPresence for dust
+        basketPresence = basketPresence > dustAmount[address(auction.sellToken)]
+            ? basketPresence - dustAmount[address(auction.sellToken)]
+            : 0;
+
+        // end auction when below sell limit
+        if (basketPresence <= auction.sellLimit.spot) {
             auction.endTime = block.timestamp - 1;
             auctionDetails[auctionId].availableRuns = 0;
 
-            _removeFromBasket(address(auction.sellToken));
+            // remove sell token from basket at 0
+            if (basketPresence == 0) {
+                _removeFromBasket(address(auction.sellToken));
+            }
         }
 
         // collect payment from bidder
@@ -937,10 +946,10 @@ contract Folio is
         emit AuctionLengthSet(auctionLength);
     }
 
-    /// @param newDustLimit D27{tok/share}
-    function _setDustLimit(address token, uint256 newDustLimit) internal {
-        dustLimits[token] = newDustLimit;
-        emit DustLimitSet(token, newDustLimit);
+    /// @param newDustAmount D27{tok/share}
+    function _setDustAmount(address token, uint256 newDustAmount) internal {
+        dustAmount[token] = newDustAmount;
+        emit DustLimitSet(token, newDustAmount);
     }
 
     function _setMandate(string memory _newMandate) internal {
