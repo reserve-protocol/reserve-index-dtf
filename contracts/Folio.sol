@@ -205,6 +205,8 @@ contract Folio is
 
     /// @dev Enables removal of tokens if balance is below dust limit
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+        _closeTrustedFill();
+
         // D27{tok/share} = {tok} * D27 / {share}
         uint256 basketPresence = Math.mulDiv(IERC20(token).balanceOf(address(this)), D27, totalSupply());
 
@@ -292,15 +294,17 @@ contract Folio is
 
     /// @return _assets
     /// @return _amounts {tok}
-    function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
-
+    function totalAssets() public view returns (address[] memory _assets, uint256[] memory _amounts) {
         _assets = basket.values();
 
         uint256 assetLength = _assets.length;
         _amounts = new uint256[](assetLength);
         for (uint256 i; i < assetLength; i++) {
             _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
+
+            if (address(activeTrustedFill) != address(0)) {
+                _amounts[i] += IERC20(_assets[i]).balanceOf(address(activeTrustedFill));
+            }
         }
     }
 
@@ -466,6 +470,11 @@ contract Folio is
         uint256 _totalSupply = totalSupply();
         uint256 sellBal = auction.sellToken.balanceOf(address(this));
         uint256 buyBal = auction.buyToken.balanceOf(address(this));
+
+        if (address(activeTrustedFill) != address(0)) {
+            sellBal += auction.sellToken.balanceOf(address(activeTrustedFill));
+            buyBal += auction.buyToken.balanceOf(address(activeTrustedFill));
+        }
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
         uint256 minSellBal = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
@@ -737,6 +746,8 @@ contract Folio is
 
         filler.initialize(address(this), auction.sellToken, auction.buyToken, sellAmount, buyAmount);
         activeTrustedFill = filler;
+
+        emit AuctionTrustedFillCreated(auctionId, address(filler));
     }
 
     /// Close an auction
@@ -768,20 +779,12 @@ contract Folio is
     ) internal view returns (address[] memory _assets, uint256[] memory _amounts) {
         uint256 _totalSupply = totalSupply();
 
-        _assets = basket.values();
+        (_assets, _amounts) = totalAssets();
 
-        uint256 len = _assets.length;
-        _amounts = new uint256[](len);
-        for (uint256 i; i < len; i++) {
-            uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
-
-            // TODO: Do we only do this if the active swap is part of the said token?
-            if (address(activeTrustedFill) != address(0)) {
-                assetBal += IERC20(_assets[i]).balanceOf(address(activeTrustedFill));
-            }
-
+        uint256 assetLen = _assets.length;
+        for (uint256 i; i < assetLen; i++) {
             // {tok} = {share} * {tok} / {share}
-            _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
+            _amounts[i] = Math.mulDiv(shares, _amounts[i], _totalSupply, rounding);
         }
     }
 
@@ -1007,11 +1010,11 @@ contract Folio is
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
     function _poke() internal {
+        _closeTrustedFill();
+
         if (lastPoke == block.timestamp) {
             return;
         }
-
-        _closeTrustedFill();
 
         (daoPendingFeeShares, feeRecipientsPendingFeeShares) = _getPendingFeeShares();
         lastPoke = block.timestamp;

@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { Script, console2 } from "forge-std/Script.sol";
 
 import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
+import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/TrustedFillerRegistry.sol";
 
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
@@ -21,7 +22,6 @@ contract DeployScript is Script {
     uint256 privateKey = vm.deriveKey(seedPhrase, 0);
     address walletAddress = vm.rememberKey(privateKey);
 
-    // @todo Remove feeRecipient from this once folioFeeRegistry is canonical.
     struct DeploymentParams {
         // Role Registry Stuff
         address roleRegistry;
@@ -140,7 +140,7 @@ contract DeployScript is Script {
         require(folioDeployer.daoFeeRegistry() == deployParams.folioFeeRegistry, "wrong dao fee registry");
         require(folioDeployer.versionRegistry() == deployParams.folioVersionRegistry, "wrong version registry");
         require(folioDeployer.governanceDeployer() == governanceDeployer, "wrong version registry");
-        require(folioDeployer.trustedFillerRegistry() == deployParams.trustedFillerRegistry, "wrong swapper registry");
+        require(folioDeployer.trustedFillerRegistry() == deployParams.trustedFillerRegistry, "wrong filler registry");
         require(governanceDeployer.governorImplementation() == governorImplementation, "wrong governor implementation");
         require(governanceDeployer.timelockImplementation() == timelockImplementation, "wrong timelock implementation");
     }
