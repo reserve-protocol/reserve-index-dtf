@@ -29,11 +29,11 @@ interface IFolio {
     event AuctionLengthSet(uint256 newAuctionLength);
     event DustLimitSet(address token, uint256 newDustLimit);
     event MandateSet(string newMandate);
-    event FolioKilled();
+    event FolioDeprecated();
 
     // === Errors ===
 
-    error Folio__FolioKilled();
+    error Folio__FolioDeprecated();
     error Folio__Unauthorized();
 
     error Folio__EmptyAssets();

@@ -447,9 +447,9 @@ contract FolioTest is BaseTest {
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
     }
 
-    function test_cannotMintIfFolioKilled() public {
+    function test_cannotMintIfFolioDeprecated() public {
         vm.prank(owner);
-        folio.killFolio();
+        folio.deprecateFolio();
 
         assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
         vm.startPrank(user1);
@@ -457,7 +457,7 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
 
-        vm.expectRevert(abi.encodeWithSelector(IFolio.Folio__FolioKilled.selector));
+        vm.expectRevert(abi.encodeWithSelector(IFolio.Folio__FolioDeprecated.selector));
         folio.mint(1e22, user1, 0);
         vm.stopPrank();
         assertEq(folio.balanceOf(user1), 0, "wrong ending user1 balance");
@@ -2123,12 +2123,12 @@ contract FolioTest is BaseTest {
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 1), MAX_TTL, 1);
     }
 
-    function test_auctionCannotApproveAuctionIfFolioKilled() public {
+    function test_auctionCannotApproveAuctionIfFolioDeprecated() public {
         vm.prank(owner);
-        folio.killFolio();
+        folio.deprecateFolio();
 
         vm.prank(dao);
-        vm.expectRevert(IFolio.Folio__FolioKilled.selector);
+        vm.expectRevert(IFolio.Folio__FolioDeprecated.selector);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 1), MAX_TTL, 1);
     }
 
@@ -2227,19 +2227,19 @@ contract FolioTest is BaseTest {
         folio.openAuction(0, 0, MAX_RATE, 0, 0);
     }
 
-    function test_auctionCannotOpenAuctionIfFolioKilled() public {
+    function test_auctionCannotOpenAuctionIfFolioDeprecated() public {
         vm.prank(dao);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1);
 
         vm.prank(owner);
-        folio.killFolio();
+        folio.deprecateFolio();
 
         vm.prank(auctionLauncher);
-        vm.expectRevert(IFolio.Folio__FolioKilled.selector);
+        vm.expectRevert(IFolio.Folio__FolioDeprecated.selector);
         folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);
     }
 
-    function test_auctionCannotBidIfFolioKilled() public {
+    function test_auctionCannotBidIfFolioDeprecated() public {
         vm.prank(dao);
         folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1);
 
@@ -2247,11 +2247,11 @@ contract FolioTest is BaseTest {
         folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);
 
         vm.prank(owner);
-        folio.killFolio();
+        folio.deprecateFolio();
 
-        vm.expectRevert(IFolio.Folio__FolioKilled.selector);
+        vm.expectRevert(IFolio.Folio__FolioDeprecated.selector);
         folio.bid(0, 1e27, 1e27, false, bytes(""));
-        assertEq(folio.isKilled(), true, "wrong killed status");
+        assertEq(folio.isDeprecated(), true, "wrong deprecated status");
     }
 
     function test_redeemMaxSlippage() public {
@@ -2279,17 +2279,17 @@ contract FolioTest is BaseTest {
         folio.redeem(5e21, user1, smallerBasket, amounts);
     }
 
-    function test_killFolio() public {
-        assertFalse(folio.isKilled(), "wrong killed status");
+    function test_deprecateFolio() public {
+        assertFalse(folio.isDeprecated(), "wrong deprecated status");
 
         vm.prank(owner);
-        folio.killFolio();
+        folio.deprecateFolio();
 
-        assertTrue(folio.isKilled(), "wrong killed status");
+        assertTrue(folio.isDeprecated(), "wrong deprecated status");
     }
 
-    function test_cannotKillFolioIfNotOwner() public {
-        assertFalse(folio.isKilled(), "wrong killed status");
+    function test_cannotDeprecateFolioIfNotOwner() public {
+        assertFalse(folio.isDeprecated(), "wrong deprecated status");
 
         vm.startPrank(user1);
         vm.expectRevert(
@@ -2299,9 +2299,9 @@ contract FolioTest is BaseTest {
                 folio.DEFAULT_ADMIN_ROLE()
             )
         );
-        folio.killFolio();
+        folio.deprecateFolio();
         vm.stopPrank();
-        assertFalse(folio.isKilled(), "wrong killed status");
+        assertFalse(folio.isDeprecated(), "wrong deprecated status");
     }
 
     function test_cannotAddZeroAddressToBasket() public {

@@ -49,7 +49,7 @@ uint256 constant D27 = 1e27; // D27
  * All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
  *
  * There are 3 main roles:
- *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, auction delay, close auctions, and killFolio
+ *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, auction delay, close auctions, and deprecateFolio
  *   2. AUCTION_APPROVER: can approve auctions and close auctions
  *   3. AUCTION_LAUNCHER: can open auctions optionally providing some amount of additional detail, and close auctions
  *
@@ -123,7 +123,7 @@ contract Folio is
     uint256 public lastPoke; // {s}
     uint256 public daoPendingFeeShares; // {share} shares pending to be distributed ONLY to the DAO
     uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
-    bool public isKilled; // {bool} if true, Folio goes into redemption-only mode
+    bool public isDeprecated; // {bool} if true, Folio goes into redemption-only mode
 
     /**
      * Rebalancing
@@ -265,12 +265,12 @@ contract Folio is
         _setMandate(_newMandate);
     }
 
-    /// Kill the Folio, callable only by the admin
+    /// Deprecate the Folio, callable only by the admin
     /// @dev Folio cannot be minted and auctions cannot be approved, opened, or bid on
-    function killFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        isKilled = true;
+    function deprecateFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        isDeprecated = true;
 
-        emit FolioKilled();
+        emit FolioDeprecated();
     }
 
     // ==== Share + Asset Accounting ====
@@ -324,7 +324,7 @@ contract Folio is
         address receiver,
         uint256 minSharesOut
     ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
-        require(!isKilled, Folio__FolioKilled());
+        require(!isDeprecated, Folio__FolioDeprecated());
 
         _poke();
 
@@ -524,7 +524,7 @@ contract Folio is
         uint256 ttl,
         uint256 runs
     ) external nonReentrant onlyRole(AUCTION_APPROVER) {
-        require(!isKilled, Folio__FolioKilled());
+        require(!isDeprecated, Folio__FolioDeprecated());
 
         require(
             address(sell) != address(0) && address(buy) != address(0) && address(sell) != address(buy),
@@ -655,7 +655,7 @@ contract Folio is
         bool withCallback,
         bytes calldata data
     ) external nonReentrant returns (uint256 boughtAmt) {
-        require(!isKilled, Folio__FolioKilled());
+        require(!isDeprecated, Folio__FolioDeprecated());
         Auction storage auction = auctions[auctionId];
 
         // stack-too-deep
@@ -768,7 +768,7 @@ contract Folio is
 
     /// @param buffer {s} Additional time buffer that must pass from `endTime` before auction can be opened
     function _openAuction(Auction storage auction, AuctionDetails storage details, uint256 buffer) internal {
-        require(!isKilled, Folio__FolioKilled());
+        require(!isDeprecated, Folio__FolioDeprecated());
 
         // only open APPROVED or expired auctions, with buffer
         require(block.timestamp > auction.endTime + buffer, Folio__AuctionCannotBeOpenedYet());
