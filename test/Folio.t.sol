@@ -1582,6 +1582,19 @@ contract FolioTest is BaseTest {
         assertEq(runs, 0);
     }
 
+    function test_auctionBidZeroAmount() public {
+        vm.prank(dao);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
+
+        vm.prank(auctionLauncher);
+        folio.openAuction(0, 0, MAX_RATE, 1e27, 1e27);
+
+        vm.startPrank(user1);
+        USDT.approve(address(folio), 0);
+        vm.expectRevert(IFolio.Folio__SlippageExceeded.selector);
+        folio.bid(0, 0, 0, false, bytes(""));
+    }
+
     function test_auctionCannotBeCreatedWithZeroRuns() public {
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidAuctionRuns.selector);

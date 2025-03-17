@@ -666,7 +666,7 @@ contract Folio is
 
             // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
             boughtAmt = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
-            require(boughtAmt <= maxBuyAmount, Folio__SlippageExceeded());
+            require(boughtAmt <= maxBuyAmount && boughtAmt != 0, Folio__SlippageExceeded());
         }
 
         // totalSupply inflates over time due to TVL fee, causing buyLimits/sellLimits to be slightly stale
