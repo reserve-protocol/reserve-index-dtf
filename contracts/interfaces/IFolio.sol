@@ -27,13 +27,13 @@ interface IFolio {
     event FeeRecipientsSet(FeeRecipient[] recipients);
     event AuctionDelaySet(uint256 newAuctionDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
-    event DustLimitSet(address token, uint256 newDustLimit);
+    event DustAmountSet(address token, uint256 newDustAmount);
     event MandateSet(string newMandate);
-    event FolioKilled();
+    event FolioDeprecated();
 
     // === Errors ===
 
-    error Folio__FolioKilled();
+    error Folio__FolioDeprecated();
     error Folio__Unauthorized();
 
     error Folio__EmptyAssets();
@@ -118,7 +118,7 @@ interface IFolio {
         BasketRange sellLimit; // D27{sellTok/share} min ratio of sell token in the basket, inclusive
         BasketRange buyLimit; // D27{buyTok/share} max ratio of buy token in the basket, exclusive
         Prices prices; // D27{buyTok/sellTok}
-        uint256 restrictedUntil; // {s} inclusive
+        uint256 restrictedUntil; // {s} exclusive
         uint256 launchDeadline; // {s} inclusive
         uint256 startTime; // {s} inclusive
         uint256 endTime; // {s} inclusive
