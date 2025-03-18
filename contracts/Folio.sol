@@ -26,7 +26,6 @@ uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_AUCTION_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
-uint256 constant MAX_TOK = 1e36; // {tok}
 uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
 uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 uint256 constant RESTRICTED_AUCTION_BUFFER = 120; // {s} 2 min
@@ -468,7 +467,7 @@ contract Folio is
         return auctions.length;
     }
 
-    /// Get the auction bid parameters at the current timestamp, up to a maximum sell amount
+    /// Get auction bid parameters at the current timestamp, up to a maximum sell amount
     /// @dev Added in 3.0.0
     /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder can offer the protocol
     /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
@@ -854,8 +853,7 @@ contract Folio is
         }
     }
 
-    /// Check bid amount
-    /// @dev Checks auction is ongoing and that sellAmount/maxBuyAmount are valid/met
+    /// Get bid parameters for an ongoing auction
     /// @param _totalSupply {share} Current total supply of the Folio
     /// @param timestamp {s} Timestamp to fetch bid for
     /// @param sellBal {sellTok} Folio's available balance of sell token, including any active fills
@@ -890,19 +888,9 @@ contract Folio is
         uint256 buyLimit = Math.mulDiv(auction.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
         uint256 buyAvailable = buyBal < buyLimit ? buyLimit - buyBal : 0;
 
-        // prefer buying small quantities over overflowing in case of range violations
-        if (buyAvailable > MAX_TOK) {
-            buyAvailable = MAX_TOK;
-        }
-
         // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
         uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
         sellAvailable = Math.min(sellAvailable, sellAvailableFromBuy);
-
-        // prefer selling small quantities over overflowing in case of range violations
-        if (sellAvailable > MAX_TOK) {
-            sellAvailable = MAX_TOK;
-        }
 
         // ensure auction is large enough to cover bid
         require(sellAvailable >= minSellAmount, Folio__InsufficientBalance());

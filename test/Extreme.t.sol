@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio, MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TVL_FEE, MAX_TTL, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
 import { StakingVault } from "contracts/staking/StakingVault.sol";
@@ -234,6 +235,10 @@ contract ExtremeTest is BaseExtremeTest {
         // approveAuction
         vm.prank(dao);
         folio.approveAuction(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1);
+
+        // restrict price from being too low
+        uint256 minPrice = type(uint256).max / Math.mulDiv(MAX_RATE, 1e23, initialSupply, Math.Rounding.Ceil);
+        p.price = Math.max(p.price, minPrice);
 
         // openAuction
         vm.prank(auctionLauncher);
