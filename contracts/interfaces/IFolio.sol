@@ -27,7 +27,7 @@ interface IFolio {
     event FeeRecipientsSet(FeeRecipient[] recipients);
     event AuctionDelaySet(uint256 newAuctionDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
-    event DustLimitSet(address token, uint256 newDustLimit);
+    event DustAmountSet(address token, uint256 newDustAmount);
     event MandateSet(string newMandate);
     event FolioDeprecated();
 

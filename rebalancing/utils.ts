@@ -8,9 +8,9 @@ import { Auction } from "./types";
  * @param _price {USD/wholeTok} Price of the *whole* token
  * @param _sharePrice {USD/wholeShare} Price of the *whole* share
  * @param dustThreshold D18{1} Portion of basket below which tokens are considered dust
- * @return D27{tok/share} dustLimit
+ * @return D27{tok/share} dustAmount
  */
-export const getDustLimit = (
+export const getDustAmount = (
   decimals: bigint,
   _price: number,
   _sharePrice: number,

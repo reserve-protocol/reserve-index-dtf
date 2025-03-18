@@ -580,14 +580,14 @@ contract FolioTest is BaseTest {
         // D27{tok/share} = {tok} * D27 / {share}
         uint256 dustAmount = (MEME.balanceOf(address(folio)) * 1e27) / folio.totalSupply();
 
-        // should not be able to remove from basket when balance is above dust limit
+        // should not be able to remove from basket when balance is above dust amount
 
         vm.startPrank(owner);
         folio.setDustAmount(address(USDT), dustAmount); // set for wrong token, deliberately
         vm.expectRevert(IFolio.Folio__BalanceNotDust.selector);
         folio.removeFromBasket(MEME);
 
-        // should be able to remove after dust limit is reached
+        // should be able to remove after dust amount is reached
 
         folio.setDustAmount(address(MEME), dustAmount);
         vm.expectEmit(true, true, false, true);

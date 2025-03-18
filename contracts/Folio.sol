@@ -949,7 +949,7 @@ contract Folio is
     /// @param newDustAmount D27{tok/share}
     function _setDustAmount(address token, uint256 newDustAmount) internal {
         dustAmount[token] = newDustAmount;
-        emit DustLimitSet(token, newDustAmount);
+        emit DustAmountSet(token, newDustAmount);
     }
 
     function _setMandate(string memory _newMandate) internal {
