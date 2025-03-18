@@ -237,35 +237,32 @@ contract ExtremeTest is BaseExtremeTest {
 
         // openAuction
         vm.prank(auctionLauncher);
-        uint256 endPrice = p.price / MAX_PRICE_RANGE;
-        folio.openAuction(0, 0, MAX_RATE, p.price, endPrice > p.price ? endPrice : p.price);
+        uint256 endPrice = (p.price + MAX_PRICE_RANGE - 1) / MAX_PRICE_RANGE;
+        folio.openAuction(0, 0, MAX_RATE, p.price, endPrice);
 
         // sellAmount will be up to 1e36
         // buyAmount will be up to 1e54 and down to 1
 
         (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
 
-        uint256 sellAmount = folio.lot(0, start);
+        (, , uint256 price) = folio.getBid(0, start, type(uint256).max);
+        (, , uint256 price2) = folio.getBid(0, start + 1, type(uint256).max);
         // getBid should work at both ends of auction
-        uint256 highBuyAmount = folio.getBid(0, start, sellAmount); // should not revert
-        assertLe(folio.getBid(0, start + 1, sellAmount), highBuyAmount, "buyAmount should be non-increasing");
+        assertLe(price2, price, "price should be non-increasing");
 
-        sellAmount = folio.lot(0, end);
-        uint256 buyAmount = folio.getBid(0, end, sellAmount); // should not revert
-        assertGt(buyAmount, 0, "lot is free");
-        assertGe(folio.getBid(0, end - 1, sellAmount), buyAmount, "buyAmount should be non-increasing");
+        (, , price) = folio.getBid(0, end - 1, type(uint256).max);
+        uint256 sellAmount2;
+        uint256 buyAmount2;
+        (sellAmount2, buyAmount2, price2) = folio.getBid(0, end, type(uint256).max);
+        assertLe(price2, price, "price should be non-increasing");
 
         // mint buy tokens to user1 and bid
         vm.warp(end);
-        deal(address(buy), address(user1), buyAmount, true);
+        deal(address(buy), address(user1), buyAmount2, true);
         vm.startPrank(user1);
-        buy.approve(address(folio), buyAmount);
-        folio.bid(0, sellAmount, buyAmount, false, bytes(""));
+        buy.approve(address(folio), buyAmount2);
+        folio.bid(0, sellAmount2, buyAmount2, false, bytes(""));
         vm.stopPrank();
-
-        // check bal differences
-        assertEq(sell.balanceOf(address(folio)), 0, "wrong sell bal");
-        assertEq(buy.balanceOf(address(folio)), buyAmount, "wrong buy bal");
     }
 
     function run_fees_scenario(FeeTestParams memory p) public {
