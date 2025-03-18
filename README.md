@@ -85,7 +85,7 @@ Auctions can be repeated a specified number of times, up to a maximum of `availa
 
 ###### Dust Amounts
 
-Bids that reduce the Folio's balance below the `minDustAmount` result in the sell token being removed from the basket. The `AUCTION_APPROVER` can use this mechanism to remove a token from the basket without explicitly calling `removeFromBasket()`.
+Either the `DEFAULT_ADMIN_ROLE` or the `AUCTION_APPROVER` can set dust amounts on a per-token basis in terms of presence in the basket (`D27{tok/share}`). This allows the Folio to act to close auctions or remove tokens from the basket when the basket presence is within a small tolerance of the intended target.
 
 ###### Buy/Sell limits
 

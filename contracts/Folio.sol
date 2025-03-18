@@ -44,7 +44,7 @@ uint256 constant D27 = 1e27; // D27
  * All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
  *
  * There are 3 main roles:
- *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, auction delay, close auctions, and killFolio
+ *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, auction delay, close auctions, and deprecateFolio
  *   2. AUCTION_APPROVER: can approve auctions and close auctions
  *   3. AUCTION_LAUNCHER: can open auctions optionally providing some amount of additional detail, and close auctions
  *
@@ -118,7 +118,7 @@ contract Folio is
     uint256 public lastPoke; // {s}
     uint256 public daoPendingFeeShares; // {share} shares pending to be distributed ONLY to the DAO
     uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
-    bool public isKilled; // {bool} if true, Folio goes into redemption-only mode
+    bool public isDeprecated; // {bool} if true, Folio goes into redemption-only mode
 
     /**
      * Rebalancing
@@ -137,7 +137,7 @@ contract Folio is
 
     // === 2.0.0 ===
     mapping(uint256 auctionId => AuctionDetails details) public auctionDetails;
-    mapping(address token => uint256 dustLimit) public dustLimits; // D27{tok/share}
+    mapping(address token => uint256 amount) public dustAmount; // D27{tok/share}
 
     ITrustedFillerRegistry public trustedFillerRegistry;
     IBaseTrustedFiller private activeTrustedFill;
@@ -203,25 +203,30 @@ contract Folio is
         require(_addToBasket(address(token)), Folio__BasketModificationFailed());
     }
 
-    /// @dev Enables removal of tokens if balance is below dust limit
+    /// @dev Enables removal of tokens if balance is indistinguishable from dust
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         _closeTrustedFill();
 
         // D27{tok/share} = {tok} * D27 / {share}
-        uint256 basketPresence = Math.mulDiv(IERC20(token).balanceOf(address(this)), D27, totalSupply());
+        uint256 basketPresence = Math.mulDiv(
+            IERC20(token).balanceOf(address(this)),
+            D27,
+            totalSupply(),
+            Math.Rounding.Ceil
+        );
 
-        require(basketPresence <= dustLimits[address(token)], Folio__BalanceNotDust());
+        require(basketPresence <= dustAmount[address(token)], Folio__BalanceNotDust());
         require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
     }
 
-    /// @dev Set basket ratio at which tokens can be removed from basket
-    /// @param newDustLimit D27{tok/share}
-    function setDustLimit(address token, uint256 newDustLimit) external {
+    /// @dev Set dust amount, the presence in the basket below which loss is acceptable
+    /// @param newDustAmount D27{tok/share}
+    function setDustAmount(address token, uint256 newDustAmount) external {
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || hasRole(AUCTION_APPROVER, msg.sender),
             Folio__Unauthorized()
         );
-        _setDustLimit(token, newDustLimit);
+        _setDustAmount(token, newDustAmount);
     }
 
     /// An annual tvl fee below the DAO fee floor will result in the entirety of the fee being sent to the DAO
@@ -270,12 +275,12 @@ contract Folio is
         _setTrustedFillerRegistry(_newFillerRegistry);
     }
 
-    /// Kill the Folio, callable only by the admin
+    /// Deprecate the Folio, callable only by the admin
     /// @dev Folio cannot be minted and auctions cannot be approved, opened, or bid on
-    function killFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        isKilled = true;
+    function deprecateFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        isDeprecated = true;
 
-        emit FolioKilled();
+        emit FolioDeprecated();
     }
 
     // ==== Share + Asset Accounting ====
@@ -331,7 +336,7 @@ contract Folio is
         address receiver,
         uint256 minSharesOut
     ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
-        require(!isKilled, Folio__FolioKilled());
+        require(!isDeprecated, Folio__FolioDeprecated());
 
         _poke();
 
@@ -536,7 +541,7 @@ contract Folio is
         uint256 ttl,
         uint256 runs
     ) external nonReentrant onlyRole(AUCTION_APPROVER) {
-        require(!isKilled, Folio__FolioKilled());
+        require(!isDeprecated, Folio__FolioDeprecated());
 
         require(
             address(sell) != address(0) && address(buy) != address(0) && address(sell) != address(buy),
@@ -667,7 +672,7 @@ contract Folio is
         bool withCallback,
         bytes calldata data
     ) external nonReentrant returns (uint256 boughtAmt) {
-        require(!isKilled, Folio__FolioKilled());
+        require(!isDeprecated, Folio__FolioDeprecated());
         _closeTrustedFill();
 
         Auction storage auction = auctions[auctionId];
@@ -680,7 +685,7 @@ contract Folio is
 
             // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
             boughtAmt = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
-            require(boughtAmt <= maxBuyAmount, Folio__SlippageExceeded());
+            require(boughtAmt <= maxBuyAmount && boughtAmt != 0, Folio__SlippageExceeded());
         }
 
         // totalSupply inflates over time due to TVL fee, causing buyLimits/sellLimits to be slightly stale
@@ -695,14 +700,27 @@ contract Folio is
         emit AuctionBid(auctionId, sellAmount, boughtAmt);
 
         // D27{sellTok/share} = {sellTok} * D27 / {share}
-        uint256 sellBasketPresence = Math.mulDiv(auction.sellToken.balanceOf(address(this)), D27, _totalSupply);
+        uint256 basketPresence = Math.mulDiv(
+            auction.sellToken.balanceOf(address(this)),
+            D27,
+            _totalSupply,
+            Math.Rounding.Ceil
+        );
 
-        // remove sell token from basket once below dust limit and end auction
-        if (sellBasketPresence <= dustLimits[address(auction.sellToken)]) {
+        // adjust basketPresence for dust
+        basketPresence = basketPresence > dustAmount[address(auction.sellToken)]
+            ? basketPresence - dustAmount[address(auction.sellToken)]
+            : 0;
+
+        // end auction when below sell limit
+        if (basketPresence <= auction.sellLimit.spot) {
             auction.endTime = block.timestamp - 1;
             auctionDetails[auctionId].availableRuns = 0;
 
-            _removeFromBasket(address(auction.sellToken));
+            // remove sell token from basket at 0
+            if (basketPresence == 0) {
+                _removeFromBasket(address(auction.sellToken));
+            }
         }
 
         // collect payment from bidder
@@ -731,7 +749,7 @@ contract Folio is
         address targetFiller,
         bytes32 deploymentSalt
     ) external nonReentrant returns (IBaseTrustedFiller filler) {
-        require(!isKilled, Folio__FolioKilled());
+        require(!isDeprecated, Folio__FolioDeprecated());
         require(address(trustedFillerRegistry) != address(0), Folio__TrustedFillerRegistryNotSet());
 
         Auction storage auction = auctions[auctionId];
@@ -790,7 +808,7 @@ contract Folio is
 
     /// @param buffer {s} Additional time buffer that must pass from `endTime` before auction can be opened
     function _openAuction(Auction storage auction, AuctionDetails storage details, uint256 buffer) internal {
-        require(!isKilled, Folio__FolioKilled());
+        require(!isDeprecated, Folio__FolioDeprecated());
 
         // only open APPROVED or expired auctions, with buffer
         require(block.timestamp > auction.endTime + buffer, Folio__AuctionCannotBeOpenedYet());
@@ -997,10 +1015,10 @@ contract Folio is
         emit AuctionLengthSet(auctionLength);
     }
 
-    /// @param newDustLimit D27{tok/share}
-    function _setDustLimit(address token, uint256 newDustLimit) internal {
-        dustLimits[token] = newDustLimit;
-        emit DustLimitSet(token, newDustLimit);
+    /// @param newDustAmount D27{tok/share}
+    function _setDustAmount(address token, uint256 newDustAmount) internal {
+        dustAmount[token] = newDustAmount;
+        emit DustAmountSet(token, newDustAmount);
     }
 
     function _setMandate(string memory _newMandate) internal {
