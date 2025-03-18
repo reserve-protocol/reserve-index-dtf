@@ -206,7 +206,12 @@ contract Folio is
     /// @dev Enables removal of tokens if balance is indistinguishable from dust
     function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         // D27{tok/share} = {tok} * D27 / {share}
-        uint256 basketPresence = Math.mulDiv(IERC20(token).balanceOf(address(this)), D27, totalSupply());
+        uint256 basketPresence = Math.mulDiv(
+            IERC20(token).balanceOf(address(this)),
+            D27,
+            totalSupply(),
+            Math.Rounding.Ceil
+        );
         // TODO make sure to look at open fill balances in 2.1.0
 
         require(basketPresence <= dustAmount[address(token)], Folio__BalanceNotDust());
@@ -689,7 +694,12 @@ contract Folio is
         emit AuctionBid(auctionId, sellAmount, boughtAmt);
 
         // D27{sellTok/share} = {sellTok} * D27 / {share}
-        uint256 basketPresence = Math.mulDiv(auction.sellToken.balanceOf(address(this)), D27, _totalSupply);
+        uint256 basketPresence = Math.mulDiv(
+            auction.sellToken.balanceOf(address(this)),
+            D27,
+            _totalSupply,
+            Math.Rounding.Ceil
+        );
 
         // adjust basketPresence for dust
         basketPresence = basketPresence > dustAmount[address(auction.sellToken)]
