@@ -15,7 +15,7 @@ abstract contract BaseExtremeTest is BaseTest {
         uint8 sellDecimals;
         uint8 buyDecimals;
         uint256 sellAmount; // {sellTok}
-        uint256 price; // D18{buyTok/sellTok}
+        uint256 price; // D27{buyTok/sellTok}
     }
 
     struct FeeTestParams {

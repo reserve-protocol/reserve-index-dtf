@@ -588,14 +588,19 @@ contract FolioTest is BaseTest {
 
         // should not be able to remove from basket when balance is above dust amount
 
-        vm.startPrank(owner);
+        vm.prank(owner);
         folio.setDustAmount(address(USDT), dustAmount); // set for wrong token, deliberately
+
+        vm.prank(user1);
         vm.expectRevert(IFolio.Folio__BalanceNotDust.selector);
         folio.removeFromBasket(MEME);
 
         // should be able to remove after dust amount is reached
 
+        vm.prank(owner);
         folio.setDustAmount(address(MEME), dustAmount);
+
+        vm.prank(user1);
         vm.expectEmit(true, true, false, true);
         emit IFolio.BasketTokenRemoved(address(MEME));
         folio.removeFromBasket(MEME);
@@ -604,23 +609,6 @@ contract FolioTest is BaseTest {
         assertEq(_assets.length, 2, "wrong assets length");
         assertEq(_assets[0], address(USDC), "wrong first asset");
         assertEq(_assets[1], address(DAI), "wrong second asset");
-        vm.stopPrank();
-    }
-
-    function test_cannotRemoveFromBasketIfNotOwner() public {
-        (address[] memory _assets, ) = folio.totalAssets();
-        assertEq(_assets.length, 3, "wrong assets length");
-
-        vm.startPrank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                user1,
-                folio.DEFAULT_ADMIN_ROLE()
-            )
-        );
-        folio.removeFromBasket(MEME);
-        vm.stopPrank();
     }
 
     function test_cannotRemoveFromBasketIfNotAvailable() public {
@@ -1049,9 +1037,18 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt / 2, amt / 2, false, bytes(""));
 
         (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
-        assertEq(folio.getBid(0, start, amt), amt, "wrong start bid amount"); // 1x
-        assertEq(folio.getBid(0, (start + end) / 2, amt), amt, "wrong mid bid amount"); // 1x
-        assertEq(folio.getBid(0, end, amt), amt, "wrong end bid amount"); // 1x
+
+        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, start, amt);
+        assertEq(sellAmount, amt / 2, "wrong start sell amount"); // 1x
+        assertEq(buyAmount, amt / 2, "wrong start buy amount"); // 1x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, (start + end) / 2, amt);
+        assertEq(sellAmount, amt / 2, "wrong mid sell amount"); // 1x
+        assertEq(buyAmount, amt / 2, "wrong mid buy amount"); // 1x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, end, amt);
+        assertEq(sellAmount, amt / 2, "wrong end sell amount"); // 1x
+        assertEq(buyAmount, amt / 2, "wrong end buy amount"); // 1x
 
         // bid a 2nd time for the rest of the volume, at end time
         vm.warp(end);
@@ -1105,9 +1102,17 @@ contract FolioTest is BaseTest {
         assertEq(USDT.balanceOf(address(mockBidder)), 0, "wrong mock bidder balance");
 
         (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
-        assertEq(folio.getBid(0, start, amt), amt, "wrong start bid amount"); // 1x
-        assertEq(folio.getBid(0, (start + end) / 2, amt), amt, "wrong mid bid amount"); // 1x
-        assertEq(folio.getBid(0, end, amt), amt, "wrong end bid amount"); // 1x
+        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, start, amt);
+        assertEq(sellAmount, amt / 2, "wrong start sell amount"); // 1x
+        assertEq(buyAmount, amt / 2, "wrong start buy amount"); // 1x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, (start + end) / 2, amt);
+        assertEq(sellAmount, amt / 2, "wrong mid sell amount"); // 1x
+        assertEq(buyAmount, amt / 2, "wrong mid buy amount"); // 1x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, end, amt);
+        assertEq(sellAmount, amt / 2, "wrong end sell amount"); // 1x
+        assertEq(buyAmount, amt / 2, "wrong end buy amount"); // 1x
 
         // bid a 2nd time for the rest of the volume, at end time
 
@@ -1163,12 +1168,21 @@ contract FolioTest is BaseTest {
         folio.bid(0, amt / 2, amt * 5, false, bytes(""));
 
         (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
-        assertEq(folio.getBid(0, start, amt), amt * 10, "wrong start bid amount"); // 10x
-        assertEq(folio.getBid(0, (start + end) / 2, amt), 31622776602, "wrong mid bid amount"); // ~3.16x
-        assertEq(folio.getBid(0, end, amt), amt, "wrong end bid amount"); // 1x
-        vm.warp(end);
+
+        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, start, amt);
+        assertEq(sellAmount, amt / 2, "wrong start sell amount"); // 10x
+        assertEq(buyAmount, amt * 5, "wrong start buy amount"); // 10x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, (start + end) / 2, amt);
+        assertEq(sellAmount, amt / 2, "wrong mid sell amount"); // ~3.16x
+        assertEq(buyAmount, 15811388301, "wrong mid buy amount"); // ~3.16x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, end, amt);
+        assertEq(sellAmount, amt / 2, "wrong end sell amount"); // 1x
+        assertEq(buyAmount, amt / 2, "wrong end buy amount"); // 1x
 
         // bid a 2nd time for the rest of the volume, at end time
+        vm.warp(end);
         USDT.approve(address(folio), amt);
         vm.expectEmit(true, false, false, true);
         emit IFolio.AuctionBid(0, amt / 2, amt / 2);
@@ -1219,9 +1233,18 @@ contract FolioTest is BaseTest {
         // check prices
 
         (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
-        assertEq(folio.getBid(0, start, amt), amt * 10, "wrong start bid amount"); // 10x
-        assertEq(folio.getBid(0, (start + end) / 2, amt), 31622776602, "wrong mid bid amount"); // ~3.16x
-        assertEq(folio.getBid(0, end, amt), amt, "wrong end bid amount"); // 1x
+
+        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, start, amt);
+        assertEq(sellAmount, amt / 2, "wrong start sell amount"); // 10x
+        assertEq(buyAmount, amt * 5, "wrong start buy amount"); // 10x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, (start + end) / 2, amt);
+        assertEq(sellAmount, amt / 2, "wrong mid sell amount"); // ~3.16x
+        assertEq(buyAmount, 15811388301, "wrong mid buy amount"); // ~3.16x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, end, amt);
+        assertEq(sellAmount, amt / 2, "wrong end sell amount"); // 1x
+        assertEq(buyAmount, amt / 2, "wrong end buy amount"); // 1x
 
         // bid a 2nd time for the rest of the volume, at end time
 
@@ -1269,9 +1292,18 @@ contract FolioTest is BaseTest {
         // should have right bid at start, middle, and end of auction
 
         (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
-        assertEq(folio.getBid(0, start, amt), amt / 1e22, "wrong start bid amount");
-        assertEq(folio.getBid(0, (start + end) / 2, amt), 316, "wrong mid bid amount");
-        assertEq(folio.getBid(0, end, amt), 1, "wrong end bid amount");
+
+        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, start, amt);
+        assertEq(sellAmount, amt, "wrong start sell amount"); // 10x
+        assertEq(buyAmount, amt / 1e22, "wrong start buy amount"); // 10x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, (start + end) / 2, amt);
+        assertEq(sellAmount, amt, "wrong mid sell amount"); // ~3.16x
+        assertEq(buyAmount, 316, "wrong mid buy amount"); // ~3.16x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, end, amt);
+        assertEq(sellAmount, amt, "wrong end sell amount"); // 1x
+        assertEq(buyAmount, 1, "wrong end buy amount"); // 1x
     }
 
     function test_auctionCloseAuctionByAuctionApprover() public {
@@ -1304,6 +1336,8 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__Unauthorized.selector);
         folio.closeAuction(0);
 
+        (, , , , , , , , , uint256 end, ) = folio.auctions(0);
+
         vm.startPrank(dao);
         vm.expectEmit(true, false, false, true);
         emit IFolio.AuctionClosed(0);
@@ -1314,7 +1348,6 @@ contract FolioTest is BaseTest {
         vm.expectRevert();
         folio.closeAuction(1); // index out of bounds
 
-        (, , , , , , , , , uint256 end, ) = folio.auctions(0);
         vm.expectRevert(IFolio.Folio__AuctionNotOngoing.selector);
         folio.bid(0, amt, amt, false, bytes(""));
 
@@ -1358,6 +1391,8 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__Unauthorized.selector);
         folio.closeAuction(0);
 
+        (, , , , , , , , , uint256 end, ) = folio.auctions(0);
+
         vm.startPrank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
         emit IFolio.AuctionClosed(0);
@@ -1368,7 +1403,6 @@ contract FolioTest is BaseTest {
         vm.expectRevert();
         folio.closeAuction(1); // index out of bounds
 
-        (, , , , , , , , , uint256 end, ) = folio.auctions(0);
         vm.expectRevert(IFolio.Folio__AuctionNotOngoing.selector);
         folio.bid(0, amt, amt, false, bytes(""));
 
@@ -1408,6 +1442,8 @@ contract FolioTest is BaseTest {
         emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
+        (, , , , , , , , , uint256 end, ) = folio.auctions(0);
+
         vm.startPrank(owner);
         vm.expectEmit(true, false, false, true);
         emit IFolio.AuctionClosed(0);
@@ -1418,7 +1454,6 @@ contract FolioTest is BaseTest {
         vm.expectRevert();
         folio.closeAuction(1); // index out of bounds
 
-        (, , , , , , , , , uint256 end, ) = folio.auctions(0);
         vm.expectRevert(IFolio.Folio__AuctionNotOngoing.selector);
         folio.bid(0, amt, amt, false, bytes(""));
 
@@ -1790,6 +1825,9 @@ contract FolioTest is BaseTest {
         vm.prank(auctionLauncher);
         folio.openAuction(1, 0, MAX_RATE, 100e6, 1e6); // 100x -> 1x
 
+        // both auctions have same start/end
+        (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
+
         // bid in first auction for half volume at start
 
         vm.startPrank(user1);
@@ -1798,7 +1836,6 @@ contract FolioTest is BaseTest {
 
         // advance halfway and bid for full volume of second auction
 
-        (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
         vm.warp(start + (end - start) / 2);
         uint256 bidAmt = (amt2 * 40) / 1e12; // adjust for decimals
         USDT.approve(address(folio), bidAmt);
@@ -1810,10 +1847,13 @@ contract FolioTest is BaseTest {
         USDT.approve(address(folio), amt1 / 2);
         folio.bid(0, amt1 / 2, amt1 / 2, false, bytes(""));
 
+        // 0-value bids should revert
+
+        vm.expectRevert(IFolio.Folio__SlippageExceeded.selector);
+        folio.getBid(1, start, type(uint256).max);
+
         // auctions are over, should have no USDC + DAI left
 
-        (, , , , , , , , , end, ) = folio.auctions(0);
-        assertEq(folio.lot(1, start + (end - start) / 2), 0, "unfinished auction 2");
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         assertEq(DAI.balanceOf(address(folio)), 0, "wrong dai balance");
     }
@@ -1840,8 +1880,10 @@ contract FolioTest is BaseTest {
             uint256 endPrice = i / MAX_PRICE_RANGE;
             folio.openAuction(index, 0, MAX_RATE, i, endPrice > i ? endPrice : i);
             (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(index);
-            folio.getPrice(index, start);
-            folio.getPrice(index, end);
+
+            // should not revert
+            folio.getBid(index, start, type(uint256).max);
+            folio.getBid(index, end, type(uint256).max);
             vm.warp(end + 1);
         }
     }
@@ -1854,8 +1896,8 @@ contract FolioTest is BaseTest {
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
         (, , , , , , , , , uint256 end, ) = folio.auctions(0);
 
-        vm.startSnapshotGas("getPrice()");
-        folio.getPrice(0, end);
+        vm.startSnapshotGas("getBid()");
+        folio.getBid(0, end, type(uint256).max);
         vm.stopSnapshotGas();
     }
 
@@ -2061,7 +2103,7 @@ contract FolioTest is BaseTest {
         // bid once (excessive bid)
         vm.startPrank(user1);
         USDT.approve(address(folio), D6_TOKEN_10K);
-        vm.expectRevert(IFolio.Folio__ExcessiveBid.selector);
+        vm.expectRevert(IFolio.Folio__InsufficientBalance.selector);
         folio.bid(0, amt, D6_TOKEN_100K, false, bytes(""));
     }
 
