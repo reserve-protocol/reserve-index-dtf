@@ -39,6 +39,9 @@ jobs:
 
       - name: Core Tests
         run: yarn deploy --rpc-url http://localhost:8545
+        env:
+          ETHERSCAN_API_KEY_1: DUMMY
+          ETHERSCAN_API_KEY_8453: DUMMY
 
   core:
     runs-on: ubuntu-latest
