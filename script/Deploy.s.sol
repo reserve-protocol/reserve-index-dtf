@@ -177,9 +177,9 @@ contract DeployScript is Script {
         assets[0] = deployParams.rsrToken;
 
         uint256[] memory amounts = new uint256[](1);
-        amounts[0] = 1e18;
+        amounts[0] = 1;
 
-        IERC20(deployParams.rsrToken).approve(address(folioDeployer), 1e18);
+        IERC20(deployParams.rsrToken).approve(address(folioDeployer), 1);
         folioDeployer.deployFolio(
             IFolio.FolioBasicDetails({
                 name: "Junk",
