@@ -2,7 +2,7 @@ import { Decimal } from "decimal.js";
 
 import { Auction } from "../types";
 import { bn, D18d, D27d, ONE, TWO, ZERO } from "../numbers";
-import { makeAuction } from "../utils";
+import { toDecimals, makeAuction } from "../utils";
 
 /**
  * Get the set of auctions required to reach the target basket
@@ -41,7 +41,7 @@ export const getAuctions = (
   const supply = new Decimal(_supply.toString()).div(D18d);
 
   // {USD/wholeTok}
-  const prices = _prices.map((a) => new Decimal(a));
+  const prices = toDecimals(_prices);
 
   // {USD/wholeShare}
   const dtfPrice = new Decimal(_dtfPrice);
@@ -53,7 +53,7 @@ export const getAuctions = (
   const targetBasket = _targetBasket.map((a) => new Decimal(a.toString()).div(D18d));
 
   // {1}
-  const priceError = _priceError.map((a) => new Decimal(a));
+  const priceError = toDecimals(_priceError);
 
   const tolerance = new Decimal(_tolerance.toString()).div(D18d);
 

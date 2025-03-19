@@ -1,6 +1,6 @@
 import { Decimal } from "decimal.js";
 
-import { bn, D9d, D18n, D27d, D27n } from "./numbers";
+import { bn, D9d, D18n, D27d, D27n, ZERO } from "./numbers";
 import { Auction } from "./types";
 
 /**
@@ -100,6 +100,17 @@ export const getSharePricing = (
   const per = new Decimal(total.toString()).div(new Decimal(supply.toString()).mul(D9d)).toNumber();
 
   return [total, per];
+};
+
+/// Convert array of number to Decimals, throwing on 0
+export const toDecimals = (_arr: number[]): Decimal[] => {
+  const arr = _arr.map((a) => new Decimal(a));
+  for (let i = 0; i < arr.length; i++) {
+    if (arr[i].lte(ZERO)) {
+      throw new Error("a price is zero");
+    }
+  }
+  return arr;
 };
 
 export const makeAuction = (

@@ -2,6 +2,7 @@ import { Decimal } from "decimal.js";
 
 import { Auction } from "../types";
 import { bn, D18d, D27d, ZERO } from "../numbers";
+import { toDecimals } from "../utils";
 
 /**
  * Get basket from a set of auctions
@@ -29,7 +30,7 @@ export const getBasket = (
   const supply = new Decimal(_supply.toString()).div(D18d);
 
   // {USD/wholeTok}
-  const prices = _prices.map((a) => new Decimal(a));
+  const prices = toDecimals(_prices);
 
   // {USD/wholeShare}
   const dtfPrice = new Decimal(_dtfPrice);
