@@ -1,7 +1,8 @@
 import { Decimal } from "decimal.js";
 
-import { bn, D18d, D27d, ZERO, ONE, TWO } from "../numbers";
+import { bn, D18d, D27d, ONE, TWO } from "../numbers";
 import { Auction } from "../types";
+import { toDecimals } from "../utils";
 
 /**
  * Get the arguments needed to call `openAuction()` by the auction launcher, after prices have already
@@ -33,10 +34,10 @@ export const openAuction = (
   // convert price number inputs to bigints
 
   // {USD/wholeTok}
-  const prices = _prices.map((a) => new Decimal(a));
+  const prices = toDecimals(_prices);
 
   // {1}
-  const priceError = _priceError.map((a) => new Decimal(a));
+  const priceError = toDecimals(_priceError);
 
   // {wholeShare}
   const supply = new Decimal(_supply.toString()).div(D18d);

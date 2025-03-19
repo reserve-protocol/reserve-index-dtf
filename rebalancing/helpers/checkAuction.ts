@@ -2,6 +2,7 @@ import { Decimal } from "decimal.js";
 
 import { bn, D27d } from "../numbers";
 import { Auction } from "../types";
+import { toDecimals } from "../utils";
 
 /**
  * Check if a auction's price range contains the current market price, without accounting for slippage
@@ -19,7 +20,7 @@ export const checkAuction = (auction: Auction, tokens: string[], decimals: bigin
   }
 
   // {USD/wholeTok}
-  const prices = _prices.map((a) => new Decimal(a));
+  const prices = toDecimals(_prices);
 
   // indices
   let x = prices.length;
