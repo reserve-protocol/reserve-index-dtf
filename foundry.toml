@@ -24,5 +24,5 @@ base = "https://base-mainnet.infura.io/v3/b6bf7d3508c941499b10025c0776eaf8"
 mainnet = "https://mainnet.infura.io/v3/b6bf7d3508c941499b10025c0776eaf8"
 
 [etherscan]
-base = {url = "https://api.basescan.org/api", key = ""}
-mainnet = {url = "https://api.etherscan.io/api", key = ""}
+base = {url = "https://api.basescan.org/api", key = "${ETHERSCAN_API_KEY_1}"}
+mainnet = {url = "https://api.etherscan.io/api", key = "${ETHERSCAN_API_KEY_8453}"}
