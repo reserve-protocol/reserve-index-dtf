@@ -68,6 +68,8 @@ abstract contract BaseTest is Script, Test {
     address governorImplementation;
     address timelockImplementation;
 
+    address cowswapFiller;
+
     function setUp() public {
         _testSetup();
         // _setUp();
@@ -101,11 +103,11 @@ abstract contract BaseTest is Script, Test {
             governanceDeployer
         );
 
-        CowSwapFiller cowswapFiller = new CowSwapFiller();
+        cowswapFiller = address(new CowSwapFiller());
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
-        trustedFillerRegistry.addTrustedFiller(cowswapFiller);
+        trustedFillerRegistry.addTrustedFiller(CowSwapFiller(cowswapFiller));
 
         deployCoins();
         mintTokens();

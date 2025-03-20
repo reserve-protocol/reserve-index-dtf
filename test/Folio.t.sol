@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/interfaces/IBaseTrustedFiller.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TVL_FEE, MAX_MINT_FEE, MAX_PRICE_RANGE, MAX_RATE, RESTRICTED_AUCTION_BUFFER } from "contracts/Folio.sol";
 import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
@@ -1259,6 +1260,87 @@ contract FolioTest is BaseTest {
         assertEq(USDT.balanceOf(address(mockBidder2)), 0, "wrong mock bidder2 balance");
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         vm.stopPrank();
+    }
+
+    function test_auctionByCowSwapSettlement() public {
+        // bid in two chunks, one at start time and one at end time
+
+        IFolio.Auction memory auctionStruct = IFolio.Auction({
+            id: 0,
+            sellToken: USDC,
+            buyToken: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            restrictedUntil: block.timestamp + folio.auctionDelay(),
+            launchDeadline: block.timestamp + MAX_TTL,
+            startTime: 0,
+            endTime: 0,
+            k: 0
+        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+
+        uint256 amt = D6_TOKEN_10K;
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
+
+        vm.prank(auctionLauncher);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
+        folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
+
+        // check prices
+
+        (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
+
+        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, start, amt);
+        assertEq(sellAmount, amt, "wrong start sell amount"); // 10x
+        assertEq(buyAmount, amt * 10, "wrong start buy amount"); // 10x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, (start + end) / 2, amt);
+        assertEq(sellAmount, amt, "wrong mid sell amount"); // ~3.16x
+        assertEq(buyAmount, 31622776602, "wrong mid buy amount"); // ~3.16x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, end, amt);
+        assertEq(sellAmount, amt, "wrong end sell amount"); // 1x
+        assertEq(buyAmount, amt, "wrong end buy amount"); // 1x
+
+        // swap 1st time
+
+        IBaseTrustedFiller swap = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp));
+        MockERC20(address(USDC)).burn(address(swap), amt / 2);
+        MockERC20(address(USDT)).mint(address(swap), amt * 5);
+        vm.warp(end);
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, start, amt);
+        assertEq(sellAmount, amt / 2, "wrong start sell amount"); // 10x
+        assertEq(buyAmount, amt * 5, "wrong start buy amount"); // 10x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, (start + end) / 2, amt);
+        assertEq(sellAmount, amt / 2, "wrong mid sell amount"); // ~3.16x
+        assertEq(buyAmount, 15811388301, "wrong mid buy amount"); // ~3.16x
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, end, amt);
+        assertEq(sellAmount, amt / 2, "wrong end sell amount"); // 1x
+        assertEq(buyAmount, amt / 2, "wrong end buy amount"); // 1x
+
+        // bid a 2nd time for the rest of the volume, at end time
+        IBaseTrustedFiller swap2 = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp));
+        MockERC20(address(USDC)).burn(address(swap2), amt / 2);
+        MockERC20(address(USDT)).mint(address(swap2), amt / 2);
+        assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
+        vm.stopPrank();
+
+        // anyone should be able to close, even though it's ideal this happens in the cowswap post-hook
+        swap2.closeFiller();
+        assertEq(USDC.balanceOf(address(swap2)), 0, "wrong usdc balance");
+        assertEq(USDT.balanceOf(address(swap2)), 0, "wrong usdt balance");
+
+        // Folio should have balances
+        assertEq(USDC.balanceOf(address(folio)), 0, "wrong folio usdc balance");
+        assertEq(USDT.balanceOf(address(folio)), amt * 5 + amt / 2, "wrong folio usdt balance");
     }
 
     function test_auctionTinyPrices() public {
