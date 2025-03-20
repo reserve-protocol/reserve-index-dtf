@@ -1081,7 +1081,8 @@ contract Folio is
         super._update(from, to, value);
 
         if (to == address(this)) {
-            _burn(address(this), balanceOf(address(this)));
+            require(from == address(activeTrustedFill), Folio__InvalidTransferToSelf());
+            _burn(address(this), value);
         }
     }
 }
