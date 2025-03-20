@@ -826,7 +826,9 @@ contract Folio is
         auction.endTime = endTime;
 
         // ensure buy token is in basket since swaps can happen out-of-band
-        _addToBasket(address(auction.buyToken));
+        if (address(auction.buyToken) != address(this)) {
+            _addToBasket(address(auction.buyToken));
+        }
         emit AuctionOpened(auction.id, auction, details.availableRuns);
 
         // D18{1}
