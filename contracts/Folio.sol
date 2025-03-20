@@ -712,7 +712,11 @@ contract Folio is
             auction.buyToken.safeTransferFrom(msg.sender, address(this), boughtAmt);
         }
 
-        require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= boughtAmt, Folio__InsufficientBid());
+        require(
+            address(auction.buyToken) == address(this) ||
+                auction.buyToken.balanceOf(address(this)) - buyBalBefore >= boughtAmt,
+            Folio__InsufficientBid()
+        );
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
@@ -1043,7 +1047,7 @@ contract Folio is
     }
 
     function _addToBasket(address token) internal returns (bool) {
-        require(token != address(0), Folio__InvalidAsset());
+        require(token != address(0) && token != address(this), Folio__InvalidAsset());
         emit BasketTokenAdded(token);
 
         return basket.add(token);
@@ -1068,6 +1072,14 @@ contract Folio is
         if (address(activeTrustedFill) != address(0)) {
             activeTrustedFill.closeFiller();
             delete activeTrustedFill;
+        }
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        super._update(from, to, value);
+
+        if (to == address(this)) {
+            _burn(address(this), balanceOf(address(this)));
         }
     }
 }
