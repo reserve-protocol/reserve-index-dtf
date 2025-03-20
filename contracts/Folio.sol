@@ -706,17 +706,19 @@ contract Folio is
         }
 
         // collect payment from bidder
-        if (withCallback) {
-            IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), boughtAmt, data);
+        if (address(auction.buyToken) == address(this)) {
+            // workaround for weird guards in _update()
+            _spendAllowance(msg.sender, address(this), boughtAmt);
+            _burn(msg.sender, boughtAmt);
         } else {
-            auction.buyToken.safeTransferFrom(msg.sender, address(this), boughtAmt);
-        }
+            if (withCallback) {
+                IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), boughtAmt, data);
+            } else {
+                auction.buyToken.safeTransferFrom(msg.sender, address(this), boughtAmt);
+            }
 
-        require(
-            address(auction.buyToken) == address(this) ||
-                auction.buyToken.balanceOf(address(this)) - buyBalBefore >= boughtAmt,
-            Folio__InsufficientBid()
-        );
+            require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= boughtAmt, Folio__InsufficientBid());
+        }
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
