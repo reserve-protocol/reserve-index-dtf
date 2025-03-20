@@ -290,7 +290,7 @@ contract Folio is
     /// @dev Contains all pending fee shares
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
         (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
-        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
+        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares - balanceOf(address(this));
     }
 
     /// @return _assets
@@ -525,7 +525,10 @@ contract Folio is
         require(!isDeprecated, Folio__FolioDeprecated());
 
         require(
-            address(sell) != address(0) && address(buy) != address(0) && address(sell) != address(buy),
+            address(sell) != address(0) &&
+                address(buy) != address(0) &&
+                address(sell) != address(buy) &&
+                address(sell) != address(this),
             Folio__InvalidAuctionTokens()
         );
 
@@ -822,7 +825,9 @@ contract Folio is
         auction.endTime = endTime;
 
         // ensure buy token is in basket since swaps can happen out-of-band
-        _addToBasket(address(auction.buyToken));
+        if (address(auction.buyToken) != address(this)) {
+            _addToBasket(address(auction.buyToken));
+        }
         emit AuctionOpened(auction.id, auction, details.availableRuns);
 
         // D18{1}
@@ -1043,7 +1048,7 @@ contract Folio is
     }
 
     function _addToBasket(address token) internal returns (bool) {
-        require(token != address(0), Folio__InvalidAsset());
+        require(token != address(0) && token != address(this), Folio__InvalidAsset());
         emit BasketTokenAdded(token);
 
         return basket.add(token);
