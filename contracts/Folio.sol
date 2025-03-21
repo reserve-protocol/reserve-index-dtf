@@ -493,7 +493,7 @@ contract Folio is
         (sellAmount, bidAmount, price) = _getBid(
             auction,
             totalSupply(),
-            timestamp,
+            timestamp == 0 ? block.timestamp : timestamp,
             sellBal,
             buyBal,
             0,
@@ -716,7 +716,7 @@ contract Folio is
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
-    function createTrustedFiller(
+    function createTrustedFill(
         uint256 auctionId,
         address targetFiller,
         bytes32 deploymentSalt
