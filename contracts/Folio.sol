@@ -1104,15 +1104,17 @@ contract Folio is
             return;
         }
 
-        // only allow transfers to self from activeBidder/activeTrustedFill
+        // only allow transfers in from activeBidder/activeTrustedFill
         require(
             to != address(this) || from == address(activeBidder) || from == address(activeTrustedFill),
             Folio__InvalidTransferToSelf()
         );
 
-        // burn tokens transferred to/from activeTrustedFill
+        // burn tokens at destination when transferring to/from activeTrustedFill
+        //   - to case: totalSupply must be reduced at same time as assets are sold
+        //   - from case: tokens can be sent to activeTrustedFill before it is deployed
         if (to == address(activeTrustedFill) || from == address(activeTrustedFill)) {
-            _burn(address(activeTrustedFill), value);
+            _burn(address(to), value);
         }
     }
 }
