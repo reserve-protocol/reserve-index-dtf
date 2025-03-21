@@ -1448,7 +1448,7 @@ contract FolioTest is BaseTest {
 
         // bid for the full volume, at end time
         vm.startPrank(owner);
-        IBaseTrustedFiller swap2 = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp));
+        IBaseTrustedFiller swap2 = folio.createTrustedFill(0, cowswapFiller, bytes32(block.timestamp));
         MockERC20(address(USDC)).burn(address(swap2), amt);
         folio.transfer(address(swap2), amt * 1e12);
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance folio");
