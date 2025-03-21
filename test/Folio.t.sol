@@ -1412,7 +1412,7 @@ contract FolioTest is BaseTest {
         fill.isValidSignature(GPv2OrderLib.hash(order, domainSeparator), abi.encode(order));
     }
 
-    function test_swapNegativeCases() public {
+    function test_trustedFillerNegativeCases() public {
         // createTrustedFiller should not be executable until auction is open
 
         vm.expectRevert();
@@ -1475,7 +1475,7 @@ contract FolioTest is BaseTest {
         assertEq(basket[3], address(USDT));
         assertEq(amounts[3], 0);
 
-        // amount of USDC in the basket should show Swap balance
+        // amount of USDC in the basket should show Filler balance
 
         assertEq(basket[0], address(USDC));
         assertEq(amounts[0], redeemAmt / 1e12);
