@@ -209,6 +209,12 @@ contract Folio is
     function removeFromBasket(IERC20 token) external nonReentrant {
         _closeTrustedFill();
 
+        // ensure the token is not currently being bought if executed permissonlessly
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || block.timestamp > buyEnds[address(token)],
+            Folio__BasketModificationFailed()
+        );
+
         // D27{tok/share} = {tok} * D27 / {share}
         uint256 basketPresence = Math.mulDiv(
             IERC20(token).balanceOf(address(this)),
