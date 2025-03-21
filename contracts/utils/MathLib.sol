@@ -19,15 +19,17 @@ library MathLib {
         return UD_powu(UD60x18.wrap(x), y).unwrap();
     }
 
+    // ==== Internal ====
+
     /// @param x 18 decimal fixed point
     /// @return z 18 decimal fixed point
-    function ln(uint256 x) external pure returns (uint256 z) {
+    function ln(uint256 x) internal pure returns (uint256 z) {
         return UD_ln(UD60x18.wrap(x)).unwrap();
     }
 
     /// @param x 18 decimal fixed point
     /// @return z 18 decimal fixed point
-    function exp(int256 x) external pure returns (uint256 z) {
+    function exp(int256 x) internal pure returns (uint256 z) {
         return intoUint256(SD_exp(SD59x18.wrap(x)));
     }
 }
