@@ -1451,17 +1451,18 @@ contract FolioTest is BaseTest {
         IBaseTrustedFiller swap2 = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp));
         MockERC20(address(USDC)).burn(address(swap2), amt);
         folio.transfer(address(swap2), amt * 1e12);
-        assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
+        assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance folio");
+        assertEq(USDC.balanceOf(address(swap2)), 0, "wrong usdc balance swap");
+        assertEq(folio.balanceOf(address(folio)), 0, "wrong folio balance folio");
+        assertEq(folio.balanceOf(address(swap2)), 0, "wrong folio balance swap");
         vm.stopPrank();
 
         // anyone should be able to close, even though it's ideal this happens in the cowswap post-hook
         swap2.closeFiller();
-        assertEq(USDC.balanceOf(address(swap2)), 0, "wrong usdc balance");
-        assertEq(folio.balanceOf(address(swap2)), 0, "wrong folio balance");
-
-        // Folio should have burnt its balance
-        assertEq(USDC.balanceOf(address(folio)), 0, "wrong folio usdc balance");
-        assertEq(folio.balanceOf(address(folio)), 0, "wrong folio folio balance");
+        assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance folio after close");
+        assertEq(USDC.balanceOf(address(swap2)), 0, "wrong usdc balance after close");
+        assertEq(folio.balanceOf(address(folio)), 0, "wrong folio balance folio after close");
+        assertEq(folio.balanceOf(address(swap2)), 0, "wrong folio balance swap after close");
     }
 
     function test_auctionIsValidSignature() public {
