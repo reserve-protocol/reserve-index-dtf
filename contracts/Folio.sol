@@ -515,27 +515,16 @@ contract Folio is
     ) external nonReentrant onlyRole(AUCTION_APPROVER) {
         require(!isDeprecated, Folio__FolioDeprecated());
 
-        uint256 auctionId = auctions.length;
-
-        Auction memory auction = AuctionLib.approveAuction(
-            auctionId,
+        AuctionLib.approveAuction(
+            auctions,
+            auctionDetails,
             sellEnds,
             buyEnds,
-            auctionDelay,
-            sell,
-            buy,
+            AuctionLib.ApproveAuctionParams({ auctionDelay: auctionDelay, sell: sell, buy: buy, ttl: ttl, runs: runs }),
             sellLimit,
             buyLimit,
-            prices,
-            ttl,
-            runs
+            prices
         );
-        auctions.push(auction);
-
-        AuctionDetails memory details = AuctionDetails({ initialPrices: prices, availableRuns: runs });
-        auctionDetails[auctionId] = details;
-
-        emit AuctionApproved(auctionId, address(sell), address(buy), auction, details);
     }
 
     /// Open an auction as the auction launcher

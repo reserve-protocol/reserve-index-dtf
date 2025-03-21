@@ -14,32 +14,40 @@ import { MathLib } from "@utils/MathLib.sol";
 library AuctionLib {
     using SafeERC20 for IERC20;
 
+    struct ApproveAuctionParams {
+        uint256 auctionDelay;
+        IERC20 sell;
+        IERC20 buy;
+        uint256 ttl;
+        uint256 runs;
+    }
+
     /// Approve an auction to run
-    /// @param sell The token to sell, from the perspective of the Folio
-    /// @param buy The token to buy, from the perspective of the Folio
+    /// @param params.auctionDelay {s} Delay during which only the AUCTION_LAUNCHER can open the auction
+    /// @param params.sell The token to sell, from the perspective of the Folio
+    /// @param params.buy The token to buy, from the perspective of the Folio
+    /// @param params.ttl {s} How long a auction can exist in an APPROVED state until it can no longer be OPENED
+    /// @param params.runs {runs} How many times the auction can be opened before it is permanently closed
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param prices D27{buyTok/sellTok} Price range
-    /// @param ttl {s} How long a auction can exist in an APPROVED state until it can no longer be OPENED
     ///     (once opened, it always finishes).
     ///     Must be >= auctionDelay if intended to be openly available
     ///     Set < auctionDelay to restrict launching to the AUCTION_LAUNCHER
-    /// @param runs {runs} How many times the auction can be opened before it is permanently closed
     function approveAuction(
-        uint256 nextAuctionId,
+        IFolio.Auction[] storage auctions,
+        mapping(uint256 auctionId => IFolio.AuctionDetails) storage auctionDetails,
         mapping(address token => uint256 timepoint) storage sellEnds,
         mapping(address token => uint256 timepoint) storage buyEnds,
-        uint256 auctionDelay,
-        IERC20 sell,
-        IERC20 buy,
+        ApproveAuctionParams calldata params,
         IFolio.BasketRange calldata sellLimit,
         IFolio.BasketRange calldata buyLimit,
-        IFolio.Prices calldata prices,
-        uint256 ttl,
-        uint256 runs
-    ) external returns (IFolio.Auction memory auction) {
+        IFolio.Prices calldata prices
+    ) external {
         require(
-            address(sell) != address(0) && address(buy) != address(0) && address(sell) != address(buy),
+            address(params.sell) != address(0) &&
+                address(params.buy) != address(0) &&
+                address(params.sell) != address(params.buy),
             IFolio.Folio__InvalidAuctionTokens()
         );
 
@@ -58,36 +66,46 @@ library AuctionLib {
 
         require(prices.start >= prices.end, IFolio.Folio__InvalidPrices());
 
-        require(ttl <= MAX_TTL, IFolio.Folio__InvalidAuctionTTL());
+        require(params.ttl <= MAX_TTL, IFolio.Folio__InvalidAuctionTTL());
 
-        require(runs != 0, IFolio.Folio__InvalidAuctionRuns());
+        require(params.runs != 0, IFolio.Folio__InvalidAuctionRuns());
 
         // do not buy and sell the same token simultaneously
         require(
-            block.timestamp > sellEnds[address(buy)] && block.timestamp > buyEnds[address(sell)],
+            block.timestamp > sellEnds[address(params.buy)] && block.timestamp > buyEnds[address(params.sell)],
             IFolio.Folio__AuctionCollision()
         );
 
         // {s}
-        uint256 launchDeadline = block.timestamp + ttl;
+        uint256 launchDeadline = block.timestamp + params.ttl;
 
-        sellEnds[address(sell)] = Math.max(sellEnds[address(sell)], launchDeadline);
-        buyEnds[address(buy)] = Math.max(buyEnds[address(buy)], launchDeadline);
+        sellEnds[address(params.sell)] = Math.max(sellEnds[address(params.sell)], launchDeadline);
+        buyEnds[address(params.buy)] = Math.max(buyEnds[address(params.buy)], launchDeadline);
 
-        return
-            IFolio.Auction({
-                id: nextAuctionId,
-                sellToken: sell,
-                buyToken: buy,
-                sellLimit: sellLimit,
-                buyLimit: buyLimit,
-                prices: IFolio.Prices(0, 0),
-                restrictedUntil: block.timestamp + auctionDelay,
-                launchDeadline: launchDeadline,
-                startTime: 0,
-                endTime: 0,
-                k: 0
-            });
+        uint256 auctionId = auctions.length;
+
+        IFolio.Auction memory auction = IFolio.Auction({
+            id: auctionId,
+            sellToken: params.sell,
+            buyToken: params.buy,
+            sellLimit: sellLimit,
+            buyLimit: buyLimit,
+            prices: IFolio.Prices(0, 0),
+            restrictedUntil: block.timestamp + params.auctionDelay,
+            launchDeadline: launchDeadline,
+            startTime: 0,
+            endTime: 0,
+            k: 0
+        });
+        auctions.push(auction);
+
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: prices,
+            availableRuns: params.runs
+        });
+        auctionDetails[auctionId] = details;
+
+        emit IFolio.AuctionApproved(auctionId, address(params.sell), address(params.buy), auction, details);
     }
 
     /// @param buffer {s} Additional time buffer that must pass from `endTime` before auction can be opened
