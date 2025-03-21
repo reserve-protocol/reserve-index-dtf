@@ -8,9 +8,8 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
+import { D18, D27, MAX_RATE, MAX_PRICE_RANGE, MAX_TTL } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
-
-import { D18, D27, MAX_RATE, MAX_PRICE_RANGE, MAX_TTL, MAX_AUCTION_DELAY, MAX_AUCTION_LENGTH } from "@src/Folio.sol";
 
 library AuctionLib {
     using SafeERC20 for IERC20;
