@@ -142,6 +142,7 @@ contract Folio is
     // === 3.0.0 ===
     ITrustedFillerRegistry public trustedFillerRegistry;
     IBaseTrustedFiller private activeTrustedFill;
+    address private activeBidder;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -301,24 +302,10 @@ contract Folio is
 
     /// @return _assets
     /// @return _amounts {tok}
-    function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return toAssets(10 ** decimals(), Math.Rounding.Floor);
-    }
+    function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
+        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
 
-    /// @return _assets
-    /// @return _amounts {tok}
-    function totalAssets() public view returns (address[] memory _assets, uint256[] memory _amounts) {
-        _assets = basket.values();
-
-        uint256 assetLength = _assets.length;
-        _amounts = new uint256[](assetLength);
-        for (uint256 i; i < assetLength; i++) {
-            _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
-
-            if (address(activeTrustedFill) != address(0)) {
-                _amounts[i] += IERC20(_assets[i]).balanceOf(address(activeTrustedFill));
-            }
-        }
+        return _totalAssets();
     }
 
     /// @param shares {share}
@@ -327,7 +314,7 @@ contract Folio is
     function toAssets(
         uint256 shares,
         Math.Rounding rounding
-    ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
+    ) external view returns (address[] memory _assets, uint256[] memory _amounts) {
         require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
 
         return _toAssets(shares, rounding);
@@ -711,14 +698,26 @@ contract Folio is
             }
         }
 
-        // collect payment from bidder
+        // allow Folio transfers to self from activeBidder
+        if (address(auction.buyToken) == address(this)) {
+            activeBidder = msg.sender;
+        }
+
+        // collect payment
         if (withCallback) {
             IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), boughtAmt, data);
         } else {
             auction.buyToken.safeTransferFrom(msg.sender, address(this), boughtAmt);
         }
 
-        require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= boughtAmt, Folio__InsufficientBid());
+        uint256 actualBoughtAmt = auction.buyToken.balanceOf(address(this)) - buyBalBefore;
+        require(actualBoughtAmt >= boughtAmt, Folio__InsufficientBid());
+
+        // burn any Folio token purchased in auction
+        if (address(auction.buyToken) == address(this)) {
+            delete activeBidder;
+            _burn(address(this), actualBoughtAmt);
+        }
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
@@ -784,12 +783,28 @@ contract Folio is
     ) internal view returns (address[] memory _assets, uint256[] memory _amounts) {
         uint256 _totalSupply = totalSupply();
 
-        (_assets, _amounts) = totalAssets();
+        (_assets, _amounts) = _totalAssets();
 
         uint256 assetLen = _assets.length;
         for (uint256 i; i < assetLen; i++) {
             // {tok} = {share} * {tok} / {share}
             _amounts[i] = Math.mulDiv(shares, _amounts[i], _totalSupply, rounding);
+        }
+    }
+
+    /// @return _assets
+    /// @return _amounts {tok}
+    function _totalAssets() internal view returns (address[] memory _assets, uint256[] memory _amounts) {
+        _assets = basket.values();
+
+        uint256 assetLength = _assets.length;
+        _amounts = new uint256[](assetLength);
+        for (uint256 i; i < assetLength; i++) {
+            _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
+
+            if (address(activeTrustedFill) != address(0)) {
+                _amounts[i] += IERC20(_assets[i]).balanceOf(address(activeTrustedFill));
+            }
         }
     }
 
@@ -828,7 +843,9 @@ contract Folio is
         auction.endTime = endTime;
 
         // ensure buy token is in basket since swaps can happen out-of-band
-        _addToBasket(address(auction.buyToken));
+        if (address(auction.buyToken) != address(this)) {
+            _addToBasket(address(auction.buyToken));
+        }
         emit AuctionOpened(auction.id, auction, details.availableRuns);
 
         // D18{1}
@@ -1049,7 +1066,7 @@ contract Folio is
     }
 
     function _addToBasket(address token) internal returns (bool) {
-        require(token != address(0), Folio__InvalidAsset());
+        require(token != address(0) && token != address(this), Folio__InvalidAsset());
         emit BasketTokenAdded(token);
 
         return basket.add(token);
@@ -1074,6 +1091,28 @@ contract Folio is
         if (address(activeTrustedFill) != address(0)) {
             activeTrustedFill.closeFiller();
             delete activeTrustedFill;
+        }
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        super._update(from, to, value);
+
+        // ignore mints + burns
+        if (from == address(0) || to == address(0)) {
+            return;
+        }
+
+        // only allow transfers in from activeBidder/activeTrustedFill
+        require(
+            to != address(this) || from == address(activeBidder) || from == address(activeTrustedFill),
+            Folio__InvalidTransferToSelf()
+        );
+
+        // burn tokens at destination when transferring to/from activeTrustedFill
+        //   - to case: totalSupply must be reduced at same time as assets are sold
+        //   - from case: tokens can be sent to activeTrustedFill before it is deployed
+        if (to == address(activeTrustedFill) || from == address(activeTrustedFill)) {
+            _burn(address(to), value);
         }
     }
 }
