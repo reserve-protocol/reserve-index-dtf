@@ -12,6 +12,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/interfaces/ITrustedFillerRegistry.sol";
 
+import { AuctionLib } from "@utils/AuctionLib.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -524,61 +525,27 @@ contract Folio is
     ) external nonReentrant onlyRole(AUCTION_APPROVER) {
         require(!isDeprecated, Folio__FolioDeprecated());
 
-        require(
-            address(sell) != address(0) && address(buy) != address(0) && address(sell) != address(buy),
-            Folio__InvalidAuctionTokens()
+        uint256 auctionId = auctions.length;
+
+        Auction memory auction = AuctionLib.approveAuction(
+            auctionId,
+            sellEnds,
+            buyEnds,
+            auctionDelay,
+            sell,
+            buy,
+            sellLimit,
+            buyLimit,
+            prices,
+            ttl,
+            runs
         );
-
-        require(
-            sellLimit.high <= MAX_RATE && sellLimit.low <= sellLimit.spot && sellLimit.high >= sellLimit.spot,
-            Folio__InvalidSellLimit()
-        );
-
-        require(
-            buyLimit.low != 0 &&
-                buyLimit.high <= MAX_RATE &&
-                buyLimit.low <= buyLimit.spot &&
-                buyLimit.high >= buyLimit.spot,
-            Folio__InvalidBuyLimit()
-        );
-
-        require(prices.start >= prices.end, Folio__InvalidPrices());
-
-        require(ttl <= MAX_TTL, Folio__InvalidAuctionTTL());
-
-        require(runs != 0, Folio__InvalidAuctionRuns());
-
-        // do not buy and sell the same token simultaneously
-        require(
-            block.timestamp > sellEnds[address(buy)] && block.timestamp > buyEnds[address(sell)],
-            Folio__AuctionCollision()
-        );
-
-        // {s}
-        uint256 launchDeadline = block.timestamp + ttl;
-
-        sellEnds[address(sell)] = Math.max(sellEnds[address(sell)], launchDeadline);
-        buyEnds[address(buy)] = Math.max(buyEnds[address(buy)], launchDeadline);
-
-        Auction memory auction = Auction({
-            id: auctions.length,
-            sellToken: sell,
-            buyToken: buy,
-            sellLimit: sellLimit,
-            buyLimit: buyLimit,
-            prices: Prices(0, 0),
-            restrictedUntil: block.timestamp + auctionDelay,
-            launchDeadline: launchDeadline,
-            startTime: 0,
-            endTime: 0,
-            k: 0
-        });
         auctions.push(auction);
 
-        AuctionDetails memory details = AuctionDetails({ initialPrices: prices, availableRuns: runs });
-        auctionDetails[auction.id] = details;
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: prices, availableRuns: runs });
+        auctionDetails[auctionId] = details;
 
-        emit AuctionApproved(auction.id, address(sell), address(buy), auction, details);
+        emit IFolio.AuctionApproved(auctionId, address(sell), address(buy), auction, details);
     }
 
     /// Open an auction as the auction launcher
