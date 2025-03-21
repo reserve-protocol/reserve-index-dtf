@@ -745,7 +745,7 @@ contract Folio is
         );
 
         // Create Trusted Filler
-        filler = trustedFillerRegistry.createTrustedFill(msg.sender, targetFiller, deploymentSalt);
+        filler = trustedFillerRegistry.createTrustedFiller(msg.sender, targetFiller, deploymentSalt);
         auction.sellToken.forceApprove(address(filler), sellAmount);
 
         filler.initialize(address(this), auction.sellToken, auction.buyToken, sellAmount, buyAmount);
