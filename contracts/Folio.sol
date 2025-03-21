@@ -195,6 +195,12 @@ contract Folio is
     function removeFromBasket(IERC20 token) external nonReentrant {
         _closeTrustedFill();
 
+        // ensure the token is not currently being bought if executed permissonlessly
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || block.timestamp > buyEnds[address(token)],
+            Folio__BasketModificationFailed()
+        );
+
         // D27{tok/share} = {tok} * D27 / {share}
         uint256 basketPresence = Math.mulDiv(
             IERC20(token).balanceOf(address(this)),
@@ -478,7 +484,7 @@ contract Folio is
         (sellAmount, bidAmount, price) = AuctionLib.getBid(
             auction,
             totalSupply(),
-            timestamp,
+            timestamp == 0 ? block.timestamp : timestamp,
             sellBal,
             buyBal,
             0,
@@ -647,7 +653,7 @@ contract Folio is
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
-    function createTrustedFiller(
+    function createTrustedFill(
         uint256 auctionId,
         address targetFiller,
         bytes32 deploymentSalt
