@@ -302,14 +302,6 @@ contract Folio is
         return _totalAssets();
     }
 
-    /// @return _assets
-    /// @return _amounts {tok}
-    function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
-
-        return _toAssets(10 ** decimals(), Math.Rounding.Floor);
-    }
-
     /// @param shares {share}
     /// @return _assets
     /// @return _amounts {tok}

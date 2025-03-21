@@ -178,7 +178,7 @@ contract FolioTest is BaseTest {
     }
 
     function test_getFolio() public view {
-        (address[] memory _assets, uint256[] memory _amounts) = folio.folio();
+        (address[] memory _assets, uint256[] memory _amounts) = folio.toAssets(1e18, Math.Rounding.Floor);
         assertEq(_assets.length, 3, "wrong assets length");
         assertEq(_assets[0], address(USDC), "wrong first asset");
         assertEq(_assets[1], address(DAI), "wrong second asset");
@@ -1914,7 +1914,7 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folio), amt * 1e12);
         folio.bid(0, amt - 2, (amt - 2) * 1e12, false, bytes(""));
 
-        (address[] memory tripleBasket, ) = folio.folio();
+        (address[] memory tripleBasket, ) = folio.toAssets(1e18, Math.Rounding.Floor);
         assertEq(tripleBasket.length, 3);
         assertEq(tripleBasket[0], address(USDC));
         assertEq(tripleBasket[1], address(DAI));
@@ -1924,7 +1924,7 @@ contract FolioTest is BaseTest {
 
         folio.bid(0, 1, 1e12, false, bytes(""));
 
-        (address[] memory doubleBasket, ) = folio.folio();
+        (address[] memory doubleBasket, ) = folio.toAssets(1e18, Math.Rounding.Floor);
         assertEq(doubleBasket.length, 2);
         assertEq(doubleBasket[0], address(MEME)); // order reverses after removal
         assertEq(doubleBasket[1], address(DAI));
