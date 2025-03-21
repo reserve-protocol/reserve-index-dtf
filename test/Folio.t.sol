@@ -1568,7 +1568,7 @@ contract FolioTest is BaseTest {
         // now createTrustedFiller should work
 
         IBaseTrustedFiller fill = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp));
-        assertEq(address(fill), address(folio.activeTrustedFill()));
+        assertEq(address(fill), address(uint160(uint256(vm.load(address(folio), bytes32(uint256(19)))))));
 
         // should mint, closing fill
 
@@ -1577,13 +1577,13 @@ contract FolioTest is BaseTest {
         DAI.approve(address(folio), type(uint256).max);
         MEME.approve(address(folio), type(uint256).max);
         folio.mint(1e22, user1, 0);
-        assertEq(address(folio.activeTrustedFill()), address(0));
+        assertEq(address(0), address(uint160(uint256(vm.load(address(folio), bytes32(uint256(19)))))));
 
         // open another fill, should include fill balance in toAssets()
 
         fill = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp + 1));
         assertNotEq(address(fill), address(0));
-        assertEq(address(fill), address(folio.activeTrustedFill()));
+        assertEq(address(fill), address(uint160(uint256(vm.load(address(folio), bytes32(uint256(19)))))));
 
         // USDT should have been added to the basket beforehand
 
@@ -1601,7 +1601,7 @@ contract FolioTest is BaseTest {
         // should redeem, closing fill
 
         folio.redeem((1e22 * 3) / 20, user1, basket, amounts);
-        assertEq(address(folio.activeTrustedFill()), address(0));
+        assertEq(address(0), address(uint160(uint256(vm.load(address(folio), bytes32(uint256(19)))))));
     }
 
     function test_auctionTinyPrices() public {
