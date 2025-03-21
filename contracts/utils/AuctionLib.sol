@@ -2,11 +2,14 @@
 pragma solidity 0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
-import { IFolio } from "@interfaces/IFolio.sol";
-import { MathLib } from "@utils/MathLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
+import { IFolio } from "@interfaces/IFolio.sol";
+
+import { MathLib } from "@utils/MathLib.sol";
+
 import { D18, D27, MAX_RATE, MAX_PRICE_RANGE, MAX_TTL, MAX_AUCTION_DELAY, MAX_AUCTION_LENGTH } from "@src/Folio.sol";
 
 library AuctionLib {
