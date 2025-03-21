@@ -1099,22 +1099,19 @@ contract Folio is
     function _update(address from, address to, uint256 value) internal override {
         super._update(from, to, value);
 
-        // ignore burns
-        if (to == address(0)) {
+        // ignore mints + burns
+        if (from == address(0) || to == address(0)) {
             return;
         }
 
-        // only allow transfers to self from activeBidder and activeTrustedFill
+        // only allow transfers to self from activeBidder/activeTrustedFill
         require(
             to != address(this) || from == address(activeBidder) || from == address(activeTrustedFill),
             Folio__InvalidTransferToSelf()
         );
 
         // burn tokens transferred to/from activeTrustedFill
-        if (
-            address(activeTrustedFill) != address(0) &&
-            (to == address(activeTrustedFill) || from == address(activeTrustedFill))
-        ) {
+        if (to == address(activeTrustedFill) || from == address(activeTrustedFill)) {
             _burn(address(activeTrustedFill), value);
         }
     }
