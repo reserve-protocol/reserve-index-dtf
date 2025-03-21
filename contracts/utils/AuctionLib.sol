@@ -2,12 +2,12 @@
 pragma solidity 0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IFolio } from "../interfaces/IFolio.sol";
+import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
+import { IFolio } from "@interfaces/IFolio.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { MAX_RATE, MAX_PRICE_RANGE, MAX_TTL, MAX_AUCTION_DELAY, MAX_AUCTION_LENGTH } from "../Folio.sol";
-import { D18, D27 } from "../Folio.sol";
+import { D18, D27, MAX_RATE, MAX_PRICE_RANGE, MAX_TTL, MAX_AUCTION_DELAY, MAX_AUCTION_LENGTH } from "@src/Folio.sol";
 
 library AuctionLib {
     using SafeERC20 for IERC20;
@@ -94,6 +94,7 @@ library AuctionLib {
         IFolio.AuctionDetails storage details,
         mapping(address token => uint256 timepoint) storage sellEnds,
         mapping(address token => uint256 timepoint) storage buyEnds,
+        uint256 auctionLength,
         uint256 buffer
     ) external {
         // only open APPROVED or expired auctions, with buffer
@@ -103,7 +104,7 @@ library AuctionLib {
         require(block.timestamp <= auction.launchDeadline, IFolio.Folio__AuctionTimeout());
 
         // {s}
-        uint256 endTime = block.timestamp + 1; // TODO add auctionLength instead of 1
+        uint256 endTime = block.timestamp + auctionLength;
 
         sellEnds[address(auction.sellToken)] = Math.max(sellEnds[address(auction.sellToken)], endTime);
         buyEnds[address(auction.buyToken)] = Math.max(buyEnds[address(auction.buyToken)], endTime);
@@ -131,78 +132,142 @@ library AuctionLib {
 
         // D18{1}
         // k = ln(P_0 / P_t) / t
-        auction.k = MathLib.ln((auction.prices.start * D18) / auction.prices.end) / 1; // TODO add auctionLength instead of 1
+        auction.k = MathLib.ln((auction.prices.start * D18) / auction.prices.end) / auctionLength;
         // gas optimization to avoid recomputing k on every bid
     }
 
-    // /// Bid in an ongoing auction
-    // ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
-    // ///   If withCallback is false, caller must have provided an allowance in advance
-    // /// @dev Callable by anyone
-    // /// @param sellAmount {sellTok} Sell token, the token the bidder receives
-    // /// @param maxBuyAmount {buyTok} Max buy token, the token the bidder provides
-    // /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
-    // /// @param data Arbitrary data to pass to the callback
-    // /// @return boughtAmt {buyTok} The amount bidder receives
-    // function bid(
-    //     IFolio.Auction storage auction,
-    //     uint256 _totalSupply,
-    //     uint256 sellAmount,
-    //     uint256 maxBuyAmount,
-    //     bool withCallback,
-    //     bytes calldata data
-    // ) external returns (uint256 boughtAmt) {
-    //     // {buyTok}
-    //     uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
+    /// Bid in an ongoing auction
+    ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
+    ///   If withCallback is false, caller must have provided an allowance in advance
+    /// @dev Callable by anyone
+    /// @param sellAmount {sellTok} Sell amount as returned by getBid
+    /// @param bidAmount {buyTok} Bid amount as returned by getBid
+    /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
+    /// @param data Arbitrary data to pass to the callback
+    /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after
+    function bid(
+        IFolio.Auction storage auction,
+        IFolio.AuctionDetails storage auctionDetails,
+        mapping(address token => uint256 amount) storage dustAmount,
+        uint256 _totalSupply,
+        uint256 sellAmount,
+        uint256 bidAmount,
+        bool withCallback,
+        bytes calldata data
+    ) external returns (bool shouldRemoveFromBasket) {
+        // {buyTok}
+        uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
 
-    //     // checks auction is ongoing and that sellAmount/maxBuyAmount are valid
-    //     (, boughtAmt, ) = _getBid(
-    //         auction,
-    //         _totalSupply,
-    //         block.timestamp,
-    //         auction.sellToken.balanceOf(address(this)),
-    //         buyBalBefore,
-    //         sellAmount,
-    //         sellAmount,
-    //         maxBuyAmount
-    //     );
+        // pay bidder
+        auction.sellToken.safeTransfer(msg.sender, sellAmount);
 
-    //     // pay bidder
-    //     auction.sellToken.safeTransfer(msg.sender, sellAmount);
+        emit IFolio.AuctionBid(auction.id, sellAmount, bidAmount);
 
-    //     emit IFolio.AuctionBid(auctionId, sellAmount, boughtAmt);
+        // D27{sellTok/share} = {sellTok} * D27 / {share}
+        uint256 basketPresence = Math.mulDiv(
+            auction.sellToken.balanceOf(address(this)),
+            D27,
+            _totalSupply,
+            Math.Rounding.Ceil
+        );
 
-    //     // D27{sellTok/share} = {sellTok} * D27 / {share}
-    //     uint256 basketPresence = Math.mulDiv(
-    //         auction.sellToken.balanceOf(address(this)),
-    //         D27,
-    //         _totalSupply,
-    //         Math.Rounding.Ceil
-    //     );
+        // adjust basketPresence for dust
+        basketPresence = basketPresence > dustAmount[address(auction.sellToken)]
+            ? basketPresence - dustAmount[address(auction.sellToken)]
+            : 0;
 
-    //     // adjust basketPresence for dust
-    //     basketPresence = basketPresence > dustAmount[address(auction.sellToken)]
-    //         ? basketPresence - dustAmount[address(auction.sellToken)]
-    //         : 0;
+        // end auction when below sell limit
+        if (basketPresence <= auction.sellLimit.spot) {
+            auction.endTime = block.timestamp - 1;
+            auctionDetails.availableRuns = 0;
 
-    //     // end auction when below sell limit
-    //     if (basketPresence <= auction.sellLimit.spot) {
-    //         auction.endTime = block.timestamp - 1;
-    //         auctionDetails[auctionId].availableRuns = 0;
+            // remove sell token from basket at 0
+            if (basketPresence == 0) {
+                shouldRemoveFromBasket = true;
+            }
+        }
 
-    //         // remove sell token from basket at 0
-    //         if (basketPresence == 0) {
-    //             _removeFromBasket(address(auction.sellToken));
-    //         }
-    //     }
+        // collect payment from bidder
+        if (withCallback) {
+            IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), bidAmount, data);
+        } else {
+            auction.buyToken.safeTransferFrom(msg.sender, address(this), bidAmount);
+        }
 
-    //     // collect payment from bidder
-    //     if (withCallback) {
-    //         IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), boughtAmt, data);
-    //     } else {
-    //         auction.buyToken.safeTransferFrom(msg.sender, address(this), boughtAmt);
-    //     }
+        require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= bidAmount, IFolio.Folio__InsufficientBid());
+    }
 
-    //     require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= boughtAmt, IFolio.Folio__InsufficientBid());
-    // }
+    /// Get bid parameters for an ongoing auction
+    /// @param _totalSupply {share} Current total supply of the Folio
+    /// @param timestamp {s} Timestamp to fetch bid for
+    /// @param sellBal {sellTok} Folio's available balance of sell token, including any active fills
+    /// @param buyBal {buyTok} Folio's available balance of buy token, including any active fills
+    /// @param minSellAmount {sellTok} The minimum sell amount the bidder should receive
+    /// @param maxSellAmount {sellTok} The maximum sell amount the bidder should receive
+    /// @param maxBuyAmount {buyTok} The maximum buy amount the bidder is willing to offer
+    /// @return sellAmount {sellTok} The actual sell amount in the bid
+    /// @return bidAmount {buyTok} The corresponding buy amount
+    /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
+    function getBid(
+        IFolio.Auction storage auction,
+        uint256 _totalSupply,
+        uint256 timestamp,
+        uint256 sellBal,
+        uint256 buyBal,
+        uint256 minSellAmount,
+        uint256 maxSellAmount,
+        uint256 maxBuyAmount
+    ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
+        assert(minSellAmount <= maxSellAmount);
+
+        // checks auction is ongoing
+        // D27{buyTok/sellTok}
+        price = _price(auction, timestamp);
+
+        // {sellTok} = D27{sellTok/share} * {share} / D27
+        uint256 sellLimit = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 sellAvailable = sellBal > sellLimit ? sellBal - sellLimit : 0;
+
+        // {buyTok} = D27{buyTok/share} * {share} / D27
+        uint256 buyLimit = Math.mulDiv(auction.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
+        uint256 buyAvailable = buyBal < buyLimit ? buyLimit - buyBal : 0;
+
+        // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
+        uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
+        sellAvailable = Math.min(sellAvailable, sellAvailableFromBuy);
+
+        // ensure auction is large enough to cover bid
+        require(sellAvailable >= minSellAmount, IFolio.Folio__InsufficientBalance());
+
+        // {sellTok}
+        sellAmount = Math.min(sellAvailable, maxSellAmount);
+
+        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
+        bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
+        require(bidAmount != 0 && bidAmount <= maxBuyAmount, IFolio.Folio__SlippageExceeded());
+    }
+
+    // ==== Internal ====
+
+    /// @return p D27{buyTok/sellTok}
+    function _price(IFolio.Auction storage auction, uint256 timestamp) internal view returns (uint256 p) {
+        // ensure auction is ongoing
+        require(timestamp >= auction.startTime && timestamp <= auction.endTime, IFolio.Folio__AuctionNotOngoing());
+
+        if (timestamp == auction.startTime) {
+            return auction.prices.start;
+        }
+        if (timestamp == auction.endTime) {
+            return auction.prices.end;
+        }
+
+        uint256 elapsed = timestamp - auction.startTime;
+
+        // P_t = P_0 * e ^ -kt
+        // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
+        p = (auction.prices.start * MathLib.exp(-1 * int256(auction.k * elapsed))) / D18;
+        if (p < auction.prices.end) {
+            p = auction.prices.end;
+        }
+    }
 }
