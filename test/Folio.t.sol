@@ -1367,7 +1367,7 @@ contract FolioTest is BaseTest {
 
         // fill 1st time
 
-        IBaseTrustedFiller fill = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp));
+        IBaseTrustedFiller fill = folio.createTrustedFill(0, cowswapFiller, bytes32(block.timestamp));
         MockERC20(address(USDC)).burn(address(fill), amt / 2);
         MockERC20(address(USDT)).mint(address(fill), amt * 5);
         vm.warp(end);
@@ -1385,7 +1385,7 @@ contract FolioTest is BaseTest {
         assertEq(buyAmount, amt / 2, "wrong end buy amount"); // 1x
 
         // bid a 2nd time for the rest of the volume, at end time
-        IBaseTrustedFiller swap2 = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp));
+        IBaseTrustedFiller swap2 = folio.createTrustedFill(0, cowswapFiller, bytes32(block.timestamp));
         MockERC20(address(USDC)).burn(address(swap2), amt / 2);
         MockERC20(address(USDT)).mint(address(swap2), amt / 2);
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
@@ -1501,7 +1501,7 @@ contract FolioTest is BaseTest {
         // isValidSignature should return true for the correct bid
 
         uint256 amt = D6_TOKEN_10K;
-        IBaseTrustedFiller fill = folio.createTrustedFiller(0, cowswapFiller, bytes32(0));
+        IBaseTrustedFiller fill = folio.createTrustedFill(0, cowswapFiller, bytes32(0));
 
         GPv2OrderLib.Data memory order = GPv2OrderLib.Data({
             sellToken: address(USDC),
@@ -1532,10 +1532,10 @@ contract FolioTest is BaseTest {
     }
 
     function test_trustedFillerNegativeCases() public {
-        // createTrustedFiller should not be executable until auction is open
+        // createTrustedFill should not be executable until auction is open
 
         vm.expectRevert();
-        folio.createTrustedFiller(0, cowswapFiller, bytes32(0));
+        folio.createTrustedFill(0, cowswapFiller, bytes32(0));
 
         // open auction
 
@@ -1566,9 +1566,9 @@ contract FolioTest is BaseTest {
         emit IFolio.AuctionOpened(0, auctionStruct, 0);
         folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
 
-        // now createTrustedFiller should work
+        // now createTrustedFill should work
 
-        IBaseTrustedFiller fill = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp));
+        IBaseTrustedFiller fill = folio.createTrustedFill(0, cowswapFiller, bytes32(block.timestamp));
         assertEq(address(fill), address(uint160(uint256(vm.load(address(folio), bytes32(uint256(19)))))));
 
         // should mint, closing fill
@@ -1582,7 +1582,7 @@ contract FolioTest is BaseTest {
 
         // open another fill, should include fill balance in toAssets()
 
-        fill = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp + 1));
+        fill = folio.createTrustedFill(0, cowswapFiller, bytes32(block.timestamp + 1));
         assertNotEq(address(fill), address(0));
         assertEq(address(fill), address(uint160(uint256(vm.load(address(folio), bytes32(uint256(19)))))));
 
