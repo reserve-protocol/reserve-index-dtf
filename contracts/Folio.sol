@@ -141,7 +141,7 @@ contract Folio is
 
     // === 3.0.0 ===
     ITrustedFillerRegistry public trustedFillerRegistry;
-    IBaseTrustedFiller private activeTrustedFill;
+    IBaseTrustedFiller public activeTrustedFill;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {

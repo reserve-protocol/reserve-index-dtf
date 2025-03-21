@@ -2,6 +2,8 @@
 pragma solidity 0.8.28;
 
 import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/interfaces/IBaseTrustedFiller.sol";
+import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/fillers/cowswap/GPv2OrderLib.sol";
+import { GPV2_SETTLEMENT } from "@reserve-protocol/trusted-fillers/fillers/cowswap/Constants.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio, MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TVL_FEE, MAX_MINT_FEE, MAX_PRICE_RANGE, MAX_RATE, RESTRICTED_AUCTION_BUFFER } from "contracts/Folio.sol";
 import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
@@ -14,6 +16,7 @@ import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/
 import { ERC1967Utils } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import { FolioDeployerV2 } from "test/utils/upgrades/FolioDeployerV2.sol";
 import { MockReentrantERC20 } from "test/utils/MockReentrantERC20.sol";
+import { MockEIP712 } from "test/utils/MockEIP712.sol";
 import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
@@ -1262,7 +1265,7 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_auctionByCowSwapSettlement() public {
+    function test_auctionByMockFiller() public {
         // bid in two chunks, one at start time and one at end time
 
         IFolio.Auction memory auctionStruct = IFolio.Auction({
@@ -1307,11 +1310,11 @@ contract FolioTest is BaseTest {
         assertEq(sellAmount, amt, "wrong end sell amount"); // 1x
         assertEq(buyAmount, amt, "wrong end buy amount"); // 1x
 
-        // swap 1st time
+        // fill 1st time
 
-        IBaseTrustedFiller swap = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp));
-        MockERC20(address(USDC)).burn(address(swap), amt / 2);
-        MockERC20(address(USDT)).mint(address(swap), amt * 5);
+        IBaseTrustedFiller fill = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp));
+        MockERC20(address(USDC)).burn(address(fill), amt / 2);
+        MockERC20(address(USDT)).mint(address(fill), amt * 5);
         vm.warp(end);
 
         (sellAmount, buyAmount, ) = folio.getBid(0, start, amt);
@@ -1341,6 +1344,146 @@ contract FolioTest is BaseTest {
         // Folio should have balances
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong folio usdc balance");
         assertEq(USDT.balanceOf(address(folio)), amt * 5 + amt / 2, "wrong folio usdt balance");
+    }
+
+    function test_auctionIsValidSignature() public {
+        bytes32 domainSeparator = 0xc078f884a2676e1345748b1feace7b0abee5d00ecadb6e574dcdd109a63e8943;
+
+        // deploy a MockEIP712 to the GPV2_SETTLEMENT address
+        address mockEIP712 = address(new MockEIP712(domainSeparator));
+        vm.etch(address(GPV2_SETTLEMENT), mockEIP712.code);
+
+        IFolio.Auction memory auctionStruct = IFolio.Auction({
+            id: 0,
+            sellToken: USDC,
+            buyToken: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            restrictedUntil: block.timestamp + folio.auctionDelay(),
+            launchDeadline: block.timestamp + MAX_TTL,
+            startTime: 0,
+            endTime: 0,
+            k: 0
+        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
+
+        vm.prank(auctionLauncher);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
+        folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
+        (, , , , , , , , , uint256 end, ) = folio.auctions(0);
+
+        // isValidSignature should return true for the correct bid
+
+        uint256 amt = D6_TOKEN_10K;
+        IBaseTrustedFiller fill = folio.createTrustedFiller(0, cowswapFiller, bytes32(0));
+
+        GPv2OrderLib.Data memory order = GPv2OrderLib.Data({
+            sellToken: address(USDC),
+            buyToken: address(USDT),
+            receiver: address(fill),
+            sellAmount: amt,
+            buyAmount: amt * 10,
+            validTo: uint32(end),
+            appData: bytes32(0),
+            feeAmount: 0,
+            kind: bytes32(0),
+            partiallyFillable: true,
+            sellTokenBalance: bytes32(0),
+            buyTokenBalance: bytes32(0)
+        });
+
+        assertEq(
+            fill.isValidSignature(GPv2OrderLib.hash(order, domainSeparator), abi.encode(order)),
+            fill.isValidSignature.selector,
+            "wrong isValidSignature"
+        );
+
+        // isValidSignature should revert for a slightly worse bid
+
+        order.buyAmount -= 1;
+        vm.expectRevert(abi.encodeWithSelector(CowSwapFiller.CowSwapFiller__OrderCheckFailed.selector, 100));
+        fill.isValidSignature(GPv2OrderLib.hash(order, domainSeparator), abi.encode(order));
+    }
+
+    function test_swapNegativeCases() public {
+        // createTrustedFiller should not be executable until auction is open
+
+        vm.expectRevert();
+        folio.createTrustedFiller(0, cowswapFiller, bytes32(0));
+
+        // open auction
+
+        // bid in two chunks, one at start time and one at end time
+
+        IFolio.Auction memory auctionStruct = IFolio.Auction({
+            id: 0,
+            sellToken: USDC,
+            buyToken: USDT,
+            sellLimit: FULL_SELL,
+            buyLimit: FULL_BUY,
+            prices: ZERO_PRICES,
+            restrictedUntil: block.timestamp + folio.auctionDelay(),
+            launchDeadline: block.timestamp + MAX_TTL,
+            startTime: 0,
+            endTime: 0,
+            k: 0
+        });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
+        folio.approveAuction(USDC, USDT, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
+
+        vm.prank(auctionLauncher);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.AuctionOpened(0, auctionStruct, 0);
+        folio.openAuction(0, 0, MAX_RATE, 10e27, 1e27); // 10x -> 1x
+
+        // now createTrustedFiller should work
+
+        IBaseTrustedFiller fill = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp));
+        assertEq(address(fill), address(folio.activeTrustedFill()));
+
+        // should mint, closing fill
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+        folio.mint(1e22, user1, 0);
+        assertEq(address(folio.activeTrustedFill()), address(0));
+
+        // open another fill, should include fill balance in toAssets()
+
+        fill = folio.createTrustedFiller(0, cowswapFiller, bytes32(block.timestamp + 1));
+        assertNotEq(address(fill), address(0));
+        assertEq(address(fill), address(folio.activeTrustedFill()));
+
+        // USDT should have been added to the basket beforehand
+
+        uint256 redeemAmt = (1e22 * 3) / 20;
+        (address[] memory basket, uint256[] memory amounts) = folio.toAssets(redeemAmt, Math.Rounding.Floor);
+        assertEq(basket.length, 4);
+        assertEq(basket[3], address(USDT));
+        assertEq(amounts[3], 0);
+
+        // amount of USDC in the basket should show Swap balance
+
+        assertEq(basket[0], address(USDC));
+        assertEq(amounts[0], redeemAmt / 1e12);
+
+        // should redeem, closing fill
+
+        folio.redeem((1e22 * 3) / 20, user1, basket, amounts);
+        assertEq(address(folio.activeTrustedFill()), address(0));
     }
 
     function test_auctionTinyPrices() public {
