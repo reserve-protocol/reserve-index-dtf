@@ -541,10 +541,10 @@ contract Folio is
         );
         auctions.push(auction);
 
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: prices, availableRuns: runs });
+        AuctionDetails memory details = AuctionDetails({ initialPrices: prices, availableRuns: runs });
         auctionDetails[auctionId] = details;
 
-        emit IFolio.AuctionApproved(auctionId, address(sell), address(buy), auction, details);
+        emit AuctionApproved(auctionId, address(sell), address(buy), auction, details);
     }
 
     /// Open an auction as the auction launcher
