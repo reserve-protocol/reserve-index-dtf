@@ -92,7 +92,7 @@ contract FolioTest is BaseTest {
         (address r2, uint256 bps2) = folio.feeRecipients(1);
         assertEq(r2, feeReceiver, "wrong second recipient");
         assertEq(bps2, 0.1e18, "wrong second recipient bps");
-        assertEq(folio.version(), "2.0.0");
+        assertEq(folio.version(), VERSION);
     }
 
     function test_cannotInitializeWithInvalidAsset() public {
@@ -108,7 +108,7 @@ contract FolioTest is BaseTest {
 
         // Create uninitialized Folio
         FolioProxyAdmin folioAdmin = new FolioProxyAdmin(owner, address(versionRegistry));
-        address folioImplementation = versionRegistry.getImplementationForVersion(keccak256("2.0.0"));
+        address folioImplementation = versionRegistry.getImplementationForVersion(keccak256(bytes(VERSION)));
         Folio newFolio = Folio(address(new FolioProxy(folioImplementation, address(folioAdmin))));
 
         vm.startPrank(owner);
@@ -2143,7 +2143,7 @@ contract FolioTest is BaseTest {
         assertEq(impl, newDeployerV2.folioImplementation());
 
         // Check current version
-        assertEq(folio.version(), "2.0.0");
+        assertEq(folio.version(), VERSION);
 
         // upgrade to V2 with owner
         vm.prank(owner);
@@ -2153,7 +2153,7 @@ contract FolioTest is BaseTest {
 
     function test_cannotUpgradeToVersionNotInRegistry() public {
         // Check current version
-        assertEq(folio.version(), "2.0.0");
+        assertEq(folio.version(), VERSION);
 
         // Attempt to upgrade to V2 (not registered)
         vm.prank(owner);
@@ -2161,7 +2161,7 @@ contract FolioTest is BaseTest {
         proxyAdmin.upgradeToVersion(address(folio), keccak256("10.0.0"), "");
 
         // still on old version
-        assertEq(folio.version(), "2.0.0");
+        assertEq(folio.version(), VERSION);
     }
 
     function test_cannotUpgradeToDeprecatedVersion() public {
@@ -2178,7 +2178,7 @@ contract FolioTest is BaseTest {
         versionRegistry.deprecateVersion(keccak256("10.0.0"));
 
         // Check current version
-        assertEq(folio.version(), "2.0.0");
+        assertEq(folio.version(), VERSION);
 
         // Attempt to upgrade to V2 (deprecated)
         vm.prank(owner);
@@ -2186,7 +2186,7 @@ contract FolioTest is BaseTest {
         proxyAdmin.upgradeToVersion(address(folio), keccak256("10.0.0"), "");
 
         // still on old version
-        assertEq(folio.version(), "2.0.0");
+        assertEq(folio.version(), VERSION);
     }
 
     function test_cannotUpgradeIfNotOwnerOfProxyAdmin() public {

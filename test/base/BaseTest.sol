@@ -25,6 +25,7 @@ import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/Trusted
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/fillers/cowswap/CowSwapFiller.sol";
 
 abstract contract BaseTest is Script, Test {
+    string public constant VERSION = "3.0.0";
     // === Auth roles ===
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
