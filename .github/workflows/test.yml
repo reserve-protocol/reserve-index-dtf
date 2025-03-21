@@ -37,7 +37,7 @@ jobs:
       - name: Start Local Node
         run: yarn anvil &
 
-      - name: Core Tests
+      - name: Deployment
         run: yarn deploy --rpc-url http://localhost:8545
         env:
           ETHERSCAN_API_KEY_1: DUMMY

@@ -15,7 +15,7 @@ abstract contract BaseExtremeTest is BaseTest {
         uint8 sellDecimals;
         uint8 buyDecimals;
         uint256 sellAmount; // {sellTok}
-        uint256 price; // D18{buyTok/sellTok}
+        uint256 price; // D27{buyTok/sellTok}
     }
 
     struct FeeTestParams {
@@ -56,10 +56,20 @@ abstract contract BaseExtremeTest is BaseTest {
         roleRegistry = new MockRoleRegistry();
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
-        folioDeployer = new FolioDeployer(address(daoFeeRegistry), address(versionRegistry), governanceDeployer);
+        trustedFillerRegistry = new TrustedFillerRegistry(address(roleRegistry));
+
+        folioDeployer = new FolioDeployer(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            address(trustedFillerRegistry),
+            governanceDeployer
+        );
+
+        CowSwapFiller cowswapFiller = new CowSwapFiller();
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
+        trustedFillerRegistry.addTrustedFiller(cowswapFiller);
 
         _processParameters();
     }
