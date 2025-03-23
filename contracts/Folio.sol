@@ -289,7 +289,7 @@ contract Folio is
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
         (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
 
-        // subtract activeTrustedFill's balance from totalSupply to always reflect appreciation immediately
+        // subtract activeTrustedFill's balance from totalSupply to always reflect appreciation
         return
             super.totalSupply() +
             _daoPendingFeeShares +
@@ -559,11 +559,13 @@ contract Folio is
         auction.buyLimit.spot = buyLimit;
         auction.prices.start = startPrice;
         auction.prices.end = endPrice;
-        // more price checks in Auctionlib.openAuction()
 
+        if (address(auction.buyToken) != address(this)) {
+            _addToBasket(address(auction.buyToken));
+        }
+
+        // additional price checks
         AuctionLib.openAuction(auction, details, sellEnds, buyEnds, auctionLength, 0);
-
-        _addToBasket(address(auction.buyToken));
     }
 
     /// Open an auction without restrictions
@@ -578,11 +580,13 @@ contract Folio is
         require(block.timestamp >= auction.restrictedUntil, Folio__AuctionCannotBeOpenedWithoutRestriction());
 
         auction.prices = details.initialPrices;
-        // more price checks in _openAuction()
 
+        if (address(auction.buyToken) != address(this)) {
+            _addToBasket(address(auction.buyToken));
+        }
+
+        // additional price checks
         AuctionLib.openAuction(auction, details, sellEnds, buyEnds, auctionLength, RESTRICTED_AUCTION_BUFFER);
-
-        _addToBasket(address(auction.buyToken));
     }
 
     /// Bid in an ongoing auction
@@ -605,6 +609,10 @@ contract Folio is
         _closeTrustedFill();
         Auction storage auction = auctions[auctionId];
 
+        if (address(auction.buyToken) == address(this)) {
+            activeBidder = msg.sender;
+        }
+
         uint256 _totalSupply = totalSupply();
 
         // checks that sellAmount/maxBuyAmount are valid
@@ -619,41 +627,28 @@ contract Folio is
             maxBuyAmount
         );
 
-        bool shouldRemoveFromBasket = AuctionLib.bid(
-            auction,
-            auctionDetails[auctionId],
-            dustAmount,
-            _totalSupply,
-            sellAmount,
-            boughtAmt,
-            withCallback,
-            data
-        );
+        uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
 
-        if (shouldRemoveFromBasket) {
+        if (
+            AuctionLib.bid(
+                auction,
+                auctionDetails[auctionId],
+                dustAmount,
+                _totalSupply,
+                sellAmount,
+                boughtAmt,
+                withCallback,
+                data
+            )
+        ) {
             _removeFromBasket(address(auction.sellToken));
         }
 
-        // allow Folio transfers to self from activeBidder
+        require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= boughtAmt, Folio__InsufficientBid());
+
+        // burn Folio balance
         if (address(auction.buyToken) == address(this)) {
-            activeBidder = msg.sender;
-        }
-
-        uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
-
-        // collect payment
-        if (withCallback) {
-            IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), boughtAmt, data);
-        } else {
-            auction.buyToken.safeTransferFrom(msg.sender, address(this), boughtAmt);
-        }
-
-        uint256 delta = auction.buyToken.balanceOf(address(this)) - buyBalBefore;
-        require(delta >= boughtAmt, Folio__InsufficientBid());
-
-        // burn any Folio token purchased in auction
-        if (address(auction.buyToken) == address(this)) {
-            _burn(address(this), delta);
+            _burn(address(this), auction.buyToken.balanceOf(address(this)));
             delete activeBidder;
         }
     }

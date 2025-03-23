@@ -175,9 +175,6 @@ library AuctionLib {
         bool withCallback,
         bytes calldata data
     ) external returns (bool shouldRemoveFromBasket) {
-        // {buyTok}
-        uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
-
         // pay bidder
         auction.sellToken.safeTransfer(msg.sender, sellAmount);
 
@@ -213,8 +210,6 @@ library AuctionLib {
         } else {
             auction.buyToken.safeTransferFrom(msg.sender, address(this), bidAmount);
         }
-
-        require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= bidAmount, IFolio.Folio__InsufficientBid());
     }
 
     /// Get bid parameters for an ongoing auction
