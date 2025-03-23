@@ -297,7 +297,13 @@ contract Folio is
     /// @dev Contains all pending fee shares
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
         (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
-        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
+
+        // subtract activeTrustedFill's balance from totalSupply to always reflect appreciation immediately
+        return
+            super.totalSupply() +
+            _daoPendingFeeShares +
+            _feeRecipientsPendingFeeShares -
+            balanceOf(address(activeTrustedFill));
     }
 
     /// @return _assets
@@ -710,13 +716,13 @@ contract Folio is
             auction.buyToken.safeTransferFrom(msg.sender, address(this), boughtAmt);
         }
 
-        uint256 actualBoughtAmt = auction.buyToken.balanceOf(address(this)) - buyBalBefore;
-        require(actualBoughtAmt >= boughtAmt, Folio__InsufficientBid());
+        uint256 buyBalAfter = auction.buyToken.balanceOf(address(this));
+        require(buyBalAfter - buyBalBefore >= boughtAmt, Folio__InsufficientBid());
 
         // burn any Folio token purchased in auction
         if (address(auction.buyToken) == address(this)) {
+            _burn(address(this), buyBalAfter);
             delete activeBidder;
-            _burn(address(this), actualBoughtAmt);
         }
     }
 
@@ -1102,17 +1108,16 @@ contract Folio is
             return;
         }
 
-        // only allow transfers in from activeBidder/activeTrustedFill
+        // prevent accidental donations
         require(
             to != address(this) || from == address(activeBidder) || from == address(activeTrustedFill),
             Folio__InvalidTransferToSelf()
         );
 
-        // burn tokens at destination when transferring to/from activeTrustedFill
-        //   - to case: totalSupply must be reduced at same time as assets are sold
-        //   - from case: tokens can be sent to activeTrustedFill before it is deployed
-        if (to == address(activeTrustedFill) || from == address(activeTrustedFill)) {
-            _burn(address(to), value);
+        // burn incoming transfers from activeTrustedFill
+        if (to == address(this) && from == address(activeTrustedFill)) {
+            _burn(address(activeTrustedFill), value);
         }
+        // incoming transfers from activeBidder are burnt by bid()
     }
 }
