@@ -203,57 +203,6 @@ contract FolioTest is BaseTest {
         assertEq(_amounts[2], D27_TOKEN_1 / 2, "wrong third amount");
     }
 
-    function test_toAssets_noReentrancy() public {
-        // deploy and mint reentrant token
-        MockReentrantERC20 REENTRANT = new MockReentrantERC20("REENTRANT", "REENTER", 18);
-        address[] memory actors = new address[](1);
-        actors[0] = owner;
-        uint256[] memory amounts_18 = new uint256[](1);
-        amounts_18[0] = D18_TOKEN_1M;
-        mintToken(address(REENTRANT), actors, amounts_18);
-
-        // create folio
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(USDC);
-        tokens[1] = address(REENTRANT);
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = D6_TOKEN_10K;
-        amounts[1] = D18_TOKEN_10K;
-        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
-
-        // 50% tvl fee annually
-        vm.startPrank(owner);
-        USDC.approve(address(folioDeployer), type(uint256).max);
-        REENTRANT.approve(address(folioDeployer), type(uint256).max);
-
-        (folio, proxyAdmin) = createFolio(
-            tokens,
-            amounts,
-            INITIAL_SUPPLY,
-            MAX_AUCTION_DELAY,
-            MAX_AUCTION_LENGTH,
-            recipients,
-            MAX_TVL_FEE,
-            0,
-            owner,
-            dao,
-            auctionLauncher
-        );
-        vm.stopPrank();
-
-        // Set reentrancy on and attempt to mint
-        REENTRANT.setReentrancy(true);
-
-        vm.startPrank(owner);
-        USDC.approve(address(folio), type(uint256).max);
-        REENTRANT.approve(address(folio), type(uint256).max);
-        vm.expectRevert(ReentrancyGuardUpgradeable.ReentrancyGuardReentrantCall.selector);
-        folio.mint(1e18, owner, 0);
-        vm.stopPrank();
-    }
-
     function test_mint() public {
         assertEq(folio.balanceOf(user1), 0, "wrong starting user1 balance");
         uint256 startingUSDCBalance = USDC.balanceOf(address(folio));

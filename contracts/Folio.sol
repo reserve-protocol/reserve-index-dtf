@@ -195,6 +195,11 @@ contract Folio is
         _poke();
     }
 
+    /// @dev Gas-efficient reentrancy guard check
+    function reentrancyGuardEntered() external view {
+        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
+    }
+
     // ==== Governance ====
 
     /// Escape hatch function to be used when tokens get acquired not through an auction but
@@ -309,8 +314,6 @@ contract Folio is
     /// @return _assets
     /// @return _amounts {tok}
     function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
-
         return _totalAssets();
     }
 
@@ -321,8 +324,6 @@ contract Folio is
         uint256 shares,
         Math.Rounding rounding
     ) external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
-
         return _toAssets(shares, rounding);
     }
 
