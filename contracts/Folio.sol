@@ -196,7 +196,7 @@ contract Folio is
     }
 
     /// @dev Re-eentrancy guard check for consuming protocols
-    function reentrancyGuardEntered() external view {
+    function reentrancyGuardEntered() external view returns (bool) {
         return _reentrancyGuardEntered();
     }
 
