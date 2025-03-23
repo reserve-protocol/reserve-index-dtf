@@ -645,9 +645,9 @@ contract Folio is
 
         require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= boughtAmt, Folio__InsufficientBid());
 
-        // burn Folio balance
-        if (address(auction.buyToken) == address(this)) {
-            _burn(address(this), auction.buyToken.balanceOf(address(this)));
+        // burn any held Folio token
+        if (balanceOf(address(this)) != 0) {
+            _burn(address(this), balanceOf(address(this)));
         }
         delete activeBidder;
     }
