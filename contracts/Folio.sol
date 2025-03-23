@@ -1116,7 +1116,7 @@ contract Folio is
 
         // burn incoming transfers from activeTrustedFill
         if (to == address(this) && from == address(activeTrustedFill)) {
-            _burn(address(activeTrustedFill), value);
+            _burn(address(this), value);
         }
         // incoming transfers from activeBidder are burnt by bid()
     }

@@ -1452,9 +1452,10 @@ contract FolioTest is BaseTest {
         MockERC20(address(USDC)).burn(address(swap2), amt);
         folio.transfer(address(swap2), amt * 1e12);
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance folio");
-        assertEq(USDC.balanceOf(address(swap2)), 0, "wrong usdc balance swap");
+        assertEq(USDC.balanceOf(address(swap2)), 0, "wrong usdc balance filler");
         assertEq(folio.balanceOf(address(folio)), 0, "wrong folio balance folio");
-        assertEq(folio.balanceOf(address(swap2)), 0, "wrong folio balance swap");
+        assertEq(folio.balanceOf(address(swap2)), amt * 1e12, "wrong folio balance filler");
+        assertEq(folio.totalSupply(), 0, "should be excluded from totalSupply");
         vm.stopPrank();
 
         // anyone should be able to close, even though it's ideal this happens in the cowswap post-hook
@@ -1462,7 +1463,8 @@ contract FolioTest is BaseTest {
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance folio after close");
         assertEq(USDC.balanceOf(address(swap2)), 0, "wrong usdc balance after close");
         assertEq(folio.balanceOf(address(folio)), 0, "wrong folio balance folio after close");
-        assertEq(folio.balanceOf(address(swap2)), 0, "wrong folio balance swap after close");
+        assertEq(folio.balanceOf(address(swap2)), 0, "wrong folio balance filler after close");
+        assertEq(folio.totalSupply(), 0, "should be excluded from totalSupply after close");
     }
 
     function test_auctionIsValidSignature() public {
