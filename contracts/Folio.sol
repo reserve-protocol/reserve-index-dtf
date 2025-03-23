@@ -128,6 +128,7 @@ contract Folio is
     // === 3.0.0 ===
     ITrustedFillerRegistry public trustedFillerRegistry;
     IBaseTrustedFiller private activeTrustedFill;
+    address private activeBidder;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -178,6 +179,11 @@ contract Folio is
     /// @dev Testing function, no production use
     function poke() external nonReentrant {
         _poke();
+    }
+
+    /// @dev Gas-efficient reentrancy guard check
+    function reentrancyGuardEntered() external view {
+        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
     }
 
     // ==== Governance ====
@@ -282,29 +288,19 @@ contract Folio is
     /// @dev Contains all pending fee shares
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
         (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
-        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
+
+        // subtract activeTrustedFill's balance from totalSupply to always reflect appreciation immediately
+        return
+            super.totalSupply() +
+            _daoPendingFeeShares +
+            _feeRecipientsPendingFeeShares -
+            balanceOf(address(activeTrustedFill));
     }
 
     /// @return _assets
     /// @return _amounts {tok}
-    function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return toAssets(10 ** decimals(), Math.Rounding.Floor);
-    }
-
-    /// @return _assets
-    /// @return _amounts {tok}
-    function totalAssets() public view returns (address[] memory _assets, uint256[] memory _amounts) {
-        _assets = basket.values();
-
-        uint256 assetLength = _assets.length;
-        _amounts = new uint256[](assetLength);
-        for (uint256 i; i < assetLength; i++) {
-            _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
-
-            if (address(activeTrustedFill) != address(0)) {
-                _amounts[i] += IERC20(_assets[i]).balanceOf(address(activeTrustedFill));
-            }
-        }
+    function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
+        return _totalAssets();
     }
 
     /// @param shares {share}
@@ -313,9 +309,7 @@ contract Folio is
     function toAssets(
         uint256 shares,
         Math.Rounding rounding
-    ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
-        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
-
+    ) external view returns (address[] memory _assets, uint256[] memory _amounts) {
         return _toAssets(shares, rounding);
     }
 
@@ -639,6 +633,29 @@ contract Folio is
         if (shouldRemoveFromBasket) {
             _removeFromBasket(address(auction.sellToken));
         }
+
+        // allow Folio transfers to self from activeBidder
+        if (address(auction.buyToken) == address(this)) {
+            activeBidder = msg.sender;
+        }
+
+        uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
+
+        // collect payment
+        if (withCallback) {
+            IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), boughtAmt, data);
+        } else {
+            auction.buyToken.safeTransferFrom(msg.sender, address(this), boughtAmt);
+        }
+
+        uint256 delta = auction.buyToken.balanceOf(address(this)) - buyBalBefore;
+        require(delta >= boughtAmt, Folio__InsufficientBid());
+
+        // burn any Folio token purchased in auction
+        if (address(auction.buyToken) == address(this)) {
+            _burn(address(this), delta);
+            delete activeBidder;
+        }
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
@@ -703,12 +720,28 @@ contract Folio is
     ) internal view returns (address[] memory _assets, uint256[] memory _amounts) {
         uint256 _totalSupply = totalSupply();
 
-        (_assets, _amounts) = totalAssets();
+        (_assets, _amounts) = _totalAssets();
 
         uint256 assetLen = _assets.length;
         for (uint256 i; i < assetLen; i++) {
             // {tok} = {share} * {tok} / {share}
             _amounts[i] = Math.mulDiv(shares, _amounts[i], _totalSupply, rounding);
+        }
+    }
+
+    /// @return _assets
+    /// @return _amounts {tok}
+    function _totalAssets() internal view returns (address[] memory _assets, uint256[] memory _amounts) {
+        _assets = basket.values();
+
+        uint256 assetLength = _assets.length;
+        _amounts = new uint256[](assetLength);
+        for (uint256 i; i < assetLength; i++) {
+            _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
+
+            if (address(activeTrustedFill) != address(0)) {
+                _amounts[i] += IERC20(_assets[i]).balanceOf(address(activeTrustedFill));
+            }
         }
     }
 
@@ -852,7 +885,7 @@ contract Folio is
     }
 
     function _addToBasket(address token) internal returns (bool) {
-        require(token != address(0), Folio__InvalidAsset());
+        require(token != address(0) && token != address(this), Folio__InvalidAsset());
         emit BasketTokenAdded(token);
 
         return basket.add(token);
@@ -878,5 +911,26 @@ contract Folio is
             activeTrustedFill.closeFiller();
             delete activeTrustedFill;
         }
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        super._update(from, to, value);
+
+        // ignore mints + burns
+        if (from == address(0) || to == address(0)) {
+            return;
+        }
+
+        // prevent accidental donations
+        require(
+            to != address(this) || from == address(activeBidder) || from == address(activeTrustedFill),
+            Folio__InvalidTransferToSelf()
+        );
+
+        // burn incoming transfers from activeTrustedFill
+        if (to == address(this) && from == address(activeTrustedFill)) {
+            _burn(address(this), value);
+        }
+        // incoming transfers from activeBidder are burnt by bid()
     }
 }
