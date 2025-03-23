@@ -705,10 +705,7 @@ contract Folio is
             }
         }
 
-        // allow Folio transfers to self from activeBidder
-        if (address(auction.buyToken) == address(this)) {
-            activeBidder = msg.sender;
-        }
+        activeBidder = msg.sender;
 
         // collect payment
         if (withCallback) {
@@ -723,8 +720,8 @@ contract Folio is
         // burn any Folio token purchased in auction
         if (address(auction.buyToken) == address(this)) {
             _burn(address(this), delta);
-            delete activeBidder;
         }
+        delete activeBidder;
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
