@@ -475,6 +475,7 @@ contract Folio is
             buyBal += auction.buyToken.balanceOf(address(activeTrustedFill));
         }
 
+        // checks auction is ongoing and that sellAmount is below maxSellAmount
         (sellAmount, bidAmount, price) = AuctionLib.getBid(
             auction,
             totalSupply(),
@@ -615,7 +616,7 @@ contract Folio is
 
         uint256 _totalSupply = totalSupply();
 
-        // checks that sellAmount/maxBuyAmount are valid
+        // checks auction is ongoing and that sellAmount is below maxSellAmount
         (, boughtAmt, ) = AuctionLib.getBid(
             auction,
             _totalSupply,
@@ -665,6 +666,7 @@ contract Folio is
         Auction storage auction = auctions[auctionId];
         _closeTrustedFill();
 
+        // checks auction is ongoing and that sellAmount is below maxSellAmount
         (uint256 sellAmount, uint256 buyAmount, ) = AuctionLib.getBid(
             auction,
             totalSupply(),
