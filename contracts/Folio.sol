@@ -195,9 +195,9 @@ contract Folio is
         _poke();
     }
 
-    /// @dev Gas-efficient reentrancy guard check
+    /// @dev Re-eentrancy guard check for consuming protocols
     function reentrancyGuardEntered() external view {
-        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
+        return _reentrancyGuardEntered();
     }
 
     // ==== Governance ====
