@@ -716,12 +716,12 @@ contract Folio is
             auction.buyToken.safeTransferFrom(msg.sender, address(this), boughtAmt);
         }
 
-        uint256 buyBalAfter = auction.buyToken.balanceOf(address(this));
-        require(buyBalAfter - buyBalBefore >= boughtAmt, Folio__InsufficientBid());
+        uint256 delta = auction.buyToken.balanceOf(address(this)) - buyBalBefore;
+        require(delta >= boughtAmt, Folio__InsufficientBid());
 
         // burn any Folio token purchased in auction
         if (address(auction.buyToken) == address(this)) {
-            _burn(address(this), buyBalAfter);
+            _burn(address(this), delta);
             delete activeBidder;
         }
     }
