@@ -610,9 +610,7 @@ contract Folio is
         _closeTrustedFill();
         Auction storage auction = auctions[auctionId];
 
-        if (address(auction.buyToken) == address(this)) {
-            activeBidder = msg.sender;
-        }
+        activeBidder = msg.sender;
 
         uint256 _totalSupply = totalSupply();
 
@@ -650,8 +648,8 @@ contract Folio is
         // burn Folio balance
         if (address(auction.buyToken) == address(this)) {
             _burn(address(this), auction.buyToken.balanceOf(address(this)));
-            delete activeBidder;
         }
+        delete activeBidder;
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
