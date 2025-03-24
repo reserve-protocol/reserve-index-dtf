@@ -113,13 +113,15 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         emit FolioDeployed(owner, address(folio), proxyAdmin);
     }
 
+    // internal-only struct for stack-too-deep
+    struct GovernancePair {
+        address governor;
+        address timelock;
+    }
+
     /// Deploy a Folio instance with brand new owner + rebalancing governors
     /// @return folio The deployed Folio instance
     /// @return proxyAdmin The deployed FolioProxyAdmin instance
-    /// @return ownerGovernor The owner governor with attached timelock
-    /// @return ownerTimelock The owner timelock
-    /// @return tradingGovernor The rebalancing governor with attached timelock
-    /// @return tradingTimelock The trading timelock
     function deployGovernedFolio(
         IVotes stToken,
         IFolio.FolioBasicDetails calldata basicDetails,
@@ -129,68 +131,51 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IGovernanceDeployer.GovRoles calldata govRoles,
         bool trustedFillerEnabled,
         bytes32 deploymentNonce
-    )
-        external
-        returns (
-            Folio folio,
-            address proxyAdmin,
-            address ownerGovernor,
-            address ownerTimelock,
-            address tradingGovernor,
-            address tradingTimelock
-        )
-    {
+    ) external returns (Folio folio, address proxyAdmin) {
+        GovernancePair memory ownerGovernance;
+        GovernancePair memory tradingGovernance;
+
         // Deploy Owner Governance
-        (ownerGovernor, ownerTimelock) = governanceDeployer.deployGovernanceWithTimelock(
+        (ownerGovernance.governor, ownerGovernance.timelock) = governanceDeployer.deployGovernanceWithTimelock(
             ownerGovParams,
             stToken,
             deploymentNonce
         );
 
-        // Deploy Rebalancing Governance
+        address[] memory auctionApprovers = govRoles.existingAuctionApprovers;
+
+        // Deploy trading Governance if auction approvers are not provided
         if (govRoles.existingAuctionApprovers.length == 0) {
             // Flip deployment nonce to avoid timelock/governor collisions
-            (tradingGovernor, tradingTimelock) = governanceDeployer.deployGovernanceWithTimelock(
+            (tradingGovernance.governor, tradingGovernance.timelock) = governanceDeployer.deployGovernanceWithTimelock(
                 tradingGovParams,
                 stToken,
                 ~deploymentNonce
             );
 
-            address[] memory auctionApprovers = new address[](1);
-            auctionApprovers[0] = tradingTimelock;
-
-            // Deploy Folio
-            (folio, proxyAdmin) = deployFolio(
-                basicDetails,
-                additionalDetails,
-                ownerTimelock,
-                auctionApprovers,
-                govRoles.auctionLaunchers,
-                govRoles.brandManagers,
-                trustedFillerEnabled,
-                deploymentNonce
-            );
-        } else {
-            // Deploy Folio
-            (folio, proxyAdmin) = deployFolio(
-                basicDetails,
-                additionalDetails,
-                ownerTimelock,
-                govRoles.existingAuctionApprovers,
-                govRoles.auctionLaunchers,
-                govRoles.brandManagers,
-                trustedFillerEnabled,
-                deploymentNonce
-            );
+            auctionApprovers = new address[](1);
+            auctionApprovers[0] = tradingGovernance.timelock;
         }
+
+        // Deploy Folio
+        (folio, proxyAdmin) = deployFolio(
+            basicDetails,
+            additionalDetails,
+            ownerGovernance.timelock,
+            auctionApprovers,
+            govRoles.auctionLaunchers,
+            govRoles.brandManagers,
+            trustedFillerEnabled,
+            deploymentNonce
+        );
 
         emit GovernedFolioDeployed(
             address(stToken),
             address(folio),
-            ownerGovernor,
-            ownerTimelock,
-            tradingGovernor,
-            tradingTimelock
+            ownerGovernance.governor,
+            ownerGovernance.timelock,
+            tradingGovernance.governor,
+            tradingGovernance.timelock
         );
     }
 }
