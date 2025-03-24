@@ -14,16 +14,16 @@ import { MathLib } from "@utils/MathLib.sol";
 library AuctionLib {
     struct ApproveAuctionParams {
         uint256 auctionDelay;
-        IERC20 sell;
-        IERC20 buy;
+        IERC20 sellToken;
+        IERC20 buyToken;
         uint256 ttl;
         uint256 runs;
     }
 
     /// Approve an auction to run
     /// @param params.auctionDelay {s} Delay during which only the AUCTION_LAUNCHER can open the auction
-    /// @param params.sell The token to sell, from the perspective of the Folio
-    /// @param params.buy The token to buy, from the perspective of the Folio
+    /// @param params.sellTokenToken The token to sell from the perspective of the Folio
+    /// @param params.buyTokenToken The token to buy from the perspective of the Folio
     /// @param params.ttl {s} How long a auction can exist in an APPROVED state until it can no longer be OPENED
     /// @param params.runs {runs} How many times the auction can be opened before it is permanently closed
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
@@ -43,9 +43,9 @@ library AuctionLib {
         IFolio.Prices calldata prices
     ) external {
         require(
-            address(params.sell) != address(0) &&
-                address(params.buy) != address(0) &&
-                address(params.sell) != address(params.buy),
+            address(params.sellToken) != address(0) &&
+                address(params.buyToken) != address(0) &&
+                address(params.sellToken) != address(params.buyToken),
             IFolio.Folio__InvalidAuctionTokens()
         );
 
@@ -70,22 +70,23 @@ library AuctionLib {
 
         // do not buy and sell the same token simultaneously
         require(
-            block.timestamp > sellEnds[address(params.buy)] && block.timestamp > buyEnds[address(params.sell)],
+            block.timestamp > sellEnds[address(params.buyToken)] &&
+                block.timestamp > buyEnds[address(params.sellToken)],
             IFolio.Folio__AuctionCollision()
         );
 
         // {s}
         uint256 launchDeadline = block.timestamp + params.ttl;
 
-        sellEnds[address(params.sell)] = Math.max(sellEnds[address(params.sell)], launchDeadline);
-        buyEnds[address(params.buy)] = Math.max(buyEnds[address(params.buy)], launchDeadline);
+        sellEnds[address(params.sellToken)] = Math.max(sellEnds[address(params.sellToken)], launchDeadline);
+        buyEnds[address(params.buyToken)] = Math.max(buyEnds[address(params.buyToken)], launchDeadline);
 
         uint256 auctionId = auctions.length;
 
         IFolio.Auction memory auction = IFolio.Auction({
             id: auctionId,
-            sellToken: params.sell,
-            buyToken: params.buy,
+            sellToken: params.sellToken,
+            buyToken: params.buyToken,
             sellLimit: sellLimit,
             buyLimit: buyLimit,
             prices: IFolio.Prices(0, 0),
@@ -103,7 +104,7 @@ library AuctionLib {
         });
         auctionDetails[auctionId] = details;
 
-        emit IFolio.AuctionApproved(auctionId, address(params.sell), address(params.buy), auction, details);
+        emit IFolio.AuctionApproved(auctionId, address(params.sellToken), address(params.buyToken), auction, details);
     }
 
     /// @param buffer {s} Additional time buffer that must pass from `endTime` before auction can be opened

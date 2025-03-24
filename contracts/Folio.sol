@@ -492,8 +492,8 @@ contract Folio is
     }
 
     /// Approve an auction to run
-    /// @param sell The token to sell, from the perspective of the Folio
-    /// @param buy The token to buy, from the perspective of the Folio
+    /// @param sellToken The token to sell, from the perspective of the Folio
+    /// @param buyToken The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param prices D27{buyTok/sellTok} Price range
@@ -503,8 +503,8 @@ contract Folio is
     ///     Set < auctionDelay to restrict launching to the AUCTION_LAUNCHER
     /// @param runs {runs} How many times the auction can be opened before it is permanently closed
     function approveAuction(
-        IERC20 sell,
-        IERC20 buy,
+        IERC20 sellToken,
+        IERC20 buyToken,
         BasketRange calldata sellLimit,
         BasketRange calldata buyLimit,
         Prices calldata prices,
@@ -516,7 +516,13 @@ contract Folio is
             auctionDetails,
             sellEnds,
             buyEnds,
-            AuctionLib.ApproveAuctionParams({ auctionDelay: auctionDelay, sell: sell, buy: buy, ttl: ttl, runs: runs }),
+            AuctionLib.ApproveAuctionParams({
+                auctionDelay: auctionDelay,
+                sellToken: sellToken,
+                buyToken: buyToken,
+                ttl: ttl,
+                runs: runs
+            }),
             sellLimit,
             buyLimit,
             prices
