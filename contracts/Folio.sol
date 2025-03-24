@@ -84,7 +84,6 @@ contract Folio is
     Versioned
 {
     using EnumerableSet for EnumerableSet.AddressSet;
-    using SafeERC20 for IERC20;
 
     IFolioDAOFeeRegistry public daoFeeRegistry;
 
@@ -678,7 +677,7 @@ contract Folio is
         );
 
         // pay bidder
-        auction.sellToken.safeTransfer(msg.sender, sellAmount);
+        SafeERC20.safeTransfer(auction.sellToken, msg.sender, sellAmount);
 
         emit AuctionBid(auctionId, sellAmount, boughtAmt);
 
@@ -712,7 +711,7 @@ contract Folio is
         if (withCallback) {
             IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), boughtAmt, data);
         } else {
-            auction.buyToken.safeTransferFrom(msg.sender, address(this), boughtAmt);
+            SafeERC20.safeTransferFrom(auction.buyToken, msg.sender, address(this), boughtAmt);
         }
 
         require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= boughtAmt, Folio__InsufficientBid());
@@ -751,7 +750,7 @@ contract Folio is
 
         // Create Trusted Filler
         filler = trustedFillerRegistry.createTrustedFiller(msg.sender, targetFiller, deploymentSalt);
-        auction.sellToken.forceApprove(address(filler), sellAmount);
+        SafeERC20.forceApprove(auction.sellToken, address(filler), sellAmount);
 
         filler.initialize(address(this), auction.sellToken, auction.buyToken, sellAmount, buyAmount);
         activeTrustedFill = filler;
