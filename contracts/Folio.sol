@@ -120,6 +120,11 @@ contract Folio is
     uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
     bool public isDeprecated; // {bool} if true, Folio goes into redemption-only mode
 
+    modifier ifNotDeprecated() {
+        require(!isDeprecated, Folio__FolioDeprecated());
+        _;
+    }
+
     /**
      * Rebalancing
      *   APPROVED -> OPEN -> REOPENED N times (optional) -> CLOSED
@@ -142,6 +147,7 @@ contract Folio is
     // === 3.0.0 ===
     ITrustedFillerRegistry public trustedFillerRegistry;
     IBaseTrustedFiller private activeTrustedFill;
+    address private activeBidder;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -185,6 +191,7 @@ contract Folio is
         }
 
         lastPoke = block.timestamp;
+
         _mint(_creator, _basicDetails.initialShares);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -192,6 +199,11 @@ contract Folio is
     /// @dev Testing function, no production use
     function poke() external nonReentrant {
         _poke();
+    }
+
+    /// @dev External guard check for consuming protocols
+    function reentrancyGuardEntered() external view returns (bool) {
+        return _reentrancyGuardEntered();
     }
 
     // ==== Governance ====
@@ -296,29 +308,19 @@ contract Folio is
     /// @dev Contains all pending fee shares
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
         (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
-        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
+
+        // subtract activeTrustedFill's balance from totalSupply to always reflect appreciation immediately
+        return
+            super.totalSupply() +
+            _daoPendingFeeShares +
+            _feeRecipientsPendingFeeShares -
+            balanceOf(address(activeTrustedFill));
     }
 
     /// @return _assets
     /// @return _amounts {tok}
-    function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return toAssets(10 ** decimals(), Math.Rounding.Floor);
-    }
-
-    /// @return _assets
-    /// @return _amounts {tok}
-    function totalAssets() public view returns (address[] memory _assets, uint256[] memory _amounts) {
-        _assets = basket.values();
-
-        uint256 assetLength = _assets.length;
-        _amounts = new uint256[](assetLength);
-        for (uint256 i; i < assetLength; i++) {
-            _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
-
-            if (address(activeTrustedFill) != address(0)) {
-                _amounts[i] += IERC20(_assets[i]).balanceOf(address(activeTrustedFill));
-            }
-        }
+    function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
+        return _totalAssets();
     }
 
     /// @param shares {share}
@@ -327,9 +329,7 @@ contract Folio is
     function toAssets(
         uint256 shares,
         Math.Rounding rounding
-    ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
-        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
-
+    ) external view returns (address[] memory _assets, uint256[] memory _amounts) {
         return _toAssets(shares, rounding);
     }
 
@@ -343,9 +343,7 @@ contract Folio is
         uint256 shares,
         address receiver,
         uint256 minSharesOut
-    ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
-        require(!isDeprecated, Folio__FolioDeprecated());
-
+    ) external nonReentrant ifNotDeprecated returns (address[] memory _assets, uint256[] memory _amounts) {
         _poke();
 
         // === Calculate fee shares ===
@@ -527,9 +525,7 @@ contract Folio is
         Prices calldata prices,
         uint256 ttl,
         uint256 runs
-    ) external nonReentrant onlyRole(AUCTION_APPROVER) {
-        require(!isDeprecated, Folio__FolioDeprecated());
-
+    ) external nonReentrant onlyRole(AUCTION_APPROVER) ifNotDeprecated {
         require(
             address(sell) != address(0) && address(buy) != address(0) && address(sell) != address(buy),
             Folio__InvalidAuctionTokens()
@@ -658,8 +654,7 @@ contract Folio is
         uint256 maxBuyAmount,
         bool withCallback,
         bytes calldata data
-    ) external nonReentrant returns (uint256 boughtAmt) {
-        require(!isDeprecated, Folio__FolioDeprecated());
+    ) external nonReentrant ifNotDeprecated returns (uint256 boughtAmt) {
         _closeTrustedFill();
 
         Auction storage auction = auctions[auctionId];
@@ -711,7 +706,9 @@ contract Folio is
             }
         }
 
-        // collect payment from bidder
+        activeBidder = msg.sender;
+
+        // collect payment
         if (withCallback) {
             IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), boughtAmt, data);
         } else {
@@ -719,6 +716,14 @@ contract Folio is
         }
 
         require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= boughtAmt, Folio__InsufficientBid());
+
+        // burn any held Folio token
+        uint256 balanceOfSelf = balanceOf(address(this));
+        if (balanceOfSelf != 0) {
+            _burn(address(this), balanceOfSelf);
+        }
+
+        delete activeBidder;
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
@@ -726,8 +731,7 @@ contract Folio is
         uint256 auctionId,
         address targetFiller,
         bytes32 deploymentSalt
-    ) external nonReentrant returns (IBaseTrustedFiller filler) {
-        require(!isDeprecated, Folio__FolioDeprecated());
+    ) external nonReentrant ifNotDeprecated returns (IBaseTrustedFiller filler) {
         require(address(trustedFillerRegistry) != address(0), Folio__TrustedFillerRegistryNotSet());
 
         Auction storage auction = auctions[auctionId];
@@ -784,7 +788,7 @@ contract Folio is
     ) internal view returns (address[] memory _assets, uint256[] memory _amounts) {
         uint256 _totalSupply = totalSupply();
 
-        (_assets, _amounts) = totalAssets();
+        (_assets, _amounts) = _totalAssets();
 
         uint256 assetLen = _assets.length;
         for (uint256 i; i < assetLen; i++) {
@@ -793,10 +797,28 @@ contract Folio is
         }
     }
 
-    /// @param buffer {s} Additional time buffer that must pass from `endTime` before auction can be opened
-    function _openAuction(Auction storage auction, AuctionDetails storage details, uint256 buffer) internal {
-        require(!isDeprecated, Folio__FolioDeprecated());
+    /// @return _assets
+    /// @return _amounts {tok}
+    function _totalAssets() internal view returns (address[] memory _assets, uint256[] memory _amounts) {
+        _assets = basket.values();
 
+        uint256 assetLength = _assets.length;
+        _amounts = new uint256[](assetLength);
+        for (uint256 i; i < assetLength; i++) {
+            _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
+
+            if (address(activeTrustedFill) != address(0)) {
+                _amounts[i] += IERC20(_assets[i]).balanceOf(address(activeTrustedFill));
+            }
+        }
+    }
+
+    /// @param buffer {s} Additional time buffer that must pass from `endTime` before auction can be opened
+    function _openAuction(
+        Auction storage auction,
+        AuctionDetails storage details,
+        uint256 buffer
+    ) internal ifNotDeprecated {
         // only open APPROVED or expired auctions, with buffer
         require(block.timestamp > auction.endTime + buffer, Folio__AuctionCannotBeOpenedYet());
 
@@ -828,7 +850,9 @@ contract Folio is
         auction.endTime = endTime;
 
         // ensure buy token is in basket since swaps can happen out-of-band
-        _addToBasket(address(auction.buyToken));
+        if (address(auction.buyToken) != address(this)) {
+            _addToBasket(address(auction.buyToken));
+        }
         emit AuctionOpened(auction.id, auction, details.availableRuns);
 
         // D18{1}
@@ -1049,7 +1073,7 @@ contract Folio is
     }
 
     function _addToBasket(address token) internal returns (bool) {
-        require(token != address(0), Folio__InvalidAsset());
+        require(token != address(0) && token != address(this), Folio__InvalidAsset());
         emit BasketTokenAdded(token);
 
         return basket.add(token);
@@ -1073,7 +1097,30 @@ contract Folio is
     function _closeTrustedFill() internal {
         if (address(activeTrustedFill) != address(0)) {
             activeTrustedFill.closeFiller();
+
             delete activeTrustedFill;
+        }
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        super._update(from, to, value);
+
+        // ignore mints + burns
+        if (from == address(0) || to == address(0)) {
+            return;
+        }
+
+        // prevent accidental donations
+        if (to == address(this)) {
+            require(
+                from == address(activeBidder) || from == address(activeTrustedFill),
+                Folio__InvalidTransferToSelf()
+            );
+            if (from == address(activeTrustedFill)) {
+                // burn incoming transfers from activeTrustedFill
+                // incoming transfers from activeBidder are burnt by bid()
+                _burn(address(this), value);
+            }
         }
     }
 }
