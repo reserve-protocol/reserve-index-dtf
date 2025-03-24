@@ -3,7 +3,6 @@ pragma solidity 0.8.28;
 
 import "forge-std/Script.sol";
 import "forge-std/Test.sol";
-import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 
 import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
@@ -21,8 +20,8 @@ import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
-import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/TrustedFillerRegistry.sol";
-import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/fillers/cowswap/CowSwapFiller.sol";
+import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
+import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
 
 abstract contract BaseTest is Script, Test {
     string public constant VERSION = "3.0.0";

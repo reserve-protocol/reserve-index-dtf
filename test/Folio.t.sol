@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/interfaces/IBaseTrustedFiller.sol";
-import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/fillers/cowswap/GPv2OrderLib.sol";
-import { GPV2_SETTLEMENT } from "@reserve-protocol/trusted-fillers/fillers/cowswap/Constants.sol";
+import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/IBaseTrustedFiller.sol";
+import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/GPv2OrderLib.sol";
+import { GPV2_SETTLEMENT } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/Constants.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
 import { MAX_AUCTION_LENGTH, MIN_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TVL_FEE, MAX_MINT_FEE, MAX_PRICE_RANGE, MAX_RATE, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";

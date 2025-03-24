@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import { Script, console2 } from "forge-std/Script.sol";
 
 import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
-import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/TrustedFillerRegistry.sol";
+import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
 
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";

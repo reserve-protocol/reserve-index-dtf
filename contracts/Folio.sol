@@ -10,7 +10,7 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/interfaces/ITrustedFillerRegistry.sol";
+import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { AuctionLib } from "@utils/AuctionLib.sol";
 import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR } from "@utils/Constants.sol";
