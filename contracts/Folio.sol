@@ -70,7 +70,6 @@ contract Folio is
     Versioned
 {
     using EnumerableSet for EnumerableSet.AddressSet;
-    using SafeERC20 for IERC20;
 
     IFolioDAOFeeRegistry public daoFeeRegistry;
 
@@ -105,6 +104,11 @@ contract Folio is
     uint256 public daoPendingFeeShares; // {share} shares pending to be distributed ONLY to the DAO
     uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
     bool public isDeprecated; // {bool} if true, Folio goes into redemption-only mode
+
+    modifier notDeprecated() {
+        require(!isDeprecated, Folio__FolioDeprecated());
+        _;
+    }
 
     /**
      * Rebalancing
@@ -172,6 +176,7 @@ contract Folio is
         }
 
         lastPoke = block.timestamp;
+
         _mint(_creator, _basicDetails.initialShares);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -323,9 +328,7 @@ contract Folio is
         uint256 shares,
         address receiver,
         uint256 minSharesOut
-    ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
-        require(!isDeprecated, Folio__FolioDeprecated());
-
+    ) external nonReentrant notDeprecated returns (address[] memory _assets, uint256[] memory _amounts) {
         _poke();
 
         // === Calculate fee shares ===
@@ -507,7 +510,7 @@ contract Folio is
         Prices calldata prices,
         uint256 ttl,
         uint256 runs
-    ) external nonReentrant onlyRole(AUCTION_APPROVER) {
+    ) external nonReentrant onlyRole(AUCTION_APPROVER) notDeprecated {
         require(!isDeprecated, Folio__FolioDeprecated());
 
         AuctionLib.approveAuction(
@@ -605,8 +608,7 @@ contract Folio is
         uint256 maxBuyAmount,
         bool withCallback,
         bytes calldata data
-    ) external nonReentrant returns (uint256 boughtAmt) {
-        require(!isDeprecated, Folio__FolioDeprecated());
+    ) external nonReentrant notDeprecated returns (uint256 boughtAmt) {
         _closeTrustedFill();
         Auction storage auction = auctions[auctionId];
 
@@ -646,9 +648,11 @@ contract Folio is
         require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= boughtAmt, Folio__InsufficientBid());
 
         // burn any held Folio token
-        if (balanceOf(address(this)) != 0) {
-            _burn(address(this), balanceOf(address(this)));
+        uint256 balanceOfSelf = balanceOf(address(this));
+        if (balanceOfSelf != 0) {
+            _burn(address(this), balanceOfSelf);
         }
+
         delete activeBidder;
     }
 
@@ -657,8 +661,7 @@ contract Folio is
         uint256 auctionId,
         address targetFiller,
         bytes32 deploymentSalt
-    ) external nonReentrant returns (IBaseTrustedFiller filler) {
-        require(!isDeprecated, Folio__FolioDeprecated());
+    ) external nonReentrant notDeprecated returns (IBaseTrustedFiller filler) {
         require(address(trustedFillerRegistry) != address(0), Folio__TrustedFillerRegistryNotSet());
 
         Auction storage auction = auctions[auctionId];
@@ -678,7 +681,7 @@ contract Folio is
 
         // Create Trusted Filler
         filler = trustedFillerRegistry.createTrustedFiller(msg.sender, targetFiller, deploymentSalt);
-        auction.sellToken.forceApprove(address(filler), sellAmount);
+        SafeERC20.forceApprove(auction.sellToken, address(filler), sellAmount);
 
         filler.initialize(address(this), auction.sellToken, auction.buyToken, sellAmount, buyAmount);
         activeTrustedFill = filler;
@@ -904,6 +907,7 @@ contract Folio is
     function _closeTrustedFill() internal {
         if (address(activeTrustedFill) != address(0)) {
             activeTrustedFill.closeFiller();
+
             delete activeTrustedFill;
         }
     }
@@ -917,15 +921,17 @@ contract Folio is
         }
 
         // prevent accidental donations
-        require(
-            to != address(this) || from == address(activeBidder) || from == address(activeTrustedFill),
-            Folio__InvalidTransferToSelf()
-        );
+        if (to == address(this)) {
+            require(
+                from == address(activeBidder) || from == address(activeTrustedFill),
+                Folio__InvalidTransferToSelf()
+            );
 
-        // burn incoming transfers from activeTrustedFill
-        if (to == address(this) && from == address(activeTrustedFill)) {
-            _burn(address(this), value);
+            // burn incoming transfers from activeTrustedFill
+            // incoming transfers from activeBidder are burnt by bid()
+            if (from == address(activeTrustedFill)) {
+                _burn(address(this), value);
+            }
         }
-        // incoming transfers from activeBidder are burnt by bid()
     }
 }

@@ -12,8 +12,6 @@ import { D18, D27, MAX_RATE, MAX_PRICE_RANGE, MAX_TTL } from "@utils/Constants.s
 import { MathLib } from "@utils/MathLib.sol";
 
 library AuctionLib {
-    using SafeERC20 for IERC20;
-
     struct ApproveAuctionParams {
         uint256 auctionDelay;
         IERC20 sell;
@@ -176,7 +174,7 @@ library AuctionLib {
         bytes calldata data
     ) external returns (bool shouldRemoveFromBasket) {
         // pay bidder
-        auction.sellToken.safeTransfer(msg.sender, sellAmount);
+        SafeERC20.safeTransfer(auction.sellToken, msg.sender, sellAmount);
 
         emit IFolio.AuctionBid(auction.id, sellAmount, bidAmount);
 
@@ -208,7 +206,7 @@ library AuctionLib {
         if (withCallback) {
             IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), bidAmount, data);
         } else {
-            auction.buyToken.safeTransferFrom(msg.sender, address(this), bidAmount);
+            SafeERC20.safeTransferFrom(auction.buyToken, msg.sender, address(this), bidAmount);
         }
     }
 
