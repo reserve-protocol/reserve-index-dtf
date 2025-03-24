@@ -43,7 +43,7 @@ contract DeployScript is Script {
 
         if (block.chainid == 31337) {
             deploymentParams[31337] = DeploymentParams({
-                rsrToken: 0xd2877702675e6cEb975b4A1dFf9fb7BAF4C91ea9, // Garbage token that just exists on Junk Address
+                rsrToken: 0x89A8c847f41C0dfA6c8B88638bACca8a0b777Da7, // Garbage token that just exists on Junk Address
                 roleRegistry: address(new MockRoleRegistry()), // Mock Registry for Local Networks
                 folioFeeRegistry: address(0),
                 feeRecipient: address(1), // Burn fees for Local Networks
