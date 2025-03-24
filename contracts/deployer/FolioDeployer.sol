@@ -19,18 +19,23 @@ import { Versioned } from "@utils/Versioned.sol";
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 contract FolioDeployer is IFolioDeployer, Versioned {
-    using SafeERC20 for IERC20;
-
     address public immutable versionRegistry;
     address public immutable daoFeeRegistry;
+    address public immutable trustedFillerRegistry;
 
     address public immutable folioImplementation;
 
     IGovernanceDeployer public immutable governanceDeployer;
 
-    constructor(address _daoFeeRegistry, address _versionRegistry, IGovernanceDeployer _governanceDeployer) {
+    constructor(
+        address _daoFeeRegistry,
+        address _versionRegistry,
+        address _trustedFillerRegistry,
+        IGovernanceDeployer _governanceDeployer
+    ) {
         daoFeeRegistry = _daoFeeRegistry;
         versionRegistry = _versionRegistry;
+        trustedFillerRegistry = _trustedFillerRegistry;
 
         folioImplementation = address(new Folio());
         governanceDeployer = _governanceDeployer;
@@ -46,6 +51,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         address[] memory auctionApprovers,
         address[] memory auctionLaunchers,
         address[] memory brandManagers,
+        bool trustedFillerEnabled,
         bytes32 deploymentNonce
     ) public returns (Folio folio, address proxyAdmin) {
         require(basicDetails.assets.length == basicDetails.amounts.length, FolioDeployer__LengthMismatch());
@@ -71,10 +77,22 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         folio = Folio(address(new FolioProxy{ salt: deploymentSalt }(folioImplementation, proxyAdmin)));
 
         for (uint256 i; i < basicDetails.assets.length; i++) {
-            IERC20(basicDetails.assets[i]).safeTransferFrom(msg.sender, address(folio), basicDetails.amounts[i]);
+            SafeERC20.safeTransferFrom(
+                IERC20(basicDetails.assets[i]),
+                msg.sender,
+                address(folio),
+                basicDetails.amounts[i]
+            );
         }
 
-        folio.initialize(basicDetails, additionalDetails, msg.sender, daoFeeRegistry);
+        folio.initialize(
+            basicDetails,
+            additionalDetails,
+            msg.sender,
+            daoFeeRegistry,
+            trustedFillerRegistry,
+            trustedFillerEnabled
+        );
 
         // Setup Roles
         folio.grantRole(folio.DEFAULT_ADMIN_ROLE(), owner);
@@ -95,13 +113,15 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         emit FolioDeployed(owner, address(folio), proxyAdmin);
     }
 
+    // internal-only struct for stack-too-deep
+    struct GovernancePair {
+        address governor;
+        address timelock;
+    }
+
     /// Deploy a Folio instance with brand new owner + rebalancing governors
     /// @return folio The deployed Folio instance
     /// @return proxyAdmin The deployed FolioProxyAdmin instance
-    /// @return ownerGovernor The owner governor with attached timelock
-    /// @return ownerTimelock The owner timelock
-    /// @return tradingGovernor The rebalancing governor with attached timelock
-    /// @return tradingTimelock The trading timelock
     function deployGovernedFolio(
         IVotes stToken,
         IFolio.FolioBasicDetails calldata basicDetails,
@@ -109,67 +129,53 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IGovernanceDeployer.GovParams calldata ownerGovParams,
         IGovernanceDeployer.GovParams calldata tradingGovParams,
         IGovernanceDeployer.GovRoles calldata govRoles,
+        bool trustedFillerEnabled,
         bytes32 deploymentNonce
-    )
-        external
-        returns (
-            Folio folio,
-            address proxyAdmin,
-            address ownerGovernor,
-            address ownerTimelock,
-            address tradingGovernor,
-            address tradingTimelock
-        )
-    {
+    ) external returns (Folio folio, address proxyAdmin) {
+        GovernancePair memory ownerGovernance;
+        GovernancePair memory tradingGovernance;
+
         // Deploy Owner Governance
-        (ownerGovernor, ownerTimelock) = governanceDeployer.deployGovernanceWithTimelock(
+        (ownerGovernance.governor, ownerGovernance.timelock) = governanceDeployer.deployGovernanceWithTimelock(
             ownerGovParams,
             stToken,
             deploymentNonce
         );
 
-        // Deploy Rebalancing Governance
+        address[] memory auctionApprovers = govRoles.existingAuctionApprovers;
+
+        // Deploy trading Governance if auction approvers are not provided
         if (govRoles.existingAuctionApprovers.length == 0) {
             // Flip deployment nonce to avoid timelock/governor collisions
-            (tradingGovernor, tradingTimelock) = governanceDeployer.deployGovernanceWithTimelock(
+            (tradingGovernance.governor, tradingGovernance.timelock) = governanceDeployer.deployGovernanceWithTimelock(
                 tradingGovParams,
                 stToken,
                 ~deploymentNonce
             );
 
-            address[] memory auctionApprovers = new address[](1);
-            auctionApprovers[0] = tradingTimelock;
-
-            // Deploy Folio
-            (folio, proxyAdmin) = deployFolio(
-                basicDetails,
-                additionalDetails,
-                ownerTimelock,
-                auctionApprovers,
-                govRoles.auctionLaunchers,
-                govRoles.brandManagers,
-                deploymentNonce
-            );
-        } else {
-            // Deploy Folio
-            (folio, proxyAdmin) = deployFolio(
-                basicDetails,
-                additionalDetails,
-                ownerTimelock,
-                govRoles.existingAuctionApprovers,
-                govRoles.auctionLaunchers,
-                govRoles.brandManagers,
-                deploymentNonce
-            );
+            auctionApprovers = new address[](1);
+            auctionApprovers[0] = tradingGovernance.timelock;
         }
+
+        // Deploy Folio
+        (folio, proxyAdmin) = deployFolio(
+            basicDetails,
+            additionalDetails,
+            ownerGovernance.timelock,
+            auctionApprovers,
+            govRoles.auctionLaunchers,
+            govRoles.brandManagers,
+            trustedFillerEnabled,
+            deploymentNonce
+        );
 
         emit GovernedFolioDeployed(
             address(stToken),
             address(folio),
-            ownerGovernor,
-            ownerTimelock,
-            tradingGovernor,
-            tradingTimelock
+            ownerGovernance.governor,
+            ownerGovernance.timelock,
+            tradingGovernance.governor,
+            tradingGovernance.timelock
         );
     }
 }

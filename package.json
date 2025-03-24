@@ -7,6 +7,7 @@
     "@openzeppelin/contracts": "^5.1.0",
     "@openzeppelin/contracts-upgradeable": "^5.1.0",
     "@prb/math": "^4.1.0",
+    "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#d75238d28aa35ac6040761ddfb9c353f57abd2d2",
     "forge-std": "github:foundry-rs/forge-std#v1.9.4"
   },
   "devDependencies": {
@@ -32,7 +33,8 @@
     "size": "forge compile --sizes",
     "coverage": "forge coverage --report lcov --no-match-coverage '(script|test)'",
     "coverage:summary": "forge coverage --report summary --no-match-coverage '(script|test)'",
-    "deploy": "forge script script/Deploy.s.sol:DeployScript --broadcast --slow --skip-simulation",
+    "deploy": "forge script script/Deploy.s.sol:DeployScript --broadcast --slow",
+    "playground": "forge script script/Playground.s.sol:PlaygroundScript --slow",
     "anvil": "anvil --fork-url https://ethereum-rpc.publicnode.com --chain-id 31337 --prune-history"
   },
   "packageManager": "yarn@4.6.0"

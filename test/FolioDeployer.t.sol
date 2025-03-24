@@ -361,7 +361,8 @@ contract FolioDeployerTest is BaseTest {
             _guardians2[0] = user2;
 
             vm.startSnapshotGas("deployGovernedFolio");
-            (folio, _folioAdmin, _ownerGovernor, , _tradingGovernor, ) = folioDeployer.deployGovernedFolio(
+            vm.recordLogs();
+            (folio, _folioAdmin) = folioDeployer.deployGovernedFolio(
                 stToken,
                 IFolio.FolioBasicDetails({
                     name: "Test Folio",
@@ -381,7 +382,13 @@ contract FolioDeployerTest is BaseTest {
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, _guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, _guardians1),
                 IGovernanceDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
+                true,
                 bytes32(0)
+            );
+            Vm.Log[] memory logs = vm.getRecordedLogs();
+            (_ownerGovernor, , _tradingGovernor, ) = abi.decode(
+                logs[logs.length - 1].data,
+                (address, address, address, address)
             );
             vm.stopSnapshotGas("deployGovernedFolio()");
             vm.stopPrank();
@@ -513,12 +520,13 @@ contract FolioDeployerTest is BaseTest {
 
         vm.startSnapshotGas("deployGovernedFolio");
         address _folioAdmin;
-        address _ownerGovernor;
         address[] memory _guardians1 = new address[](1);
         address[] memory _guardians2 = new address[](1);
         _guardians1[0] = user1;
         _guardians2[0] = user2;
-        (folio, _folioAdmin, _ownerGovernor, , , ) = folioDeployer.deployGovernedFolio(
+
+        vm.recordLogs();
+        (folio, _folioAdmin) = folioDeployer.deployGovernedFolio(
             stToken,
             IFolio.FolioBasicDetails({
                 name: "Test Folio",
@@ -538,11 +546,18 @@ contract FolioDeployerTest is BaseTest {
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, _guardians2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, _guardians1),
             IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0)),
+            true,
             bytes32(0)
+        );
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        (address _ownerGovernor, , address _tradingGovernor, ) = abi.decode(
+            logs[logs.length - 1].data,
+            (address, address, address, address)
         );
         vm.stopSnapshotGas("deployGovernedFolio()");
         vm.stopPrank();
         proxyAdmin = FolioProxyAdmin(_folioAdmin);
+        assertEq(_tradingGovernor, address(0));
 
         // Check owner governor + owner timelock
         vm.startPrank(user1);
@@ -630,7 +645,7 @@ contract FolioDeployerTest is BaseTest {
         for (uint256 i = 0; i < 1000; i++) {
             uint256 snapshot = vm.snapshotState();
 
-            (folio, , , , , ) = folioDeployer.deployGovernedFolio(
+            (folio, ) = folioDeployer.deployGovernedFolio(
                 stToken,
                 IFolio.FolioBasicDetails({
                     name: "Test Folio",
@@ -650,6 +665,7 @@ contract FolioDeployerTest is BaseTest {
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, guardians1),
                 IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0)),
+                true,
                 bytes32(i)
             );
 

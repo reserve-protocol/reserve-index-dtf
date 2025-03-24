@@ -16,6 +16,7 @@ interface IFolio {
     event AuctionOpened(uint256 indexed auctionId, Auction auction, uint256 runsRemaining);
     event AuctionBid(uint256 indexed auctionId, uint256 sellAmount, uint256 buyAmount);
     event AuctionClosed(uint256 indexed auctionId);
+    event AuctionTrustedFillCreated(uint256 indexed auctionId, address filler);
 
     event FolioFeePaid(address indexed recipient, uint256 amount);
     event ProtocolFeePaid(address indexed recipient, uint256 amount);
@@ -29,6 +30,7 @@ interface IFolio {
     event AuctionLengthSet(uint256 newAuctionLength);
     event DustAmountSet(address token, uint256 newDustAmount);
     event MandateSet(string newMandate);
+    event TrustedFillerRegistrySet(address trustedFillerRegistry, bool isEnabled);
     event FolioDeprecated();
 
     // === Errors ===
@@ -71,6 +73,10 @@ interface IFolio {
     error Folio__TooManyFeeRecipients();
     error Folio__InvalidArrayLengths();
     error Folio__InvalidAuctionRuns();
+    error Folio__InvalidTransferToSelf();
+
+    error Folio__TrustedFillerRegistryNotSet();
+    error Folio__TrustedFillerRegistryAlreadySet();
 
     // === Structures ===
 

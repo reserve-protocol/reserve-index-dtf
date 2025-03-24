@@ -10,35 +10,16 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import { UD60x18, powu } from "@prb/math/src/UD60x18.sol";
+import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
+import { AuctionLib } from "@utils/AuctionLib.sol";
+import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
+import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
-
-/// Optional bidder interface for callback
-interface IBidderCallee {
-    /// @param buyAmount {qBuyTok}
-    function bidCallback(address buyToken, uint256 buyAmount, bytes calldata data) external;
-}
-
-uint256 constant MAX_TVL_FEE = 0.1e18; // D18{1/year} 10% annually
-uint256 constant MAX_MINT_FEE = 0.05e18; // D18{1} 5%
-uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
-uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
-uint256 constant MAX_AUCTION_DELAY = 604800; // {s} 1 week
-uint256 constant MAX_FEE_RECIPIENTS = 64;
-uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
-uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
-uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
-uint256 constant RESTRICTED_AUCTION_BUFFER = 120; // {s} 2 min
-
-uint256 constant ONE_OVER_YEAR = 31709791983; // D18{1/s} 1e18 / 31536000
-
-uint256 constant D18 = 1e18; // D18
-uint256 constant D27 = 1e27; // D27
 
 /**
  * @title Folio
@@ -89,7 +70,6 @@ contract Folio is
     Versioned
 {
     using EnumerableSet for EnumerableSet.AddressSet;
-    using SafeERC20 for IERC20;
 
     IFolioDAOFeeRegistry public daoFeeRegistry;
 
@@ -125,6 +105,11 @@ contract Folio is
     uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
     bool public isDeprecated; // {bool} if true, Folio goes into redemption-only mode
 
+    modifier notDeprecated() {
+        require(!isDeprecated, Folio__FolioDeprecated());
+        _;
+    }
+
     /**
      * Rebalancing
      *   APPROVED -> OPEN -> REOPENED N times (optional) -> CLOSED
@@ -135,14 +120,20 @@ contract Folio is
      *   - All auctions are dutch auctions with an exponential decay curve, but startPrice can equal endPrice
      */
     Auction[] public auctions;
-    mapping(address => uint256) public sellEnds; // {s} timestamp of last possible second we could sell the token
-    mapping(address => uint256) public buyEnds; // {s} timestamp of last possible second we could buy the token
+    mapping(address token => uint256 timepoint) public sellEnds; // {s} timestamp of last possible second we could sell the token
+    mapping(address token => uint256 timepoint) public buyEnds; // {s} timestamp of last possible second we could buy the token
     uint256 public auctionDelay; // {s} delay in the APPROVED state before an auction can be opened by anyone
     uint256 public auctionLength; // {s} length of an auction
 
     // === 2.0.0 ===
     mapping(uint256 auctionId => AuctionDetails details) public auctionDetails;
     mapping(address token => uint256 amount) public dustAmount; // D27{tok/share}
+
+    // === 3.0.0 ===
+    ITrustedFillerRegistry public trustedFillerRegistry;
+    bool public trustedFillerEnabled;
+    IBaseTrustedFiller private activeTrustedFill;
+    address private activeBidder;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -153,7 +144,9 @@ contract Folio is
         FolioBasicDetails calldata _basicDetails,
         FolioAdditionalDetails calldata _additionalDetails,
         address _creator,
-        address _daoFeeRegistry
+        address _daoFeeRegistry,
+        address _trustedFillerRegistry,
+        bool _trustedFillerEnabled
     ) external initializer {
         __ERC20_init(_basicDetails.name, _basicDetails.symbol);
         __AccessControlEnumerable_init();
@@ -166,6 +159,7 @@ contract Folio is
         _setAuctionDelay(_additionalDetails.auctionDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
+        _setTrustedFillerRegistry(_trustedFillerRegistry, _trustedFillerEnabled);
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 
@@ -184,6 +178,7 @@ contract Folio is
         }
 
         lastPoke = block.timestamp;
+
         _mint(_creator, _basicDetails.initialShares);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -191,6 +186,11 @@ contract Folio is
     /// @dev Testing function, no production use
     function poke() external nonReentrant {
         _poke();
+    }
+
+    /// @dev Re-eentrancy guard check for consuming protocols
+    function reentrancyGuardEntered() external view returns (bool) {
+        return _reentrancyGuardEntered();
     }
 
     // ==== Governance ====
@@ -204,7 +204,16 @@ contract Folio is
     }
 
     /// @dev Enables removal of tokens if balance is indistinguishable from dust
-    function removeFromBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+    /// @dev Made permissionless in 3.0.0
+    function removeFromBasket(IERC20 token) external nonReentrant {
+        _closeTrustedFill();
+
+        // ensure the token is not currently being bought if executed permissonlessly
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || block.timestamp > buyEnds[address(token)],
+            Folio__BasketModificationFailed()
+        );
+
         // D27{tok/share} = {tok} * D27 / {share}
         uint256 basketPresence = Math.mulDiv(
             IERC20(token).balanceOf(address(this)),
@@ -212,7 +221,6 @@ contract Folio is
             totalSupply(),
             Math.Rounding.Ceil
         );
-        // TODO make sure to look at open fill balances in 2.1.0
 
         require(basketPresence <= dustAmount[address(token)], Folio__BalanceNotDust());
         require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
@@ -270,6 +278,11 @@ contract Folio is
         _setMandate(_newMandate);
     }
 
+    /// @dev _newFillerRegistry is ignored if already set.
+    function setTrustedFillerRegistry(address _newFillerRegistry, bool _enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setTrustedFillerRegistry(_newFillerRegistry, _enabled);
+    }
+
     /// Deprecate the Folio, callable only by the admin
     /// @dev Folio cannot be minted and auctions cannot be approved, opened, or bid on
     function deprecateFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -283,27 +296,19 @@ contract Folio is
     /// @dev Contains all pending fee shares
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
         (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
-        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
-    }
 
-    /// @return _assets
-    /// @return _amounts {tok}
-    function folio() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        return toAssets(10 ** decimals(), Math.Rounding.Floor);
+        // subtract activeTrustedFill's balance from totalSupply to always reflect appreciation
+        return
+            super.totalSupply() +
+            _daoPendingFeeShares +
+            _feeRecipientsPendingFeeShares -
+            balanceOf(address(activeTrustedFill));
     }
 
     /// @return _assets
     /// @return _amounts {tok}
     function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
-        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
-
-        _assets = basket.values();
-
-        uint256 assetLength = _assets.length;
-        _amounts = new uint256[](assetLength);
-        for (uint256 i; i < assetLength; i++) {
-            _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
-        }
+        return _totalAssets();
     }
 
     /// @param shares {share}
@@ -312,9 +317,7 @@ contract Folio is
     function toAssets(
         uint256 shares,
         Math.Rounding rounding
-    ) public view returns (address[] memory _assets, uint256[] memory _amounts) {
-        require(!_reentrancyGuardEntered(), ReentrancyGuardReentrantCall());
-
+    ) external view returns (address[] memory _assets, uint256[] memory _amounts) {
         return _toAssets(shares, rounding);
     }
 
@@ -328,9 +331,7 @@ contract Folio is
         uint256 shares,
         address receiver,
         uint256 minSharesOut
-    ) external nonReentrant returns (address[] memory _assets, uint256[] memory _amounts) {
-        require(!isDeprecated, Folio__FolioDeprecated());
-
+    ) external nonReentrant notDeprecated returns (address[] memory _assets, uint256[] memory _amounts) {
         _poke();
 
         // === Calculate fee shares ===
@@ -452,66 +453,50 @@ contract Folio is
         daoPendingFeeShares = 0;
     }
 
-    // ==== Rebalancing ====
+    // ==== Auctions ====
 
     function nextAuctionId() external view returns (uint256) {
         return auctions.length;
     }
 
-    /// The amount on sale in an auction
-    /// @dev Can be bid on in chunks
-    /// @dev Fluctuates changes over time as price changes (can go up or down)
+    /// Get auction bid parameters at the current timestamp, up to a maximum sell amount
+    /// @dev Added in 3.0.0
+    /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder can offer the protocol
     /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
-    function lot(uint256 auctionId, uint256 timestamp) external view returns (uint256 sellAmount) {
-        Auction storage auction = auctions[auctionId];
-
-        uint256 _totalSupply = totalSupply();
-        uint256 sellBal = auction.sellToken.balanceOf(address(this));
-        uint256 buyBal = auction.buyToken.balanceOf(address(this));
-
-        // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
-        uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
-
-        // {buyTok} = D27{buyTok/share} * {share} / D27
-        uint256 maxBuyBal = Math.mulDiv(auction.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
-        uint256 buyAvailable = buyBal < maxBuyBal ? maxBuyBal - buyBal : 0;
-
-        // avoid overflow
-        if (buyAvailable > MAX_RATE) {
-            return sellAvailable;
-        }
-
-        // D27{buyTok/sellTok}
-        uint256 price = _price(auction, timestamp);
-
-        // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
-        uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
-        sellAmount = Math.min(sellAvailable, sellAvailableFromBuy);
-    }
-
-    /// @return D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
-    function getPrice(uint256 auctionId, uint256 timestamp) external view returns (uint256) {
-        return _price(auctions[auctionId], timestamp);
-    }
-
-    /// Get the bid amount required to purchase the sell amount
-    /// @param sellAmount {sellTok} The amount of sell tokens the bidder is offering the protocol
-    /// @return bidAmount {buyTok} The amount of buy tokens required to bid in the auction at a given timestamp
+    /// @return bidAmount {buyTok} The amount of buy tokens required to bid for the full sell amount
+    /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
     function getBid(
         uint256 auctionId,
         uint256 timestamp,
-        uint256 sellAmount
-    ) external view returns (uint256 bidAmount) {
-        uint256 price = _price(auctions[auctionId], timestamp);
+        uint256 maxSellAmount
+    ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
+        Auction storage auction = auctions[auctionId];
 
-        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
-        bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
+        uint256 sellBal = auction.sellToken.balanceOf(address(this));
+        uint256 buyBal = auction.buyToken.balanceOf(address(this));
+
+        if (address(activeTrustedFill) != address(0)) {
+            // TODO we don't actually know these are the 2 tokens the active fill knows about
+            sellBal += auction.sellToken.balanceOf(address(activeTrustedFill));
+            buyBal += auction.buyToken.balanceOf(address(activeTrustedFill));
+        }
+
+        // checks auction is ongoing and that sellAmount is below maxSellAmount
+        (sellAmount, bidAmount, price) = AuctionLib.getBid(
+            auction,
+            totalSupply(),
+            timestamp == 0 ? block.timestamp : timestamp,
+            sellBal,
+            buyBal,
+            0,
+            maxSellAmount,
+            type(uint256).max
+        );
     }
 
     /// Approve an auction to run
-    /// @param sell The token to sell, from the perspective of the Folio
-    /// @param buy The token to buy, from the perspective of the Folio
+    /// @param sellToken The token to sell, from the perspective of the Folio
+    /// @param buyToken The token to buy, from the perspective of the Folio
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param prices D27{buyTok/sellTok} Price range
@@ -521,71 +506,30 @@ contract Folio is
     ///     Set < auctionDelay to restrict launching to the AUCTION_LAUNCHER
     /// @param runs {runs} How many times the auction can be opened before it is permanently closed
     function approveAuction(
-        IERC20 sell,
-        IERC20 buy,
+        IERC20 sellToken,
+        IERC20 buyToken,
         BasketRange calldata sellLimit,
         BasketRange calldata buyLimit,
         Prices calldata prices,
         uint256 ttl,
         uint256 runs
-    ) external nonReentrant onlyRole(AUCTION_APPROVER) {
-        require(!isDeprecated, Folio__FolioDeprecated());
-
-        require(
-            address(sell) != address(0) && address(buy) != address(0) && address(sell) != address(buy),
-            Folio__InvalidAuctionTokens()
+    ) external nonReentrant onlyRole(AUCTION_APPROVER) notDeprecated {
+        AuctionLib.approveAuction(
+            auctions,
+            auctionDetails,
+            sellEnds,
+            buyEnds,
+            AuctionLib.ApproveAuctionParams({
+                auctionDelay: auctionDelay,
+                sellToken: sellToken,
+                buyToken: buyToken,
+                ttl: ttl,
+                runs: runs
+            }),
+            sellLimit,
+            buyLimit,
+            prices
         );
-
-        require(
-            sellLimit.high <= MAX_RATE && sellLimit.low <= sellLimit.spot && sellLimit.high >= sellLimit.spot,
-            Folio__InvalidSellLimit()
-        );
-
-        require(
-            buyLimit.low != 0 &&
-                buyLimit.high <= MAX_RATE &&
-                buyLimit.low <= buyLimit.spot &&
-                buyLimit.high >= buyLimit.spot,
-            Folio__InvalidBuyLimit()
-        );
-
-        require(prices.start >= prices.end, Folio__InvalidPrices());
-
-        require(ttl <= MAX_TTL, Folio__InvalidAuctionTTL());
-
-        require(runs != 0, Folio__InvalidAuctionRuns());
-
-        // do not buy and sell the same token simultaneously
-        require(
-            block.timestamp > sellEnds[address(buy)] && block.timestamp > buyEnds[address(sell)],
-            Folio__AuctionCollision()
-        );
-
-        // {s}
-        uint256 launchDeadline = block.timestamp + ttl;
-
-        sellEnds[address(sell)] = Math.max(sellEnds[address(sell)], launchDeadline);
-        buyEnds[address(buy)] = Math.max(buyEnds[address(buy)], launchDeadline);
-
-        Auction memory auction = Auction({
-            id: auctions.length,
-            sellToken: sell,
-            buyToken: buy,
-            sellLimit: sellLimit,
-            buyLimit: buyLimit,
-            prices: Prices(0, 0),
-            restrictedUntil: block.timestamp + auctionDelay,
-            launchDeadline: launchDeadline,
-            startTime: 0,
-            endTime: 0,
-            k: 0
-        });
-        auctions.push(auction);
-
-        AuctionDetails memory details = AuctionDetails({ initialPrices: prices, availableRuns: runs });
-        auctionDetails[auction.id] = details;
-
-        emit AuctionApproved(auction.id, address(sell), address(buy), auction, details);
     }
 
     /// Open an auction as the auction launcher
@@ -599,7 +543,7 @@ contract Folio is
         uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice
-    ) external nonReentrant onlyRole(AUCTION_LAUNCHER) {
+    ) external nonReentrant onlyRole(AUCTION_LAUNCHER) notDeprecated {
         Auction storage auction = auctions[auctionId];
         AuctionDetails storage details = auctionDetails[auctionId];
 
@@ -624,14 +568,18 @@ contract Folio is
         auction.buyLimit.spot = buyLimit;
         auction.prices.start = startPrice;
         auction.prices.end = endPrice;
-        // more price checks in _openAuction()
 
-        _openAuction(auction, details, 0);
+        if (address(auction.buyToken) != address(this)) {
+            _addToBasket(address(auction.buyToken));
+        }
+
+        // additional price checks
+        AuctionLib.openAuction(auction, details, sellEnds, buyEnds, auctionLength, 0);
     }
 
     /// Open an auction without restrictions
     /// @dev Unrestricted, callable only after the `auctionDelay`
-    function openAuctionUnrestricted(uint256 auctionId) external nonReentrant {
+    function openAuctionUnrestricted(uint256 auctionId) external nonReentrant notDeprecated {
         Auction storage auction = auctions[auctionId];
         AuctionDetails storage details = auctionDetails[auctionId];
 
@@ -639,9 +587,13 @@ contract Folio is
         require(block.timestamp >= auction.restrictedUntil, Folio__AuctionCannotBeOpenedWithoutRestriction());
 
         auction.prices = details.initialPrices;
-        // more price checks in _openAuction()
 
-        _openAuction(auction, details, RESTRICTED_AUCTION_BUFFER);
+        if (address(auction.buyToken) != address(this)) {
+            _addToBasket(address(auction.buyToken));
+        }
+
+        // additional price checks
+        AuctionLib.openAuction(auction, details, sellEnds, buyEnds, auctionLength, RESTRICTED_AUCTION_BUFFER);
     }
 
     /// Bid in an ongoing auction
@@ -659,80 +611,85 @@ contract Folio is
         uint256 maxBuyAmount,
         bool withCallback,
         bytes calldata data
-    ) external nonReentrant returns (uint256 boughtAmt) {
-        require(!isDeprecated, Folio__FolioDeprecated());
+    ) external nonReentrant notDeprecated returns (uint256 boughtAmt) {
+        _closeTrustedFill();
         Auction storage auction = auctions[auctionId];
 
-        // stack-too-deep
-        {
-            // checks auction is ongoing
-            // D27{buyTok/sellTok}
-            uint256 price = _price(auction, block.timestamp);
+        activeBidder = msg.sender;
 
-            // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
-            boughtAmt = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
-            require(boughtAmt <= maxBuyAmount && boughtAmt != 0, Folio__SlippageExceeded());
-        }
-
-        // totalSupply inflates over time due to TVL fee, causing buyLimits/sellLimits to be slightly stale
         uint256 _totalSupply = totalSupply();
-        uint256 sellBal = auction.sellToken.balanceOf(address(this));
 
-        // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 minSellBal = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
-        uint256 sellAvailable = sellBal > minSellBal ? sellBal - minSellBal : 0;
-
-        // ensure auction is large enough to cover bid
-        require(sellAmount <= sellAvailable, Folio__InsufficientBalance());
-
-        // put buy token in basket
-        _addToBasket(address(auction.buyToken));
-
-        // pay bidder
-        auction.sellToken.safeTransfer(msg.sender, sellAmount);
-
-        emit AuctionBid(auctionId, sellAmount, boughtAmt);
-
-        // D27{sellTok/share} = {sellTok} * D27 / {share}
-        uint256 basketPresence = Math.mulDiv(
-            auction.sellToken.balanceOf(address(this)),
-            D27,
+        // checks auction is ongoing and that sellAmount is below maxSellAmount
+        (, boughtAmt, ) = AuctionLib.getBid(
+            auction,
             _totalSupply,
-            Math.Rounding.Ceil
+            block.timestamp,
+            auction.sellToken.balanceOf(address(this)),
+            auction.buyToken.balanceOf(address(this)),
+            sellAmount,
+            sellAmount,
+            maxBuyAmount
         );
 
-        // adjust basketPresence for dust
-        basketPresence = basketPresence > dustAmount[address(auction.sellToken)]
-            ? basketPresence - dustAmount[address(auction.sellToken)]
-            : 0;
+        uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
 
-        // end auction when below sell limit
-        if (basketPresence <= auction.sellLimit.spot) {
-            auction.endTime = block.timestamp - 1;
-            auctionDetails[auctionId].availableRuns = 0;
-
-            // remove sell token from basket at 0
-            if (basketPresence == 0) {
-                _removeFromBasket(address(auction.sellToken));
-            }
+        if (
+            AuctionLib.bid(
+                auction,
+                auctionDetails[auctionId],
+                dustAmount,
+                _totalSupply,
+                sellAmount,
+                boughtAmt,
+                withCallback,
+                data
+            )
+        ) {
+            _removeFromBasket(address(auction.sellToken));
         }
 
-        // collect payment from bidder
-        if (withCallback) {
-            uint256 balBefore = auction.buyToken.balanceOf(address(this));
+        require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= boughtAmt, Folio__InsufficientBid());
 
-            IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), boughtAmt, data);
-
-            require(auction.buyToken.balanceOf(address(this)) - balBefore >= boughtAmt, Folio__InsufficientBid());
-        } else {
-            auction.buyToken.safeTransferFrom(msg.sender, address(this), boughtAmt);
+        // burn any held Folio token
+        uint256 balanceOfSelf = balanceOf(address(this));
+        if (balanceOfSelf != 0) {
+            _burn(address(this), balanceOfSelf);
         }
 
-        // D27{buyTok/share} = D27{buyTok/share} * {share} / D27
-        uint256 maxBuyBal = Math.mulDiv(auction.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
+        delete activeBidder;
+    }
 
-        // ensure post-bid buy balance does not exceed max
-        require(auction.buyToken.balanceOf(address(this)) <= maxBuyBal, Folio__ExcessiveBid());
+    /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
+    function createTrustedFill(
+        uint256 auctionId,
+        address targetFiller,
+        bytes32 deploymentSalt
+    ) external nonReentrant notDeprecated returns (IBaseTrustedFiller filler) {
+        require(address(trustedFillerRegistry) != address(0), Folio__TrustedFillerRegistryNotSet());
+
+        Auction storage auction = auctions[auctionId];
+        _closeTrustedFill();
+
+        // checks auction is ongoing and that sellAmount is below maxSellAmount
+        (uint256 sellAmount, uint256 buyAmount, ) = AuctionLib.getBid(
+            auction,
+            totalSupply(),
+            block.timestamp,
+            auction.sellToken.balanceOf(address(this)),
+            auction.buyToken.balanceOf(address(this)),
+            0,
+            type(uint256).max,
+            type(uint256).max
+        );
+
+        // Create Trusted Filler
+        filler = trustedFillerRegistry.createTrustedFiller(msg.sender, targetFiller, deploymentSalt);
+        SafeERC20.forceApprove(auction.sellToken, address(filler), sellAmount);
+
+        filler.initialize(address(this), auction.sellToken, auction.buyToken, sellAmount, buyAmount);
+        activeTrustedFill = filler;
+
+        emit AuctionTrustedFillCreated(auctionId, address(filler));
     }
 
     /// Close an auction
@@ -764,79 +721,28 @@ contract Folio is
     ) internal view returns (address[] memory _assets, uint256[] memory _amounts) {
         uint256 _totalSupply = totalSupply();
 
+        (_assets, _amounts) = _totalAssets();
+
+        uint256 assetLen = _assets.length;
+        for (uint256 i; i < assetLen; i++) {
+            // {tok} = {share} * {tok} / {share}
+            _amounts[i] = Math.mulDiv(shares, _amounts[i], _totalSupply, rounding);
+        }
+    }
+
+    /// @return _assets
+    /// @return _amounts {tok}
+    function _totalAssets() internal view returns (address[] memory _assets, uint256[] memory _amounts) {
         _assets = basket.values();
 
-        uint256 len = _assets.length;
-        _amounts = new uint256[](len);
-        for (uint256 i; i < len; i++) {
-            uint256 assetBal = IERC20(_assets[i]).balanceOf(address(this));
+        uint256 assetLength = _assets.length;
+        _amounts = new uint256[](assetLength);
+        for (uint256 i; i < assetLength; i++) {
+            _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
 
-            // {tok} = {share} * {tok} / {share}
-            _amounts[i] = Math.mulDiv(shares, assetBal, _totalSupply, rounding);
-        }
-    }
-
-    /// @param buffer {s} Additional time buffer that must pass from `endTime` before auction can be opened
-    function _openAuction(Auction storage auction, AuctionDetails storage details, uint256 buffer) internal {
-        require(!isDeprecated, Folio__FolioDeprecated());
-
-        // only open APPROVED or expired auctions, with buffer
-        require(block.timestamp > auction.endTime + buffer, Folio__AuctionCannotBeOpenedYet());
-
-        // do not open auctions that have timed out from ttl
-        require(block.timestamp <= auction.launchDeadline, Folio__AuctionTimeout());
-
-        // {s}
-        uint256 endTime = block.timestamp + auctionLength;
-
-        sellEnds[address(auction.sellToken)] = Math.max(sellEnds[address(auction.sellToken)], endTime);
-        buyEnds[address(auction.buyToken)] = Math.max(buyEnds[address(auction.buyToken)], endTime);
-
-        // ensure valid price range (startPrice == endPrice is valid)
-        require(
-            auction.prices.start >= auction.prices.end &&
-                auction.prices.end != 0 &&
-                auction.prices.start <= MAX_RATE &&
-                auction.prices.start / auction.prices.end <= MAX_PRICE_RANGE,
-            Folio__InvalidPrices()
-        );
-
-        // ensure auction has enough runs remaining
-        require(details.availableRuns != 0, Folio__InvalidAuctionRuns());
-        unchecked {
-            details.availableRuns--;
-        }
-
-        auction.startTime = block.timestamp;
-        auction.endTime = endTime;
-
-        emit AuctionOpened(auction.id, auction, details.availableRuns);
-
-        // D18{1}
-        // k = ln(P_0 / P_t) / t
-        auction.k = UD60x18.wrap((auction.prices.start * D18) / auction.prices.end).ln().unwrap() / auctionLength;
-        // gas optimization to avoid recomputing k on every bid
-    }
-
-    /// @return p D27{buyTok/sellTok}
-    function _price(Auction storage auction, uint256 timestamp) internal view returns (uint256 p) {
-        // ensure auction is ongoing
-        require(timestamp >= auction.startTime && timestamp <= auction.endTime, Folio__AuctionNotOngoing());
-
-        if (timestamp == auction.startTime) {
-            return auction.prices.start;
-        }
-        if (timestamp == auction.endTime) {
-            return auction.prices.end;
-        }
-
-        uint256 elapsed = timestamp - auction.startTime;
-
-        // P_t = P_0 * e ^ -kt
-        // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-        p = (auction.prices.start * MathLib.exp(-1 * int256(auction.k * elapsed))) / D18;
-        if (p < auction.prices.end) {
-            p = auction.prices.end;
+            if (address(activeTrustedFill) != address(0)) {
+                _amounts[i] += IERC20(_assets[i]).balanceOf(address(activeTrustedFill));
+            }
         }
     }
 
@@ -866,7 +772,7 @@ contract Folio is
         uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
-        uint256 feeShares = (supply * D18) / UD60x18.wrap(D18 - _tvlFee).powu(elapsed).unwrap() - supply;
+        uint256 feeShares = (supply * D18) / MathLib.powu(D18 - _tvlFee, elapsed) - supply;
 
         // D18{1} = D18{1/s} * D18 / D18{1/s}
         uint256 correction = (feeFloor * D18 + _tvlFee - 1) / _tvlFee;
@@ -969,6 +875,8 @@ contract Folio is
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
     function _poke() internal {
+        _closeTrustedFill();
+
         if (lastPoke == block.timestamp) {
             return;
         }
@@ -978,7 +886,7 @@ contract Folio is
     }
 
     function _addToBasket(address token) internal returns (bool) {
-        require(token != address(0), Folio__InvalidAsset());
+        require(token != address(0) && token != address(this), Folio__InvalidAsset());
         emit BasketTokenAdded(token);
 
         return basket.add(token);
@@ -988,5 +896,51 @@ contract Folio is
         emit BasketTokenRemoved(token);
 
         return basket.remove(token);
+    }
+
+    function _setTrustedFillerRegistry(address _newFillerRegistry, bool _enabled) internal {
+        if (address(trustedFillerRegistry) != _newFillerRegistry) {
+            require(address(trustedFillerRegistry) == address(0), Folio__TrustedFillerRegistryAlreadySet());
+
+            trustedFillerRegistry = ITrustedFillerRegistry(_newFillerRegistry);
+        }
+
+        if (trustedFillerEnabled != _enabled) {
+            trustedFillerEnabled = _enabled;
+        }
+
+        emit TrustedFillerRegistrySet(address(trustedFillerRegistry), trustedFillerEnabled);
+    }
+
+    /// Claim all token balances from outstanding trusted fill
+    function _closeTrustedFill() internal {
+        if (address(activeTrustedFill) != address(0)) {
+            activeTrustedFill.closeFiller();
+
+            delete activeTrustedFill;
+        }
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        super._update(from, to, value);
+
+        // ignore mints + burns
+        if (from == address(0) || to == address(0)) {
+            return;
+        }
+
+        // prevent accidental donations
+        if (to == address(this)) {
+            require(
+                from == address(activeBidder) || from == address(activeTrustedFill),
+                Folio__InvalidTransferToSelf()
+            );
+
+            // burn incoming transfers from activeTrustedFill
+            // incoming transfers from activeBidder are burnt by bid()
+            if (from == address(activeTrustedFill)) {
+                _burn(address(this), value);
+            }
+        }
     }
 }

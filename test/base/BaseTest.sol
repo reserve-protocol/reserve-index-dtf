@@ -3,7 +3,6 @@ pragma solidity 0.8.28;
 
 import "forge-std/Script.sol";
 import "forge-std/Test.sol";
-import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 
 import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
@@ -21,8 +20,11 @@ import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
+import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
+import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
 
 abstract contract BaseTest is Script, Test {
+    string public constant VERSION = "3.0.0";
     // === Auth roles ===
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
@@ -56,6 +58,8 @@ abstract contract BaseTest is Script, Test {
     FolioDeployer folioDeployer;
     FolioDAOFeeRegistry daoFeeRegistry;
     FolioVersionRegistry versionRegistry;
+    TrustedFillerRegistry trustedFillerRegistry;
+
     FolioProxyAdmin proxyAdmin;
     MockRoleRegistry roleRegistry;
 
@@ -63,6 +67,8 @@ abstract contract BaseTest is Script, Test {
 
     address governorImplementation;
     address timelockImplementation;
+
+    address cowswapFiller;
 
     function setUp() public {
         _testSetup();
@@ -85,14 +91,23 @@ abstract contract BaseTest is Script, Test {
         roleRegistry = new MockRoleRegistry();
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
+        trustedFillerRegistry = new TrustedFillerRegistry(address(roleRegistry));
 
         governorImplementation = address(new FolioGovernor());
         timelockImplementation = address(new TimelockControllerUpgradeable());
         governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
-        folioDeployer = new FolioDeployer(address(daoFeeRegistry), address(versionRegistry), governanceDeployer);
+        folioDeployer = new FolioDeployer(
+            address(daoFeeRegistry),
+            address(versionRegistry),
+            address(trustedFillerRegistry),
+            governanceDeployer
+        );
+
+        cowswapFiller = address(new CowSwapFiller());
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
+        trustedFillerRegistry.addTrustedFiller(CowSwapFiller(cowswapFiller));
 
         deployCoins();
         mintTokens();
@@ -214,6 +229,7 @@ abstract contract BaseTest is Script, Test {
             _auctionApprovers,
             _auctionLaunchers,
             _brandManagers,
+            true,
             bytes32(0)
         );
 

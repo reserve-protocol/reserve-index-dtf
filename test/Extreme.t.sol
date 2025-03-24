@@ -2,8 +2,10 @@
 pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio, MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TVL_FEE, MAX_TTL, MAX_PRICE_RANGE, MAX_RATE } from "contracts/Folio.sol";
+import { Folio } from "contracts/Folio.sol";
+import { MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TVL_FEE, MAX_TTL, MAX_PRICE_RANGE, MAX_RATE } from "@utils/Constants.sol";
 import { StakingVault } from "contracts/staking/StakingVault.sol";
 import "./base/BaseExtremeTest.sol";
 
@@ -235,37 +237,38 @@ contract ExtremeTest is BaseExtremeTest {
         vm.prank(dao);
         folio.approveAuction(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1);
 
+        // restrict price from being too low
+        uint256 minPrice = type(uint256).max / Math.mulDiv(MAX_RATE, 1e23, initialSupply, Math.Rounding.Ceil);
+        p.price = Math.max(p.price, minPrice);
+
         // openAuction
         vm.prank(auctionLauncher);
-        uint256 endPrice = p.price / MAX_PRICE_RANGE;
-        folio.openAuction(0, 0, MAX_RATE, p.price, endPrice > p.price ? endPrice : p.price);
+        uint256 endPrice = (p.price + MAX_PRICE_RANGE - 1) / MAX_PRICE_RANGE;
+        folio.openAuction(0, 0, MAX_RATE, p.price, endPrice);
 
         // sellAmount will be up to 1e36
         // buyAmount will be up to 1e54 and down to 1
 
         (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
 
-        uint256 sellAmount = folio.lot(0, start);
+        (, , uint256 price) = folio.getBid(0, start, type(uint256).max);
+        (, , uint256 price2) = folio.getBid(0, start + 1, type(uint256).max);
         // getBid should work at both ends of auction
-        uint256 highBuyAmount = folio.getBid(0, start, sellAmount); // should not revert
-        assertLe(folio.getBid(0, start + 1, sellAmount), highBuyAmount, "buyAmount should be non-increasing");
+        assertLe(price2, price, "price should be non-increasing");
 
-        sellAmount = folio.lot(0, end);
-        uint256 buyAmount = folio.getBid(0, end, sellAmount); // should not revert
-        assertGt(buyAmount, 0, "lot is free");
-        assertGe(folio.getBid(0, end - 1, sellAmount), buyAmount, "buyAmount should be non-increasing");
+        (, , price) = folio.getBid(0, end - 1, type(uint256).max);
+        uint256 sellAmount2;
+        uint256 buyAmount2;
+        (sellAmount2, buyAmount2, price2) = folio.getBid(0, end, type(uint256).max);
+        assertLe(price2, price, "price should be non-increasing");
 
         // mint buy tokens to user1 and bid
         vm.warp(end);
-        deal(address(buy), address(user1), buyAmount, true);
+        deal(address(buy), address(user1), buyAmount2, true);
         vm.startPrank(user1);
-        buy.approve(address(folio), buyAmount);
-        folio.bid(0, sellAmount, buyAmount, false, bytes(""));
+        buy.approve(address(folio), buyAmount2);
+        folio.bid(0, sellAmount2, buyAmount2, false, bytes(""));
         vm.stopPrank();
-
-        // check bal differences
-        assertEq(sell.balanceOf(address(folio)), 0, "wrong sell bal");
-        assertEq(buy.balanceOf(address(folio)), buyAmount, "wrong buy bal");
     }
 
     function run_fees_scenario(FeeTestParams memory p) public {
