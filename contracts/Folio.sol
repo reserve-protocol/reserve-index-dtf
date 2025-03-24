@@ -511,8 +511,6 @@ contract Folio is
         uint256 ttl,
         uint256 runs
     ) external nonReentrant onlyRole(AUCTION_APPROVER) notDeprecated {
-        require(!isDeprecated, Folio__FolioDeprecated());
-
         AuctionLib.approveAuction(
             auctions,
             auctionDetails,
@@ -536,9 +534,7 @@ contract Folio is
         uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice
-    ) external nonReentrant onlyRole(AUCTION_LAUNCHER) {
-        require(!isDeprecated, Folio__FolioDeprecated());
-
+    ) external nonReentrant onlyRole(AUCTION_LAUNCHER) notDeprecated {
         Auction storage auction = auctions[auctionId];
         AuctionDetails storage details = auctionDetails[auctionId];
 
@@ -574,9 +570,7 @@ contract Folio is
 
     /// Open an auction without restrictions
     /// @dev Unrestricted, callable only after the `auctionDelay`
-    function openAuctionUnrestricted(uint256 auctionId) external nonReentrant {
-        require(!isDeprecated, Folio__FolioDeprecated());
-
+    function openAuctionUnrestricted(uint256 auctionId) external nonReentrant notDeprecated {
         Auction storage auction = auctions[auctionId];
         AuctionDetails storage details = auctionDetails[auctionId];
 
