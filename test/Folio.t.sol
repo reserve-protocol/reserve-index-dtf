@@ -138,8 +138,9 @@ contract FolioTest is BaseTest {
             basicDetails,
             additionalDetails,
             address(this),
+            address(daoFeeRegistry),
             address(trustedFillerRegistry),
-            address(daoFeeRegistry)
+            true
         );
     }
 

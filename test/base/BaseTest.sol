@@ -230,6 +230,7 @@ abstract contract BaseTest is Script, Test {
             _auctionApprovers,
             _auctionLaunchers,
             _brandManagers,
+            true,
             bytes32(0)
         );
 

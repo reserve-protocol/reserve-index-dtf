@@ -207,6 +207,7 @@ contract DeployScript is Script {
             new address[](0),
             new address[](0),
             new address[](0),
+            true,
             bytes32(0)
         );
 

@@ -30,7 +30,7 @@ interface IFolio {
     event AuctionLengthSet(uint256 newAuctionLength);
     event DustAmountSet(address token, uint256 newDustAmount);
     event MandateSet(string newMandate);
-    event TrustedFillerRegistrySet(address newRegistry);
+    event TrustedFillerRegistrySet(address trustedFillerRegistry, bool isEnabled);
     event FolioDeprecated();
 
     // === Errors ===

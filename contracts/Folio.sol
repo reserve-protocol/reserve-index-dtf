@@ -131,6 +131,7 @@ contract Folio is
 
     // === 3.0.0 ===
     ITrustedFillerRegistry public trustedFillerRegistry;
+    bool public trustedFillerEnabled;
     IBaseTrustedFiller private activeTrustedFill;
     address private activeBidder;
 
@@ -144,7 +145,8 @@ contract Folio is
         FolioAdditionalDetails calldata _additionalDetails,
         address _creator,
         address _daoFeeRegistry,
-        address _trustedFillerRegistry
+        address _trustedFillerRegistry,
+        bool _trustedFillerEnabled
     ) external initializer {
         __ERC20_init(_basicDetails.name, _basicDetails.symbol);
         __AccessControlEnumerable_init();
@@ -157,7 +159,7 @@ contract Folio is
         _setAuctionDelay(_additionalDetails.auctionDelay);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
-        _setTrustedFillerRegistry(_trustedFillerRegistry);
+        _setTrustedFillerRegistry(_trustedFillerRegistry, _trustedFillerEnabled);
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
 
@@ -276,8 +278,9 @@ contract Folio is
         _setMandate(_newMandate);
     }
 
-    function setTrustedFillerRegistry(address _newFillerRegistry) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setTrustedFillerRegistry(_newFillerRegistry);
+    /// @dev _newFillerRegistry is ignored if already set.
+    function setTrustedFillerRegistry(address _newFillerRegistry, bool _enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setTrustedFillerRegistry(_newFillerRegistry, _enabled);
     }
 
     /// Deprecate the Folio, callable only by the admin
@@ -895,12 +898,18 @@ contract Folio is
         return basket.remove(token);
     }
 
-    function _setTrustedFillerRegistry(address _newFillerRegistry) internal {
-        require(address(trustedFillerRegistry) == address(0), Folio__TrustedFillerRegistryAlreadySet());
+    function _setTrustedFillerRegistry(address _newFillerRegistry, bool _enabled) internal {
+        if (address(trustedFillerRegistry) != _newFillerRegistry) {
+            require(address(trustedFillerRegistry) == address(0), Folio__TrustedFillerRegistryAlreadySet());
 
-        trustedFillerRegistry = ITrustedFillerRegistry(_newFillerRegistry);
+            trustedFillerRegistry = ITrustedFillerRegistry(_newFillerRegistry);
+        }
 
-        emit TrustedFillerRegistrySet(_newFillerRegistry);
+        if (trustedFillerEnabled != _enabled) {
+            trustedFillerEnabled = _enabled;
+        }
+
+        emit TrustedFillerRegistrySet(address(trustedFillerRegistry), trustedFillerEnabled);
     }
 
     /// Claim all token balances from outstanding trusted fill

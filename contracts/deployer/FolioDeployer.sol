@@ -19,8 +19,6 @@ import { Versioned } from "@utils/Versioned.sol";
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 contract FolioDeployer is IFolioDeployer, Versioned {
-    using SafeERC20 for IERC20;
-
     address public immutable versionRegistry;
     address public immutable daoFeeRegistry;
     address public immutable trustedFillerRegistry;
@@ -53,6 +51,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         address[] memory auctionApprovers,
         address[] memory auctionLaunchers,
         address[] memory brandManagers,
+        bool trustedFillerEnabled,
         bytes32 deploymentNonce
     ) public returns (Folio folio, address proxyAdmin) {
         require(basicDetails.assets.length == basicDetails.amounts.length, FolioDeployer__LengthMismatch());
@@ -78,10 +77,22 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         folio = Folio(address(new FolioProxy{ salt: deploymentSalt }(folioImplementation, proxyAdmin)));
 
         for (uint256 i; i < basicDetails.assets.length; i++) {
-            IERC20(basicDetails.assets[i]).safeTransferFrom(msg.sender, address(folio), basicDetails.amounts[i]);
+            SafeERC20.safeTransferFrom(
+                IERC20(basicDetails.assets[i]),
+                msg.sender,
+                address(folio),
+                basicDetails.amounts[i]
+            );
         }
 
-        folio.initialize(basicDetails, additionalDetails, msg.sender, daoFeeRegistry, trustedFillerRegistry);
+        folio.initialize(
+            basicDetails,
+            additionalDetails,
+            msg.sender,
+            daoFeeRegistry,
+            trustedFillerRegistry,
+            trustedFillerEnabled
+        );
 
         // Setup Roles
         folio.grantRole(folio.DEFAULT_ADMIN_ROLE(), owner);
@@ -116,6 +127,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IGovernanceDeployer.GovParams calldata ownerGovParams,
         IGovernanceDeployer.GovParams calldata tradingGovParams,
         IGovernanceDeployer.GovRoles calldata govRoles,
+        bool trustedFillerEnabled,
         bytes32 deploymentNonce
     )
         external
@@ -155,6 +167,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 auctionApprovers,
                 govRoles.auctionLaunchers,
                 govRoles.brandManagers,
+                trustedFillerEnabled,
                 deploymentNonce
             );
         } else {
@@ -166,6 +179,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 govRoles.existingAuctionApprovers,
                 govRoles.auctionLaunchers,
                 govRoles.brandManagers,
+                trustedFillerEnabled,
                 deploymentNonce
             );
         }
