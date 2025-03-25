@@ -466,16 +466,13 @@ contract Folio is
     ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
         Auction storage auction = auctions[auctionId];
 
-        uint256 sellBal = _balanceOfToken(auction.sellToken);
-        uint256 buyBal = _balanceOfToken(auction.buyToken);
-
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (sellAmount, bidAmount, price) = AuctionLib.getBid(
             auction,
             totalSupply(),
             timestamp == 0 ? block.timestamp : timestamp,
-            sellBal,
-            buyBal,
+            _balanceOfToken(auction.sellToken),
+            _balanceOfToken(auction.buyToken),
             0,
             maxSellAmount,
             type(uint256).max
@@ -730,15 +727,15 @@ contract Folio is
         }
     }
 
+    /// @return amount The known balances of a token, including trusted fills
     function _balanceOfToken(IERC20 token) internal view returns (uint256 amount) {
         amount = token.balanceOf(address(this));
 
-        if (address(activeTrustedFill) != address(0)) {
-            if (activeTrustedFill.buyToken() == token) {
-                amount += token.balanceOf(address(activeTrustedFill));
-            } else if (activeTrustedFill.sellToken() == token) {
-                amount += token.balanceOf(address(activeTrustedFill));
-            }
+        if (
+            address(activeTrustedFill) != address(0) &&
+            (activeTrustedFill.sellToken() == token || activeTrustedFill.buyToken() == token)
+        ) {
+            amount += token.balanceOf(address(activeTrustedFill));
         }
     }
 
