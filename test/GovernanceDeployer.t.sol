@@ -17,7 +17,7 @@ contract GovernanceDeployerTest is BaseTest {
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians),
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 0.04e18, 1 days, guardians),
             bytes32(0)
         );
         vm.stopSnapshotGas();
@@ -34,8 +34,8 @@ contract GovernanceDeployerTest is BaseTest {
         assertEq(governor.votingDelay(), 1 days, "wrong voting delay");
         assertEq(governor.votingPeriod(), 1 weeks, "wrong voting period");
         assertEq(governor.proposalThreshold(), 0.01e18, "wrong proposal threshold");
-        assertEq(governor.quorumNumerator(), 4, "wrong quorum numerator");
-        assertEq(governor.quorumDenominator(), 100, "wrong quorum denominator");
+        assertEq(governor.quorumNumerator(), 0.04e18, "wrong quorum numerator");
+        assertEq(governor.quorumDenominator(), 1e18, "wrong quorum denominator");
         assertEq(timelock.getMinDelay(), 1 days, "wrong timelock min delay");
         assertTrue(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), address(timelock)), "wrong admin role");
         assertFalse(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), _governor), "wrong admin role");

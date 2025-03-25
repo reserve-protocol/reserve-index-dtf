@@ -47,7 +47,7 @@ contract GovernanceTest is BaseTest {
             1 days,
             1 weeks,
             0.01e18 /* 1% proposal threshold */,
-            4,
+            0.04e18,
             1 days
         );
 
@@ -324,6 +324,7 @@ contract GovernanceTest is BaseTest {
     }
 
     function test_cannotSetProposalThresholdAboveOne() public {
+        vm.prank(address(timelock));
         vm.expectRevert(FolioGovernor.Governor__InvalidProposalThreshold.selector);
         governor.setProposalThreshold(1e18 + 1);
     }
