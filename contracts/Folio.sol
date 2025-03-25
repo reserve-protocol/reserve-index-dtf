@@ -466,14 +466,8 @@ contract Folio is
     ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
         Auction storage auction = auctions[auctionId];
 
-        uint256 sellBal = auction.sellToken.balanceOf(address(this));
-        uint256 buyBal = auction.buyToken.balanceOf(address(this));
-
-        if (address(activeTrustedFill) != address(0)) {
-            // TODO we don't actually know these are the 2 tokens the active fill knows about
-            sellBal += auction.sellToken.balanceOf(address(activeTrustedFill));
-            buyBal += auction.buyToken.balanceOf(address(activeTrustedFill));
-        }
+        uint256 sellBal = _balanceOfToken(auction.sellToken);
+        uint256 buyBal = _balanceOfToken(auction.buyToken);
 
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (sellAmount, bidAmount, price) = AuctionLib.getBid(
@@ -732,10 +726,18 @@ contract Folio is
         uint256 assetLength = _assets.length;
         _amounts = new uint256[](assetLength);
         for (uint256 i; i < assetLength; i++) {
-            _amounts[i] = IERC20(_assets[i]).balanceOf(address(this));
+            _amounts[i] = _balanceOfToken(IERC20(_assets[i]));
+        }
+    }
 
-            if (address(activeTrustedFill) != address(0)) {
-                _amounts[i] += IERC20(_assets[i]).balanceOf(address(activeTrustedFill));
+    function _balanceOfToken(IERC20 token) internal view returns (uint256 amount) {
+        amount = token.balanceOf(address(this));
+
+        if (address(activeTrustedFill) != address(0)) {
+            if (activeTrustedFill.buyToken() == token) {
+                amount += token.balanceOf(address(activeTrustedFill));
+            } else if (activeTrustedFill.sellToken() == token) {
+                amount += token.balanceOf(address(activeTrustedFill));
             }
         }
     }
