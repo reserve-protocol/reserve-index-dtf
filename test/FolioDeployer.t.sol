@@ -379,8 +379,8 @@ contract FolioDeployerTest is BaseTest {
                     mintFee: MAX_MINT_FEE,
                     mandate: "mandate"
                 }),
-                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, _guardians2),
-                IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, _guardians1),
+                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 0.08e18, 2 days, _guardians2),
+                IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 0.04e18, 1 days, _guardians1),
                 IGovernanceDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
                 true,
                 bytes32(0)
@@ -428,8 +428,8 @@ contract FolioDeployerTest is BaseTest {
         assertEq(ownerGovernor.votingDelay(), 2 seconds, "wrong voting delay");
         assertEq(ownerGovernor.votingPeriod(), 2 weeks, "wrong voting period");
         assertEq(ownerGovernor.proposalThreshold(), 0.02e18, "wrong proposal threshold");
-        assertEq(ownerGovernor.quorumNumerator(), 8, "wrong quorum numerator");
-        assertEq(ownerGovernor.quorumDenominator(), 100, "wrong quorum denominator");
+        assertEq(ownerGovernor.quorumNumerator(), 0.08e18, "wrong quorum numerator");
+        assertEq(ownerGovernor.quorumDenominator(), 1e18, "wrong quorum denominator");
         assertEq(ownerTimelock.getMinDelay(), 2 days, "wrong timelock min delay");
         assertTrue(
             ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), address(ownerTimelock)),
@@ -456,8 +456,8 @@ contract FolioDeployerTest is BaseTest {
         assertEq(tradingGovernor.votingDelay(), 1 seconds, "wrong voting delay");
         assertEq(tradingGovernor.votingPeriod(), 1 weeks, "wrong voting period");
         assertEq(tradingGovernor.proposalThreshold(), 0.01e18, "wrong proposal threshold");
-        assertEq(tradingGovernor.quorumNumerator(), 4, "wrong quorum numerator");
-        assertEq(tradingGovernor.quorumDenominator(), 100, "wrong quorum denominator");
+        assertEq(tradingGovernor.quorumNumerator(), 0.04e18, "wrong quorum numerator");
+        assertEq(tradingGovernor.quorumDenominator(), 1e18, "wrong quorum denominator");
         assertEq(tradingTimelock.getMinDelay(), 1 days, "wrong timelock min delay");
         assertTrue(
             tradingTimelock.hasRole(tradingTimelock.DEFAULT_ADMIN_ROLE(), address(tradingTimelock)),
@@ -492,7 +492,7 @@ contract FolioDeployerTest is BaseTest {
             "Test Staked MEME Token",
             "STKMEME",
             MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians),
+            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 0.04e18, 1 days, guardians),
             bytes32(0)
         );
 
@@ -543,8 +543,8 @@ contract FolioDeployerTest is BaseTest {
                 mintFee: MAX_MINT_FEE,
                 mandate: "mandate"
             }),
-            IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, _guardians2),
-            IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, _guardians1),
+            IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 0.08e18, 2 days, _guardians2),
+            IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 0.04e18, 1 days, _guardians1),
             IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0)),
             true,
             bytes32(0)
@@ -571,8 +571,8 @@ contract FolioDeployerTest is BaseTest {
         assertEq(ownerGovernor.votingDelay(), 2 seconds, "wrong voting delay");
         assertEq(ownerGovernor.votingPeriod(), 2 weeks, "wrong voting period");
         assertEq(ownerGovernor.proposalThreshold(), 0.02e18, "wrong proposal threshold");
-        assertEq(ownerGovernor.quorumNumerator(), 8, "wrong quorum numerator");
-        assertEq(ownerGovernor.quorumDenominator(), 100, "wrong quorum denominator");
+        assertEq(ownerGovernor.quorumNumerator(), 0.08e18, "wrong quorum numerator");
+        assertEq(ownerGovernor.quorumDenominator(), 1e18, "wrong quorum denominator");
         assertEq(ownerTimelock.getMinDelay(), 2 days, "wrong timelock min delay");
         assertTrue(
             ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), address(ownerTimelock)),

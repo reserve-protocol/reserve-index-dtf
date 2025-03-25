@@ -35,18 +35,23 @@ contract FolioGovernor is
         uint48 _votingDelay, // {s}
         uint32 _votingPeriod, // {s}
         uint256 _proposalThreshold, // e.g. 0.01e18 for 1%
-        uint256 quorumPercent // e.g 4 for 4%
+        uint256 _quorumFraction // e.g 0.01e18 for 1%
     ) external initializer {
         __Governor_init("Reserve Folio Governor");
         __GovernorSettings_init(_votingDelay, _votingPeriod, _proposalThreshold);
         __GovernorVotes_init(_token);
-        __GovernorVotesQuorumFraction_init(quorumPercent);
+        __GovernorVotesQuorumFraction_init(_quorumFraction);
         __GovernorTimelockControl_init(_timelock);
     }
 
-    function setProposalThreshold(uint256 newProposalThreshold) public override {
+    function _setProposalThreshold(uint256 newProposalThreshold) internal override {
         require(newProposalThreshold <= 1e18, Governor__InvalidProposalThreshold());
-        super.setProposalThreshold(newProposalThreshold);
+
+        super._setProposalThreshold(newProposalThreshold);
+    }
+
+    function quorumDenominator() public pure override returns (uint256) {
+        return 1e18;
     }
 
     function votingDelay() public view override(GovernorUpgradeable, GovernorSettingsUpgradeable) returns (uint256) {

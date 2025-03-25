@@ -47,7 +47,7 @@ contract GovernanceTest is BaseTest {
             1 days,
             1 weeks,
             0.01e18 /* 1% proposal threshold */,
-            4,
+            0.04e18,
             1 days
         );
 
@@ -324,8 +324,54 @@ contract GovernanceTest is BaseTest {
     }
 
     function test_cannotSetProposalThresholdAboveOne() public {
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSelector(governor.setProposalThreshold.selector, 1e18 + 1);
+        string memory description = "Update Proposal Threshold";
+
+        // propose
+        vm.prank(address(owner));
+        votingToken.transfer(address(user1), 10e18);
+
+        // delegate (user1)
+        vm.prank(user1);
+        votingToken.delegate(user1);
+
+        skip(10);
+        vm.roll(block.number + 1);
+
+        vm.prank(user1);
+        uint256 pid = governor.propose(targets, values, calldatas, description);
+
+        skip(2 days);
+        vm.roll(block.number + 1);
+
+        // vote
+        vm.prank(user1);
+        governor.castVote(pid, 1);
+
+        skip(1);
+        vm.roll(block.number + 1);
+
+        // Advance post voting period
+        skip(7 days);
+        vm.roll(block.number + 1);
+        assertEq(uint8(governor.state(pid)), uint8(IGovernor.ProposalState.Succeeded));
+
+        // queue
+        assertEq(governor.proposalNeedsQueuing(pid), true);
+        governor.queue(targets, values, calldatas, keccak256(bytes(description)));
+        assertEq(uint8(governor.state(pid)), uint8(IGovernor.ProposalState.Queued));
+
+        // Advance time (required by timelock)
+        skip(2 days);
+        vm.roll(block.number + 1);
+
         vm.expectRevert(FolioGovernor.Governor__InvalidProposalThreshold.selector);
-        governor.setProposalThreshold(1e18 + 1);
+        governor.execute(targets, values, calldatas, keccak256(bytes(description)));
     }
 
     function test_zeroGuardianDoesNotAllowAnyoneToCancel() public {
