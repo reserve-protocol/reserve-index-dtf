@@ -206,8 +206,7 @@ contract Folio is
     /// @dev Enables removal of tokens if balance is indistinguishable from dust
     /// @dev Made permissionless in 3.0.0
     function removeFromBasket(IERC20 token) external nonReentrant {
-        // ensure the token is not being bought asynchronously
-        require(address(activeTrustedFill) == address(0), Folio__BasketModificationFailed());
+        _closeTrustedFill();
 
         // D27{tok/share} = {tok} * D27 / {share}
         uint256 basketPresence = Math.mulDiv(
