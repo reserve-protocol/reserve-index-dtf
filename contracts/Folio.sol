@@ -206,11 +206,9 @@ contract Folio is
     /// @dev Enables removal of tokens if balance is indistinguishable from dust
     /// @dev Made permissionless in 3.0.0
     function removeFromBasket(IERC20 token) external nonReentrant {
-        _closeTrustedFill();
-
-        // ensure the token is not currently being bought if executed permissonlessly
+        // ensure the token is not being bought asynchronously, if executed permissonlessly
         require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || block.timestamp > buyEnds[address(token)],
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || address(activeTrustedFill) == address(0),
             Folio__BasketModificationFailed()
         );
 
@@ -569,10 +567,6 @@ contract Folio is
         auction.prices.start = startPrice;
         auction.prices.end = endPrice;
 
-        if (address(auction.buyToken) != address(this)) {
-            _addToBasket(address(auction.buyToken));
-        }
-
         // additional price checks
         AuctionLib.openAuction(auction, details, sellEnds, buyEnds, auctionLength, 0);
     }
@@ -587,10 +581,6 @@ contract Folio is
         require(block.timestamp >= auction.restrictedUntil, Folio__AuctionCannotBeOpenedWithoutRestriction());
 
         auction.prices = details.initialPrices;
-
-        if (address(auction.buyToken) != address(this)) {
-            _addToBasket(address(auction.buyToken));
-        }
 
         // additional price checks
         AuctionLib.openAuction(auction, details, sellEnds, buyEnds, auctionLength, RESTRICTED_AUCTION_BUFFER);
@@ -630,6 +620,10 @@ contract Folio is
             sellAmount,
             maxBuyAmount
         );
+
+        if (address(auction.buyToken) != address(this)) {
+            _addToBasket(address(auction.buyToken));
+        }
 
         uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
 
@@ -688,6 +682,10 @@ contract Folio is
 
         filler.initialize(address(this), auction.sellToken, auction.buyToken, sellAmount, buyAmount);
         activeTrustedFill = filler;
+
+        if (address(auction.buyToken) != address(this)) {
+            _addToBasket(address(auction.buyToken));
+        }
 
         emit AuctionTrustedFillCreated(auctionId, address(filler));
     }
