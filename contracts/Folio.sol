@@ -272,7 +272,8 @@ contract Folio is
         _setMandate(_newMandate);
     }
 
-    /// @dev _newFillerRegistry is ignored if already set.
+    /// @dev _newFillerRegistry must be the already set registry if already set. This is to ensure
+    ///      correctness and in order to be explicit what registry is being enabled/disabled.
     function setTrustedFillerRegistry(address _newFillerRegistry, bool _enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setTrustedFillerRegistry(_newFillerRegistry, _enabled);
     }
@@ -646,7 +647,10 @@ contract Folio is
         address targetFiller,
         bytes32 deploymentSalt
     ) external nonReentrant notDeprecated returns (IBaseTrustedFiller filler) {
-        require(address(trustedFillerRegistry) != address(0), Folio__TrustedFillerRegistryNotSet());
+        require(
+            address(trustedFillerRegistry) != address(0) && trustedFillerEnabled,
+            Folio__TrustedFillerRegistryNotEnabled()
+        );
 
         Auction storage auction = auctions[auctionId];
         _closeTrustedFill();

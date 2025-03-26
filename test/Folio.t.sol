@@ -1457,18 +1457,18 @@ contract FolioTest is BaseTest {
         IBaseTrustedFiller fill = folio.createTrustedFill(0, cowswapFiller, bytes32(0));
 
         GPv2OrderLib.Data memory order = GPv2OrderLib.Data({
-            sellToken: address(USDC),
-            buyToken: address(USDT),
+            sellToken: USDC,
+            buyToken: USDT,
             receiver: address(fill),
             sellAmount: amt,
             buyAmount: amt * 10,
             validTo: uint32(end),
             appData: bytes32(0),
             feeAmount: 0,
-            kind: bytes32(0),
+            kind: GPv2OrderLib.KIND_SELL,
             partiallyFillable: true,
-            sellTokenBalance: bytes32(0),
-            buyTokenBalance: bytes32(0)
+            sellTokenBalance: GPv2OrderLib.BALANCE_ERC20,
+            buyTokenBalance: GPv2OrderLib.BALANCE_ERC20
         });
 
         assertEq(

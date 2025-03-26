@@ -75,7 +75,7 @@ interface IFolio {
     error Folio__InvalidAuctionRuns();
     error Folio__InvalidTransferToSelf();
 
-    error Folio__TrustedFillerRegistryNotSet();
+    error Folio__TrustedFillerRegistryNotEnabled();
     error Folio__TrustedFillerRegistryAlreadySet();
 
     // === Structures ===
