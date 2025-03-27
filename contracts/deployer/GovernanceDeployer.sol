@@ -87,7 +87,7 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
             govParams.votingDelay,
             govParams.votingPeriod,
             govParams.proposalThreshold,
-            govParams.quorumPercent
+            govParams.quorumThreshold
         );
 
         address[] memory proposersAndExecutors = new address[](1);

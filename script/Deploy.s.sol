@@ -173,7 +173,7 @@ contract DeployScript is Script {
                 votingDelay: 1,
                 votingPeriod: 1 hours,
                 proposalThreshold: 0.0001e18,
-                quorumPercent: 1,
+                quorumThreshold: 0.01e18,
                 timelockDelay: 1 hours,
                 guardians: new address[](0)
             }),
