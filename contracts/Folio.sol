@@ -753,8 +753,11 @@ contract Folio is
         _daoPendingFeeShares = daoPendingFeeShares;
         _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
 
-        uint256 supply = super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
-        uint256 elapsed = block.timestamp - lastPoke;
+        // {share}
+        uint256 supply = super.totalSupply() +
+            _daoPendingFeeShares +
+            _feeRecipientsPendingFeeShares -
+            balanceOf(address(activeTrustedFill));
 
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
             address(this)
@@ -767,6 +770,9 @@ contract Folio is
 
         // D18{1/s}
         uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
+
+        // {s}
+        uint256 elapsed = block.timestamp - lastPoke;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
         uint256 feeShares = (supply * D18) / MathLib.powu(D18 - _tvlFee, elapsed) - supply;
