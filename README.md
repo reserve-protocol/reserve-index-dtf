@@ -83,10 +83,6 @@ Auctions have a time-to-live (TTL) that controls how long they can exist in an `
 
 Auctions can be repeated a specified number of times, up to a maximum of `availableRuns`.
 
-###### Dust Amounts
-
-Either the `DEFAULT_ADMIN_ROLE` or the `AUCTION_APPROVER` can set dust amounts on a per-token basis in terms of presence in the basket (`D27{tok/share}`). This allows the Folio to act to close auctions or remove tokens from the basket when the basket presence is within a small tolerance of the intended target.
-
 ###### Buy/Sell limits
 
 The `AUCTION_APPROVER` configures buy and sell limits for the basket ratios, including a spot estimate:
