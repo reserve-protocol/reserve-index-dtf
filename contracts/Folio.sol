@@ -128,7 +128,7 @@ contract Folio is
     // === 2.0.0 ===
     mapping(uint256 auctionId => AuctionDetails details) public auctionDetails;
     /// @custom:oz-renamed-from dustAmount
-    mapping(address token => uint256 amount) public dustAmount_DEPRECATED;
+    mapping(address token => uint256 amount) private dustAmount_DEPRECATED;
 
     // === 3.0.0 ===
     ITrustedFillerRegistry public trustedFillerRegistry;
