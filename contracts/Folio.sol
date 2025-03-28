@@ -208,7 +208,12 @@ contract Folio is
     function removeFromBasket(IERC20 token) external nonReentrant {
         _closeTrustedFill();
 
-        require(IERC20(token).balanceOf(address(this)) == 0, Folio__BalanceNotDust());
+        // allow admin to remove from basket, or permissionlessly at 0 balance
+        // permissionless removal can be griefed by token donation
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || IERC20(token).balanceOf(address(this)) == 0,
+            Folio__BalanceNotDust()
+        );
         require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
     }
 

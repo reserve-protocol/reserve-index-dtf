@@ -562,6 +562,26 @@ contract FolioTest is BaseTest {
         assertEq(_assets[1], address(DAI), "wrong second asset");
     }
 
+    function test_removeFromBasketByOwner() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+
+        // should be able to remove at any balance by owner
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.BasketTokenRemoved(address(MEME));
+        folio.removeFromBasket(MEME);
+
+        (_assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 2, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+    }
+
     function test_cannotRemoveFromBasketIfNotAvailable() public {
         (address[] memory _assets, ) = folio.totalAssets();
         assertEq(_assets.length, 3, "wrong assets length");
