@@ -13,33 +13,20 @@ import { Folio } from "@src/Folio.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 /**
- * @title GovernanceUpgrader
+ * @title GovernanceSpell_28_03_2025
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  *
  * The 1.0.0 governors were all deployed with 100x the proposal threshold due to a frontend bug. This spell enables
- * easy upgrade of the Folios and replacement of the governors/timelocks.
+ * easy upgrade of all governors/timelocks associated with these deployments.
  *
- * It should work for upgrading Folios to EITHER 2.0.0 and 3.0.0.
+ * It does NOT upgrade the Folio itself.
  *
  * See dev comments below for details on how to use each function.
  */
-contract UpgradeSpell_3_0_0 is Versioned {
-    bytes32 constant VERSION_2_0_0 = keccak256("2.0.0");
-    bytes32 constant VERSION_3_0_0 = keccak256("3.0.0");
-
-    bytes32 public immutable folioVersionHash;
-
-    FolioDeployer public immutable folioDeployer;
+contract GovernanceSpell_28_03_2025 is Versioned {
     IGovernanceDeployer public immutable governanceDeployer;
 
-    constructor(FolioDeployer _folioDeployer, IGovernanceDeployer _governanceDeployer) {
-        folioVersionHash = keccak256(bytes(_folioDeployer.version()));
-        bytes32 govVersion = keccak256(bytes(Versioned(address(_governanceDeployer)).version()));
-
-        require(folioVersionHash == VERSION_2_0_0 || folioVersionHash == VERSION_3_0_0, "invalid folio version");
-        require(govVersion == VERSION_2_0_0 || govVersion == VERSION_3_0_0, "invalid governance version");
-
-        folioDeployer = _folioDeployer;
+    constructor(IGovernanceDeployer _governanceDeployer) {
         governanceDeployer = _governanceDeployer;
     }
 
@@ -86,19 +73,6 @@ contract UpgradeSpell_3_0_0 is Versioned {
         require(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), address(this)), "not admin");
         require(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), oldOwnerTimelock), "old owner timelock not admin");
         require(folio.hasRole(folio.AUCTION_APPROVER(), oldTradingTimelock), "old trading timelock not trader");
-
-        // upgrade Folio
-
-        if (folioVersionHash == VERSION_2_0_0) {
-            proxyAdmin.upgradeToVersion(address(folio), VERSION_2_0_0, "");
-        } else {
-            bytes memory data = abi.encodeWithSelector(
-                Folio.setTrustedFillerRegistry.selector,
-                folioDeployer.trustedFillerRegistry(),
-                true
-            );
-            proxyAdmin.upgradeToVersion(address(folio), folioVersionHash, data);
-        }
 
         // deploy replacement governors + timelocks
 
