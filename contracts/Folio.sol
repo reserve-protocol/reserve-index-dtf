@@ -189,6 +189,8 @@ contract Folio is
     }
 
     /// @dev Reentrancy guard check for consuming protocols
+    /// @dev Consuming protocols SHOULD call this function and ensure it returns false before
+    ///      strongly relying on the Folio state
     function reentrancyGuardEntered() external view returns (bool) {
         return _reentrancyGuardEntered();
     }
