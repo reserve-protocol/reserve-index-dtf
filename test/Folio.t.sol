@@ -541,10 +541,10 @@ contract FolioTest is BaseTest {
         // should not be able to remove from basket when balance is nonzero
 
         vm.prank(user1);
-        vm.expectRevert(IFolio.Folio__BalanceNotDust.selector);
+        vm.expectRevert(IFolio.Folio__BalanceNotRemovable.selector);
         folio.removeFromBasket(MEME);
         MockERC20(address(MEME)).burn(address(folio), MEME.balanceOf(address(folio)) - 1);
-        vm.expectRevert(IFolio.Folio__BalanceNotDust.selector);
+        vm.expectRevert(IFolio.Folio__BalanceNotRemovable.selector);
         folio.removeFromBasket(MEME);
 
         // should be able to remove at 0 balance

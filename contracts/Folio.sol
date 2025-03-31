@@ -212,7 +212,7 @@ contract Folio is
         // permissionless removal can be griefed by token donation
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || IERC20(token).balanceOf(address(this)) == 0,
-            Folio__BalanceNotDust()
+            Folio__BalanceNotRemovable()
         );
         require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
     }

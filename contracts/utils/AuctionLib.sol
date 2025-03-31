@@ -193,7 +193,7 @@ library AuctionLib {
 
         // end auction at sell limit or just above, to account for CEIL rounding
         // can still be griefed
-        // many limits near 0 may not reacheable due to precision + defensive roundings
+        // limits are often not reacheable due to precision + defensive roundings
         if (basketPresence == auction.sellLimit.spot) {
             auction.endTime = block.timestamp - 1;
             auctionDetails.availableRuns = 0;
