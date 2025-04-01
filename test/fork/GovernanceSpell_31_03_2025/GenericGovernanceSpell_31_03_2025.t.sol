@@ -3,7 +3,6 @@ pragma solidity 0.8.28;
 
 import "../../base/BaseTest.sol";
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 import { GovernanceSpell_31_03_2025 } from "@spells/31-03-2025/GovernanceSpell_31_03_2025.sol";
@@ -45,7 +44,7 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
         governorImplementation = address(new FolioGovernor());
         timelockImplementation = address(new TimelockControllerUpgradeable());
         governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
-        // TODO replace with real governanceDeployer
+        // TODO replace with real 3.0.0 governanceDeployer, and bump fork blocks
 
         spell = new GovernanceSpell_31_03_2025(governanceDeployer);
     }
@@ -163,6 +162,66 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
                 TimelockController(payable(newTradingGovernor.timelock())).getMinDelay(),
                 TimelockController(payable(tradingGovernor.timelock())).getMinDelay()
             );
+
+            // post-fork proposal
+
+            IERC20 stAsset = IERC20(stakingVault.asset());
+            uint256 amt = stakingVault.totalAssets() / 2;
+            vm.prank(address(stakingVault)); // little cheaty but it's ok
+            stAsset.transfer(address(user1), amt);
+
+            vm.startPrank(user1);
+            stAsset.approve(address(stakingVault), amt);
+            stakingVault.depositAndDelegate(amt);
+            skip(1);
+            vm.roll(block.number + 1);
+
+            address[] memory targets = new address[](1);
+            targets[0] = address(folio);
+            uint256[] memory values = new uint256[](1);
+            values[0] = 0;
+            bytes[] memory calldatas = new bytes[](1);
+            calldatas[0] = abi.encodeWithSelector(folio.setAuctionLength.selector, 1 days);
+            string memory description = "Update auction length";
+            assertNotEq(folio.auctionLength(), 1 days);
+            uint256 pid = newOwnerGovernor.propose(targets, values, calldatas, description);
+
+            skip(newOwnerGovernor.votingDelay() + 1);
+            vm.roll(block.number + 1);
+            newOwnerGovernor.castVote(pid, 1);
+
+            skip(newOwnerGovernor.votingPeriod() + 1);
+            vm.roll(block.number + 1);
+            assertEq(newOwnerGovernor.proposalNeedsQueuing(pid), true);
+            newOwnerGovernor.queue(targets, values, calldatas, keccak256(bytes(description)));
+            skip(TimelockController(payable(newOwnerGovernor.timelock())).getMinDelay() + 1);
+            vm.roll(block.number + 1);
+            newOwnerGovernor.execute(targets, values, calldatas, keccak256(bytes(description)));
+            assertEq(folio.auctionLength(), 1 days);
+
+            // and admin proxy upgrade
+
+            assertEq(keccak256(bytes(folio.version())), keccak256("1.0.0"));
+            targets[0] = address(proxyAdmin);
+            calldatas[0] = abi.encodeWithSelector(
+                proxyAdmin.upgradeToVersion.selector,
+                address(folio),
+                keccak256("2.0.0"),
+                ""
+            );
+            pid = newOwnerGovernor.propose(targets, values, calldatas, description);
+            skip(newOwnerGovernor.votingDelay() + 1);
+            vm.roll(block.number + 1);
+            newOwnerGovernor.castVote(pid, 1);
+            skip(newOwnerGovernor.votingPeriod() + 1);
+            vm.roll(block.number + 1);
+            assertEq(newOwnerGovernor.proposalNeedsQueuing(pid), true);
+            newOwnerGovernor.queue(targets, values, calldatas, keccak256(bytes(description)));
+            skip(TimelockController(payable(newOwnerGovernor.timelock())).getMinDelay() + 1);
+            vm.roll(block.number + 1);
+            newOwnerGovernor.execute(targets, values, calldatas, keccak256(bytes(description)));
+            assertEq(keccak256(bytes(folio.version())), keccak256("2.0.0"));
+            vm.stopPrank();
         }
     }
 }

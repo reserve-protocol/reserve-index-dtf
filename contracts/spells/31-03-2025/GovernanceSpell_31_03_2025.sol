@@ -6,6 +6,7 @@ import { TimelockController } from "@openzeppelin/contracts/governance/TimelockC
 import { Votes } from "@openzeppelin/contracts/governance/utils/Votes.sol";
 
 import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
+import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
@@ -26,11 +27,10 @@ import { Versioned } from "@utils/Versioned.sol";
  * See dev comments below for details on how to use each function.
  */
 contract GovernanceSpell_31_03_2025 is Versioned {
-    IGovernanceDeployer public immutable governanceDeployer;
+    GovernanceDeployer public immutable governanceDeployer;
 
-    constructor(IGovernanceDeployer _governanceDeployer) {
-        // can be any-of 1.0.0, 2.0.0, or 3.0.0 GovernanceDeployers
-        // context: the bug that resulted in 100x proposal thresholds was in the frontend, not the contracts
+    constructor(GovernanceDeployer _governanceDeployer) {
+        require(keccak256(bytes(_governanceDeployer.version())) == keccak256(bytes(version())), "invalid gov deployer");
         governanceDeployer = _governanceDeployer;
     }
 
