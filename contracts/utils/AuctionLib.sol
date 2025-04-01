@@ -32,6 +32,7 @@ library AuctionLib {
     ///     (once opened, it always finishes).
     ///     Must be >= auctionDelay if intended to be openly available
     ///     Set < auctionDelay to restrict launching to the AUCTION_LAUNCHER
+    /// @return auctionId The newly created auctionId
     function approveAuction(
         IFolio.Auction[] storage auctions,
         mapping(uint256 auctionId => IFolio.AuctionDetails) storage auctionDetails,
@@ -41,7 +42,7 @@ library AuctionLib {
         IFolio.BasketRange calldata sellLimit,
         IFolio.BasketRange calldata buyLimit,
         IFolio.Prices calldata prices
-    ) external {
+    ) external returns (uint256 auctionId) {
         require(
             address(params.sellToken) != address(0) &&
                 address(params.buyToken) != address(0) &&
@@ -83,7 +84,7 @@ library AuctionLib {
         sellEnds[address(params.sellToken)] = Math.max(sellEnds[address(params.sellToken)], launchDeadline);
         buyEnds[address(params.buyToken)] = Math.max(buyEnds[address(params.buyToken)], launchDeadline);
 
-        uint256 auctionId = auctions.length;
+        auctionId = auctions.length;
 
         IFolio.Auction memory auction = IFolio.Auction({
             id: auctionId,

@@ -475,6 +475,7 @@ contract Folio is
     ///     Must be >= auctionDelay if intended to be openly available
     ///     Set < auctionDelay to restrict launching to the AUCTION_LAUNCHER
     /// @param runs {runs} How many times the auction can be opened before it is permanently closed
+    /// @return auctionId The newly created auctionId
     function approveAuction(
         IERC20 sellToken,
         IERC20 buyToken,
@@ -483,23 +484,26 @@ contract Folio is
         Prices calldata prices,
         uint256 ttl,
         uint256 runs
-    ) external nonReentrant onlyRole(AUCTION_APPROVER) notDeprecated {
-        AuctionLib.approveAuction(
-            auctions,
-            auctionDetails,
-            sellEnds,
-            buyEnds,
-            AuctionLib.ApproveAuctionParams({
-                auctionDelay: auctionDelay,
-                sellToken: sellToken,
-                buyToken: buyToken,
-                ttl: ttl,
-                runs: runs
-            }),
-            sellLimit,
-            buyLimit,
-            prices
-        );
+    ) external nonReentrant onlyRole(AUCTION_APPROVER) notDeprecated returns (uint256) {
+        AuctionLib.ApproveAuctionParams memory approveAuctionParams = AuctionLib.ApproveAuctionParams({
+            auctionDelay: auctionDelay,
+            sellToken: sellToken,
+            buyToken: buyToken,
+            ttl: ttl,
+            runs: runs
+        });
+
+        return
+            AuctionLib.approveAuction(
+                auctions,
+                auctionDetails,
+                sellEnds,
+                buyEnds,
+                approveAuctionParams,
+                sellLimit,
+                buyLimit,
+                prices
+            );
     }
 
     /// Open an auction as the auction launcher
