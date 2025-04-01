@@ -20,7 +20,7 @@ import { Versioned } from "@utils/Versioned.sol";
  * This spell enables governors/timelocks associated with 1.0.0 Folio deployment to upgrade to new instances,
  * with 2 changes:
  *   - proposal threshold lowered by factor of 100
- *   - quorum numerator and denominator converted from whole percent to D18{1} (without changing relative values)
+ *   - quorum numerator and denominator converted from whole percent to D18{1}, without changing numerator / denominator
  *
  * It does NOT upgrade the Folio itself.
  *
@@ -30,13 +30,14 @@ contract GovernanceSpell_31_03_2025 is Versioned {
     GovernanceDeployer public immutable governanceDeployer;
 
     constructor(GovernanceDeployer _governanceDeployer) {
+        // expect governance deployer 3.0.0
         require(keccak256(bytes(_governanceDeployer.version())) == keccak256(bytes(version())), "invalid gov deployer");
         governanceDeployer = _governanceDeployer;
     }
 
     /// @dev Expected use: pre-call, governance atomically transfers ownership of the StakingVault to this contract
-    /// @dev Do not leave space after transferring ownership for others to interact with this contract!
-    /// @dev Requirments:
+    /// @dev Do not leave a gap after transferring ownership to this contract for others to frontrun!
+    /// @dev Requirements:
     ///      - Has ownership of the StakingVault
     ///      - Supplied guardians MUST be a subset of the previous guardians, and nonempty
     function upgradeStakingVaultGovernance(
@@ -56,8 +57,8 @@ contract GovernanceSpell_31_03_2025 is Versioned {
 
     /// @dev Expected use: pre-call, governance atomically grants DEFAULT_ADMIN_ROLE to this contract AND
     ///                    transfers ownership of the proxy admin to this contract
-    /// @dev Do not leave space after granting adminships for others to interact with this contract!
-    /// @dev Requirments:
+    /// @dev Do not leave a gap after transferring ownerships to this contract for others to frontrun!
+    /// @dev Requirements:
     ///      - Has ownership of the proxy admin
     ///      - Has DEFAULT_ADMIN_ROLE of Folio, as the 2nd admin in addition to the old owner timelock
     ///      - Old trading timelock should be the sole AUCTION_APPROVER
@@ -125,7 +126,7 @@ contract GovernanceSpell_31_03_2025 is Versioned {
 
     // ==== Internal ====
 
-    /// Deploys a replacement governance + timelock
+    /// Deploy a replacement governance + timelock
     /// Should:
     ///   - Lower proposal threshold by factor of 100
     ///   - Convert quorum numerator from whole percent to D18{1}
@@ -158,12 +159,12 @@ contract GovernanceSpell_31_03_2025 is Versioned {
             uint256 pastSupply = stakingVault.getPastTotalSupply(stakingVault.clock() - 1);
             require(pastSupply != 0, "past supply 0");
 
-            proposalThreshold = ((proposalThresholdWithSupply * 1e18) / pastSupply) / 100;
+            proposalThreshold = ((proposalThresholdWithSupply * 1e18 + pastSupply - 1) / pastSupply) / 100;
             require(proposalThreshold >= 1e14 && proposalThreshold <= 1e17, "proposal threshold not in expected range");
         }
 
         uint256 quorumThreshold = oldGovernor.quorumNumerator() * 1e16; // multiply by 1e16 to convert raw percent to D18{1}
-        require(quorumThreshold != 0 && quorumThreshold <= 2e17, "quorum threshold not in expected range");
+        require(quorumThreshold >= 1e16 && quorumThreshold <= 2e17, "quorum threshold not in expected range");
 
         uint256 timelockDelay;
         {
