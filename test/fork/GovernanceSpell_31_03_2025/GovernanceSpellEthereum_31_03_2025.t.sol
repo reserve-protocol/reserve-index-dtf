@@ -13,6 +13,7 @@ contract GovernanceSpellEthereum_31_03_2025_Test is GovernanceSpell_31_03_2025_T
 
         address[] memory guardians = new address[](1);
 
+        // BED
         guardians[0] = 0x280730d9277EF586d58dB74c277Aa710ca8F87C9;
         CONFIGS.push(
             Config({
@@ -23,8 +24,9 @@ contract GovernanceSpellEthereum_31_03_2025_Test is GovernanceSpell_31_03_2025_T
                 stakingVaultGovernor: FolioGovernor(payable(0xD2f9c1D649F104e5D6B9453f3817c05911Cf765E)),
                 guardians: guardians
             })
-        ); // BED
+        );
 
+        // DGI
         guardians[0] = 0xf163D77B8EfC151757fEcBa3D463f3BAc7a4D808;
         CONFIGS.push(
             Config({
@@ -35,8 +37,9 @@ contract GovernanceSpellEthereum_31_03_2025_Test is GovernanceSpell_31_03_2025_T
                 stakingVaultGovernor: FolioGovernor(payable(0xb01C1070E191A3a5535912489Fbff6Cc3f4bb865)),
                 guardians: guardians
             })
-        ); // DGI
+        );
 
+        // DFX
         guardians[0] = 0xE86399fE6d7007FdEcb08A2ee1434Ee677a04433;
         CONFIGS.push(
             Config({
@@ -47,8 +50,9 @@ contract GovernanceSpellEthereum_31_03_2025_Test is GovernanceSpell_31_03_2025_T
                 stakingVaultGovernor: FolioGovernor(payable(0xCaA7E91E752db5d79912665774be7B9Bf5171b9E)),
                 guardians: guardians
             })
-        ); // DFX
+        );
 
+        // mvDEFI
         guardians[0] = 0x38afC3aA2c76b4cA1F8e1DabA68e998e1F4782DB;
         CONFIGS.push(
             Config({
@@ -59,8 +63,9 @@ contract GovernanceSpellEthereum_31_03_2025_Test is GovernanceSpell_31_03_2025_T
                 stakingVaultGovernor: FolioGovernor(payable(0x83d070B91aef472CE993BCC25907e7c3959483b4)),
                 guardians: guardians
             })
-        ); // mvDEFI
+        );
 
+        // SMEL
         guardians[0] = 0x280730d9277EF586d58dB74c277Aa710ca8F87C9;
         CONFIGS.push(
             Config({
@@ -71,8 +76,9 @@ contract GovernanceSpellEthereum_31_03_2025_Test is GovernanceSpell_31_03_2025_T
                 stakingVaultGovernor: FolioGovernor(payable(0xD2f9c1D649F104e5D6B9453f3817c05911Cf765E)),
                 guardians: guardians
             })
-        ); // SMEL
+        );
 
+        // mvRWA
         guardians[0] = 0x38afC3aA2c76b4cA1F8e1DabA68e998e1F4782DB;
         CONFIGS.push(
             Config({
@@ -83,6 +89,6 @@ contract GovernanceSpellEthereum_31_03_2025_Test is GovernanceSpell_31_03_2025_T
                 stakingVaultGovernor: FolioGovernor(payable(0x83d070B91aef472CE993BCC25907e7c3959483b4)),
                 guardians: guardians
             })
-        ); // mvRWA
+        );
     }
 }

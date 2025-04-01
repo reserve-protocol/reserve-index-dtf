@@ -51,7 +51,7 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
     }
 
     function _setUp(uint256 i) internal {
-        console2.log("index ", i, "/", CONFIGS.length - 1);
+        console2.log(i, ":", CONFIGS[i].folio.symbol());
 
         folio = CONFIGS[i].folio;
         proxyAdmin = CONFIGS[i].proxyAdmin;
@@ -68,9 +68,11 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
         stakingVaultTimelock = TimelockController(payable(stakingVault.owner()));
     }
 
-    function test_upgradeStakingVaultGovernance_fork() public {
+    function test_upgradeSpell_31_03_2025_fork() public {
         for (uint256 i; i < CONFIGS.length; i++) {
             _setUp(i);
+
+            // stakingVault
 
             vm.prank(address(stakingVaultTimelock));
             stakingVault.transferOwnership(address(spell));
@@ -85,6 +87,7 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
                     )
                 )
             );
+            assertEq(stakingVault.owner(), newStakingVaultGovernor.timelock());
 
             assertEq(newStakingVaultGovernor.votingDelay(), stakingVaultGovernor.votingDelay());
             assertEq(newStakingVaultGovernor.votingPeriod(), stakingVaultGovernor.votingPeriod());
@@ -100,12 +103,8 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
                 TimelockController(payable(newStakingVaultGovernor.timelock())).getMinDelay(),
                 TimelockController(payable(stakingVaultGovernor.timelock())).getMinDelay()
             );
-        }
-    }
 
-    function test_upgradeFolioGovernance_fork() public {
-        for (uint256 i; i < CONFIGS.length; i++) {
-            _setUp(i);
+            // folio
 
             vm.startPrank(address(ownerTimelock));
             proxyAdmin.transferOwnership(address(spell));
@@ -118,12 +117,22 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
                 CONFIGS[i].tradingGovernor,
                 CONFIGS[i].guardians,
                 CONFIGS[i].guardians,
-                bytes32(i)
+                bytes32(~i)
             );
             vm.stopPrank();
 
             FolioGovernor newOwnerGovernor = FolioGovernor(payable(_newOwnerGovernor));
             FolioGovernor newTradingGovernor = FolioGovernor(payable(_newTradingGovernor));
+
+            assertFalse(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), address(spell)));
+            assertFalse(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), address(newOwnerGovernor)));
+            assertFalse(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), address(newTradingGovernor)));
+            assertTrue(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), newOwnerGovernor.timelock()));
+
+            assertFalse(folio.hasRole(folio.AUCTION_APPROVER(), address(spell)));
+            assertFalse(folio.hasRole(folio.AUCTION_APPROVER(), address(newTradingGovernor)));
+            assertFalse(folio.hasRole(folio.AUCTION_APPROVER(), newOwnerGovernor.timelock()));
+            assertTrue(folio.hasRole(folio.AUCTION_APPROVER(), newTradingGovernor.timelock()));
 
             assertEq(newOwnerGovernor.votingDelay(), ownerGovernor.votingDelay());
             assertEq(newOwnerGovernor.votingPeriod(), ownerGovernor.votingPeriod());
