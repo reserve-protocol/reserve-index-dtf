@@ -93,6 +93,34 @@ jobs:
       - name: Extreme Tests
         run: yarn test:extreme
 
+  fork:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: yarn
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install Dependencies
+        run: yarn --immutable
+
+      - name: Fork Tests
+        run: yarn test:fork
+        env:
+          ALCHEMY_MAINNET_KEY: ${{ secrets.ALCHEMY_MAINNET_KEY }}
+          ALCHEMY_BASE_KEY: ${{ secrets.ALCHEMY_BASE_KEY }}
+
   rebalancing:
     runs-on: ubuntu-latest
     steps:
