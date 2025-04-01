@@ -18,6 +18,7 @@ library AuctionLib {
         IERC20 buyToken;
         uint256 ttl;
         uint256 runs;
+        uint256 inflation;
     }
 
     /// Approve an auction to run
@@ -103,7 +104,8 @@ library AuctionLib {
 
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: prices,
-            availableRuns: params.runs
+            availableRuns: params.runs,
+            initialInflation: params.inflation
         });
         auctionDetails[auctionId] = details;
 
@@ -162,6 +164,7 @@ library AuctionLib {
     ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
     ///   If withCallback is false, caller must have provided an allowance in advance
     /// @dev Callable by anyone
+    /// @param totalSupply {share} Inflation-adjusted total supply to use for the Folio
     /// @param sellAmount {sellTok} Sell amount as returned by getBid
     /// @param bidAmount {buyTok} Bid amount as returned by getBid
     /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
@@ -170,7 +173,7 @@ library AuctionLib {
     function bid(
         IFolio.Auction storage auction,
         IFolio.AuctionDetails storage auctionDetails,
-        uint256 _totalSupply,
+        uint256 totalSupply,
         uint256 sellAmount,
         uint256 bidAmount,
         bool withCallback,
@@ -190,7 +193,7 @@ library AuctionLib {
         }
 
         // D27{sellTok/share} = {sellTok} * D27 / {share}
-        uint256 basketPresence = Math.mulDiv(sellBal, D27, _totalSupply, Math.Rounding.Ceil);
+        uint256 basketPresence = Math.mulDiv(sellBal, D27, totalSupply, Math.Rounding.Ceil);
 
         // end auction at sell limit or just above, to account for CEIL rounding
         // can still be griefed
@@ -217,7 +220,7 @@ library AuctionLib {
     }
 
     /// Get bid parameters for an ongoing auction
-    /// @param _totalSupply {share} Current total supply of the Folio
+    /// @param totalSupply {share} Inflation-adjusted total supply to use for the Folio
     /// @param timestamp {s} Timestamp to fetch bid for
     /// @param sellBal {sellTok} Folio's available balance of sell token, including any active fills
     /// @param buyBal {buyTok} Folio's available balance of buy token, including any active fills
@@ -229,7 +232,7 @@ library AuctionLib {
     /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
     function getBid(
         IFolio.Auction storage auction,
-        uint256 _totalSupply,
+        uint256 totalSupply,
         uint256 timestamp,
         uint256 sellBal,
         uint256 buyBal,
@@ -244,11 +247,11 @@ library AuctionLib {
         price = _price(auction, timestamp);
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 sellLimit = Math.mulDiv(auction.sellLimit.spot, _totalSupply, D27, Math.Rounding.Ceil);
+        uint256 sellLimit = Math.mulDiv(auction.sellLimit.spot, totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = sellBal > sellLimit ? sellBal - sellLimit : 0;
 
         // {buyTok} = D27{buyTok/share} * {share} / D27
-        uint256 buyLimit = Math.mulDiv(auction.buyLimit.spot, _totalSupply, D27, Math.Rounding.Floor);
+        uint256 buyLimit = Math.mulDiv(auction.buyLimit.spot, totalSupply, D27, Math.Rounding.Floor);
         uint256 buyAvailable = buyBal < buyLimit ? buyLimit - buyBal : 0;
 
         // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}

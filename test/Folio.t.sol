@@ -986,7 +986,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
 
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
@@ -1049,7 +1053,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
 
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -1118,7 +1126,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -1177,7 +1189,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
 
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
@@ -1248,7 +1264,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
 
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
@@ -1333,7 +1353,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
 
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -1402,7 +1426,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
 
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -1469,7 +1497,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
         uint256 amt = D27_TOKEN_1;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -1512,7 +1544,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -1567,7 +1603,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -1622,7 +1662,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -1687,7 +1731,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
@@ -1793,7 +1841,7 @@ contract FolioTest is BaseTest {
         (, , , , , , , , , uint256 end, ) = folio.auctions(0);
         assertGt(end, block.timestamp);
 
-        (, uint256 runs) = folio.auctionDetails(0);
+        (, uint256 runs, ) = folio.auctionDetails(0);
         assertEq(runs, 1);
 
         // auction should be over after 1 more wei bid
@@ -1803,7 +1851,7 @@ contract FolioTest is BaseTest {
         (, , , , , , , , , end, ) = folio.auctions(0);
         assertLt(end, block.timestamp);
 
-        (, runs) = folio.auctionDetails(0);
+        (, runs, ) = folio.auctionDetails(0);
         assertEq(runs, 0);
 
         // should not have removed from basket yet though
@@ -1852,7 +1900,8 @@ contract FolioTest is BaseTest {
         });
         IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
             initialPrices: origPrices,
-            availableRuns: 3 // 3 runs
+            availableRuns: 3, // 3 runs,
+            initialInflation: 0
         });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -1866,7 +1915,7 @@ contract FolioTest is BaseTest {
 
         folio.openAuction(0, sellLimit, buyLimit, 1e27, 1e27);
         (, , , , , IFolio.Prices memory prices, , , , uint256 end, ) = folio.auctions(0);
-        (, uint256 runs) = folio.auctionDetails(0);
+        (, uint256 runs, ) = folio.auctionDetails(0);
         assertEq(prices.start, 1e27, "wrong start price 1");
         assertEq(prices.end, 1e27, "wrong end price 1");
         assertEq(runs, 2, "wrong runs 1");
@@ -1884,7 +1933,7 @@ contract FolioTest is BaseTest {
         IFolio.BasketRange memory sellLimits;
         IFolio.BasketRange memory buyLimits;
         (, , , sellLimits, buyLimits, prices, , , , end, ) = folio.auctions(0);
-        (, runs) = folio.auctionDetails(0);
+        (, runs, ) = folio.auctionDetails(0);
         assertEq(prices.start, 1e29, "wrong start price 2");
         assertEq(prices.end, 1e27, "wrong end price 2");
         assertEq(runs, 1, "wrong runs 2");
@@ -1907,7 +1956,7 @@ contract FolioTest is BaseTest {
         uint256 sellLimitBefore = sellLimits.spot;
         uint256 buyLimitBefore = buyLimits.spot;
         (, , , sellLimits, buyLimits, prices, , , , end, ) = folio.auctions(0);
-        (, runs) = folio.auctionDetails(0);
+        (, runs, ) = folio.auctionDetails(0);
         assertEq(sellLimits.spot, sellLimitBefore, "wrong sell limit");
         assertEq(buyLimits.spot, buyLimitBefore, "wrong buy limit");
         assertEq(prices.start, origPrices.start, "wrong orig start price");
@@ -2212,7 +2261,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -2245,7 +2298,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -2280,7 +2337,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
@@ -2395,7 +2456,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);
@@ -2464,7 +2529,11 @@ contract FolioTest is BaseTest {
             endTime: 0,
             k: 0
         });
-        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({ initialPrices: ZERO_PRICES, availableRuns: 1 });
+        IFolio.AuctionDetails memory details = IFolio.AuctionDetails({
+            initialPrices: ZERO_PRICES,
+            availableRuns: 1,
+            initialInflation: 0
+        });
         vm.prank(dao);
         vm.expectEmit(true, true, true, false);
         emit IFolio.AuctionApproved(0, address(USDC), address(USDT), auctionStruct, details);

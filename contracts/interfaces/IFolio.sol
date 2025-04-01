@@ -134,8 +134,11 @@ interface IFolio {
 
     /// Added in 2.0.0
     struct AuctionDetails {
+        // === 2.0.0 ===
         Prices initialPrices; // D27{buyTok/sellTok} initially approved prices
         uint256 availableRuns; // {runs} remaining number of runs
+        // === 3.0.0 ===
+        uint256 initialInflation; // D27{1} inflation at time buy/sell limits were set
     }
 
     function distributeFees() external;

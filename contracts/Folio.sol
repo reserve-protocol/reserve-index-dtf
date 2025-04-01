@@ -135,6 +135,8 @@ contract Folio is
     bool public trustedFillerEnabled;
     IBaseTrustedFiller private activeTrustedFill;
 
+    uint256 private inflation; // D27{1} cumulative inflation, from fees
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -399,9 +401,13 @@ contract Folio is
     /// Distribute all pending fee shares
     /// @dev Recipients: DAO and fee recipients; if feeRecipients are empty, the DAO gets all the fees
     /// @dev Pending fee shares are already reflected in the total supply, this function only concretizes balances
+    /// @dev Should not revert
     function distributeFees() public nonReentrant {
         _poke();
         // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
+
+        // === track inflation ===
+        inflation = _inflation(totalSupply());
 
         // === Fee recipients ===
 
@@ -454,7 +460,7 @@ contract Folio is
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (sellAmount, bidAmount, price) = AuctionLib.getBid(
             auction,
-            totalSupply(),
+            _adjustedTotalSupply(auctionDetails[auctionId]),
             timestamp == 0 ? block.timestamp : timestamp,
             _balanceOfToken(auction.sellToken),
             _balanceOfToken(auction.buyToken),
@@ -484,26 +490,26 @@ contract Folio is
         Prices calldata prices,
         uint256 ttl,
         uint256 runs
-    ) external nonReentrant onlyRole(AUCTION_APPROVER) notDeprecated returns (uint256) {
+    ) external nonReentrant onlyRole(AUCTION_APPROVER) notDeprecated returns (uint256 auctionId) {
         AuctionLib.ApproveAuctionParams memory approveAuctionParams = AuctionLib.ApproveAuctionParams({
             auctionDelay: auctionDelay,
             sellToken: sellToken,
             buyToken: buyToken,
             ttl: ttl,
-            runs: runs
+            runs: runs,
+            inflation: _inflation(totalSupply())
         });
 
-        return
-            AuctionLib.approveAuction(
-                auctions,
-                auctionDetails,
-                sellEnds,
-                buyEnds,
-                approveAuctionParams,
-                sellLimit,
-                buyLimit,
-                prices
-            );
+        auctionId = AuctionLib.approveAuction(
+            auctions,
+            auctionDetails,
+            sellEnds,
+            buyEnds,
+            approveAuctionParams,
+            sellLimit,
+            buyLimit,
+            prices
+        );
     }
 
     /// Open an auction as the auction launcher
@@ -581,12 +587,12 @@ contract Folio is
         _closeTrustedFill();
         Auction storage auction = auctions[auctionId];
 
-        uint256 _totalSupply = totalSupply();
+        uint256 adjustedTotalSupply = _adjustedTotalSupply(auctionDetails[auctionId]);
 
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (, boughtAmt, ) = AuctionLib.getBid(
             auction,
-            _totalSupply,
+            adjustedTotalSupply,
             block.timestamp,
             auction.sellToken.balanceOf(address(this)),
             auction.buyToken.balanceOf(address(this)),
@@ -598,7 +604,15 @@ contract Folio is
         _addToBasket(address(auction.buyToken));
 
         if (
-            AuctionLib.bid(auction, auctionDetails[auctionId], _totalSupply, sellAmount, boughtAmt, withCallback, data)
+            AuctionLib.bid(
+                auction,
+                auctionDetails[auctionId],
+                adjustedTotalSupply,
+                sellAmount,
+                boughtAmt,
+                withCallback,
+                data
+            )
         ) {
             _removeFromBasket(address(auction.sellToken));
         }
@@ -621,7 +635,7 @@ contract Folio is
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (uint256 sellAmount, uint256 buyAmount, ) = AuctionLib.getBid(
             auction,
-            totalSupply(),
+            _adjustedTotalSupply(auctionDetails[auctionId]),
             block.timestamp,
             auction.sellToken.balanceOf(address(this)),
             auction.buyToken.balanceOf(address(this)),
@@ -660,6 +674,34 @@ contract Folio is
     }
 
     // ==== Internal ====
+
+    /// @param _totalSupply {share} Current total supply, including pending fee shares
+    /// @return D27{1} The total cumulative inflation, from fees
+    function _inflation(uint256 _totalSupply) internal view returns (uint256) {
+        // {share}
+        uint256 supplyWithoutFees = _totalSupply - feeRecipientsPendingFeeShares - daoPendingFeeShares;
+
+        // D27{1} = D27 * {share} / {share}
+        uint256 newInflation = Math.mulDiv(D27, _totalSupply, supplyWithoutFees);
+        // TODO check rounding
+
+        // D27{1} = D27{1} * D27{1} / D27
+        return inflation != 0 ? (inflation * newInflation) / D27 : newInflation;
+        // TODO check rounding
+    }
+
+    /// @return {share} Total supply adjusted downwards to account for inflation since details.initialInflation
+    function _adjustedTotalSupply(AuctionDetails storage details) internal view returns (uint256) {
+        uint256 _totalSupply = totalSupply();
+
+        // D27{1} = D27 * D27{1} / D27{1}
+        uint256 inflationSince = (D27 * _inflation(_totalSupply)) / details.initialInflation;
+        // TODO check rounding
+
+        // {share} = D27 * {share} / D27{1}
+        return Math.mulDiv(D27, _totalSupply, inflationSince);
+        // TODO check rounding
+    }
 
     /// @param shares {share}
     /// @return _assets
