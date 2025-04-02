@@ -471,7 +471,7 @@ contract Folio is
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (sellAmount, bidAmount, price) = AuctionLib.getBid(
             auction,
-            _adjustedTotalSupplyAt(block.timestamp, auctionDetails[auctionId].initialInflation),
+            _adjustedTotalSupplyAt(timestamp, auctionDetails[auctionId].initialInflation),
             timestamp,
             _balanceOfToken(auction.sellToken),
             _balanceOfToken(auction.buyToken),
