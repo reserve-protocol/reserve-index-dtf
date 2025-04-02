@@ -135,7 +135,8 @@ contract Folio is
     bool public trustedFillerEnabled;
     IBaseTrustedFiller private activeTrustedFill;
 
-    uint256 private pastInflation; // D27{1} cumulative past inflation from fees
+    uint256 private prevTotalInflation; // D27{1} cumulative past inflation from fees
+    uint256 private pendingFeeShares; // {share}
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -411,10 +412,6 @@ contract Folio is
         _poke();
         // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
 
-        // === track inflation ===
-
-        (pastInflation, ) = _totalInflationAt(block.timestamp);
-
         // === Fee recipients ===
 
         uint256 _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
@@ -442,6 +439,10 @@ contract Folio is
         emit ProtocolFeePaid(daoRecipient, daoShares);
 
         daoPendingFeeShares = 0;
+
+        // === Track inflation ===
+
+        pendingFeeShares = 0;
     }
 
     // ==== Auctions ====
@@ -470,7 +471,7 @@ contract Folio is
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (sellAmount, bidAmount, price) = AuctionLib.getBid(
             auction,
-            _adjustedTotalSupplyAt(auctionDetails[auctionId], timestamp),
+            _adjustedTotalSupplyAt(block.timestamp, auctionDetails[auctionId].initialInflation),
             timestamp,
             _balanceOfToken(auction.sellToken),
             _balanceOfToken(auction.buyToken),
@@ -600,12 +601,12 @@ contract Folio is
         Auction storage auction = auctions[auctionId];
 
         // {share} = D27 * {share} / D27{1}
-        uint256 adjustedTotalSupply = _adjustedTotalSupplyAt(auctionDetails[auctionId], block.timestamp);
+        uint256 _totalSupply = _adjustedTotalSupplyAt(block.timestamp, auctionDetails[auctionId].initialInflation);
 
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (, boughtAmt, ) = AuctionLib.getBid(
             auction,
-            adjustedTotalSupply,
+            _totalSupply,
             block.timestamp,
             auction.sellToken.balanceOf(address(this)),
             auction.buyToken.balanceOf(address(this)),
@@ -617,15 +618,7 @@ contract Folio is
         _addToBasket(address(auction.buyToken));
 
         if (
-            AuctionLib.bid(
-                auction,
-                auctionDetails[auctionId],
-                adjustedTotalSupply,
-                sellAmount,
-                boughtAmt,
-                withCallback,
-                data
-            )
+            AuctionLib.bid(auction, auctionDetails[auctionId], _totalSupply, sellAmount, boughtAmt, withCallback, data)
         ) {
             _removeFromBasket(address(auction.sellToken));
         }
@@ -648,7 +641,7 @@ contract Folio is
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (uint256 sellAmount, uint256 buyAmount, ) = AuctionLib.getBid(
             auction,
-            _adjustedTotalSupplyAt(auctionDetails[auctionId], block.timestamp),
+            _adjustedTotalSupplyAt(block.timestamp, auctionDetails[auctionId].initialInflation),
             block.timestamp,
             auction.sellToken.balanceOf(address(this)),
             auction.buyToken.balanceOf(address(this)),
@@ -777,9 +770,9 @@ contract Folio is
         _feeRecipientsPendingFeeShares += feeShares - daoShares;
     }
 
-    /// @dev Added in 3.0.0: _totalInflation may not be for all time for upgraded Folios
+    /// @dev Added in 3.0.0: _totalInflation may not cover the past fully for upgraded Folios
     /// @return _totalInflation D27{1} The total cumulative inflation from fees at the given timestamp
-    /// @return _totalSupply {share} The total supply of shares at the given timestamp
+    /// @return _totalSupply {share} The total supply of shares at the given timestamp (including fees)
     function _totalInflationAt(
         uint256 timestamp
     ) internal view returns (uint256 _totalInflation, uint256 _totalSupply) {
@@ -787,22 +780,24 @@ contract Folio is
         uint256 baseSupply = super.totalSupply();
 
         _totalSupply = baseSupply + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
+        assert(_totalSupply >= baseSupply + pendingFeeShares); // TODO invariant, maybe remove
 
         // D27{1} = D27 * {share} / {share}
-        _totalInflation = (D27 * _totalSupply) / baseSupply;
+        _totalInflation = (D27 * _totalSupply) / (baseSupply + pendingFeeShares);
 
-        if (pastInflation != 0) {
+        if (prevTotalInflation != 0) {
             // D27{1} = D27{1} * D27{1} / D27
-            _totalInflation = (_totalInflation * pastInflation) / D27;
+            _totalInflation = (_totalInflation * prevTotalInflation) / D27;
         }
     }
 
+    /// @param _prevTotalInflation D27{1} A previous total cumulative inflation from fees
     /// @return {share} The total supply at a given timestamp, adjusted downwards for inflation
-    function _adjustedTotalSupplyAt(AuctionDetails storage details, uint256 timestamp) internal view returns (uint256) {
+    function _adjustedTotalSupplyAt(uint256 timestamp, uint256 _prevTotalInflation) internal view returns (uint256) {
         (uint256 _totalInflation, uint256 _totalSupply) = _totalInflationAt(timestamp);
 
         // D27{1} = D27 * D27{1} / D27{1}
-        uint256 inflationSince = (D27 * _totalInflation) / details.initialInflation;
+        uint256 inflationSince = (D27 * _totalInflation) / _prevTotalInflation;
 
         // {share} = D27 * {share} / D27{1}
         return (D27 * _totalSupply) / inflationSince;
@@ -897,8 +892,13 @@ contract Folio is
             return;
         }
 
+        // track pending fee shares
         (daoPendingFeeShares, feeRecipientsPendingFeeShares) = _getPendingFeeShares(block.timestamp);
         lastPoke = block.timestamp;
+
+        // track inflation
+        (prevTotalInflation, ) = _totalInflationAt(block.timestamp);
+        pendingFeeShares = daoPendingFeeShares + feeRecipientsPendingFeeShares;
     }
 
     function _addToBasket(address token) internal returns (bool) {
