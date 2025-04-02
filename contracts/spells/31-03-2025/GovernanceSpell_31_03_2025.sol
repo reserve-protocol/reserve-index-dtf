@@ -31,7 +31,10 @@ contract GovernanceSpell_31_03_2025 is Versioned {
 
     constructor(GovernanceDeployer _governanceDeployer) {
         // expect governance deployer 3.0.0
-        require(keccak256(bytes(_governanceDeployer.version())) == keccak256(bytes(version())), "invalid gov deployer");
+        require(
+            keccak256(bytes(_governanceDeployer.version())) == keccak256(bytes(version())),
+            "GS: invalid gov deployer"
+        );
         governanceDeployer = _governanceDeployer;
     }
 
@@ -46,7 +49,7 @@ contract GovernanceSpell_31_03_2025 is Versioned {
         address[] calldata guardians,
         bytes32 deploymentNonce
     ) external returns (address newGovernor) {
-        require(stakingVault.owner() == address(this), "not staking vault owner");
+        require(stakingVault.owner() == address(this), "GS: not staking vault owner");
 
         address newTimelock;
         (newGovernor, newTimelock) = _deployReplacementGovernance(oldGovernor, guardians, deploymentNonce);
@@ -72,20 +75,23 @@ contract GovernanceSpell_31_03_2025 is Versioned {
         address[] calldata tradingGuardians,
         bytes32 deploymentNonce
     ) external returns (address newOwnerGovernor, address newTradingGovernor) {
-        require(oldOwnerGovernor.timelock() != address(0), "owner timelock 0");
-        require(oldTradingGovernor.timelock() != address(0), "trading timelock 0");
+        require(oldOwnerGovernor.timelock() != address(0), "GS: owner timelock 0");
+        require(oldTradingGovernor.timelock() != address(0), "GS: trading timelock 0");
 
         // check privileges / setup
 
-        require(proxyAdmin.owner() == address(this), "not proxy admin owner");
-        require(folio.getRoleMemberCount(folio.DEFAULT_ADMIN_ROLE()) == 2, "unexpected number of admins");
-        require(folio.getRoleMemberCount(folio.AUCTION_APPROVER()) == 1, "unexpected number of traders");
+        require(proxyAdmin.owner() == address(this), "GS: not proxy admin owner");
+        require(folio.getRoleMemberCount(folio.DEFAULT_ADMIN_ROLE()) == 2, "GS: unexpected number of admins");
+        require(folio.getRoleMemberCount(folio.AUCTION_APPROVER()) == 1, "GS: unexpected number of traders");
 
-        require(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), address(this)), "not admin");
-        require(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), oldOwnerGovernor.timelock()), "old owner timelock not admin");
+        require(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), address(this)), "GS: not admin");
+        require(
+            folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), oldOwnerGovernor.timelock()),
+            "GS: old owner timelock not admin"
+        );
         require(
             folio.hasRole(folio.AUCTION_APPROVER(), oldTradingGovernor.timelock()),
-            "old trading timelock not trader"
+            "GS: old trading timelock not trader"
         );
 
         // deploy replacement governors + timelocks
@@ -117,11 +123,11 @@ contract GovernanceSpell_31_03_2025 is Versioned {
 
         // post validation
 
-        assert(proxyAdmin.owner() == newOwnerTimelock);
-        assert(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), newOwnerTimelock));
-        assert(folio.hasRole(folio.AUCTION_APPROVER(), newTradingTimelock));
-        assert(folio.getRoleMemberCount(folio.DEFAULT_ADMIN_ROLE()) == 1);
-        assert(folio.getRoleMemberCount(folio.AUCTION_APPROVER()) == 1);
+        require(proxyAdmin.owner() == newOwnerTimelock, "GS: 1");
+        require(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), newOwnerTimelock), "GS: 2");
+        require(folio.hasRole(folio.AUCTION_APPROVER(), newTradingTimelock), "GS: 3");
+        require(folio.getRoleMemberCount(folio.DEFAULT_ADMIN_ROLE()) == 1, "GS: 4");
+        require(folio.getRoleMemberCount(folio.AUCTION_APPROVER()) == 1, "GS: 5");
     }
 
     // ==== Internal ====
@@ -138,18 +144,18 @@ contract GovernanceSpell_31_03_2025 is Versioned {
     ) internal returns (address newGovernor, address newTimelock) {
         // verify current governor looks old: 1.0.0 governors used a quorum denominator of 100 instead of 1e18
 
-        require(oldGovernor.quorumDenominator() == 100, "not old governor");
+        require(oldGovernor.quorumDenominator() == 100, "GS: not old governor");
         // the proposal thresholds should be 100x their correct value too, but no way to check for that
 
         // validate gov params
 
         uint256 votingDelay = oldGovernor.votingDelay();
-        require(votingDelay != 0, "voting delay 0");
-        require(votingDelay <= type(uint48).max, "voting delay too large");
+        require(votingDelay != 0, "GS: voting delay 0");
+        require(votingDelay <= type(uint48).max, "GS: voting delay too large");
 
         uint256 votingPeriod = oldGovernor.votingPeriod();
-        require(votingPeriod != 0, "voting period 0");
-        require(votingPeriod <= type(uint32).max, "voting period too large");
+        require(votingPeriod != 0, "GS: voting period 0");
+        require(votingPeriod <= type(uint32).max, "GS: voting period too large");
 
         // lower proposalThreshold by factor of 100
         uint256 proposalThreshold;
@@ -157,28 +163,31 @@ contract GovernanceSpell_31_03_2025 is Versioned {
             uint256 proposalThresholdWithSupply = oldGovernor.proposalThreshold();
             Votes stakingVault = Votes(address(oldGovernor.token()));
             uint256 pastSupply = stakingVault.getPastTotalSupply(stakingVault.clock() - 1);
-            require(pastSupply != 0, "past supply 0");
+            require(pastSupply != 0, "GS: past supply 0");
 
             proposalThreshold = ((proposalThresholdWithSupply * 1e18 + pastSupply - 1) / pastSupply) / 100;
-            require(proposalThreshold >= 1e14 && proposalThreshold <= 1e17, "proposal threshold not in expected range");
+            require(
+                proposalThreshold >= 1e14 && proposalThreshold <= 1e17,
+                "GS: proposal threshold not in expected range"
+            );
         }
 
         uint256 quorumThreshold = oldGovernor.quorumNumerator() * 1e16; // multiply by 1e16 to convert raw percent to D18{1}
-        require(quorumThreshold >= 1e16 && quorumThreshold <= 2e17, "quorum threshold not in expected range");
+        require(quorumThreshold >= 1e16 && quorumThreshold <= 2e17, "GS: quorum threshold not in expected range");
 
         uint256 timelockDelay;
         {
             TimelockController oldTimelock = TimelockController(payable(oldGovernor.timelock()));
 
             timelockDelay = oldTimelock.getMinDelay();
-            require(timelockDelay != 0, "timelock delay 0");
+            require(timelockDelay != 0, "GS: timelock delay 0");
 
-            require(guardians.length != 0, "guardians empty");
+            require(guardians.length != 0, "GS: guardians empty");
             for (uint256 i; i < guardians.length; i++) {
-                require(guardians[i] != address(0), "guardian 0");
+                require(guardians[i] != address(0), "GS: guardian 0");
                 require(
                     oldTimelock.hasRole(oldTimelock.CANCELLER_ROLE(), guardians[i]),
-                    "guardian not on old timelock"
+                    "GS: guardian not on old timelock"
                 );
             }
         }
@@ -202,26 +211,26 @@ contract GovernanceSpell_31_03_2025 is Versioned {
 
         // post validation
 
-        assert(newGovernor != address(0));
-        assert(newTimelock != address(0));
-        assert(FolioGovernor(payable(newGovernor)).timelock() == newTimelock);
+        require(newGovernor != address(0), "GS: 6");
+        require(newTimelock != address(0), "GS: 7");
+        require(FolioGovernor(payable(newGovernor)).timelock() == newTimelock, "GS: 8");
 
         TimelockController _newTimelock = TimelockController(payable(newTimelock));
 
-        assert(_newTimelock.hasRole(_newTimelock.PROPOSER_ROLE(), newGovernor));
-        assert(_newTimelock.hasRole(_newTimelock.EXECUTOR_ROLE(), newGovernor));
-        assert(_newTimelock.hasRole(_newTimelock.CANCELLER_ROLE(), newGovernor));
+        require(_newTimelock.hasRole(_newTimelock.PROPOSER_ROLE(), newGovernor), "GS: 9");
+        require(_newTimelock.hasRole(_newTimelock.EXECUTOR_ROLE(), newGovernor), "GS: 10");
+        require(_newTimelock.hasRole(_newTimelock.CANCELLER_ROLE(), newGovernor), "GS: 11");
 
-        assert(!_newTimelock.hasRole(_newTimelock.PROPOSER_ROLE(), address(oldGovernor)));
-        assert(!_newTimelock.hasRole(_newTimelock.EXECUTOR_ROLE(), address(oldGovernor)));
-        assert(!_newTimelock.hasRole(_newTimelock.CANCELLER_ROLE(), address(oldGovernor)));
+        require(!_newTimelock.hasRole(_newTimelock.PROPOSER_ROLE(), address(oldGovernor)), "GS: 12");
+        require(!_newTimelock.hasRole(_newTimelock.EXECUTOR_ROLE(), address(oldGovernor)), "GS: 13");
+        require(!_newTimelock.hasRole(_newTimelock.CANCELLER_ROLE(), address(oldGovernor)), "GS: 14");
 
-        assert(!_newTimelock.hasRole(_newTimelock.PROPOSER_ROLE(), address(0)));
-        assert(!_newTimelock.hasRole(_newTimelock.EXECUTOR_ROLE(), address(0)));
+        require(!_newTimelock.hasRole(_newTimelock.PROPOSER_ROLE(), address(0)), "GS: 15");
+        require(!_newTimelock.hasRole(_newTimelock.EXECUTOR_ROLE(), address(0)), "GS: 16");
 
-        assert(!_newTimelock.hasRole(_newTimelock.CANCELLER_ROLE(), address(0)));
+        require(!_newTimelock.hasRole(_newTimelock.CANCELLER_ROLE(), address(0)), "GS: 17");
         for (uint256 i; i < guardians.length; i++) {
-            assert(_newTimelock.hasRole(_newTimelock.CANCELLER_ROLE(), guardians[i]));
+            require(_newTimelock.hasRole(_newTimelock.CANCELLER_ROLE(), guardians[i]), "GS: 18");
         }
     }
 }
