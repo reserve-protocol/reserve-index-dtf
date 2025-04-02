@@ -279,18 +279,9 @@ contract Folio is
 
     // ==== Share + Asset Accounting ====
 
-    /// @return D27{1} The total cumulative inflation from fees
-    function totalInflation() public view returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares(block.timestamp);
-
-        uint256 baseSupply = super.totalSupply();
-        uint256 _totalSupply = baseSupply + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
-
-        // D27{1} = D27 * {share} / {share}
-        uint256 inflation = (D27 * _totalSupply) / baseSupply;
-
-        // D27{1} = D27{1} * D27{1} / D27
-        return pastInflation != 0 ? (pastInflation * inflation) / D27 : inflation;
+    /// @return _totalInflation D27{1} The total cumulative inflation from fees
+    function totalInflation() public view returns (uint256 _totalInflation) {
+        (_totalInflation, ) = _totalInflationAt(block.timestamp);
     }
 
     /// @dev Contains all pending fee shares
@@ -479,7 +470,7 @@ contract Folio is
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (sellAmount, bidAmount, price) = AuctionLib.getBid(
             auction,
-            _adjustedTotalSupply(auctionDetails[auctionId], timestamp),
+            _adjustedTotalSupplyAt(auctionDetails[auctionId], timestamp),
             timestamp,
             _balanceOfToken(auction.sellToken),
             _balanceOfToken(auction.buyToken),
@@ -606,7 +597,8 @@ contract Folio is
         _closeTrustedFill();
         Auction storage auction = auctions[auctionId];
 
-        uint256 adjustedTotalSupply = _adjustedTotalSupply(auctionDetails[auctionId], block.timestamp);
+        // {share} = D27 * {share} / D27{1}
+        uint256 adjustedTotalSupply = _adjustedTotalSupplyAt(auctionDetails[auctionId], block.timestamp);
 
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (, boughtAmt, ) = AuctionLib.getBid(
@@ -654,7 +646,7 @@ contract Folio is
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (uint256 sellAmount, uint256 buyAmount, ) = AuctionLib.getBid(
             auction,
-            _adjustedTotalSupply(auctionDetails[auctionId], block.timestamp),
+            _adjustedTotalSupplyAt(auctionDetails[auctionId], block.timestamp),
             block.timestamp,
             auction.sellToken.balanceOf(address(this)),
             auction.buyToken.balanceOf(address(this)),
@@ -693,27 +685,6 @@ contract Folio is
     }
 
     // ==== Internal ====
-
-    /// @return {share} Total supply adjusted downwards to account for inflation since details.initialInflation
-    function _adjustedTotalSupply(AuctionDetails storage details, uint256 timestamp) internal view returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares(timestamp);
-
-        uint256 baseSupply = super.totalSupply();
-        uint256 _totalSupply = baseSupply + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
-
-        // D27{1} = D27 * {share} / {share}
-        uint256 inflation = (D27 * _totalSupply) / baseSupply;
-
-        // D27{1} = D27{1} * D27{1} / D27
-        uint256 _pastInflation = pastInflation != 0 ? (pastInflation * inflation) / D27 : inflation;
-
-        // D27{1} = D27 * D27{1} / D27{1}
-        uint256 _totalInflation = (D27 * _pastInflation) / details.initialInflation;
-
-        // {share} = D27 * {share} / D27{1}
-        return (D27 * _totalSupply) / _totalInflation;
-        // TODO check rounding throughout
-    }
 
     /// @param shares {share}
     /// @return _assets
@@ -802,6 +773,36 @@ contract Folio is
 
         _daoPendingFeeShares += daoShares;
         _feeRecipientsPendingFeeShares += feeShares - daoShares;
+    }
+
+    /// @return _totalInflation D27{1} The total cumulative inflation from fees at the given timestamp
+    /// @return _totalSupply {share} The total supply of shares at the given timestamp
+    function _totalInflationAt(
+        uint256 timestamp
+    ) internal view returns (uint256 _totalInflation, uint256 _totalSupply) {
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares(timestamp);
+        uint256 baseSupply = super.totalSupply();
+
+        _totalSupply = baseSupply + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
+
+        // D27{1} = D27 * {share} / {share}
+        _totalInflation = (D27 * _totalSupply) / baseSupply;
+
+        if (pastInflation != 0) {
+            // D27{1} = D27{1} * D27{1} / D27
+            _totalInflation = (_totalInflation * pastInflation) / D27;
+        }
+    }
+
+    /// @return {share} The total supply at a given timestamp, adjusted downwards for inflation since auction approval
+    function _adjustedTotalSupplyAt(AuctionDetails storage details, uint256 timestamp) internal view returns (uint256) {
+        (uint256 _totalInflation, uint256 _totalSupply) = _totalInflationAt(timestamp);
+
+        // D27{1} = D27 * D27{1} / D27{1}
+        uint256 inflationSince = (D27 * _totalInflation) / details.initialInflation;
+
+        // {share} = D27 * {share} / D27{1}
+        return (D27 * _totalSupply) / inflationSince;
     }
 
     /// Set TVL fee by annual percentage. Different from how it is stored!
