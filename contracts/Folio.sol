@@ -127,13 +127,13 @@ contract Folio is
 
     // === 2.0.0 ===
     mapping(uint256 auctionId => AuctionDetails details) public auctionDetails;
-    mapping(address token => uint256 amount) public dustAmount; // D27{tok/share}
+    /// @custom:oz-renamed-from dustAmount
+    mapping(address token => uint256 amount) private dustAmount_DEPRECATED;
 
     // === 3.0.0 ===
     ITrustedFillerRegistry public trustedFillerRegistry;
     bool public trustedFillerEnabled;
     IBaseTrustedFiller private activeTrustedFill;
-    address private activeBidder;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -189,6 +189,8 @@ contract Folio is
     }
 
     /// @dev Reentrancy guard check for consuming protocols
+    /// @dev Consuming protocols SHOULD call this function and ensure it returns false before
+    ///      strongly relying on the Folio state
     function reentrancyGuardEntered() external view returns (bool) {
         return _reentrancyGuardEntered();
     }
@@ -203,31 +205,18 @@ contract Folio is
         require(_addToBasket(address(token)), Folio__BasketModificationFailed());
     }
 
-    /// @dev Enables removal of tokens if balance is indistinguishable from dust
+    /// @dev Enables permissonless removal of tokens for 0 balance tokens
     /// @dev Made permissionless in 3.0.0
     function removeFromBasket(IERC20 token) external nonReentrant {
         _closeTrustedFill();
 
-        // D27{tok/share} = {tok} * D27 / {share}
-        uint256 basketPresence = Math.mulDiv(
-            IERC20(token).balanceOf(address(this)),
-            D27,
-            totalSupply(),
-            Math.Rounding.Ceil
-        );
-
-        require(basketPresence <= dustAmount[address(token)], Folio__BalanceNotDust());
-        require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
-    }
-
-    /// @dev Set dust amount, the presence in the basket below which loss is acceptable
-    /// @param newDustAmount D27{tok/share}
-    function setDustAmount(address token, uint256 newDustAmount) external {
+        // allow admin to remove from basket, or permissionlessly at 0 balance
+        // permissionless removal can be griefed by token donation
         require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || hasRole(AUCTION_APPROVER, msg.sender),
-            Folio__Unauthorized()
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || IERC20(token).balanceOf(address(this)) == 0,
+            Folio__BalanceNotRemovable()
         );
-        _setDustAmount(token, newDustAmount);
+        require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
     }
 
     /// An annual tvl fee below the DAO fee floor will result in the entirety of the fee being sent to the DAO
@@ -292,12 +281,7 @@ contract Folio is
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
         (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
 
-        // subtract activeTrustedFill's balance from totalSupply to always reflect appreciation
-        return
-            super.totalSupply() +
-            _daoPendingFeeShares +
-            _feeRecipientsPendingFeeShares -
-            balanceOf(address(activeTrustedFill));
+        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
     /// @return _assets
@@ -597,8 +581,6 @@ contract Folio is
         _closeTrustedFill();
         Auction storage auction = auctions[auctionId];
 
-        activeBidder = msg.sender;
-
         uint256 _totalSupply = totalSupply();
 
         // checks auction is ongoing and that sellAmount is below maxSellAmount
@@ -613,36 +595,13 @@ contract Folio is
             maxBuyAmount
         );
 
-        if (address(auction.buyToken) != address(this)) {
-            _addToBasket(address(auction.buyToken));
-        }
-
-        uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
+        _addToBasket(address(auction.buyToken));
 
         if (
-            AuctionLib.bid(
-                auction,
-                auctionDetails[auctionId],
-                dustAmount,
-                _totalSupply,
-                sellAmount,
-                boughtAmt,
-                withCallback,
-                data
-            )
+            AuctionLib.bid(auction, auctionDetails[auctionId], _totalSupply, sellAmount, boughtAmt, withCallback, data)
         ) {
             _removeFromBasket(address(auction.sellToken));
         }
-
-        require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= boughtAmt, Folio__InsufficientBid());
-
-        // burn any held Folio token
-        uint256 balanceOfSelf = balanceOf(address(this));
-        if (balanceOfSelf != 0) {
-            _burn(address(this), balanceOfSelf);
-        }
-
-        delete activeBidder;
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
@@ -678,10 +637,7 @@ contract Folio is
         filler.initialize(address(this), auction.sellToken, auction.buyToken, sellAmount, buyAmount);
         activeTrustedFill = filler;
 
-        if (address(auction.buyToken) != address(this)) {
-            _addToBasket(address(auction.buyToken));
-        }
-
+        _addToBasket(address(auction.buyToken));
         emit AuctionTrustedFillCreated(auctionId, address(filler));
     }
 
@@ -758,10 +714,7 @@ contract Folio is
         _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
 
         // {share}
-        uint256 supply = super.totalSupply() +
-            _daoPendingFeeShares +
-            _feeRecipientsPendingFeeShares -
-            balanceOf(address(activeTrustedFill));
+        uint256 supply = super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
 
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
             address(this)
@@ -869,12 +822,6 @@ contract Folio is
         emit AuctionLengthSet(auctionLength);
     }
 
-    /// @param newDustAmount D27{tok/share}
-    function _setDustAmount(address token, uint256 newDustAmount) internal {
-        dustAmount[token] = newDustAmount;
-        emit DustAmountSet(token, newDustAmount);
-    }
-
     function _setMandate(string memory _newMandate) internal {
         mandate = _newMandate;
         emit MandateSet(_newMandate);
@@ -929,25 +876,9 @@ contract Folio is
     }
 
     function _update(address from, address to, uint256 value) internal override {
-        super._update(from, to, value);
-
-        // ignore mints + burns
-        if (from == address(0) || to == address(0)) {
-            return;
-        }
-
         // prevent accidental donations
-        if (to == address(this)) {
-            require(
-                from == address(activeBidder) || from == address(activeTrustedFill),
-                Folio__InvalidTransferToSelf()
-            );
+        require(to != address(this), Folio__InvalidTransferToSelf());
 
-            // burn incoming transfers from activeTrustedFill
-            // incoming transfers from activeBidder are burnt by bid()
-            if (from == address(activeTrustedFill)) {
-                _burn(address(this), value);
-            }
-        }
+        super._update(from, to, value);
     }
 }
