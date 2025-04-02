@@ -21,6 +21,8 @@ import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
+import "forge-std/console.sol";
+
 /**
  * @title Folio
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
@@ -135,7 +137,7 @@ contract Folio is
     bool public trustedFillerEnabled;
     IBaseTrustedFiller private activeTrustedFill;
 
-    uint256 private inflation; // D27{1} cumulative inflation, from fees
+    uint256 private cumulativeInflation; // D27{1} cumulative inflation, from fees
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -279,9 +281,23 @@ contract Folio is
 
     // ==== Share + Asset Accounting ====
 
+    /// @return D27{1} The total cumulative inflation from fees
+    function inflation() public view returns (uint256) {
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares(block.timestamp);
+
+        uint256 baseSupply = super.totalSupply();
+        uint256 _totalSupply = baseSupply + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
+
+        // D27{1} = D27 * {share} / {share}
+        uint256 currentInflation = (D27 * _totalSupply) / baseSupply;
+
+        // D27{1} = D27{1} * D27{1} / D27
+        return cumulativeInflation != 0 ? (cumulativeInflation * currentInflation) / D27 : currentInflation;
+    }
+
     /// @dev Contains all pending fee shares
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares(block.timestamp);
 
         return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
@@ -394,7 +410,7 @@ contract Folio is
 
     /// @return {share} Up-to-date sum of DAO and fee recipients pending fee shares
     function getPendingFeeShares() public view returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares(block.timestamp);
         return _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
@@ -407,7 +423,8 @@ contract Folio is
         // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
 
         // === track inflation ===
-        inflation = _inflation(totalSupply());
+
+        cumulativeInflation = inflation();
 
         // === Fee recipients ===
 
@@ -457,11 +474,15 @@ contract Folio is
     ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
         Auction storage auction = auctions[auctionId];
 
+        if (timestamp == 0) {
+            timestamp = block.timestamp;
+        }
+
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (sellAmount, bidAmount, price) = AuctionLib.getBid(
             auction,
-            _adjustedTotalSupply(auctionDetails[auctionId]),
-            timestamp == 0 ? block.timestamp : timestamp,
+            _adjustedTotalSupply(auctionDetails[auctionId], timestamp),
+            timestamp,
             _balanceOfToken(auction.sellToken),
             _balanceOfToken(auction.buyToken),
             0,
@@ -497,7 +518,7 @@ contract Folio is
             buyToken: buyToken,
             ttl: ttl,
             runs: runs,
-            inflation: _inflation(totalSupply())
+            inflation: inflation()
         });
 
         auctionId = AuctionLib.approveAuction(
@@ -587,7 +608,7 @@ contract Folio is
         _closeTrustedFill();
         Auction storage auction = auctions[auctionId];
 
-        uint256 adjustedTotalSupply = _adjustedTotalSupply(auctionDetails[auctionId]);
+        uint256 adjustedTotalSupply = _adjustedTotalSupply(auctionDetails[auctionId], block.timestamp);
 
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (, boughtAmt, ) = AuctionLib.getBid(
@@ -635,7 +656,7 @@ contract Folio is
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (uint256 sellAmount, uint256 buyAmount, ) = AuctionLib.getBid(
             auction,
-            _adjustedTotalSupply(auctionDetails[auctionId]),
+            _adjustedTotalSupply(auctionDetails[auctionId], block.timestamp),
             block.timestamp,
             auction.sellToken.balanceOf(address(this)),
             auction.buyToken.balanceOf(address(this)),
@@ -675,32 +696,28 @@ contract Folio is
 
     // ==== Internal ====
 
-    /// @param _totalSupply {share} Current total supply, including pending fee shares
-    /// @return D27{1} The total cumulative inflation, from fees
-    function _inflation(uint256 _totalSupply) internal view returns (uint256) {
-        // {share}
-        uint256 supplyWithoutFees = _totalSupply - feeRecipientsPendingFeeShares - daoPendingFeeShares;
+    /// @return {share} Total supply adjusted downwards to account for inflation since details.initialInflation
+    function _adjustedTotalSupply(AuctionDetails storage details, uint256 timestamp) internal view returns (uint256) {
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares(timestamp);
+
+        uint256 baseSupply = super.totalSupply();
+        uint256 _totalSupply = baseSupply + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
 
         // D27{1} = D27 * {share} / {share}
-        uint256 newInflation = Math.mulDiv(D27, _totalSupply, supplyWithoutFees);
-        // TODO check rounding
+        uint256 _cumulativeInflation = (D27 * _totalSupply) / baseSupply;
 
-        // D27{1} = D27{1} * D27{1} / D27
-        return inflation != 0 ? (inflation * newInflation) / D27 : newInflation;
-        // TODO check rounding
-    }
-
-    /// @return {share} Total supply adjusted downwards to account for inflation since details.initialInflation
-    function _adjustedTotalSupply(AuctionDetails storage details) internal view returns (uint256) {
-        uint256 _totalSupply = totalSupply();
+        // add-in contribution from saved cumulative inflation if we have it
+        if (cumulativeInflation != 0) {
+            // D27{1} = D27{1} * D27{1} / D27
+            _cumulativeInflation = (_cumulativeInflation * cumulativeInflation) / D27;
+        }
 
         // D27{1} = D27 * D27{1} / D27{1}
-        uint256 inflationSince = (D27 * _inflation(_totalSupply)) / details.initialInflation;
-        // TODO check rounding
+        uint256 inflationSince = (D27 * _cumulativeInflation) / details.initialInflation;
 
         // {share} = D27 * {share} / D27{1}
-        return Math.mulDiv(D27, _totalSupply, inflationSince);
-        // TODO check rounding
+        return (D27 * _totalSupply) / inflationSince;
+        // TODO check rounding throughout
     }
 
     /// @param shares {share}
@@ -747,11 +764,18 @@ contract Folio is
 
     /// @return _daoPendingFeeShares {share}
     /// @return _feeRecipientsPendingFeeShares {share}
-    function _getPendingFeeShares()
-        internal
-        view
-        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares)
-    {
+    function _getPendingFeeShares(
+        uint256 timestamp
+    ) internal view returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) {
+        // TODO custom error for timestamp < lastPoke worth it?
+
+        // {s}
+        uint256 elapsed = timestamp - lastPoke;
+
+        if (elapsed == 0) {
+            return (daoPendingFeeShares, feeRecipientsPendingFeeShares);
+        }
+
         _daoPendingFeeShares = daoPendingFeeShares;
         _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
 
@@ -769,9 +793,6 @@ contract Folio is
 
         // D18{1/s}
         uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
-
-        // {s}
-        uint256 elapsed = block.timestamp - lastPoke;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
         uint256 feeShares = (supply * D18) / MathLib.powu(D18 - _tvlFee, elapsed) - supply;
@@ -877,7 +898,7 @@ contract Folio is
             return;
         }
 
-        (daoPendingFeeShares, feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+        (daoPendingFeeShares, feeRecipientsPendingFeeShares) = _getPendingFeeShares(block.timestamp);
         lastPoke = block.timestamp;
     }
 

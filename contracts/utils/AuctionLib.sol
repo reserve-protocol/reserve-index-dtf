@@ -257,6 +257,7 @@ library AuctionLib {
         // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
         uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
         sellAvailable = Math.min(sellAvailable, sellAvailableFromBuy);
+        require(sellAvailable != 0, IFolio.Folio__AuctionNotOngoing());
 
         // ensure auction is large enough to cover bid
         require(sellAvailable >= minSellAmount, IFolio.Folio__InsufficientBalance());

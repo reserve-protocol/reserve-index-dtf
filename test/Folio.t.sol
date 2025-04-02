@@ -1242,7 +1242,6 @@ contract FolioTest is BaseTest {
         vm.prank(address(mockBidder2));
         vm.expectEmit(true, false, false, true);
         emit IFolio.AuctionBid(0, amt / 2, amt / 2);
-        folio.bid(0, amt / 2, amt / 2, true, bytes(""));
         assertEq(USDT.balanceOf(address(mockBidder2)), 0, "wrong mock bidder2 balance");
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         vm.stopPrank();
@@ -2126,6 +2125,67 @@ contract FolioTest is BaseTest {
             folio.getBid(index, start, type(uint256).max);
             folio.getBid(index, end, type(uint256).max);
             vm.warp(end + 1);
+        }
+    }
+
+    function test_auctionLimitsStayConstantWhenNotDistributingFees() public {
+        // start auction
+        vm.prank(dao);
+        folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
+        vm.prank(auctionLauncher);
+        folio.openAuction(0, 1e15 / 2, 1.5e27, 1e39, 1e39);
+
+        // get initial amounts
+        (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
+        (uint256 initialSellAmount, uint256 initialBidAmount, ) = folio.getBid(0, start, type(uint256).max);
+        assertEq(initialSellAmount, USDC.balanceOf(address(folio)) / 2, "wrong initial sell amount");
+        assertEq(initialBidAmount, DAI.balanceOf(address(folio)) / 2, "wrong initial bid amount");
+
+        uint256 lastInflation = folio.inflation();
+        for (uint256 i = start + 1; i < end; i += 10) {
+            vm.warp(i);
+            vm.roll(block.number + 1);
+
+            // inflation should be increasing
+            uint256 newInflation = folio.inflation();
+            assertGt(newInflation, lastInflation, "inflation should monotonically increase");
+            lastInflation = newInflation;
+
+            // sellAmount and bidAmount should remain constant
+            (uint256 sellAmount, uint256 bidAmount, ) = folio.getBid(0, i, type(uint256).max);
+            assertEq(sellAmount, initialSellAmount, "wrong sell amount");
+            assertEq(bidAmount, initialBidAmount, "wrong bid amount");
+        }
+    }
+
+    function test_auctionLimitsStayConstantWhenDistributingFees() public {
+        // start auction
+        vm.prank(dao);
+        folio.approveAuction(USDC, DAI, FULL_SELL, FULL_BUY, ZERO_PRICES, MAX_TTL, 1);
+        vm.prank(auctionLauncher);
+        folio.openAuction(0, 1e15 / 2, 1.5e27, 1e39, 1e39);
+
+        // get initial amounts
+        (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
+        (uint256 initialSellAmount, uint256 initialBidAmount, ) = folio.getBid(0, start, type(uint256).max);
+        assertEq(initialSellAmount, USDC.balanceOf(address(folio)) / 2, "wrong initial sell amount");
+        assertEq(initialBidAmount, DAI.balanceOf(address(folio)) / 2, "wrong initial bid amount");
+
+        uint256 lastInflation = folio.inflation();
+        for (uint256 i = start + 1; i < end; i += 10) {
+            vm.warp(i);
+            vm.roll(block.number + 1);
+            folio.distributeFees();
+
+            // inflation should be increasing
+            uint256 newInflation = folio.inflation();
+            assertGt(newInflation, lastInflation, "inflation should monotonically increase");
+            lastInflation = newInflation;
+
+            // sellAmount and bidAmount should remain constant
+            (uint256 sellAmount, uint256 bidAmount, ) = folio.getBid(0, i, type(uint256).max);
+            assertEq(sellAmount, initialSellAmount, "wrong sell amount");
+            assertEq(bidAmount, initialBidAmount, "wrong bid amount");
         }
     }
 
