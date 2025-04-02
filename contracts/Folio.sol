@@ -280,7 +280,7 @@ contract Folio is
     // ==== Share + Asset Accounting ====
 
     /// @return _totalInflation D27{1} The total cumulative inflation from fees
-    function totalInflation() public view returns (uint256 _totalInflation) {
+    function totalInflation() external view returns (uint256 _totalInflation) {
         (_totalInflation, ) = _totalInflationAt(block.timestamp);
     }
 
@@ -413,7 +413,7 @@ contract Folio is
 
         // === track inflation ===
 
-        pastInflation = totalInflation();
+        (pastInflation, ) = _totalInflationAt(block.timestamp);
 
         // === Fee recipients ===
 
@@ -501,13 +501,15 @@ contract Folio is
         uint256 ttl,
         uint256 runs
     ) external nonReentrant onlyRole(AUCTION_APPROVER) notDeprecated returns (uint256 auctionId) {
+        (uint256 _totalInflation, ) = _totalInflationAt(block.timestamp);
+
         AuctionLib.ApproveAuctionParams memory approveAuctionParams = AuctionLib.ApproveAuctionParams({
             auctionDelay: auctionDelay,
             sellToken: sellToken,
             buyToken: buyToken,
             ttl: ttl,
             runs: runs,
-            inflation: totalInflation()
+            inflation: _totalInflation
         });
 
         auctionId = AuctionLib.approveAuction(
@@ -775,6 +777,7 @@ contract Folio is
         _feeRecipientsPendingFeeShares += feeShares - daoShares;
     }
 
+    /// @dev Added in 3.0.0: _totalInflation may not be for all time for upgraded Folios
     /// @return _totalInflation D27{1} The total cumulative inflation from fees at the given timestamp
     /// @return _totalSupply {share} The total supply of shares at the given timestamp
     function _totalInflationAt(
@@ -794,7 +797,7 @@ contract Folio is
         }
     }
 
-    /// @return {share} The total supply at a given timestamp, adjusted downwards for inflation since auction approval
+    /// @return {share} The total supply at a given timestamp, adjusted downwards for inflation
     function _adjustedTotalSupplyAt(AuctionDetails storage details, uint256 timestamp) internal view returns (uint256) {
         (uint256 _totalInflation, uint256 _totalSupply) = _totalInflationAt(timestamp);
 
