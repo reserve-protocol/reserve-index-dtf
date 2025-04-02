@@ -67,6 +67,9 @@ jobs:
 
       - name: Core Tests
         run: yarn test
+        env:
+          FORK_RPC_MAINNET: "https://eth-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMY_MAINNET_KEY }}"
+          FORK_RPC_BASE: "https://base-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMY_BASE_KEY }}"
 
   extreme:
     runs-on: ubuntu-latest
@@ -92,34 +95,6 @@ jobs:
 
       - name: Extreme Tests
         run: yarn test:extreme
-
-  fork:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: yarn
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: stable
-
-      - name: Install Dependencies
-        run: yarn --immutable
-
-      - name: Fork Tests
-        run: yarn test:fork
-        env:
-          FORK_RPC_MAINNET: "https://eth-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMY_MAINNET_KEY }}"
-          FORK_RPC_BASE: "https://base-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMY_BASE_KEY }}"
 
   rebalancing:
     runs-on: ubuntu-latest
