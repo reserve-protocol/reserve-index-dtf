@@ -83,10 +83,6 @@ Auctions have a time-to-live (TTL) that controls how long they can exist in an `
 
 Auctions can be repeated a specified number of times, up to a maximum of `availableRuns`.
 
-###### Dust Amounts
-
-Either the `DEFAULT_ADMIN_ROLE` or the `AUCTION_APPROVER` can set dust amounts on a per-token basis in terms of presence in the basket (`D27{tok/share}`). This allows the Folio to act to close auctions or remove tokens from the basket when the basket presence is within a small tolerance of the intended target.
-
 ###### Buy/Sell limits
 
 The `AUCTION_APPROVER` configures buy and sell limits for the basket ratios, including a spot estimate:
@@ -213,7 +209,7 @@ Some ERC20s are NOT supported
 | Missing return values          | ✅    | ✅           |
 | No revert on failure           | ✅    | ✅           |
 
-Note: While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible for a Folio configured with a reentrant ERC20 token. To check for reentrancy, call `poke()` or `toAssets()`. Other functions also check for reentrancy but may cost more gas.
+Note: While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible. To check for reentrancy, call `reentrancyGuardEntered()` and require that the return value is false. The (non-ERC20) Folio mutator calls are all `nonReentrant`, but for view functions this check is important to perform.
 
 ### Chain Assumptions
 

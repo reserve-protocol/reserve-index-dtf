@@ -32,6 +32,7 @@ library AuctionLib {
     ///     (once opened, it always finishes).
     ///     Must be >= auctionDelay if intended to be openly available
     ///     Set < auctionDelay to restrict launching to the AUCTION_LAUNCHER
+    /// @return auctionId The newly created auctionId
     function approveAuction(
         IFolio.Auction[] storage auctions,
         mapping(uint256 auctionId => IFolio.AuctionDetails) storage auctionDetails,
@@ -41,10 +42,12 @@ library AuctionLib {
         IFolio.BasketRange calldata sellLimit,
         IFolio.BasketRange calldata buyLimit,
         IFolio.Prices calldata prices
-    ) external {
+    ) external returns (uint256 auctionId) {
         require(
             address(params.sellToken) != address(0) &&
                 address(params.buyToken) != address(0) &&
+                address(params.sellToken) != address(this) &&
+                address(params.buyToken) != address(this) &&
                 address(params.sellToken) != address(params.buyToken),
             IFolio.Folio__InvalidAuctionTokens()
         );
@@ -81,7 +84,7 @@ library AuctionLib {
         sellEnds[address(params.sellToken)] = Math.max(sellEnds[address(params.sellToken)], launchDeadline);
         buyEnds[address(params.buyToken)] = Math.max(buyEnds[address(params.buyToken)], launchDeadline);
 
-        uint256 auctionId = auctions.length;
+        auctionId = auctions.length;
 
         IFolio.Auction memory auction = IFolio.Auction({
             id: auctionId,
@@ -167,7 +170,6 @@ library AuctionLib {
     function bid(
         IFolio.Auction storage auction,
         IFolio.AuctionDetails storage auctionDetails,
-        mapping(address token => uint256 amount) storage dustAmount,
         uint256 _totalSupply,
         uint256 sellAmount,
         uint256 bidAmount,
@@ -179,29 +181,30 @@ library AuctionLib {
 
         emit IFolio.AuctionBid(auction.id, sellAmount, bidAmount);
 
+        // {sellTok}
+        uint256 sellBal = auction.sellToken.balanceOf(address(this));
+
+        // remove sell token from basket at 0 balance
+        if (sellBal == 0) {
+            shouldRemoveFromBasket = true;
+        }
+
         // D27{sellTok/share} = {sellTok} * D27 / {share}
-        uint256 basketPresence = Math.mulDiv(
-            auction.sellToken.balanceOf(address(this)),
-            D27,
-            _totalSupply,
-            Math.Rounding.Ceil
-        );
+        uint256 basketPresence = Math.mulDiv(sellBal, D27, _totalSupply, Math.Rounding.Ceil);
 
-        // adjust basketPresence for dust
-        basketPresence = basketPresence > dustAmount[address(auction.sellToken)]
-            ? basketPresence - dustAmount[address(auction.sellToken)]
-            : 0;
-
-        // end auction when below sell limit
-        if (basketPresence <= auction.sellLimit.spot) {
+        // end auction at sell limit or just above, to account for CEIL rounding
+        // can still be griefed
+        // limits are often not reacheable due to precision + defensive roundings
+        if (basketPresence == auction.sellLimit.spot) {
             auction.endTime = block.timestamp - 1;
             auctionDetails.availableRuns = 0;
-
-            // remove sell token from basket at 0
-            if (basketPresence == 0) {
-                shouldRemoveFromBasket = true;
-            }
+        } else {
+            // if function is being used properly, should never reduce below sell limit
+            assert(basketPresence > auction.sellLimit.spot);
         }
+
+        // {buyTok}
+        uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
 
         // collect payment from bidder
         if (withCallback) {
@@ -209,6 +212,8 @@ library AuctionLib {
         } else {
             SafeERC20.safeTransferFrom(auction.buyToken, msg.sender, address(this), bidAmount);
         }
+
+        require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= bidAmount, IFolio.Folio__InsufficientBid());
     }
 
     /// Get bid parameters for an ongoing auction
