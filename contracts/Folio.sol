@@ -135,7 +135,7 @@ contract Folio is
     bool public trustedFillerEnabled;
     IBaseTrustedFiller private activeTrustedFill;
 
-    uint256 private cumulativeInflation; // D27{1} cumulative inflation, from fees
+    uint256 private pastInflation; // D27{1} cumulative past inflation from fees
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -280,17 +280,17 @@ contract Folio is
     // ==== Share + Asset Accounting ====
 
     /// @return D27{1} The total cumulative inflation from fees
-    function inflation() public view returns (uint256) {
+    function totalInflation() public view returns (uint256) {
         (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares(block.timestamp);
 
         uint256 baseSupply = super.totalSupply();
         uint256 _totalSupply = baseSupply + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
 
         // D27{1} = D27 * {share} / {share}
-        uint256 currentInflation = (D27 * _totalSupply) / baseSupply;
+        uint256 inflation = (D27 * _totalSupply) / baseSupply;
 
         // D27{1} = D27{1} * D27{1} / D27
-        return cumulativeInflation != 0 ? (cumulativeInflation * currentInflation) / D27 : currentInflation;
+        return pastInflation != 0 ? (pastInflation * inflation) / D27 : inflation;
     }
 
     /// @dev Contains all pending fee shares
@@ -422,7 +422,7 @@ contract Folio is
 
         // === track inflation ===
 
-        cumulativeInflation = inflation();
+        pastInflation = totalInflation();
 
         // === Fee recipients ===
 
@@ -516,7 +516,7 @@ contract Folio is
             buyToken: buyToken,
             ttl: ttl,
             runs: runs,
-            inflation: inflation()
+            inflation: totalInflation()
         });
 
         auctionId = AuctionLib.approveAuction(
@@ -702,19 +702,16 @@ contract Folio is
         uint256 _totalSupply = baseSupply + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
 
         // D27{1} = D27 * {share} / {share}
-        uint256 _cumulativeInflation = (D27 * _totalSupply) / baseSupply;
+        uint256 inflation = (D27 * _totalSupply) / baseSupply;
 
-        // add-in contribution from saved cumulative inflation if we have it
-        if (cumulativeInflation != 0) {
-            // D27{1} = D27{1} * D27{1} / D27
-            _cumulativeInflation = (_cumulativeInflation * cumulativeInflation) / D27;
-        }
+        // D27{1} = D27{1} * D27{1} / D27
+        uint256 _pastInflation = pastInflation != 0 ? (pastInflation * inflation) / D27 : inflation;
 
         // D27{1} = D27 * D27{1} / D27{1}
-        uint256 inflationSince = (D27 * _cumulativeInflation) / details.initialInflation;
+        uint256 _totalInflation = (D27 * _pastInflation) / details.initialInflation;
 
         // {share} = D27 * {share} / D27{1}
-        return (D27 * _totalSupply) / inflationSince;
+        return (D27 * _totalSupply) / _totalInflation;
         // TODO check rounding throughout
     }
 

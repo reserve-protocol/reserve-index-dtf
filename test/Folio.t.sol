@@ -2141,13 +2141,13 @@ contract FolioTest is BaseTest {
         assertEq(initialSellAmount, USDC.balanceOf(address(folio)) / 2, "wrong initial sell amount");
         assertEq(initialBidAmount, DAI.balanceOf(address(folio)) / 2, "wrong initial bid amount");
 
-        uint256 lastInflation = folio.inflation();
+        uint256 lastInflation = folio.totalInflation();
         for (uint256 i = start + 1; i < end; i += 10) {
             vm.warp(i);
             vm.roll(block.number + 1);
 
             // inflation should be increasing
-            uint256 newInflation = folio.inflation();
+            uint256 newInflation = folio.totalInflation();
             assertGt(newInflation, lastInflation, "inflation should monotonically increase");
             lastInflation = newInflation;
 
@@ -2171,14 +2171,14 @@ contract FolioTest is BaseTest {
         assertEq(initialSellAmount, USDC.balanceOf(address(folio)) / 2, "wrong initial sell amount");
         assertEq(initialBidAmount, DAI.balanceOf(address(folio)) / 2, "wrong initial bid amount");
 
-        uint256 lastInflation = folio.inflation();
+        uint256 lastInflation = folio.totalInflation();
         for (uint256 i = start + 1; i < end; i += 10) {
             vm.warp(i);
             vm.roll(block.number + 1);
             folio.distributeFees();
 
             // inflation should be increasing
-            uint256 newInflation = folio.inflation();
+            uint256 newInflation = folio.totalInflation();
             assertGt(newInflation, lastInflation, "inflation should monotonically increase");
             lastInflation = newInflation;
 
