@@ -13,6 +13,7 @@ uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
 uint256 constant RESTRICTED_AUCTION_BUFFER = 120; // {s} 2 min
 
 uint256 constant ONE_OVER_YEAR = 31709791983; // D18{1/s} 1e18 / 31536000
+uint256 constant ONE_DAY = 24 hours; // {s} 1 day
 
 uint256 constant D18 = 1e18; // D18
 uint256 constant D27 = 1e27; // D27

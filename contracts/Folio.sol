@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { AuctionLib } from "@utils/AuctionLib.sol";
-import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR } from "@utils/Constants.sol";
+import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -205,12 +205,12 @@ contract Folio is
         require(_addToBasket(address(token)), Folio__BasketModificationFailed());
     }
 
-    /// @dev Enables permissonless removal of tokens for 0 balance tokens
+    /// @dev Enables permissionless removal of tokens for 0 balance tokens
     /// @dev Made permissionless in 3.0.0
     function removeFromBasket(IERC20 token) external nonReentrant {
         _closeTrustedFill();
 
-        // allow admin to remove from basket, or permissionlessly at 0 balance
+        // allow admin to remove from basket, or permissionless at 0 balance
         // permissionless removal can be griefed by token donation
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || IERC20(token).balanceOf(address(this)) == 0,
@@ -278,10 +278,15 @@ contract Folio is
     // ==== Share + Asset Accounting ====
 
     /// @dev Contains all pending fee shares
-    function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+    function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256 supply) {
+        supply = super.totalSupply();
 
-        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
+        if (lastPoke + ONE_DAY > block.timestamp) {
+            (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+
+            // {share} = {share} + {share}
+            supply += _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
+        }
     }
 
     /// @return _assets
@@ -401,35 +406,6 @@ contract Folio is
     /// @dev Pending fee shares are already reflected in the total supply, this function only concretizes balances
     function distributeFees() public nonReentrant {
         _poke();
-        // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
-
-        // === Fee recipients ===
-
-        uint256 _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
-        feeRecipientsPendingFeeShares = 0;
-        uint256 feeRecipientsTotal;
-
-        uint256 len = feeRecipients.length;
-        for (uint256 i; i < len; i++) {
-            // {share} = {share} * D18{1} / D18
-            uint256 shares = (_feeRecipientsPendingFeeShares * feeRecipients[i].portion) / D18;
-            feeRecipientsTotal += shares;
-
-            _mint(feeRecipients[i].recipient, shares);
-
-            emit FolioFeePaid(feeRecipients[i].recipient, shares);
-        }
-
-        // === DAO ===
-
-        // {share}
-        uint256 daoShares = daoPendingFeeShares + _feeRecipientsPendingFeeShares - feeRecipientsTotal;
-
-        (address daoRecipient, , , ) = daoFeeRegistry.getFeeDetails(address(this));
-        _mint(daoRecipient, daoShares);
-        emit ProtocolFeePaid(daoRecipient, daoShares);
-
-        daoPendingFeeShares = 0;
     }
 
     // ==== Auctions ====
@@ -831,11 +807,37 @@ contract Folio is
     function _poke() internal {
         _closeTrustedFill();
 
-        if (lastPoke == block.timestamp) {
-            return;
+        if (lastPoke + ONE_DAY > block.timestamp) {
+            return; // No need to update too fast.
         }
 
-        (daoPendingFeeShares, feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+
+        // === Fee Recipients ===
+        uint256 feeRecipientsTotal;
+
+        uint256 len = feeRecipients.length;
+        for (uint256 i; i < len; i++) {
+            // {share} = {share} * D18{1} / D18
+            uint256 shares = (_feeRecipientsPendingFeeShares * feeRecipients[i].portion) / D18;
+
+            feeRecipientsTotal += shares;
+
+            _mint(feeRecipients[i].recipient, shares);
+            emit FolioFeePaid(feeRecipients[i].recipient, shares);
+        }
+
+        // === DAO ===
+
+        // {share}
+        uint256 daoShares = _daoPendingFeeShares + _feeRecipientsPendingFeeShares - feeRecipientsTotal;
+
+        (address daoRecipient, , , ) = daoFeeRegistry.getFeeDetails(address(this));
+        _mint(daoRecipient, daoShares);
+        emit ProtocolFeePaid(daoRecipient, daoShares);
+
+        daoPendingFeeShares = 0;
+        feeRecipientsPendingFeeShares = 0;
         lastPoke = block.timestamp;
     }
 
