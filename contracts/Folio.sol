@@ -21,8 +21,6 @@ import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
-import "forge-std/console.sol";
-
 /**
  * @title Folio
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
