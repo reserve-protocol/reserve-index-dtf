@@ -45,7 +45,7 @@ describe("getAuctions()", () => {
     const error = [0.01, 0.01, 0.01];
     const auctions = getAuctions(supply, tokens, decimals, currentBasket, targetBasket, prices, error, 1);
     expect(auctions.length).toBe(2);
-    expectAuctionApprox(auctions[0], "USDC", "DAI", bn("0"), bn("1e54"), bn("1.01e39"), bn("0.99e39"));
+    expectAuctionApprox(auctions[0], "USDC", "DAI", bn("0"), bn("5e26"), bn("1.01e39"), bn("0.99e39"));
     expectAuctionApprox(auctions[1], "USDC", "USDT", bn("0"), bn("1e54"), bn("1.01e27"), bn("0.99e27"));
   });
   it("join: [0%, 50%, 50%] => [100%, 0%, 0%]", () => {

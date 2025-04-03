@@ -30,6 +30,8 @@ export const openAuction = (
   _priceError: number[],
   _dtfPrice: number,
 ): [bigint, bigint, bigint, bigint] => {
+  console.log("openAuction()", auction, _supply, tokens, decimals, _targetBasket, _prices, _priceError, _dtfPrice);
+
   // convert price number inputs to bigints
 
   // {USD/wholeTok}

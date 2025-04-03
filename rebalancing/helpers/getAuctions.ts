@@ -33,6 +33,19 @@ export const getAuctions = (
   _dtfPrice: number,
   _tolerance: bigint = 10n ** 14n, // 0.01%
 ): Auction[] => {
+  console.log(
+    "getAuctions()",
+    _supply,
+    tokens,
+    decimals,
+    _currentBasket,
+    _targetBasket,
+    _prices,
+    _priceError,
+    _dtfPrice,
+    _tolerance,
+  );
+
   const auctions: Auction[] = [];
 
   // convert price number inputs to bigints
@@ -106,6 +119,8 @@ export const getAuctions = (
 
     // {USD}
     const maxAuction = biggestDeficit.lt(biggestSurplus) ? biggestDeficit : biggestSurplus;
+    console.log("biggestSurplus", biggestSurplus);
+    console.log("biggestDeficit", biggestDeficit);
 
     // {1} = {USD} / {USD}
     const backingAuctioned = maxAuction.div(sharesValue);
@@ -152,7 +167,10 @@ export const getAuctions = (
     if (bnSellLimit >= 10n ** 54n || bnBuyLimit == 0n) {
       throw new Error("invalid limits");
     }
-    if (bnSellLimit == 0n || bnBuyLimit >= 10n ** 54n) {
+    if (bnBuyLimit >= 10n ** 54n) {
+      bnBuyLimit = 10n ** 54n;
+    }
+    if (bnSellLimit == 0n && biggestSurplus >= biggestDeficit) {
       bnBuyLimit = 10n ** 54n;
     }
 

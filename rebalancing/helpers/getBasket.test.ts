@@ -21,7 +21,7 @@ describe("getBasket()", () => {
   it("split: [100%, 0%, 0%] => [0%, 50%, 50%]", () => {
     const auctions: Auction[] = [];
     auctions.push(makeAuction("USDC", "DAI", bn("0"), bn("5e26"), bn("1.01e39"), bn("0.99e39")));
-    auctions.push(makeAuction("USDC", "USDT", bn("0"), bn("5e14"), bn("1.01e27"), bn("0.99e27")));
+    auctions.push(makeAuction("USDC", "USDT", bn("0"), bn("1e54"), bn("1.01e27"), bn("0.99e27")));
 
     const tokens = ["USDC", "DAI", "USDT"];
     const decimals = [bn("6"), bn("18"), bn("6")];
@@ -35,8 +35,8 @@ describe("getBasket()", () => {
   });
   it("join: [0%, 50%, 50%] => [100%, 0%, 0%]", () => {
     const auctions: Auction[] = [];
-    auctions.push(makeAuction("USDT", "USDC", bn("0"), bn("1e15"), bn("1.01e27"), bn("0.99e27")));
-    auctions.push(makeAuction("DAI", "USDC", bn("0"), bn("1e15"), bn("1.01e15"), bn("0.99e15")));
+    auctions.push(makeAuction("USDT", "USDC", bn("0"), bn("1e54"), bn("1.01e27"), bn("0.99e27")));
+    auctions.push(makeAuction("DAI", "USDC", bn("0"), bn("1e54"), bn("1.01e15"), bn("0.99e15")));
 
     const tokens = ["USDC", "DAI", "USDT"];
     const decimals = [bn("6"), bn("18"), bn("6")];

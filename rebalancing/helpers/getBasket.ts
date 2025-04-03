@@ -1,7 +1,7 @@
 import { Decimal } from "decimal.js";
 
 import { Auction } from "../types";
-import { bn, D18d, D27d, ZERO } from "../numbers";
+import { bn, D18d, D27d, ZERO, ONE } from "../numbers";
 
 /**
  * Get basket from a set of auctions
@@ -25,6 +25,8 @@ export const getBasket = (
   _prices: number[],
   _dtfPrice: number,
 ): bigint[] => {
+  console.log("getBasket()", _supply, auctions, tokens, decimals, _currentBasket, _prices, _dtfPrice);
+
   // {wholeShare}
   const supply = new Decimal(_supply.toString()).div(D18d);
 
@@ -43,6 +45,8 @@ export const getBasket = (
   const sharesValue = dtfPrice.mul(supply);
 
   console.log("sharesValue", sharesValue);
+
+  let totalAccounted = ZERO;
 
   // process the smallest auction first until we hit an unbounded auctiond
 
@@ -72,13 +76,22 @@ export const getBasket = (
 
       console.log("sellTarget", sellTarget, currentBasket[x]);
       console.log("buyTarget", buyTarget, currentBasket[y]);
+      console.log("buyLimit", auctions[i].buyLimit.spot);
 
       // {USD} = {1} * {USD}
       let surplus = currentBasket[x].gt(sellTarget) ? currentBasket[x].minus(sellTarget).mul(sharesValue) : ZERO;
-      const deficit = currentBasket[y].lt(buyTarget) ? buyTarget.minus(currentBasket[y]).mul(sharesValue) : ZERO;
-      const auctionValue = surplus.gt(deficit) ? deficit : surplus;
+      let auctionValue = surplus;
+
+      if (auctions[i].buyLimit.spot < 10n ** 54n) {
+        const deficit = currentBasket[y].lt(buyTarget) ? buyTarget.minus(currentBasket[y]).mul(sharesValue) : ZERO;
+        console.log("buyLimit.spot", auctions[i].buyLimit.spot);
+        console.log("surplus", surplus);
+        console.log("deficit", deficit);
+        auctionValue = surplus.gt(deficit) ? deficit : surplus;
+      }
 
       if (auctionValue.gt(ZERO) && auctionValue.lt(smallestSwap)) {
+        console.log("auctionValue", auctionValue);
         smallestSwap = auctionValue;
         auctionIndex = i;
       }
@@ -100,9 +113,17 @@ export const getBasket = (
       );
     }
 
-    // {1} = {USD} / {USD}
-    const backingAuctioned = smallestSwap.div(sharesValue);
+    console.log("smallestSwap", smallestSwap);
 
+    // {1} = {USD} / {USD}
+    let backingAuctioned = smallestSwap.div(sharesValue);
+
+    if (totalAccounted.plus(backingAuctioned).gte(ONE)) {
+      backingAuctioned = ONE.sub(totalAccounted);
+      totalAccounted = ONE;
+    } else {
+      totalAccounted = totalAccounted.plus(backingAuctioned);
+    }
     console.log("backingAuctioned", backingAuctioned, smallestSwap, sharesValue);
 
     // {1}
