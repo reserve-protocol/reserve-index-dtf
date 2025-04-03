@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TVL_FEE, MAX_MINT_FEE } from "contracts/Folio.sol";
+import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_MINT_FEE } from "contracts/Folio.sol";
 import { FolioDeployer, IFolioDeployer } from "@deployer/FolioDeployer.sol";
 import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
@@ -40,7 +40,6 @@ contract FolioDeployerTest is BaseTest {
             tokens,
             amounts,
             INITIAL_SUPPLY,
-            MAX_AUCTION_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
             MAX_TVL_FEE,
@@ -99,7 +98,6 @@ contract FolioDeployerTest is BaseTest {
             tokens,
             amounts,
             INITIAL_SUPPLY,
-            MAX_AUCTION_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
             MAX_TVL_FEE,
@@ -120,19 +118,7 @@ contract FolioDeployerTest is BaseTest {
 
         vm.startPrank(owner);
         vm.expectRevert(IFolio.Folio__EmptyAssets.selector);
-        createFolio(
-            tokens,
-            amounts,
-            1,
-            MAX_AUCTION_DELAY,
-            MAX_AUCTION_LENGTH,
-            recipients,
-            MAX_TVL_FEE,
-            0,
-            owner,
-            dao,
-            auctionLauncher
-        );
+        createFolio(tokens, amounts, 1, MAX_AUCTION_LENGTH, recipients, MAX_TVL_FEE, 0, owner, dao, auctionLauncher);
         vm.stopPrank();
     }
 
@@ -154,7 +140,6 @@ contract FolioDeployerTest is BaseTest {
             tokens,
             amounts,
             INITIAL_SUPPLY,
-            MAX_AUCTION_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
             MAX_TVL_FEE,
@@ -184,7 +169,6 @@ contract FolioDeployerTest is BaseTest {
             tokens,
             amounts,
             INITIAL_SUPPLY,
-            MAX_AUCTION_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
             MAX_TVL_FEE,
@@ -211,7 +195,6 @@ contract FolioDeployerTest is BaseTest {
             tokens,
             amounts,
             INITIAL_SUPPLY,
-            MAX_AUCTION_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
             100,
@@ -231,7 +214,6 @@ contract FolioDeployerTest is BaseTest {
             tokens,
             amounts,
             INITIAL_SUPPLY,
-            MAX_AUCTION_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
             MAX_TVL_FEE,
@@ -256,26 +238,13 @@ contract FolioDeployerTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector); // below min
-        createFolio(
-            tokens,
-            amounts,
-            INITIAL_SUPPLY,
-            MAX_AUCTION_DELAY,
-            1,
-            recipients,
-            MAX_TVL_FEE,
-            0,
-            owner,
-            dao,
-            auctionLauncher
-        );
+        createFolio(tokens, amounts, INITIAL_SUPPLY, 1, recipients, MAX_TVL_FEE, 0, owner, dao, auctionLauncher);
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector); // above max
         createFolio(
             tokens,
             amounts,
             INITIAL_SUPPLY,
-            MAX_AUCTION_DELAY,
             MAX_AUCTION_LENGTH + 1,
             recipients,
             MAX_TVL_FEE,
@@ -305,7 +274,6 @@ contract FolioDeployerTest is BaseTest {
             tokens,
             amounts,
             INITIAL_SUPPLY,
-            MAX_AUCTION_DELAY + 1,
             MAX_AUCTION_LENGTH,
             recipients,
             MAX_TVL_FEE,
@@ -372,7 +340,6 @@ contract FolioDeployerTest is BaseTest {
                     initialShares: INITIAL_SUPPLY
                 }),
                 IFolio.FolioAdditionalDetails({
-                    auctionDelay: MAX_AUCTION_DELAY,
                     auctionLength: MAX_AUCTION_LENGTH,
                     feeRecipients: recipients,
                     tvlFee: MAX_TVL_FEE,
@@ -536,7 +503,6 @@ contract FolioDeployerTest is BaseTest {
                 initialShares: INITIAL_SUPPLY
             }),
             IFolio.FolioAdditionalDetails({
-                auctionDelay: MAX_AUCTION_DELAY,
                 auctionLength: MAX_AUCTION_LENGTH,
                 feeRecipients: recipients,
                 tvlFee: MAX_TVL_FEE,
@@ -655,7 +621,6 @@ contract FolioDeployerTest is BaseTest {
                     initialShares: INITIAL_SUPPLY
                 }),
                 IFolio.FolioAdditionalDetails({
-                    auctionDelay: MAX_AUCTION_DELAY,
                     auctionLength: MAX_AUCTION_LENGTH,
                     feeRecipients: recipients,
                     tvlFee: MAX_TVL_FEE,

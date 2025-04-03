@@ -189,7 +189,6 @@ abstract contract BaseTest is Script, Test {
         address[] memory _assets,
         uint256[] memory _amounts,
         uint256 _initialShares,
-        uint256 _auctionDelay,
         uint256 _auctionLength,
         IFolio.FeeRecipient[] memory _feeRecipients,
         uint256 _tvlFee,
@@ -207,7 +206,6 @@ abstract contract BaseTest is Script, Test {
         });
 
         IFolio.FolioAdditionalDetails memory _additionalDetails = IFolio.FolioAdditionalDetails({
-            auctionDelay: _auctionDelay,
             auctionLength: _auctionLength,
             feeRecipients: _feeRecipients,
             tvlFee: _tvlFee,
