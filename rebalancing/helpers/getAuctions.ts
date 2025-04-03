@@ -133,25 +133,36 @@ export const getAuctions = (
     const startPrice = avgPriceError.eq(ONE) ? ZERO : price.div(ONE.minus(avgPriceError));
     const endPrice = avgPriceError.eq(ONE) ? ZERO : price.mul(ONE.minus(avgPriceError));
 
+    // D27{tok/share} = {wholeTok/wholeShare} * D27 * {tok/wholeTok} / {share/wholeShare}
+    let bnSellLimit = bn(
+      sellLimit
+        .mul(D27d)
+        .mul(new Decimal(`1e${decimals[x]}`))
+        .div(D18d),
+    );
+
+    // D27{tok/share} = {wholeTok/wholeShare} * D27 * {tok/wholeTok} / {share/wholeShare}
+    let bnBuyLimit = bn(
+      buyLimit
+        .mul(D27d)
+        .mul(new Decimal(`1e${decimals[y]}`))
+        .div(D18d),
+    );
+
+    if (bnSellLimit >= 10n ** 54n || bnBuyLimit == 0n) {
+      throw new Error("invalid limits");
+    }
+    if (bnSellLimit == 0n || bnBuyLimit >= 10n ** 54n) {
+      bnBuyLimit = 10n ** 54n;
+    }
+
     // add auction into set
     auctions.push(
       makeAuction(
         tokens[x],
         tokens[y],
-        // D27{tok/share} = {wholeTok/wholeShare} * D27 * {tok/wholeTok} / {share/wholeShare}
-        bn(
-          sellLimit
-            .mul(D27d)
-            .mul(new Decimal(`1e${decimals[x]}`))
-            .div(D18d),
-        ),
-        // D27{tok/share} = {wholeTok/wholeShare} * D27 * {tok/wholeTok} / {share/wholeShare}
-        bn(
-          buyLimit
-            .mul(D27d)
-            .mul(new Decimal(`1e${decimals[y]}`))
-            .div(D18d),
-        ),
+        bnSellLimit,
+        bnBuyLimit,
         // D27{buyTok/sellTok} = {USD/wholeSellTok} / {USD/wholeBuyTok} * D27 * {buyTok/wholeBuyTok} / {sellTok/wholeSellTok}
         bn(
           startPrice
