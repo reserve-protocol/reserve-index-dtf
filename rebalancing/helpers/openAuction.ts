@@ -102,30 +102,35 @@ export const openAuction = (
   const wholeBuyLimit = targetBasket[y].mul(sharesValue).div(prices[y]).div(supply);
 
   // D27{tok/share} = {wholeTok/wholeShare} * D27 * {tok/wholeTok} / {share/wholeShare}
-  const sellLimit = bn(
+  let sellLimit = bn(
     wholeSellLimit
       .mul(D27d)
       .mul(new Decimal(`1e${decimals[x]}`))
       .div(D18d),
   );
 
-  const buyLimit = bn(
+  let buyLimit = bn(
     wholeBuyLimit
       .mul(D27d)
       .mul(new Decimal(`1e${decimals[y]}`))
       .div(D18d),
   );
 
-  if (
-    sellLimit > auction.sellLimit.high ||
-    sellLimit < auction.sellLimit.low ||
-    buyLimit > auction.buyLimit.high ||
-    buyLimit < auction.buyLimit.low
-  ) {
-    console.log("sellLimit", sellLimit, auction.sellLimit.high, auction.sellLimit.low);
-    console.log("buyLimit", buyLimit, auction.buyLimit.high, auction.buyLimit.low);
-    throw new Error("sellLimit/buyLimit has deviated too much and is not in range");
+  if (sellLimit < auction.sellLimit.low) {
+    sellLimit = auction.sellLimit.low;
   }
+  if (sellLimit > auction.sellLimit.high) {
+    sellLimit = auction.sellLimit.high;
+  }
+  if (buyLimit < auction.buyLimit.low) {
+    buyLimit = auction.buyLimit.low;
+  }
+  if (buyLimit > auction.buyLimit.high) {
+    buyLimit = auction.buyLimit.high;
+  }
+
+  console.log("sellLimit", sellLimit, auction.sellLimit.high, auction.sellLimit.low);
+  console.log("buyLimit", buyLimit, auction.buyLimit.high, auction.buyLimit.low);
 
   return [sellLimit, buyLimit, idealStartPrice, idealEndPrice];
 };
