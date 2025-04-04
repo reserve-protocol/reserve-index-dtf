@@ -8,67 +8,10 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
-import { D18, D27, MAX_RATE, MAX_PRICE_RANGE, MAX_TTL } from "@utils/Constants.sol";
+import { D18, D27 } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 
 library AuctionLib {
-    /// Bid in an ongoing auction
-    ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
-    ///   If withCallback is false, caller must have provided an allowance in advance
-    /// @dev Callable by anyone
-    /// @param sellAmount {sellTok} Sell amount as returned by getBid
-    /// @param bidAmount {buyTok} Bid amount as returned by getBid
-    /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
-    /// @param data Arbitrary data to pass to the callback
-    /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after
-    function bid(
-        IFolio.Auction storage auction,
-        uint256 auctionId,
-        uint256 totalSupply,
-        uint256 sellAmount,
-        uint256 bidAmount,
-        bool withCallback,
-        bytes calldata data
-    ) external returns (bool shouldRemoveFromBasket) {
-        // pay bidder
-        SafeERC20.safeTransfer(auction.sellToken, msg.sender, sellAmount);
-
-        emit IFolio.AuctionBid(auctionId, sellAmount, bidAmount);
-
-        // {sellTok}
-        uint256 sellBal = auction.sellToken.balanceOf(address(this));
-
-        // remove sell token from basket at 0 balance
-        if (sellBal == 0) {
-            shouldRemoveFromBasket = true;
-        }
-
-        // D27{sellTok/share} = {sellTok} * D27 / {share}
-        uint256 basketPresence = Math.mulDiv(sellBal, D27, totalSupply, Math.Rounding.Ceil);
-
-        // end auction at sell limit or just above, to account for CEIL rounding
-        // can still be griefed
-        // limits are often not reacheable due to precision + defensive roundings
-        if (basketPresence == auction.sellLimit) {
-            auction.endTime = block.timestamp - 1;
-        } else {
-            // if function is being used properly, should never reduce below sell limit
-            assert(basketPresence > auction.sellLimit);
-        }
-
-        // {buyTok}
-        uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
-
-        // collect payment from bidder
-        if (withCallback) {
-            IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), bidAmount, data);
-        } else {
-            SafeERC20.safeTransferFrom(auction.buyToken, msg.sender, address(this), bidAmount);
-        }
-
-        require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= bidAmount, IFolio.Folio__InsufficientBid());
-    }
-
     /// Get bid parameters for an ongoing auction
     /// @param totalSupply {share} Current total supply of the Folio
     /// @param timestamp {s} Timestamp to fetch bid for
@@ -117,6 +60,60 @@ library AuctionLib {
         // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
         bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
         require(bidAmount != 0 && bidAmount <= maxBuyAmount, IFolio.Folio__SlippageExceeded());
+    }
+
+    /// Bid in an ongoing auction
+    ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
+    ///   If withCallback is false, caller must have provided an allowance in advance
+    /// @dev Callable by anyone
+    /// @param sellAmount {sellTok} Sell amount as returned by getBid
+    /// @param bidAmount {buyTok} Bid amount as returned by getBid
+    /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
+    /// @param data Arbitrary data to pass to the callback
+    /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after
+    function bid(
+        IFolio.Auction storage auction,
+        mapping(bytes32 pair => uint256 endTime) storage auctionEnds,
+        uint256 totalSupply,
+        uint256 sellAmount,
+        uint256 bidAmount,
+        bool withCallback,
+        bytes calldata data
+    ) external returns (bool shouldRemoveFromBasket) {
+        // pay bidder
+        SafeERC20.safeTransfer(auction.sellToken, msg.sender, sellAmount);
+
+        // {sellTok}
+        uint256 sellBal = auction.sellToken.balanceOf(address(this));
+
+        // remove sell token from basket at 0 balance
+        if (sellBal == 0) {
+            shouldRemoveFromBasket = true;
+        }
+
+        // D27{sellTok/share} = {sellTok} * D27 / {share}
+        uint256 basketPresence = Math.mulDiv(sellBal, D27, totalSupply, Math.Rounding.Ceil);
+        assert(basketPresence >= auction.sellLimit); // function-use invariant
+
+        // end auction at sell limit
+        // can still be griefed
+        // limits may not be reacheable due to limited precision + defensive roundings
+        if (basketPresence == auction.sellLimit) {
+            auction.endTime = block.timestamp - 1;
+            auctionEnds[keccak256(abi.encode(auction.sellToken, auction.buyToken))] = block.timestamp - 1;
+        }
+
+        // {buyTok}
+        uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
+
+        // collect payment from bidder
+        if (withCallback) {
+            IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), bidAmount, data);
+        } else {
+            SafeERC20.safeTransferFrom(auction.buyToken, msg.sender, address(this), bidAmount);
+        }
+
+        require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= bidAmount, IFolio.Folio__InsufficientBid());
     }
 
     // ==== Internal ====

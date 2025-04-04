@@ -140,7 +140,7 @@ contract Folio is
      *   - All auctions are dutch auctions with an exponential decay curve, but startPrice can equal endPrice
      */
     mapping(uint256 id => Auction auction) public auctions;
-    mapping(bytes32 pairHash => uint256 endTime) public auctionEnds;
+    mapping(bytes32 pair => uint256 endTime) public auctionEnds;
     uint256 public nextAuctionId;
 
     Rebalance public rebalance;
@@ -476,7 +476,7 @@ contract Folio is
 
     // ==== Auctions ====
 
-    /// Open an auction between two tokens as the AUCTION_LAUNCHER
+    /// Open an auction between two tokens as the AUCTION_LAUNCHER, with specific limits and prices
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
     /// @param startPrice D27{buyTok/sellTok} 1e54 max
@@ -496,11 +496,13 @@ contract Folio is
         //   - raise starting price by up to 100x
         //   - raise ending price arbitrarily (can cause auction not to clear, same as closing auction)
 
+        Prices storage sellPrices = rebalance.prices[address(sellToken)];
+        Prices storage buyPrices = rebalance.prices[address(buyToken)];
+
         // check prices
         // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
-        uint256 _startPrice = (D27 * rebalance.prices[address(buyToken)].low) /
-            rebalance.prices[address(sellToken)].high;
-        uint256 _endPrice = (D27 * rebalance.prices[address(buyToken)].high) / rebalance.prices[address(sellToken)].low;
+        uint256 _startPrice = (D27 * buyPrices.low) / sellPrices.high;
+        uint256 _endPrice = (D27 * buyPrices.high) / sellPrices.low;
 
         require(
             startPrice >= _startPrice && endPrice >= _endPrice && (_startPrice == 0 || startPrice <= 100 * _startPrice),
@@ -523,7 +525,7 @@ contract Folio is
         rebalance.weights[address(sellToken)].spot = sellLimit;
         rebalance.weights[address(buyToken)].spot = buyLimit;
 
-        return _openAuction(sellToken, buyToken, sellLimit, buyLimit, startPrice, endPrice);
+        return _openAuction(sellToken, buyToken, sellLimit, buyLimit, startPrice, endPrice, 0);
     }
 
     /// Open an auction between two tokens (without calling restriction)
@@ -532,11 +534,13 @@ contract Folio is
         IERC20 sellToken,
         IERC20 buyToken
     ) external nonReentrant notDeprecated returns (uint256) {
+        Prices storage sellPrices = rebalance.prices[address(sellToken)];
+        Prices storage buyPrices = rebalance.prices[address(buyToken)];
+
         // check prices
         // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
-        uint256 startPrice = (D27 * rebalance.prices[address(buyToken)].low) /
-            rebalance.prices[address(sellToken)].high;
-        uint256 endPrice = (D27 * rebalance.prices[address(buyToken)].high) / rebalance.prices[address(sellToken)].low;
+        uint256 startPrice = (D27 * buyPrices.low) / sellPrices.high;
+        uint256 endPrice = (D27 * buyPrices.high) / sellPrices.low;
 
         // use spot limits + full price range without modification
         return
@@ -546,7 +550,8 @@ contract Folio is
                 rebalance.weights[address(sellToken)].spot,
                 rebalance.weights[address(buyToken)].spot,
                 startPrice,
-                endPrice
+                endPrice,
+                RESTRICTED_AUCTION_BUFFER
             );
     }
 
@@ -609,9 +614,10 @@ contract Folio is
             maxBuyAmount
         );
 
-        if (AuctionLib.bid(auction, auctionId, _totalSupply, sellAmount, boughtAmt, withCallback, data)) {
+        if (AuctionLib.bid(auction, auctionEnds, _totalSupply, sellAmount, boughtAmt, withCallback, data)) {
             _removeFromBasket(address(auction.sellToken));
         }
+        emit AuctionBid(auctionId, sellAmount, boughtAmt);
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
@@ -662,17 +668,17 @@ contract Folio is
             Folio__Unauthorized()
         );
 
-        bytes32 pairHash = _pairHash(address(auctions[auctionId].sellToken), address(auctions[auctionId].buyToken));
+        bytes32 pair = _pair(address(auctions[auctionId].sellToken), address(auctions[auctionId].buyToken));
 
         // do not revert, to prevent griefing
         auctions[auctionId].endTime = block.timestamp - 1;
-        auctionEnds[pairHash] = block.timestamp - 1;
+        auctionEnds[pair] = block.timestamp - 1;
         emit AuctionClosed(auctionId);
     }
 
-    /// End the current rebalance
-    /// Currently running auctions are allowed to finish
+    /// End the current rebalance, including all ongoing auctions
     /// @dev Callable by ADMIN or BASKET_MANAGER or AUCTION_LAUNCHER
+    /// @dev Still have to wait out auctionEnds after
     function endRebalance() external nonReentrant {
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
@@ -730,6 +736,11 @@ contract Folio is
         }
     }
 
+    /// @return pair The hash of the pair
+    function _pair(address sellToken, address buyToken) internal pure returns (bytes32) {
+        return keccak256(abi.encode(sellToken, buyToken));
+    }
+
     /// @return _daoPendingFeeShares {share}
     /// @return _feeRecipientsPendingFeeShares {share}
     function _getPendingFeeShares()
@@ -780,21 +791,22 @@ contract Folio is
         uint256 sellLimit,
         uint256 buyLimit,
         uint256 startPrice,
-        uint256 endPrice
+        uint256 endPrice,
+        uint256 auctionBuffer
     ) internal returns (uint256 auctionId) {
-        bytes32 pairHash = _pairHash(address(sellToken), address(buyToken));
+        bytes32 pair = _pair(address(sellToken), address(buyToken));
 
         require(
             basket.contains(address(sellToken)) && basket.contains(address(buyToken)),
             Folio__InvalidAuctionTokens()
         );
 
-        require(block.timestamp < rebalance.availableUntil, Folio__RebalanceOver());
+        require(block.timestamp < rebalance.availableUntil, Folio__NotRebalancing());
 
-        require(block.timestamp > auctionEnds[pairHash], Folio__AuctionCollision());
+        require(block.timestamp > auctionEnds[pair] + auctionBuffer, Folio__AuctionCollision());
+        auctionEnds[pair] = block.timestamp + auctionLength;
 
-        auctionEnds[pairHash] = block.timestamp + auctionLength;
-
+        // for upgraded Folios, pick up on the next auction index from the old array
         nextAuctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
         auctionId = nextAuctionId++;
 
@@ -819,7 +831,7 @@ contract Folio is
         });
         auctions[auctionId] = auction;
 
-        emit IFolio.AuctionOpened(auctionId, pairHash, auction);
+        emit AuctionOpened(auctionId, auction);
     }
 
     /// Set TVL fee by annual percentage. Different from how it is stored!
@@ -940,10 +952,6 @@ contract Folio is
 
             delete activeTrustedFill;
         }
-    }
-
-    function _pairHash(address sellToken, address buyToken) internal pure returns (bytes32) {
-        return keccak256(abi.encode(sellToken, buyToken));
     }
 
     function _update(address from, address to, uint256 value) internal override {
