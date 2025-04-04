@@ -446,7 +446,10 @@ contract Folio is
     }
 
     /// Set basket and start rebalancing towards it
-    /// Currently running auctions will end
+    /// Currently running auctions are not impacted. Use endRebalance() first to end them
+    /// @param newWeights D27{tok/share} New basket weights
+    /// @param newPrices D27{tok/share} New prices for each asset in terms of the Folio (NOT weights)
+    ///                  Can pass 0 to defer to AUCTION_LAUNCHER
     function setBasket(
         address[] calldata newTokens,
         BasketRange[] calldata newWeights,
@@ -474,6 +477,16 @@ contract Folio is
         // set new basket
         for (uint i; i < len; i++) {
             address token = newTokens[i];
+
+            require(token != address(0) && token != address(this), Folio__InvalidAsset());
+            require(
+                newWeights[i].low <= newWeights[i].spot &&
+                    newWeights[i].spot <= newWeights[i].high &&
+                    newWeights[i].high <= MAX_RATE,
+                Folio__InvalidWeights()
+            );
+            require(newPrices[i].low <= newPrices[i].high && newPrices[i].high <= MAX_RATE, Folio__InvalidPrices());
+            // prices are permitted to be zero at this stage
 
             basket.add(token);
             basketWeights[token] = newWeights[i];
@@ -538,7 +551,7 @@ contract Folio is
         sellLimits.spot = sellLimit;
         buyLimits.spot = buyLimit;
 
-        // narrow basket range to prevent potential for double trading
+        // bring basket range up behind us to prevent double trading later
         sellLimits.high = sellLimit;
         buyLimits.low = buyLimit;
 

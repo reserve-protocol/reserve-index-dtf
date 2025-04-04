@@ -62,6 +62,7 @@ interface IFolio {
     error Folio__AuctionCannotBeOpenedWithoutRestriction();
     error Folio__AuctionNotOngoing();
     error Folio__AuctionCollision();
+    error Folio__InvalidWeights();
     error Folio__InvalidPrices();
     error Folio__SlippageExceeded();
     error Folio__InsufficientBalance();
