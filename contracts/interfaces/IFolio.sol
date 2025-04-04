@@ -118,6 +118,7 @@ interface IFolio {
 
     struct Rebalance {
         uint256 nonce;
+        mapping(address token => bool) inRebalance;
         mapping(address token => BasketRange weights) limits; // D27{tok/share}
         mapping(address token => Prices price) prices; // D27{tok/share}
         uint256 restrictedUntil; // {s} exclusive, timestamp rebalancing is unrestricted to everyone

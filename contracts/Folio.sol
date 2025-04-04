@@ -458,7 +458,8 @@ contract Folio is
     }
 
     /// Set basket and start rebalancing towards it, ending currently running auctions
-    /// @dev Caller MUST be careful not to omit tokens with meaningful balances, else value will be (temporarily) lost
+    /// @dev Caller SHOULD try to not omit old tokens
+    ///      Worst-case: keeps old tokens around for mint/redeem but excludes from rebalance
     /// @param newWeights D27{tok/share} New basket weights
     /// @param newPrices D27{tok/share} New prices for each asset in terms of the Folio (NOT weights)
     ///                  Can pass 0 to defer to AUCTION_LAUNCHER
@@ -471,13 +472,13 @@ contract Folio is
     ) external onlyRole(BASKET_MANAGER) {
         require(ttl >= auctionLauncherWindow && ttl < MAX_TTL, Folio__InvalidTTL());
 
-        // empty old basket
+        // keep old tokens in the basket for mint/redeem, but remove from rebalance
         address[] memory oldTokens = basket.values();
         uint256 len = oldTokens.length;
         for (uint256 i; i < len; i++) {
             address token = oldTokens[i];
 
-            basket.remove(token);
+            delete rebalance.inRebalance[token];
             delete rebalance.limits[token];
             delete rebalance.prices[token];
         }
@@ -501,6 +502,7 @@ contract Folio is
             // prices are permitted to be zero at this stage to defer to AUCTION_LAUNCHER
 
             basket.add(token);
+            rebalance.inRebalance[token] = true;
             rebalance.limits[token] = newWeights[i];
             rebalance.prices[token] = newPrices[i];
         }
@@ -858,7 +860,13 @@ contract Folio is
             Folio__InvalidAuctionTokens()
         );
 
-        // confirm rebalance ongoing
+        // confirm tokens are in rebalance
+        require(
+            rebalance.inRebalance[address(sellToken)] && rebalance.inRebalance[address(buyToken)],
+            Folio__NotRebalancing()
+        );
+
+        // confirm a rebalance ongoing
         require(block.timestamp < rebalance.availableUntil, Folio__NotRebalancing());
 
         // confirm no auction collision on token pair
