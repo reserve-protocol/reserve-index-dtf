@@ -114,13 +114,6 @@ interface IFolio {
         uint256 high; // D27{buyTok/sellTok}
     }
 
-    struct Rebalance {
-        mapping(address token => BasketRange weights) weights; // D27{tok/share}
-        mapping(address token => Prices price) prices; // D27{tok/share}
-        uint256 restrictedUntil; // {s} exclusive, timestamp rebalancing is unrestricted to everyone
-        uint256 availableUntil; // {s} exclusive, timestamp rebalancing ends overall
-    }
-
     /// Auction states:
     ///   - APPROVED: startTime == 0 && endTime == 0
     ///   - OPEN: block.timestamp >= startTime && block.timestamp <= endTime

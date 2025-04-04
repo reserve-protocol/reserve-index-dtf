@@ -40,12 +40,12 @@ library AuctionLib {
         price = _price(auction, timestamp);
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 sellLimit = Math.mulDiv(auction.sellLimit, totalSupply, D27, Math.Rounding.Ceil);
-        uint256 sellAvailable = sellBal > sellLimit ? sellBal - sellLimit : 0;
+        uint256 sellLimitBal = Math.mulDiv(auction.sellLimit, totalSupply, D27, Math.Rounding.Ceil);
+        uint256 sellAvailable = sellBal > sellLimitBal ? sellBal - sellLimitBal : 0;
 
         // {buyTok} = D27{buyTok/share} * {share} / D27
-        uint256 buyLimit = Math.mulDiv(auction.buyLimit, totalSupply, D27, Math.Rounding.Floor);
-        uint256 buyAvailable = buyBal < buyLimit ? buyLimit - buyBal : 0;
+        uint256 buyLimitBal = Math.mulDiv(auction.buyLimit, totalSupply, D27, Math.Rounding.Floor);
+        uint256 buyAvailable = buyBal < buyLimitBal ? buyLimitBal - buyBal : 0;
 
         // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
         uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
