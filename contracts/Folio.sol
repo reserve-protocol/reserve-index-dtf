@@ -508,8 +508,8 @@ contract Folio is
     /// Open an auction between two tokens as the AUCTION_LAUNCHER, with specific limits and prices
     /// @param sellLimit D27{sellTok/share} min ratio of sell token to shares allowed, inclusive, 1e54 max
     /// @param buyLimit D27{buyTok/share} max balance-ratio to shares allowed, exclusive, 1e54 max
-    /// @param startPrice D27{buyTok/sellTok} 1e54 max
-    /// @param endPrice D27{buyTok/sellTok} 1e54 max
+    /// @param startPrice D27{buyTok/sellTok} (0, 1e54]
+    /// @param endPrice D27{buyTok/sellTok} (0, 1e54]
     /// @return auctionId The newly created auctionId
     function openAuction(
         IERC20 sellToken,
@@ -541,19 +541,19 @@ contract Folio is
         );
 
         // check limits
-        BasketRange storage sellLimits = basketWeights[address(sellToken)];
-        BasketRange storage buyLimits = basketWeights[address(buyToken)];
+        BasketRange storage sellWeights = basketWeights[address(sellToken)];
+        BasketRange storage buyWeights = basketWeights[address(buyToken)];
 
-        require(sellLimit >= sellLimits.low && sellLimit <= sellLimits.high, Folio__InvalidSellLimit());
-        require(buyLimit >= buyLimits.low && buyLimit <= buyLimits.high, Folio__InvalidBuyLimit());
+        require(sellLimit >= sellWeights.low && sellLimit <= sellWeights.high, Folio__InvalidSellWeight());
+        require(buyLimit >= buyWeights.low && buyLimit <= buyWeights.high, Folio__InvalidBuyWeight());
 
-        // adjust spot limits for next time, incase it is via openAuctionUnrestricted
-        sellLimits.spot = sellLimit;
-        buyLimits.spot = buyLimit;
+        // update basket weights for next time, incase it is via openAuctionUnrestricted
+        sellWeights.spot = sellLimit;
+        buyWeights.spot = buyLimit;
 
         // bring basket range up behind us to prevent double trading later
-        sellLimits.high = sellLimit;
-        buyLimits.low = buyLimit;
+        sellWeights.high = sellLimit;
+        buyWeights.low = buyLimit;
 
         // more checks, including confirming sellToken is in surplus and buyToken is in deficit
         return _openAuction(sellToken, buyToken, sellLimit, buyLimit, startPrice, endPrice, 0);
@@ -565,6 +565,8 @@ contract Folio is
         IERC20 sellToken,
         IERC20 buyToken
     ) external nonReentrant notDeprecated returns (uint256) {
+        // open an auction on spot limits + full price range
+
         Prices storage sellPrices = prices[address(sellToken)];
         Prices storage buyPrices = prices[address(buyToken)];
 
@@ -572,18 +574,10 @@ contract Folio is
         // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
         uint256 startPrice = (D27 * buyPrices.low) / sellPrices.high;
         uint256 endPrice = (D27 * buyPrices.high) / sellPrices.low;
+        uint256 sellLimit = basketWeights[address(sellToken)].spot;
+        uint256 buyLimit = basketWeights[address(buyToken)].spot;
 
-        // use current spot limits + full price range
-        return
-            _openAuction(
-                sellToken,
-                buyToken,
-                basketWeights[address(sellToken)].spot,
-                basketWeights[address(buyToken)].spot,
-                startPrice,
-                endPrice,
-                RESTRICTED_AUCTION_BUFFER
-            );
+        return _openAuction(sellToken, buyToken, sellLimit, buyLimit, startPrice, endPrice, RESTRICTED_AUCTION_BUFFER);
     }
 
     /// Get auction bid parameters at the current timestamp, up to a maximum sell amount
@@ -820,8 +814,8 @@ contract Folio is
     function _openAuction(
         IERC20 sellToken,
         IERC20 buyToken,
-        uint256 sellLimit,
-        uint256 buyLimit,
+        uint256 sellWeight,
+        uint256 buyWeight,
         uint256 startPrice,
         uint256 endPrice,
         uint256 auctionBuffer
@@ -849,12 +843,12 @@ contract Folio is
             uint256 _totalSupply = totalSupply();
 
             // {sellTok} = D27{sellTok/share} * {share} / D27
-            uint256 sellLimitBal = Math.mulDiv(sellLimit, _totalSupply, D27, Math.Rounding.Ceil);
-            require(sellToken.balanceOf(address(this)) > sellLimitBal, Folio__InvalidSellLimit());
+            uint256 sellBalLimit = Math.mulDiv(sellWeight, _totalSupply, D27, Math.Rounding.Ceil);
+            require(sellToken.balanceOf(address(this)) > sellBalLimit, Folio__InvalidSellWeight());
 
             // {buyTok} = D27{buyTok/share} * {share} / D27
-            uint256 buyLimitBal = Math.mulDiv(buyLimit, _totalSupply, D27, Math.Rounding.Floor);
-            require(buyToken.balanceOf(address(this)) < buyLimitBal, Folio__InvalidBuyLimit());
+            uint256 buyBalLimit = Math.mulDiv(buyWeight, _totalSupply, D27, Math.Rounding.Floor);
+            require(buyToken.balanceOf(address(this)) < buyBalLimit, Folio__InvalidBuyWeight());
         }
 
         // for upgraded Folios, pick up on the next auction index from the old array
@@ -873,8 +867,8 @@ contract Folio is
         Auction memory auction = Auction({
             sellToken: sellToken,
             buyToken: buyToken,
-            sellLimit: sellLimit,
-            buyLimit: buyLimit,
+            sellLimit: sellWeight,
+            buyLimit: buyWeight,
             startPrice: startPrice,
             endPrice: endPrice,
             startTime: block.timestamp,
