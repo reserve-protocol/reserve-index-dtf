@@ -13,11 +13,10 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { AuctionLib } from "@utils/AuctionLib.sol";
-import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_FEE_RECIPIENTS, MAX_PRICE_RANGE, MAX_RATE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR } from "@utils/Constants.sol";
+import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_PRICE_RANGE, MAX_RATE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
-import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
@@ -214,7 +213,6 @@ contract Folio is
     // ==== Governance ====
 
     /// @dev Enables permissonless removal of tokens for 0 balance tokens
-    /// @dev Made permissionless in 3.0.0
     function removeFromBasket(IERC20 token) external nonReentrant {
         _closeTrustedFill();
 
@@ -223,7 +221,7 @@ contract Folio is
         // known: can be griefed by token donation
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
-                (rebalance.limits[address(token)].spot == 0 && IERC20(token).balanceOf(address(this)) == 0),
+                (rebalance.details[address(token)].limits.spot == 0 && IERC20(token).balanceOf(address(this)) == 0),
             Folio__BalanceNotRemovable()
         );
         require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
@@ -452,8 +450,9 @@ contract Folio is
         prices = new Prices[](len);
 
         for (uint256 i; i < len; i++) {
-            weights[i] = rebalance.limits[tokens[i]];
-            prices[i] = rebalance.prices[tokens[i]];
+            RebalanceDetails storage details = rebalance.details[tokens[i]];
+            weights[i] = details.limits;
+            prices[i] = details.prices;
         }
     }
 
@@ -476,11 +475,7 @@ contract Folio is
         address[] memory oldTokens = basket.values();
         uint256 len = oldTokens.length;
         for (uint256 i; i < len; i++) {
-            address token = oldTokens[i];
-
-            delete rebalance.inRebalance[token];
-            delete rebalance.limits[token];
-            delete rebalance.prices[token];
+            delete rebalance.details[oldTokens[i]];
         }
 
         len = newTokens.length;
@@ -502,9 +497,11 @@ contract Folio is
             // prices are permitted to be zero at this stage to defer to AUCTION_LAUNCHER
 
             basket.add(token);
-            rebalance.inRebalance[token] = true;
-            rebalance.limits[token] = newWeights[i];
-            rebalance.prices[token] = newPrices[i];
+            rebalance.details[token] = RebalanceDetails({
+                inRebalance: true,
+                limits: newWeights[i],
+                prices: newPrices[i]
+            });
         }
 
         rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
@@ -541,13 +538,13 @@ contract Folio is
         //   - raise starting price by up to 100x
         //   - raise ending price arbitrarily (can cause auction not to clear, same as closing auction)
 
-        // check prices
-        Prices storage sellPrices = rebalance.prices[address(sellToken)];
-        Prices storage buyPrices = rebalance.prices[address(buyToken)];
+        RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
+        RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
 
+        // check prices
         // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
-        uint256 oldStartPrice = (D27 * buyPrices.low) / sellPrices.high;
-        uint256 oldEndPrice = (D27 * buyPrices.high) / sellPrices.low;
+        uint256 oldStartPrice = (D27 * buyDetails.prices.low) / sellDetails.prices.high;
+        uint256 oldEndPrice = (D27 * buyDetails.prices.high) / sellDetails.prices.low;
 
         require(
             startPrice >= oldStartPrice &&
@@ -557,19 +554,19 @@ contract Folio is
         );
 
         // check limits
-        BasketRange storage sellWeights = rebalance.limits[address(sellToken)];
-        BasketRange storage buyWeights = rebalance.limits[address(buyToken)];
-
-        require(sellLimit >= sellWeights.low && sellLimit <= sellWeights.high, Folio__InvalidSellWeight());
-        require(buyLimit >= buyWeights.low && buyLimit <= buyWeights.high, Folio__InvalidBuyWeight());
+        require(
+            sellLimit >= sellDetails.limits.low && sellLimit <= sellDetails.limits.high,
+            Folio__InvalidSellWeight()
+        );
+        require(buyLimit >= buyDetails.limits.low && buyLimit <= buyDetails.limits.high, Folio__InvalidBuyWeight());
 
         // update basket weights for next time, incase it is via openAuctionUnrestricted
-        sellWeights.spot = sellLimit;
-        buyWeights.spot = buyLimit;
+        sellDetails.limits.spot = sellLimit;
+        buyDetails.limits.spot = buyLimit;
 
         // bring basket range up behind us to prevent double trading later
-        sellWeights.high = sellLimit;
-        buyWeights.low = buyLimit;
+        sellDetails.limits.high = sellLimit;
+        buyDetails.limits.low = buyLimit;
 
         // more checks, including confirming sellToken is in surplus and buyToken is in deficit
         return _openAuction(sellToken, buyToken, sellLimit, buyLimit, startPrice, endPrice, 0);
@@ -583,15 +580,15 @@ contract Folio is
     ) external nonReentrant notDeprecated returns (uint256) {
         // open an auction on spot limits + full price range
 
-        Prices storage sellPrices = rebalance.prices[address(sellToken)];
-        Prices storage buyPrices = rebalance.prices[address(buyToken)];
+        RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
+        RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
 
         // check prices
         // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
-        uint256 startPrice = (D27 * buyPrices.low) / sellPrices.high;
-        uint256 endPrice = (D27 * buyPrices.high) / sellPrices.low;
-        uint256 sellLimit = rebalance.limits[address(sellToken)].spot;
-        uint256 buyLimit = rebalance.limits[address(buyToken)].spot;
+        uint256 startPrice = (D27 * buyDetails.prices.low) / sellDetails.prices.high;
+        uint256 endPrice = (D27 * buyDetails.prices.high) / sellDetails.prices.low;
+        uint256 sellLimit = sellDetails.limits.spot;
+        uint256 buyLimit = buyDetails.limits.spot;
 
         return _openAuction(sellToken, buyToken, sellLimit, buyLimit, startPrice, endPrice, RESTRICTED_AUCTION_BUFFER);
     }
@@ -862,7 +859,7 @@ contract Folio is
 
         // confirm tokens are in rebalance
         require(
-            rebalance.inRebalance[address(sellToken)] && rebalance.inRebalance[address(buyToken)],
+            rebalance.details[address(sellToken)].inRebalance && rebalance.details[address(buyToken)].inRebalance,
             Folio__NotRebalancing()
         );
 
@@ -1012,8 +1009,7 @@ contract Folio is
     function _removeFromBasket(address token) internal returns (bool) {
         emit BasketTokenRemoved(token);
 
-        delete rebalance.limits[token];
-        delete rebalance.prices[token];
+        delete rebalance.details[token];
 
         return basket.remove(token);
     }

@@ -116,11 +116,15 @@ interface IFolio {
         uint256 high; // D27{buyTok/sellTok}
     }
 
+    struct RebalanceDetails {
+        bool inRebalance;
+        BasketRange limits; // D27{tok/share}
+        Prices prices; // D27{tok/UoA} prices can be in  anarbitrary Unit of Account as long as it's consistent
+    }
+
     struct Rebalance {
         uint256 nonce;
-        mapping(address token => bool) inRebalance;
-        mapping(address token => BasketRange weights) limits; // D27{tok/share}
-        mapping(address token => Prices price) prices; // D27{tok/share}
+        mapping(address token => RebalanceDetails) details;
         uint256 restrictedUntil; // {s} exclusive, timestamp rebalancing is unrestricted to everyone
         uint256 availableUntil; // {s} exclusive, timestamp rebalancing ends overall
     }
