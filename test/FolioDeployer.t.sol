@@ -72,7 +72,7 @@ contract FolioDeployerTest is BaseTest {
 
         assertTrue(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), owner), "wrong admin role");
 
-        assertTrue(folio.hasRole(folio.AUCTION_APPROVER(), dao), "wrong auction approver role");
+        assertTrue(folio.hasRole(folio.BASKET_MANAGER(), dao), "wrong basket manager role");
 
         assertTrue(folio.hasRole(folio.AUCTION_LAUNCHER(), auctionLauncher), "wrong auction launcher role");
 
@@ -257,35 +257,6 @@ contract FolioDeployerTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_cannotCreateFolioWithInvalidAuctionDelay() public {
-        address[] memory tokens = new address[](1);
-        tokens[0] = address(USDC);
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = D6_TOKEN_10K;
-        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
-
-        vm.startPrank(owner);
-        USDC.approve(address(folioDeployer), type(uint256).max);
-
-        vm.expectRevert(IFolio.Folio__InvalidAuctionDelay.selector); // above max
-        createFolio(
-            tokens,
-            amounts,
-            INITIAL_SUPPLY,
-            MAX_AUCTION_LENGTH,
-            recipients,
-            MAX_TVL_FEE,
-            0,
-            owner,
-            dao,
-            auctionLauncher
-        );
-
-        vm.stopPrank();
-    }
-
     function test_createGovernedFolio() public {
         // Deploy Community Governor
 
@@ -447,7 +418,7 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(tradingTimelock.hasRole(tradingTimelock.CANCELLER_ROLE(), user1), "wrong canceler role");
 
         // Check auction approver is properly set
-        assertTrue(folio.hasRole(folio.AUCTION_APPROVER(), address(tradingTimelock)), "wrong auction approver role");
+        assertTrue(folio.hasRole(folio.BASKET_MANAGER(), address(tradingTimelock)), "wrong basket manager role");
     }
 
     function test_createGovernedFolio_withExistingAuctionApprover() public {
@@ -559,7 +530,7 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(ownerTimelock.hasRole(ownerTimelock.CANCELLER_ROLE(), user2), "wrong canceler role");
 
         // Check auction approver is properly set
-        assertTrue(folio.hasRole(folio.AUCTION_APPROVER(), dao), "wrong auction approver role");
+        assertTrue(folio.hasRole(folio.BASKET_MANAGER(), dao), "wrong basket manager role");
     }
 
     function test_canMineVanityAddress() public {
