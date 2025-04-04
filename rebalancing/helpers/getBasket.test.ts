@@ -20,6 +20,22 @@ describe("getBasket()", () => {
   const supply = bn("1e21"); // 1000 supply
   it("split: [100%, 0%, 0%] => [0%, 50%, 50%]", () => {
     const auctions: Auction[] = [];
+    auctions.push(makeAuction("USDC", "DAI", bn("0"), bn("1e54"), bn("1.01e39"), bn("0.99e39")));
+    auctions.push(makeAuction("USDC", "USDT", bn("0"), bn("1e54"), bn("1.01e27"), bn("0.99e27")));
+
+    const tokens = ["USDC", "DAI", "USDT"];
+    const decimals = [bn("6"), bn("18"), bn("6")];
+    const currentBasket = [bn("1e18"), bn("0"), bn("0")];
+    const prices = [1, 1, 1];
+    const targetBasket = getBasket(supply, auctions, tokens, decimals, currentBasket, prices, 1);
+    expect(targetBasket.length).toBe(3);
+    assertApproxEq(targetBasket[0], bn("0"), precision);
+    assertApproxEq(targetBasket[1], bn("0.5e18"), precision);
+    assertApproxEq(targetBasket[2], bn("0.5e18"), precision);
+  });
+
+  it("split: [100%, 0%, 0%] => [0%, 50%, 50%] - variant 2", () => {
+    const auctions: Auction[] = [];
     auctions.push(makeAuction("USDC", "DAI", bn("0"), bn("5e26"), bn("1.01e39"), bn("0.99e39")));
     auctions.push(makeAuction("USDC", "USDT", bn("0"), bn("1e54"), bn("1.01e27"), bn("0.99e27")));
 
@@ -33,10 +49,59 @@ describe("getBasket()", () => {
     assertApproxEq(targetBasket[1], bn("0.5e18"), precision);
     assertApproxEq(targetBasket[2], bn("0.5e18"), precision);
   });
+
+  it("split: [100%, 0%, 0%] => [0%, 50%, 50%] - variant 3", () => {
+    const auctions: Auction[] = [];
+    auctions.push(makeAuction("USDC", "DAI", bn("0"), bn("5e26"), bn("1.01e39"), bn("0.99e39")));
+    auctions.push(makeAuction("USDC", "USDT", bn("0"), bn("5e14"), bn("1.01e27"), bn("0.99e27")));
+
+    const tokens = ["USDC", "DAI", "USDT"];
+    const decimals = [bn("6"), bn("18"), bn("6")];
+    const currentBasket = [bn("1e18"), bn("0"), bn("0")];
+    const prices = [1, 1, 1];
+    const targetBasket = getBasket(supply, auctions, tokens, decimals, currentBasket, prices, 1);
+    expect(targetBasket.length).toBe(3);
+    assertApproxEq(targetBasket[0], bn("0"), precision);
+    assertApproxEq(targetBasket[1], bn("0.5e18"), precision);
+    assertApproxEq(targetBasket[2], bn("0.5e18"), precision);
+  });
+
   it("join: [0%, 50%, 50%] => [100%, 0%, 0%]", () => {
     const auctions: Auction[] = [];
     auctions.push(makeAuction("USDT", "USDC", bn("0"), bn("1e54"), bn("1.01e27"), bn("0.99e27")));
     auctions.push(makeAuction("DAI", "USDC", bn("0"), bn("1e54"), bn("1.01e15"), bn("0.99e15")));
+
+    const tokens = ["USDC", "DAI", "USDT"];
+    const decimals = [bn("6"), bn("18"), bn("6")];
+    const currentBasket = [bn("0"), bn("0.5e18"), bn("0.5e18")];
+    const prices = [1, 1, 1];
+    const targetBasket = getBasket(supply, auctions, tokens, decimals, currentBasket, prices, 1);
+    expect(targetBasket.length).toBe(3);
+    assertApproxEq(targetBasket[0], bn("1e18"), precision);
+    assertApproxEq(targetBasket[1], bn("0"), precision);
+    assertApproxEq(targetBasket[2], bn("0"), precision);
+  });
+
+  it("join: [0%, 50%, 50%] => [100%, 0%, 0%] - variant 2", () => {
+    const auctions: Auction[] = [];
+    auctions.push(makeAuction("USDT", "USDC", bn("0"), bn("1e54"), bn("1.01e27"), bn("0.99e27")));
+    auctions.push(makeAuction("DAI", "USDC", bn("0"), bn("1e15"), bn("1.01e15"), bn("0.99e15")));
+
+    const tokens = ["USDC", "DAI", "USDT"];
+    const decimals = [bn("6"), bn("18"), bn("6")];
+    const currentBasket = [bn("0"), bn("0.5e18"), bn("0.5e18")];
+    const prices = [1, 1, 1];
+    const targetBasket = getBasket(supply, auctions, tokens, decimals, currentBasket, prices, 1);
+    expect(targetBasket.length).toBe(3);
+    assertApproxEq(targetBasket[0], bn("1e18"), precision);
+    assertApproxEq(targetBasket[1], bn("0"), precision);
+    assertApproxEq(targetBasket[2], bn("0"), precision);
+  });
+
+  it("join: [0%, 50%, 50%] => [100%, 0%, 0%] - variant 3", () => {
+    const auctions: Auction[] = [];
+    auctions.push(makeAuction("USDT", "USDC", bn("0"), bn("1e15"), bn("1.01e27"), bn("0.99e27")));
+    auctions.push(makeAuction("DAI", "USDC", bn("0"), bn("1e15"), bn("1.01e15"), bn("0.99e15")));
 
     const tokens = ["USDC", "DAI", "USDT"];
     const decimals = [bn("6"), bn("18"), bn("6")];

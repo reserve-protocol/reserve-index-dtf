@@ -51,9 +51,8 @@ export const getBasket = (
   // process the smallest auction first until we hit an unbounded auctiond
 
   while (auctions.length > 0) {
-    let auctionIndex = 0;
-
     // find index of smallest auction index
+    let auctionIndex = 0;
 
     // {USD}
     let smallestSwap = D27d.mul(D27d); // max, 1e54
@@ -79,16 +78,14 @@ export const getBasket = (
       console.log("buyLimit", auctions[i].buyLimit.spot);
 
       // {USD} = {1} * {USD}
-      let surplus = currentBasket[x].gt(sellTarget) ? currentBasket[x].minus(sellTarget).mul(sharesValue) : ZERO;
-      let auctionValue = surplus;
+      const surplus = currentBasket[x].gt(sellTarget) ? currentBasket[x].minus(sellTarget).mul(sharesValue) : ZERO;
+      const deficit = currentBasket[y].lt(buyTarget) ? buyTarget.minus(currentBasket[y]).mul(sharesValue) : ZERO;
 
-      if (auctions[i].buyLimit.spot < 10n ** 54n) {
-        const deficit = currentBasket[y].lt(buyTarget) ? buyTarget.minus(currentBasket[y]).mul(sharesValue) : ZERO;
-        console.log("buyLimit.spot", auctions[i].buyLimit.spot);
-        console.log("surplus", surplus);
-        console.log("deficit", deficit);
-        auctionValue = surplus.gt(deficit) ? deficit : surplus;
-      }
+      console.log("buyLimit.spot", auctions[i].buyLimit.spot);
+      console.log("surplus", surplus);
+      console.log("deficit", deficit);
+
+      let auctionValue = surplus.gt(deficit) ? deficit : surplus;
 
       if (auctionValue.gt(ZERO) && auctionValue.lt(smallestSwap)) {
         console.log("auctionValue", auctionValue);
@@ -118,12 +115,12 @@ export const getBasket = (
     // {1} = {USD} / {USD}
     let backingAuctioned = smallestSwap.div(sharesValue);
 
+    // once we hit the first auction that overflows 100%, divide the remaining % between the remaining auctions
     if (totalAccounted.plus(backingAuctioned).gte(ONE)) {
-      backingAuctioned = ONE.sub(totalAccounted);
-      totalAccounted = ONE;
-    } else {
-      totalAccounted = totalAccounted.plus(backingAuctioned);
+      backingAuctioned = ONE.sub(totalAccounted).div(auctions.length);
     }
+    totalAccounted = totalAccounted.plus(backingAuctioned);
+
     console.log("backingAuctioned", backingAuctioned, smallestSwap, sharesValue);
 
     // {1}
