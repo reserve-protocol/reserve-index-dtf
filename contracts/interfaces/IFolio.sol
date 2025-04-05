@@ -6,14 +6,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface IFolio {
     // === Events ===
 
-    event AuctionApproved(
-        uint256 indexed auctionId,
-        address indexed from,
-        address indexed to,
-        Auction auction,
-        AuctionDetails details
-    );
-    event AuctionOpened(uint256 indexed auctionId, Auction auction, uint256 runsRemaining);
+    event AuctionOpened(uint256 indexed auctionId, Auction auction);
     event AuctionBid(uint256 indexed auctionId, uint256 sellAmount, uint256 buyAmount);
     event AuctionClosed(uint256 indexed auctionId);
     event AuctionTrustedFillCreated(uint256 indexed auctionId, address filler);
@@ -32,6 +25,16 @@ interface IFolio {
     event MandateSet(string newMandate);
     event TrustedFillerRegistrySet(address trustedFillerRegistry, bool isEnabled);
     event FolioDeprecated();
+
+    event RebalanceStarted(
+        uint256 nonce,
+        address[] tokens,
+        BasketRange[] weights,
+        Prices[] prices,
+        uint256 restrictedAt,
+        uint256 availableUntil
+    );
+    event RebalanceEnded();
 
     // === Errors ===
 
@@ -55,13 +58,13 @@ interface IFolio {
 
     error Folio__InvalidAuctionLength();
     error Folio__InvalidSellLimit();
-    error Folio__InvalidBuyLimit();
+    error Folio__InvalidBuyWeight();
     error Folio__AuctionCannotBeOpenedYet();
     error Folio__AuctionCannotBeOpenedWithoutRestriction();
     error Folio__AuctionNotOngoing();
     error Folio__AuctionCollision();
+    error Folio__InvalidWeights();
     error Folio__InvalidPrices();
-    error Folio__AuctionTimeout();
     error Folio__SlippageExceeded();
     error Folio__InsufficientBalance();
     error Folio__InsufficientBid();
@@ -69,14 +72,15 @@ interface IFolio {
     error Folio__ExcessiveBid();
     error Folio__InvalidAuctionTokens();
     error Folio__InvalidAuctionDelay();
-    error Folio__InvalidAuctionTTL();
     error Folio__TooManyFeeRecipients();
     error Folio__InvalidArrayLengths();
-    error Folio__InvalidAuctionRuns();
     error Folio__InvalidTransferToSelf();
 
     error Folio__TrustedFillerRegistryNotEnabled();
     error Folio__TrustedFillerRegistryAlreadySet();
+
+    error Folio__InvalidTTL();
+    error Folio__NotRebalancing();
 
     // === Structures ===
 
@@ -89,7 +93,6 @@ interface IFolio {
     }
 
     struct FolioAdditionalDetails {
-        uint256 auctionDelay; // {s}
         uint256 auctionLength; // {s}
         FeeRecipient[] feeRecipients;
         uint256 tvlFee; // D18{1/s}
@@ -109,33 +112,42 @@ interface IFolio {
     }
 
     struct Prices {
-        uint256 start; // D27{buyTok/sellTok}
-        uint256 end; // D27{buyTok/sellTok}
+        uint256 low; // D27{buyTok/sellTok}
+        uint256 high; // D27{buyTok/sellTok}
+    }
+
+    struct RebalanceDetails {
+        bool inRebalance;
+        BasketRange limits; // D27{tok/share}
+        Prices prices; // D27{tok/UoA} prices can be in  anarbitrary Unit of Account as long as it's consistent
+    }
+
+    struct Rebalance {
+        uint256 nonce;
+        mapping(address token => RebalanceDetails) details;
+        uint256 restrictedUntil; // {s} exclusive, timestamp rebalancing is unrestricted to everyone
+        uint256 availableUntil; // {s} exclusive, timestamp rebalancing ends overall
     }
 
     /// Auction states:
-    ///   - APPROVED: start == 0 && end == 0
-    ///   - OPEN: block.timestamp >= start && block.timestamp <= end
-    ///   - CLOSED: block.timestamp > end
+    ///   - APPROVED: startTime == 0 && endTime == 0
+    ///   - OPEN: block.timestamp >= startTime && block.timestamp <= endTime
+    ///   - CLOSED: block.timestamp > endTime
     struct Auction {
-        uint256 id;
+        uint256 rebalanceNonce;
         IERC20 sellToken;
         IERC20 buyToken;
-        BasketRange sellLimit; // D27{sellTok/share} min ratio of sell token in the basket, inclusive
-        BasketRange buyLimit; // D27{buyTok/share} max ratio of buy token in the basket, exclusive
-        Prices prices; // D27{buyTok/sellTok}
-        uint256 restrictedUntil; // {s} exclusive
-        uint256 launchDeadline; // {s} inclusive
+        uint256 sellLimit; // D27{sellTok/share} min ratio of sell token in the basket, inclusive
+        uint256 buyLimit; // D27{buyTok/share} max ratio of buy token in the basket, exclusive
+        uint256 startPrice; // D27{buyTok/sellTok}
+        uint256 endPrice; // D27{buyTok/sellTok}
         uint256 startTime; // {s} inclusive
         uint256 endTime; // {s} inclusive
-        // === Gas Optimization ===
-        uint256 k; // D18{1} price = startPrice * e ^ -kt
     }
 
-    /// Added in 2.0.0
-    struct AuctionDetails {
-        Prices initialPrices; // D27{buyTok/sellTok} initially approved prices
-        uint256 availableRuns; // {runs} remaining number of runs
+    /// Used to mark old storage slots now deprecated
+    struct DeprecatedStruct {
+        bytes32 EMPTY;
     }
 
     function distributeFees() external;
