@@ -57,7 +57,7 @@ interface IFolio {
     error Folio__InvalidAssetAmount(address asset);
 
     error Folio__InvalidAuctionLength();
-    error Folio__InvalidSellWeight();
+    error Folio__InvalidSellLimit();
     error Folio__InvalidBuyWeight();
     error Folio__AuctionCannotBeOpenedYet();
     error Folio__AuctionCannotBeOpenedWithoutRestriction();

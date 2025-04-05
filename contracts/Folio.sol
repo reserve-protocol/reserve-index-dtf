@@ -469,7 +469,7 @@ contract Folio is
         uint256 auctionLauncherWindow,
         uint256 ttl
     ) external onlyRole(BASKET_MANAGER) {
-        require(ttl >= auctionLauncherWindow && ttl < MAX_TTL, Folio__InvalidTTL());
+        require(ttl >= auctionLauncherWindow && ttl <= MAX_TTL, Folio__InvalidTTL());
 
         // keep old tokens in the basket for mint/redeem, but remove from rebalance
         address[] memory oldTokens = basket.values();
@@ -541,30 +541,39 @@ contract Folio is
         RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
         RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
 
-        // check prices
-        // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
-        uint256 oldStartPrice = (D27 * buyDetails.prices.low) / sellDetails.prices.high;
-        uint256 oldEndPrice = (D27 * buyDetails.prices.high) / sellDetails.prices.low;
+        // check prices if they were not deferred
+        if (
+            sellDetails.prices.low != 0 ||
+            sellDetails.prices.high != 0 ||
+            buyDetails.prices.low != 0 ||
+            buyDetails.prices.high != 0
+        ) {
+            require(sellDetails.prices.low != 0 && sellDetails.prices.high != 0, Folio__InvalidPrices());
+            require(buyDetails.prices.low != 0 && buyDetails.prices.high != 0, Folio__InvalidPrices());
 
-        require(
-            startPrice >= oldStartPrice &&
-                endPrice >= oldEndPrice &&
-                (oldStartPrice == 0 || startPrice <= 100 * oldStartPrice),
-            Folio__InvalidPrices()
-        );
+            // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
+            uint256 oldStartPrice = (D27 * buyDetails.prices.low) / sellDetails.prices.high;
+            uint256 oldEndPrice = (D27 * buyDetails.prices.high) / sellDetails.prices.low;
+
+            require(
+                startPrice >= oldStartPrice &&
+                    endPrice >= oldEndPrice &&
+                    (oldStartPrice == 0 || startPrice <= 100 * oldStartPrice),
+                Folio__InvalidPrices()
+            );
+        }
 
         // check limits
-        require(
-            sellLimit >= sellDetails.limits.low && sellLimit <= sellDetails.limits.high,
-            Folio__InvalidSellWeight()
-        );
+        require(sellLimit >= sellDetails.limits.low && sellLimit <= sellDetails.limits.high, Folio__InvalidSellLimit());
         require(buyLimit >= buyDetails.limits.low && buyLimit <= buyDetails.limits.high, Folio__InvalidBuyWeight());
 
         // update basket weights for next time, incase it is via openAuctionUnrestricted
         sellDetails.limits.spot = sellLimit;
         buyDetails.limits.spot = buyLimit;
 
-        // bring basket range up behind us to prevent double trading later
+        // bring basket range up behind us to prevent double trading
+        // this reduces the damage a malicious AUCTION_LAUNCHER can do
+        // TODO keep?
         sellDetails.limits.high = sellLimit;
         buyDetails.limits.low = buyLimit;
 
@@ -879,7 +888,7 @@ contract Folio is
 
             // {sellTok} = D27{sellTok/share} * {share} / D27
             uint256 sellBalLimit = Math.mulDiv(sellWeight, _totalSupply, D27, Math.Rounding.Ceil);
-            require(sellToken.balanceOf(address(this)) > sellBalLimit, Folio__InvalidSellWeight());
+            require(sellToken.balanceOf(address(this)) >= sellBalLimit, Folio__InvalidSellLimit());
 
             // {buyTok} = D27{buyTok/share} * {share} / D27
             uint256 buyBalLimit = Math.mulDiv(buyWeight, _totalSupply, D27, Math.Rounding.Floor);
