@@ -34,7 +34,7 @@ interface IFolio {
         uint256 restrictedAt,
         uint256 availableUntil
     );
-    event RebalanceEnded();
+    event RebalanceEnded(uint256 nonce);
 
     // === Errors ===
 
@@ -54,6 +54,7 @@ interface IFolio {
     error Folio__ZeroInitialShares();
 
     error Folio__InvalidAsset();
+    error Folio__DuplicateAsset();
     error Folio__InvalidAssetAmount(address asset);
 
     error Folio__InvalidAuctionLength();
@@ -119,7 +120,7 @@ interface IFolio {
     struct RebalanceDetails {
         bool inRebalance;
         BasketRange limits; // D27{tok/share}
-        Prices prices; // D27{tok/UoA} prices can be in  anarbitrary Unit of Account as long as it's consistent
+        Prices prices; // D27{tok/UoA} prices can be in any Unit of Account as long as it's consistent
     }
 
     struct Rebalance {

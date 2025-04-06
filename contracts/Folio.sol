@@ -130,11 +130,12 @@ contract Folio is
     // === 4.0.0 ===
     /**
      * Rebalancing
-     *   - The rebalancing process runs until rebalance.availableUntil
-     *   - Rebalancing cannot be called by anyone other than the BASKET_MANAGER until rebalance.restrictedUntil
-     *   - Any number of auctions can be opened within the rebalancing period toward reaching the set limits
-     *   - The AUCTION_LAUNCHER has the ability to progressively constrain limits before each auction
-     *   - At anytime a new rebalance can be started to immediately end all ongoing auctions
+     *   BASKET_MANAGER only
+     *   - Rebalancing process runs until rebalance.availableUntil
+     *   - Auctions cannot be created by anyone other than the AUCTION_LAUNCHER until rebalance.restrictedUntil
+     *   - Any number of auctions can be opened within the rebalancing period toward reaching the rebalance limits
+     *   - The AUCTION_LAUNCHER can choose to use other limits and/or prices, as long as they are within range
+     *   - At anytime the rebalance can be stopped, or a new one started (all auctions are automatically closed)
      */
     Rebalance public rebalance;
 
@@ -142,7 +143,7 @@ contract Folio is
      * Auctions
      *   Openable by AUCTION_LAUNCHER -> Openable by anyone (optional) -> Running -> Closed
      *   - During rebalancing, auctions are only available to AUCTION_LAUNCHER until rebalance.restrictedUntil
-     *   - During rebalancing, auctions can be until rebalance.availableUntil
+     *   - During rebalancing, auctions can be opened until rebalance.availableUntil
      *   - There can only be one live auction per token pair
      *   - Multiple bids can be executed against the same auction
      *   - All auctions are dutch auctions with an exponential decay curve, but startPrice can equal endPrice
@@ -438,7 +439,6 @@ contract Folio is
     // ==== Auctions ====
 
     /// Get the currently ongoing rebalance
-    /// @dev (nonce, restrictedUNtil, availableUntil) are auto-generated
     function getRebalance()
         external
         view
@@ -458,10 +458,11 @@ contract Folio is
 
     /// Set basket and start rebalancing towards it, ending currently running auctions
     /// @dev Caller SHOULD try to not omit old tokens
-    ///      Worst-case: keeps old tokens around for mint/redeem but excludes from rebalance
+    ///      Worst-case behavior: keeps old tokens around for mint/redeem but excludes from rebalance
+    /// @param newTokens Tokens to add to the basket, MUST be unique
     /// @param newWeights D27{tok/share} New basket weights
     /// @param newPrices D27{tok/share} New prices for each asset in terms of the Folio (NOT weights)
-    ///                  Can pass 0 to defer to AUCTION_LAUNCHER
+    ///                  Can pass 0 to defer to AUCTION_LAUNCHER, but this impacts ANY swap including that token
     function startRebalance(
         address[] calldata newTokens,
         BasketRange[] calldata newWeights,
@@ -487,14 +488,18 @@ contract Folio is
             address token = newTokens[i];
 
             require(token != address(0) && token != address(this), Folio__InvalidAsset());
+            require(!rebalance.details[token].inRebalance, Folio__DuplicateAsset());
+
             require(
                 newWeights[i].low <= newWeights[i].spot &&
                     newWeights[i].spot <= newWeights[i].high &&
                     newWeights[i].high <= MAX_RATE,
                 Folio__InvalidWeights()
             );
-            require(newPrices[i].low <= newPrices[i].high && newPrices[i].high <= MAX_RATE, Folio__InvalidPrices());
+
             // prices are permitted to be zero at this stage to defer to AUCTION_LAUNCHER
+            // 0 price will permit the AUCTION_LAUNCHER to set the price for ANY swap that includes that token
+            require(newPrices[i].low <= newPrices[i].high && newPrices[i].high <= MAX_RATE, Folio__InvalidPrices());
 
             basket.add(token);
             rebalance.details[token] = RebalanceDetails({
@@ -541,26 +546,22 @@ contract Folio is
         RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
         RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
 
-        // check prices if they were not deferred
-        if (
-            sellDetails.prices.low != 0 ||
-            sellDetails.prices.high != 0 ||
-            buyDetails.prices.low != 0 ||
-            buyDetails.prices.high != 0
-        ) {
-            require(sellDetails.prices.low != 0 && sellDetails.prices.high != 0, Folio__InvalidPrices());
-            require(buyDetails.prices.low != 0 && buyDetails.prices.high != 0, Folio__InvalidPrices());
-
+        // check start price, if necessary prices were defined by BASKET_MANAGER
+        if (buyDetails.prices.low != 0 && sellDetails.prices.high != 0) {
             // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
             uint256 oldStartPrice = (D27 * buyDetails.prices.low) / sellDetails.prices.high;
+
+            // allow up to 100x price increase
+            // TODO make smaller?
+            require(startPrice >= oldStartPrice && startPrice <= 100 * oldStartPrice, Folio__InvalidPrices());
+        }
+
+        // check end price, if necessary prices were defined by BASKET_MANAGER
+        if (buyDetails.prices.high != 0 && sellDetails.prices.low != 0) {
+            // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
             uint256 oldEndPrice = (D27 * buyDetails.prices.high) / sellDetails.prices.low;
 
-            require(
-                startPrice >= oldStartPrice &&
-                    endPrice >= oldEndPrice &&
-                    (oldStartPrice == 0 || startPrice <= 100 * oldStartPrice),
-                Folio__InvalidPrices()
-            );
+            require(endPrice >= oldEndPrice, Folio__InvalidPrices());
         }
 
         // check limits
@@ -573,7 +574,8 @@ contract Folio is
 
         // bring basket range up behind us to prevent double trading
         // this reduces the damage a malicious AUCTION_LAUNCHER can do
-        // TODO keep?
+        // TODO keep? might not be necessary depending on how much we want to trust the AUCTION_LAUNCHER
+        // on the other hand, maybe it's not about trust maybe it's about them having to know something extra
         sellDetails.limits.high = sellLimit;
         buyDetails.limits.low = buyLimit;
 
@@ -592,10 +594,11 @@ contract Folio is
         RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
         RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
 
-        // check prices
         // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
         uint256 startPrice = (D27 * buyDetails.prices.low) / sellDetails.prices.high;
         uint256 endPrice = (D27 * buyDetails.prices.high) / sellDetails.prices.low;
+
+        // use spot limits
         uint256 sellLimit = sellDetails.limits.spot;
         uint256 buyLimit = buyDetails.limits.spot;
 
@@ -715,7 +718,6 @@ contract Folio is
         filler.initialize(address(this), auction.sellToken, auction.buyToken, sellAmount, buyAmount);
         activeTrustedFill = filler;
 
-        _addToBasket(address(auction.buyToken));
         emit AuctionTrustedFillCreated(auctionId, address(filler));
     }
 
@@ -730,11 +732,9 @@ contract Folio is
             Folio__Unauthorized()
         );
 
-        bytes32 pair = _pair(address(auctions[auctionId].sellToken), address(auctions[auctionId].buyToken));
-
         // do not revert, to prevent griefing
         auctions[auctionId].endTime = block.timestamp - 1;
-        delete auctionEnds[rebalance.nonce][pair];
+        delete auctionEnds[rebalance.nonce][_pairHash(auctions[auctionId].sellToken, auctions[auctionId].buyToken)];
         emit AuctionClosed(auctionId);
     }
 
@@ -749,11 +749,11 @@ contract Folio is
             Folio__Unauthorized()
         );
 
+        emit RebalanceEnded(rebalance.nonce);
+
         // do not revert, to prevent griefing
         rebalance.nonce++; // advancing nonce clears auctionEnds
         rebalance.availableUntil = block.timestamp;
-
-        emit RebalanceEnded();
     }
 
     // ==== Internal ====
@@ -801,7 +801,7 @@ contract Folio is
     }
 
     /// @return pair The hash of the pair
-    function _pair(address sellToken, address buyToken) internal pure returns (bytes32) {
+    function _pairHash(IERC20 sellToken, IERC20 buyToken) internal pure returns (bytes32) {
         return keccak256(abi.encode(sellToken, buyToken));
     }
 
@@ -877,7 +877,7 @@ contract Folio is
 
         // confirm no auction collision on token pair
         {
-            bytes32 pair = _pair(address(sellToken), address(buyToken));
+            bytes32 pair = _pairHash(sellToken, buyToken);
             require(block.timestamp > auctionEnds[rebalance.nonce][pair] + auctionBuffer, Folio__AuctionCollision());
             auctionEnds[rebalance.nonce][pair] = block.timestamp + auctionLength;
         }
