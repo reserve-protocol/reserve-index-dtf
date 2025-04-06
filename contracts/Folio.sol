@@ -457,19 +457,18 @@ contract Folio is
     }
 
     /// Set basket and start rebalancing towards it, ending currently running auctions
-    /// @dev Caller SHOULD try to not omit old tokens
-    ///      Worst-case behavior: keeps old tokens around for mint/redeem but excludes from rebalance
+    /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @param newTokens Tokens to add to the basket, MUST be unique
     /// @param newWeights D27{tok/share} New basket weights
     /// @param newPrices D27{tok/share} New prices for each asset in terms of the Folio (NOT weights)
-    ///                  Can pass 0 to defer to AUCTION_LAUNCHER, but this impacts ANY swap including that token
+    ///                  Can pass 0 for ALL token prices to defer to AUCTION_LAUNCHER (cannot pick and choose)
     function startRebalance(
         address[] calldata newTokens,
         BasketRange[] calldata newWeights,
         Prices[] calldata newPrices,
         uint256 auctionLauncherWindow,
         uint256 ttl
-    ) external onlyRole(BASKET_MANAGER) {
+    ) external nonReentrant onlyRole(BASKET_MANAGER) notDeprecated {
         require(ttl >= auctionLauncherWindow && ttl <= MAX_TTL, Folio__InvalidTTL());
 
         // keep old tokens in the basket for mint/redeem, but remove from rebalance
@@ -483,12 +482,14 @@ contract Folio is
         require(len == newWeights.length, Folio__InvalidArrayLengths());
         require(len == newPrices.length, Folio__InvalidArrayLengths());
 
+        bool deferPrices = newPrices[0].low == 0 || newPrices[0].high == 0;
+
         // set new basket
         for (uint i; i < len; i++) {
             address token = newTokens[i];
 
-            require(token != address(0) && token != address(this), Folio__InvalidAsset());
             require(!rebalance.details[token].inRebalance, Folio__DuplicateAsset());
+            require(token != address(0) && token != address(this), Folio__InvalidAsset());
 
             require(
                 newWeights[i].low <= newWeights[i].spot &&
@@ -497,8 +498,8 @@ contract Folio is
                 Folio__InvalidWeights()
             );
 
-            // prices are permitted to be zero at this stage to defer to AUCTION_LAUNCHER
             // 0 price will permit the AUCTION_LAUNCHER to set the price for ANY swap that includes that token
+            require(!deferPrices || (newPrices[i].low == 0 && newPrices[i].high == 0), Folio__InvalidPrices());
             require(newPrices[i].low <= newPrices[i].high && newPrices[i].high <= MAX_RATE, Folio__InvalidPrices());
 
             basket.add(token);
@@ -546,21 +547,15 @@ contract Folio is
         RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
         RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
 
-        // check start price, if necessary prices were defined by BASKET_MANAGER
-        if (buyDetails.prices.low != 0 && sellDetails.prices.high != 0) {
+        // invariant: if any of the tokens have a 0 price, they must all have a 0 price
+        if (sellDetails.prices.high != 0) {
             // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
             uint256 oldStartPrice = (D27 * buyDetails.prices.low) / sellDetails.prices.high;
+            uint256 oldEndPrice = (D27 * buyDetails.prices.high) / sellDetails.prices.low;
 
             // allow up to 100x price increase
             // TODO make smaller?
             require(startPrice >= oldStartPrice && startPrice <= 100 * oldStartPrice, Folio__InvalidPrices());
-        }
-
-        // check end price, if necessary prices were defined by BASKET_MANAGER
-        if (buyDetails.prices.high != 0 && sellDetails.prices.low != 0) {
-            // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
-            uint256 oldEndPrice = (D27 * buyDetails.prices.high) / sellDetails.prices.low;
-
             require(endPrice >= oldEndPrice, Folio__InvalidPrices());
         }
 
@@ -598,11 +593,17 @@ contract Folio is
         uint256 startPrice = (D27 * buyDetails.prices.low) / sellDetails.prices.high;
         uint256 endPrice = (D27 * buyDetails.prices.high) / sellDetails.prices.low;
 
-        // use spot limits
-        uint256 sellLimit = sellDetails.limits.spot;
-        uint256 buyLimit = buyDetails.limits.spot;
-
-        return _openAuction(sellToken, buyToken, sellLimit, buyLimit, startPrice, endPrice, RESTRICTED_AUCTION_BUFFER);
+        // open auction with spot limits
+        return
+            _openAuction(
+                sellToken,
+                buyToken,
+                sellDetails.limits.spot,
+                buyDetails.limits.spot,
+                startPrice,
+                endPrice,
+                RESTRICTED_AUCTION_BUFFER
+            );
     }
 
     /// Get auction bid parameters at the current timestamp, up to a maximum sell amount
