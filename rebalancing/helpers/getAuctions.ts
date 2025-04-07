@@ -7,6 +7,10 @@ import { makeAuction } from "../utils";
 /**
  * Get the set of auctions required to reach the target basket
  *
+ * If:
+ *   1. Native DTF: pass `_targetBasket` as their original basket intent (e.g. [100%, 0%, 0%])
+ *   2. Tracking DTF: first call `utils/getAdjustedTargetBasket()`, then pass the result into `_targetBasket`
+ *
  * Warnings:
  *   - Breakup large auctions into smaller auctions in advance of using this algo; a large Folio may have to use this
  *     algo multiple times to rebalance gradually to avoid transacting too much volume in any one auction. Basically,
@@ -84,31 +88,8 @@ export const getAuctions = (
       throw new Error("something has gone very wrong");
     }
 
-    // indices
-    let x = tokens.length; // sell index
-    let y = tokens.length; // buy index
-
-    // {USD}
-    let biggestSurplus = ZERO;
-    let biggestDeficit = ZERO;
-
-    for (let i = 0; i < tokens.length; i++) {
-      if (currentBasket[i].gt(targetBasket[i]) && currentBasket[i].minus(targetBasket[i]).gt(tolerance)) {
-        // {USD} = {1} * {USD}
-        const surplus = currentBasket[i].minus(targetBasket[i]).mul(sharesValue);
-        if (surplus.gt(biggestSurplus)) {
-          biggestSurplus = surplus;
-          x = i;
-        }
-      } else if (currentBasket[i].lt(targetBasket[i]) && targetBasket[i].minus(currentBasket[i]).gt(tolerance)) {
-        // {USD} = {1} * {USD}
-        const deficit = targetBasket[i].minus(currentBasket[i]).mul(sharesValue);
-        if (deficit.gt(biggestDeficit)) {
-          biggestDeficit = deficit;
-          y = i;
-        }
-      }
-    }
+    const [x, y, maxAuction] = nextAuction(currentBasket, targetBasket, tokens, sharesValue, tolerance);
+    // [sellIndex, buyIndex, maxAuctionSize]
 
     // if we don't find any more auctions, we're done
     if (x == tokens.length || y == tokens.length) {
@@ -116,11 +97,6 @@ export const getAuctions = (
     }
 
     // simulate swap and update currentBasket
-
-    // {USD}
-    const maxAuction = biggestDeficit.lt(biggestSurplus) ? biggestDeficit : biggestSurplus;
-    console.log("biggestSurplus", biggestSurplus);
-    console.log("biggestDeficit", biggestDeficit);
 
     // {1} = {USD} / {USD}
     const backingAuctioned = maxAuction.div(sharesValue);
@@ -170,9 +146,6 @@ export const getAuctions = (
     if (bnBuyLimit >= 10n ** 54n) {
       bnBuyLimit = 10n ** 54n;
     }
-    if (bnSellLimit == 0n && biggestSurplus >= biggestDeficit) {
-      bnBuyLimit = 10n ** 54n;
-    }
 
     // add auction into set
     auctions.push(
@@ -200,10 +173,59 @@ export const getAuctions = (
     );
 
     // do not remove console.logs
-    console.log("sellLimit", auctions[auctions.length - 1].sellLimit.spot);
-    console.log("buyLimit", auctions[auctions.length - 1].buyLimit.spot);
+    console.log("sellLimit", auctions[auctions.length - 1].sellLimit);
+    console.log("buyLimit", auctions[auctions.length - 1].buyLimit);
     console.log("startPrice", auctions[auctions.length - 1].prices.start);
     console.log("endPrice", auctions[auctions.length - 1].prices.end);
     console.log("currentBasket", currentBasket);
   }
+};
+
+/**
+ * Selects next auction based on largest surplus or deficit
+ *
+ * @return sellIndex
+ * @return buyIndex
+ * @return maxAuctionSize {USD}
+ */
+export const nextAuction = (
+  currentBasket: Decimal[],
+  targetBasket: Decimal[],
+  tokens: string[],
+  sharesValue: Decimal,
+  tolerance: Decimal,
+): [number, number, Decimal] => {
+  // indices
+  let sellIndex = tokens.length;
+  let buyIndex = tokens.length;
+
+  // {USD}
+  let biggestSurplus = ZERO;
+  let biggestDeficit = ZERO;
+
+  for (let i = 0; i < tokens.length; i++) {
+    if (currentBasket[i].gt(targetBasket[i]) && currentBasket[i].minus(targetBasket[i]).gt(tolerance)) {
+      // {USD} = {1} * {USD}
+      const surplus = currentBasket[i].minus(targetBasket[i]).mul(sharesValue);
+      if (surplus.gt(biggestSurplus)) {
+        biggestSurplus = surplus;
+        sellIndex = i;
+      }
+    } else if (currentBasket[i].lt(targetBasket[i]) && targetBasket[i].minus(currentBasket[i]).gt(tolerance)) {
+      // {USD} = {1} * {USD}
+      const deficit = targetBasket[i].minus(currentBasket[i]).mul(sharesValue);
+      if (deficit.gt(biggestDeficit)) {
+        biggestDeficit = deficit;
+        buyIndex = i;
+      }
+    }
+  }
+
+  console.log("biggestSurplus", biggestSurplus);
+  console.log("biggestDeficit", biggestDeficit);
+
+  // {USD}
+  const maxAuction = biggestDeficit.lt(biggestSurplus) ? biggestDeficit : biggestSurplus;
+
+  return [sellIndex, buyIndex, maxAuction];
 };

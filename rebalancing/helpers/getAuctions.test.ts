@@ -1,7 +1,6 @@
 import { describe, it } from "node:test";
 import expect from "expect";
 
-import { getCurrentBasket, getSharePricing } from "../utils";
 import { bn } from "../numbers";
 import { Auction } from "../types";
 import { getAuctions } from "./getAuctions";
@@ -31,6 +30,10 @@ const expectAuctionApprox = (
   assertApproxEq(auction.buyLimit.spot, buyLimit, precision);
   assertApproxEq(auction.prices.start, startPrice, precision);
   assertApproxEq(auction.prices.end, endPrice, precision);
+
+  if (auction.sellLimit.spot == 0n) {
+    expect(auction.buyLimit.high).toBe(bn("1e54"));
+  }
 };
 
 describe("getAuctions()", () => {
@@ -46,7 +49,7 @@ describe("getAuctions()", () => {
     const auctions = getAuctions(supply, tokens, decimals, currentBasket, targetBasket, prices, error, 1);
     expect(auctions.length).toBe(2);
     expectAuctionApprox(auctions[0], "USDC", "DAI", bn("0"), bn("5e26"), bn("1.01e39"), bn("0.99e39"));
-    expectAuctionApprox(auctions[1], "USDC", "USDT", bn("0"), bn("1e54"), bn("1.01e27"), bn("0.99e27"));
+    expectAuctionApprox(auctions[1], "USDC", "USDT", bn("0"), bn("5e14"), bn("1.01e27"), bn("0.99e27"));
   });
   it("join: [0%, 50%, 50%] => [100%, 0%, 0%]", () => {
     const tokens = ["USDC", "DAI", "USDT"];
@@ -57,8 +60,8 @@ describe("getAuctions()", () => {
     const error = [0.01, 0.01, 0.01];
     const auctions = getAuctions(supply, tokens, decimals, currentBasket, targetBasket, prices, error, 1);
     expect(auctions.length).toBe(2);
-    expectAuctionApprox(auctions[0], "DAI", "USDC", bn("0"), bn("1e54"), bn("1.01e15"), bn("0.99e15"));
-    expectAuctionApprox(auctions[1], "USDT", "USDC", bn("0"), bn("1e54"), bn("1.01e27"), bn("0.99e27"));
+    expectAuctionApprox(auctions[0], "DAI", "USDC", bn("0"), bn("1e15"), bn("1.01e15"), bn("0.99e15"));
+    expectAuctionApprox(auctions[1], "USDT", "USDC", bn("0"), bn("1e15"), bn("1.01e27"), bn("0.99e27"));
   });
 
   it("reweight: [25%, 75%] => [75%, 25%]", () => {

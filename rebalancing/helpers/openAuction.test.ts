@@ -36,8 +36,8 @@ describe("openAuction()", () => {
     const error = [0.01, 0.01];
 
     const result = openAuction(auction, supply, tokens, decimals, targetBasket, prices, error, 1, true);
-    // should use high buyLimit.high
-    const expectedResult = [bn("0"), bn("1e27") + bn("1e25"), bn("1.01e39"), bn("0.99e39")];
+    // should target +inf buy when ejectFully
+    const expectedResult = [bn("0"), bn("1e54"), bn("1.01e39"), bn("0.99e39")];
     checkResult(result, expectedResult);
     expect(result[1]).toBeGreaterThan(bn("1e27"));
   });
@@ -51,7 +51,7 @@ describe("openAuction()", () => {
     const error = [0.01, 0.01];
 
     const result = openAuction(auction, supply, tokens, decimals, targetBasket, prices, error, 1, false);
-    // should not use buyLimit.high
+    // should target +inf buy when !ejectFully
     const expectedResult = [bn("0"), bn("1e27"), bn("1.01e39"), bn("0.99e39")];
     checkResult(result, expectedResult);
   });

@@ -5,7 +5,7 @@ import { getCurrentBasket } from "../utils";
 import { bn } from "../numbers";
 import { makeAuction } from "../utils";
 import { Auction } from "../types";
-import { getBasket } from "./getBasket";
+import { getBasketNativeDTF } from "./getBasketNativeDTF";
 
 const D18: bigint = bn("1e18");
 const precision: bigint = bn("1e15"); // should be pretty exact
@@ -16,7 +16,7 @@ const assertApproxEq = (a: bigint, b: bigint, precision: bigint) => {
   expect(delta).toBeLessThanOrEqual((precision * b) / D18);
 };
 
-describe("getBasket()", () => {
+describe("getBasketNativeDTF()", () => {
   const supply = bn("1e21"); // 1000 supply
   it("split: [100%, 0%, 0%] => [0%, 50%, 50%]", () => {
     const auctions: Auction[] = [];
@@ -27,7 +27,7 @@ describe("getBasket()", () => {
     const decimals = [bn("6"), bn("18"), bn("6")];
     const currentBasket = [bn("1e18"), bn("0"), bn("0")];
     const prices = [1, 1, 1];
-    const targetBasket = getBasket(supply, auctions, tokens, decimals, currentBasket, prices, 1);
+    const targetBasket = getBasketNativeDTF(supply, auctions, tokens, decimals, currentBasket, prices, 1);
     expect(targetBasket.length).toBe(3);
     assertApproxEq(targetBasket[0], bn("0"), precision);
     assertApproxEq(targetBasket[1], bn("0.5e18"), precision);
@@ -43,7 +43,7 @@ describe("getBasket()", () => {
     const decimals = [bn("6"), bn("18"), bn("6")];
     const currentBasket = [bn("1e18"), bn("0"), bn("0")];
     const prices = [1, 1, 1];
-    const targetBasket = getBasket(supply, auctions, tokens, decimals, currentBasket, prices, 1);
+    const targetBasket = getBasketNativeDTF(supply, auctions, tokens, decimals, currentBasket, prices, 1);
     expect(targetBasket.length).toBe(3);
     assertApproxEq(targetBasket[0], bn("0"), precision);
     assertApproxEq(targetBasket[1], bn("0.5e18"), precision);
@@ -59,7 +59,7 @@ describe("getBasket()", () => {
     const decimals = [bn("6"), bn("18"), bn("6")];
     const currentBasket = [bn("1e18"), bn("0"), bn("0")];
     const prices = [1, 1, 1];
-    const targetBasket = getBasket(supply, auctions, tokens, decimals, currentBasket, prices, 1);
+    const targetBasket = getBasketNativeDTF(supply, auctions, tokens, decimals, currentBasket, prices, 1);
     expect(targetBasket.length).toBe(3);
     assertApproxEq(targetBasket[0], bn("0"), precision);
     assertApproxEq(targetBasket[1], bn("0.5e18"), precision);
@@ -75,7 +75,7 @@ describe("getBasket()", () => {
     const decimals = [bn("6"), bn("18"), bn("6")];
     const currentBasket = [bn("0"), bn("0.5e18"), bn("0.5e18")];
     const prices = [1, 1, 1];
-    const targetBasket = getBasket(supply, auctions, tokens, decimals, currentBasket, prices, 1);
+    const targetBasket = getBasketNativeDTF(supply, auctions, tokens, decimals, currentBasket, prices, 1);
     expect(targetBasket.length).toBe(3);
     assertApproxEq(targetBasket[0], bn("1e18"), precision);
     assertApproxEq(targetBasket[1], bn("0"), precision);
@@ -91,7 +91,7 @@ describe("getBasket()", () => {
     const decimals = [bn("6"), bn("18"), bn("6")];
     const currentBasket = [bn("0"), bn("0.5e18"), bn("0.5e18")];
     const prices = [1, 1, 1];
-    const targetBasket = getBasket(supply, auctions, tokens, decimals, currentBasket, prices, 1);
+    const targetBasket = getBasketNativeDTF(supply, auctions, tokens, decimals, currentBasket, prices, 1);
     expect(targetBasket.length).toBe(3);
     assertApproxEq(targetBasket[0], bn("1e18"), precision);
     assertApproxEq(targetBasket[1], bn("0"), precision);
@@ -107,7 +107,7 @@ describe("getBasket()", () => {
     const decimals = [bn("6"), bn("18"), bn("6")];
     const currentBasket = [bn("0"), bn("0.5e18"), bn("0.5e18")];
     const prices = [1, 1, 1];
-    const targetBasket = getBasket(supply, auctions, tokens, decimals, currentBasket, prices, 1);
+    const targetBasket = getBasketNativeDTF(supply, auctions, tokens, decimals, currentBasket, prices, 1);
     expect(targetBasket.length).toBe(3);
     assertApproxEq(targetBasket[0], bn("1e18"), precision);
     assertApproxEq(targetBasket[1], bn("0"), precision);
@@ -122,7 +122,7 @@ describe("getBasket()", () => {
     const decimals = [bn("6"), bn("18")];
     const currentBasket = [bn("0.25e18"), bn("0.75e18")];
     const prices = [1, 1];
-    const targetBasket = getBasket(supply, auctions, tokens, decimals, currentBasket, prices, 1);
+    const targetBasket = getBasketNativeDTF(supply, auctions, tokens, decimals, currentBasket, prices, 1);
     expect(targetBasket.length).toBe(2);
     assertApproxEq(targetBasket[0], bn("0.75e18"), precision);
     assertApproxEq(targetBasket[1], bn("0.25e18"), precision);
@@ -136,7 +136,7 @@ describe("getBasket()", () => {
     const decimals = [bn("6"), bn("18")];
     const currentBasket = [bn("0.25e18"), bn("0.75e18")];
     const prices = [1, 3000];
-    const targetBasket = getBasket(supply, auctions, tokens, decimals, currentBasket, prices, 1);
+    const targetBasket = getBasketNativeDTF(supply, auctions, tokens, decimals, currentBasket, prices, 1);
     expect(targetBasket.length).toBe(2);
     assertApproxEq(targetBasket[0], bn("0.75e18"), precision);
     assertApproxEq(targetBasket[1], bn("0.25e18"), precision);
@@ -164,7 +164,7 @@ describe("getBasket()", () => {
 
       auctions.push(makeAuction(tokens[sellIndex], tokens[buyIndex], bn("0"), bn("1e54"), startPrice, endPrice));
 
-      const targetBasket = getBasket(supply, auctions, tokens, decimals, currentBasket, prices, 1);
+      const targetBasket = getBasketNativeDTF(supply, auctions, tokens, decimals, currentBasket, prices, 1);
       expect(targetBasket.length).toBe(tokens.length);
     }
   });

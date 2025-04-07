@@ -1,6 +1,6 @@
 import { Decimal } from "decimal.js";
 
-import { bn, D18d, D27d, ZERO, ONE, TWO } from "../numbers";
+import { bn, D18d, D27d, ONE, TWO } from "../numbers";
 import { Auction } from "../types";
 
 /**
@@ -133,8 +133,8 @@ export const openAuction = (
     buyLimit = auction.buyLimit.high;
   }
 
-  console.log("sellLimit", sellLimit, auction.sellLimit.high, auction.sellLimit.low);
-  console.log("buyLimit", buyLimit, auction.buyLimit.high, auction.buyLimit.low);
+  console.log("sellLimit", auction.sellLimit.low, sellLimit, auction.sellLimit.high);
+  console.log("buyLimit", auction.buyLimit.low, buyLimit, auction.buyLimit.high);
 
   return [sellLimit, buyLimit, idealStartPrice, idealEndPrice];
 };

@@ -8,6 +8,8 @@ import { bn, D18d, D27d, ZERO, ONE } from "../numbers";
  *
  * Works by presuming the smallest auction is executed iteratively until all auctions are exhausted
  *
+ * TODO return to: it's sorta broken since currentBasket was not necessarily the balance breakdown when proposal was created
+ *
  * @param supply {share} DTF supply
  * @param auctions Auctions
  * @param tokens Addresses of tokens in the basket
@@ -16,7 +18,7 @@ import { bn, D18d, D27d, ZERO, ONE } from "../numbers";
  * @param _prices {USD/wholeTok} USD prices for each *whole* token
  * @returns basket D18{1} Resulting basket from running the smallest auction first
  */
-export const getBasket = (
+export const getBasketNativeDTF = (
   _supply: bigint,
   auctions: Auction[],
   tokens: string[],
@@ -25,7 +27,7 @@ export const getBasket = (
   _prices: number[],
   _dtfPrice: number,
 ): bigint[] => {
-  console.log("getBasket()", _supply, auctions, tokens, decimals, _currentBasket, _prices, _dtfPrice);
+  console.log("getBasketNativeDTF()", _supply, auctions, tokens, decimals, _currentBasket, _prices, _dtfPrice);
 
   // {wholeShare}
   const supply = new Decimal(_supply.toString()).div(D18d);
@@ -48,7 +50,7 @@ export const getBasket = (
 
   let totalAccounted = ZERO;
 
-  // process the smallest auction first until we hit an unbounded auctiond
+  // process the smallest auction first until we hit an unbounded auction
 
   while (auctions.length > 0) {
     // find index of smallest auction index

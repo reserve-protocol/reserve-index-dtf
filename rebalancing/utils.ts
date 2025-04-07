@@ -74,6 +74,10 @@ export const getCurrentBasket = (bals: bigint[], decimals: bigint[], _prices: nu
   return values.map((amt) => (amt * D18n) / total);
 };
 
+// export const selectNextAuction = (): Auction => {
+//   // TODO
+// };
+
 /**
  * @param supply {share} DTF supply
  * @param bals {tok} Current balances
@@ -117,20 +121,38 @@ export const makeAuction = (
   if (startPrice >= 10n ** 54n || endPrice >= 10n ** 54n) {
     throw new Error(`price outside 1e54 range [${startPrice}, ${endPrice}]`);
   }
+  if (avgPriceError > D18n) {
+    throw new Error("avgPriceError outside range");
+  }
+  // avgPrice == D18n case: defer to curator fully
+
+  const lowSellLimit = avgPriceError == D18n ? 0n : (sellLimit * (D18n - avgPriceError)) / D18n;
+  const highSellLimit =
+    avgPriceError == D18n ? 10n ** 54n : (sellLimit * D18n + D18n - avgPriceError - 1n) / (D18n - avgPriceError);
+
+  let lowBuyLimit = avgPriceError == D18n ? 1n : (buyLimit * (D18n - avgPriceError)) / D18n;
+  let highBuyLimit =
+    avgPriceError == D18n ? 10n ** 54n : (buyLimit * D18n + D18n - avgPriceError - 1n) / (D18n - avgPriceError);
+
+  if (sellLimit == 0n || highBuyLimit > 10n ** 54n) {
+    highBuyLimit = 10n ** 54n;
+  }
+  if (buyLimit == 10n ** 54n) {
+    lowBuyLimit = 10n ** 54n;
+  }
 
   return {
     sell: sell,
     buy: buy,
     sellLimit: {
       spot: sellLimit,
-      low: avgPriceError >= D18n ? 0n : (sellLimit * (D18n - avgPriceError)) / D18n,
-      high:
-        avgPriceError >= D18n ? 10n ** 54n : (sellLimit * D18n + D18n - avgPriceError - 1n) / (D18n - avgPriceError),
+      low: lowSellLimit,
+      high: highSellLimit,
     },
     buyLimit: {
       spot: buyLimit,
-      low: avgPriceError >= D18n ? 1n : (buyLimit * (D18n - avgPriceError)) / D18n,
-      high: avgPriceError >= D18n ? 10n ** 54n : (buyLimit * D18n + D18n - avgPriceError - 1n) / (D18n - avgPriceError),
+      low: lowBuyLimit,
+      high: highBuyLimit,
     },
     prices: {
       start: avgPriceError == D18n ? 0n : startPrice,
