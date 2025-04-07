@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { AuctionLib } from "@utils/AuctionLib.sol";
-import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR } from "@utils/Constants.sol";
+import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -205,12 +205,12 @@ contract Folio is
         require(_addToBasket(address(token)), Folio__BasketModificationFailed());
     }
 
-    /// @dev Enables permissonless removal of tokens for 0 balance tokens
+    /// @dev Enables permissionless removal of tokens for 0 balance tokens
     /// @dev Made permissionless in 3.0.0
     function removeFromBasket(IERC20 token) external nonReentrant {
         _closeTrustedFill();
 
-        // allow admin to remove from basket, or permissionlessly at 0 balance
+        // allow admin to remove from basket, or permissionless at 0 balance
         // permissionless removal can be griefed by token donation
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || IERC20(token).balanceOf(address(this)) == 0,
@@ -710,6 +710,13 @@ contract Folio is
         view
         returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares)
     {
+        // {s} Always in full days
+        uint256 elapsed = ((block.timestamp - lastPoke) / ONE_DAY) * ONE_DAY;
+
+        if (elapsed == 0) {
+            return (daoPendingFeeShares, feeRecipientsPendingFeeShares);
+        }
+
         _daoPendingFeeShares = daoPendingFeeShares;
         _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
 
@@ -727,9 +734,6 @@ contract Folio is
 
         // D18{1/s}
         uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
-
-        // {s}
-        uint256 elapsed = block.timestamp - lastPoke;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
         uint256 feeShares = (supply * D18) / MathLib.powu(D18 - _tvlFee, elapsed) - supply;
@@ -831,12 +835,12 @@ contract Folio is
     function _poke() internal {
         _closeTrustedFill();
 
-        if (lastPoke == block.timestamp) {
-            return;
-        }
+        // Update at most once a day
+        if (block.timestamp - lastPoke > ONE_DAY) {
+            (daoPendingFeeShares, feeRecipientsPendingFeeShares) = _getPendingFeeShares();
 
-        (daoPendingFeeShares, feeRecipientsPendingFeeShares) = _getPendingFeeShares();
-        lastPoke = block.timestamp;
+            lastPoke = block.timestamp;
+        }
     }
 
     function _addToBasket(address token) internal returns (bool) {
