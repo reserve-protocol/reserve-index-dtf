@@ -487,6 +487,53 @@ contract FolioTest is BaseTest {
         );
     }
 
+    function test_addToBasket() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.BasketTokenAdded(address(USDT));
+        folio.addToBasket(USDT);
+
+        (_assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 4, "wrong assets length");
+        assertEq(_assets[0], address(USDC), "wrong first asset");
+        assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
+        assertEq(_assets[3], address(USDT), "wrong fourth asset");
+        vm.stopPrank();
+    }
+
+    function test_cannotAddToBasketIfNotOwner() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+
+        vm.startPrank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.addToBasket(USDT);
+        vm.stopPrank();
+    }
+
+    function test_cannotAddToBasketIfDuplicate() public {
+        (address[] memory _assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
+
+        vm.startPrank(owner);
+        vm.expectRevert(IFolio.Folio__BasketModificationFailed.selector);
+        folio.addToBasket(USDC); // cannot add duplicate
+        vm.stopPrank();
+    }
+
     function test_removeFromBasket() public {
         (address[] memory _assets, ) = folio.totalAssets();
         assertEq(_assets.length, 3, "wrong assets length");
@@ -2465,11 +2512,11 @@ contract FolioTest is BaseTest {
         assertFalse(folio.isDeprecated(), "wrong deprecated status");
     }
 
-    // function test_cannotAddZeroAddressToBasket() public {
-    //     vm.startPrank(owner);
-    //     vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
-    //     folio.addToBasket(IERC20(address(0)));
-    // }
+    function test_cannotAddZeroAddressToBasket() public {
+        vm.startPrank(owner);
+        vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
+        folio.addToBasket(IERC20(address(0)));
+    }
 
     function test_cannotSendFolioToFolio() public {
         // only the activeTrustedFill can send Folio to Folio; tested higher up

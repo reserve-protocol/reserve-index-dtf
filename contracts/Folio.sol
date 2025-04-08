@@ -215,6 +215,14 @@ contract Folio is
 
     // ==== Governance ====
 
+    /// Escape hatch function to be used when tokens get acquired not through an auction but
+    /// through any other means and should become part of the Folio without being sold.
+    /// @dev Does not require a token balance
+    /// @param token The token to add to the basket
+    function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_addToBasket(address(token)), Folio__BasketModificationFailed());
+    }
+
     /// @dev Enables permissonless removal of tokens for 0 balance tokens
     function removeFromBasket(IERC20 token) external nonReentrant {
         _closeTrustedFill();
