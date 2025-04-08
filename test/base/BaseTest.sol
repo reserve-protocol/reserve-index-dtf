@@ -44,7 +44,7 @@ abstract contract BaseTest is Script, Test {
     uint256 constant YEAR_IN_SECONDS = 31536000;
 
     address auctionLauncher = 0x00000000000000000000000000000000000000cc; // has AUCTION_LAUNCHER
-    address dao = 0xDA00000000000000000000000000000000000000; // has AUCTION_APPROVER
+    address dao = 0xDA00000000000000000000000000000000000000; // has BASKET_MANAGER
     address owner = 0xCc00000000000000000000000000000000000000; // has DEFAULT_ADMIN_ROLE
     address user1 = 0xfF00000000000000000000000000000000000000;
     address user2 = 0xbb00000000000000000000000000000000000000;
@@ -194,7 +194,7 @@ abstract contract BaseTest is Script, Test {
         uint256 _tvlFee,
         uint256 _mintFee,
         address _owner,
-        address _auctionApprover,
+        address _basketManager,
         address _auctionLauncher
     ) internal returns (Folio, FolioProxyAdmin) {
         IFolio.FolioBasicDetails memory _basicDetails = IFolio.FolioBasicDetails({
@@ -213,8 +213,8 @@ abstract contract BaseTest is Script, Test {
             mandate: "mandate"
         });
 
-        address[] memory _auctionApprovers = new address[](1);
-        _auctionApprovers[0] = _auctionApprover;
+        address[] memory _basketManagers = new address[](1);
+        _basketManagers[0] = _basketManager;
         address[] memory _auctionLaunchers = new address[](1);
         _auctionLaunchers[0] = _auctionLauncher;
         address[] memory _brandManagers = new address[](1);
@@ -224,7 +224,7 @@ abstract contract BaseTest is Script, Test {
             _basicDetails,
             _additionalDetails,
             _owner,
-            _auctionApprovers,
+            _basketManagers,
             _auctionLaunchers,
             _brandManagers,
             true,
