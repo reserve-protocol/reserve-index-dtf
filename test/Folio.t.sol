@@ -2247,6 +2247,14 @@ contract FolioTest is BaseTest {
         folio.openAuction(USDC, folio, 0, 0, 1e27, 1e27); // folio has 0 buyLimit.high
     }
 
+    function test_auctionCannotStartRebalanceOnDuplicateTokens() public {
+        assets[1] = assets[0];
+
+        vm.startPrank(dao);
+        vm.expectRevert(IFolio.Folio__DuplicateAsset.selector);
+        folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
+    }
+
     function test_auctionCannotStartRebalanceWithInvalidSellLimit() public {
         limits[0] = IFolio.BasketRange(0, 1, MAX_RATE);
 
