@@ -442,16 +442,16 @@ contract Folio is
     function getRebalance()
         external
         view
-        returns (address[] memory tokens, BasketRange[] memory weights, Prices[] memory prices)
+        returns (address[] memory tokens, BasketRange[] memory limits, Prices[] memory prices)
     {
         tokens = basket.values();
         uint256 len = tokens.length;
-        weights = new BasketRange[](len);
+        limits = new BasketRange[](len);
         prices = new Prices[](len);
 
         for (uint256 i; i < len; i++) {
             RebalanceDetails storage details = rebalance.details[tokens[i]];
-            weights[i] = details.limits;
+            limits[i] = details.limits;
             prices[i] = details.prices;
         }
     }
@@ -459,12 +459,12 @@ contract Folio is
     /// Set basket and start rebalancing towards it, ending currently running auctions
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @param newTokens Tokens to add to the basket, MUST be unique
-    /// @param newWeights D27{tok/share} New basket weights
-    /// @param newPrices D27{tok/share} New prices for each asset in terms of the Folio (NOT weights)
+    /// @param newLimits D27{tok/share} New rebalance limits
+    /// @param newPrices D27{tok/share} New prices for each asset in terms of the Folio
     ///                  Can pass 0 for ALL token prices to defer to AUCTION_LAUNCHER (cannot pick and choose)
     function startRebalance(
         address[] calldata newTokens,
-        BasketRange[] calldata newWeights,
+        BasketRange[] calldata newLimits,
         Prices[] calldata newPrices,
         uint256 auctionLauncherWindow,
         uint256 ttl
@@ -479,7 +479,7 @@ contract Folio is
         }
 
         len = newTokens.length;
-        require(len == newWeights.length, Folio__InvalidArrayLengths());
+        require(len == newLimits.length, Folio__InvalidArrayLengths());
         require(len == newPrices.length, Folio__InvalidArrayLengths());
 
         bool deferPrices = newPrices[0].low == 0 || newPrices[0].high == 0;
@@ -492,10 +492,10 @@ contract Folio is
             require(token != address(0) && token != address(this), Folio__InvalidAsset());
 
             require(
-                newWeights[i].low <= newWeights[i].spot &&
-                    newWeights[i].spot <= newWeights[i].high &&
-                    newWeights[i].high <= MAX_RATE,
-                Folio__InvalidWeights()
+                newLimits[i].low <= newLimits[i].spot &&
+                    newLimits[i].spot <= newLimits[i].high &&
+                    newLimits[i].high <= MAX_RATE,
+                Folio__InvalidLimits()
             );
 
             // 0 price will permit the AUCTION_LAUNCHER to set the price for ANY swap that includes that token
@@ -505,7 +505,7 @@ contract Folio is
             basket.add(token);
             rebalance.details[token] = RebalanceDetails({
                 inRebalance: true,
-                limits: newWeights[i],
+                limits: newLimits[i],
                 prices: newPrices[i]
             });
         }
@@ -517,7 +517,7 @@ contract Folio is
         emit RebalanceStarted(
             rebalance.nonce,
             newTokens,
-            newWeights,
+            newLimits,
             newPrices,
             block.timestamp + auctionLauncherWindow,
             block.timestamp + ttl
@@ -561,9 +561,9 @@ contract Folio is
 
         // check limits
         require(sellLimit >= sellDetails.limits.low && sellLimit <= sellDetails.limits.high, Folio__InvalidSellLimit());
-        require(buyLimit >= buyDetails.limits.low && buyLimit <= buyDetails.limits.high, Folio__InvalidBuyWeight());
+        require(buyLimit >= buyDetails.limits.low && buyLimit <= buyDetails.limits.high, Folio__InvalidBuyLimit());
 
-        // update basket weights for next time, incase it is via openAuctionUnrestricted
+        // update basket limits for next time, incase it is via openAuctionUnrestricted
         sellDetails.limits.spot = sellLimit;
         buyDetails.limits.spot = buyLimit;
 
@@ -584,6 +584,8 @@ contract Folio is
         IERC20 sellToken,
         IERC20 buyToken
     ) external nonReentrant notDeprecated returns (uint256) {
+        require(block.timestamp >= rebalance.restrictedUntil, Folio__AuctionCannotBeOpenedWithoutRestriction());
+
         // open an auction on spot limits + full price range
 
         RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
@@ -853,8 +855,8 @@ contract Folio is
     function _openAuction(
         IERC20 sellToken,
         IERC20 buyToken,
-        uint256 sellWeight,
-        uint256 buyWeight,
+        uint256 sellLimit,
+        uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice,
         uint256 auctionBuffer
@@ -888,12 +890,12 @@ contract Folio is
             uint256 _totalSupply = totalSupply();
 
             // {sellTok} = D27{sellTok/share} * {share} / D27
-            uint256 sellBalLimit = Math.mulDiv(sellWeight, _totalSupply, D27, Math.Rounding.Ceil);
+            uint256 sellBalLimit = Math.mulDiv(sellLimit, _totalSupply, D27, Math.Rounding.Ceil);
             require(sellToken.balanceOf(address(this)) >= sellBalLimit, Folio__InvalidSellLimit());
 
             // {buyTok} = D27{buyTok/share} * {share} / D27
-            uint256 buyBalLimit = Math.mulDiv(buyWeight, _totalSupply, D27, Math.Rounding.Floor);
-            require(buyToken.balanceOf(address(this)) < buyBalLimit, Folio__InvalidBuyWeight());
+            uint256 buyBalLimit = Math.mulDiv(buyLimit, _totalSupply, D27, Math.Rounding.Floor);
+            require(buyToken.balanceOf(address(this)) < buyBalLimit, Folio__InvalidBuyLimit());
         }
 
         // for upgraded Folios, pick up on the next auction index from the old array
@@ -913,8 +915,8 @@ contract Folio is
             rebalanceNonce: rebalance.nonce,
             sellToken: sellToken,
             buyToken: buyToken,
-            sellLimit: sellWeight,
-            buyLimit: buyWeight,
+            sellLimit: sellLimit,
+            buyLimit: buyLimit,
             startPrice: startPrice,
             endPrice: endPrice,
             startTime: block.timestamp,

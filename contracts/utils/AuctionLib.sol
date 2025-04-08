@@ -51,7 +51,7 @@ library AuctionLib {
         sellAvailable = Math.min(sellAvailable, sellAvailableFromBuy);
 
         // ensure auction is large enough to cover bid
-        require(sellAvailable >= minSellAmount, IFolio.Folio__InsufficientBalance());
+        require(sellAvailable >= minSellAmount, IFolio.Folio__InsufficientSellAvailable());
 
         // {sellTok}
         sellAmount = Math.min(sellAvailable, maxSellAmount);

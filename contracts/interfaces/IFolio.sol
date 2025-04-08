@@ -58,19 +58,17 @@ interface IFolio {
     error Folio__InvalidAssetAmount(address asset);
 
     error Folio__InvalidAuctionLength();
+    error Folio__InvalidLimits();
     error Folio__InvalidSellLimit();
-    error Folio__InvalidBuyWeight();
-    error Folio__AuctionCannotBeOpenedYet();
+    error Folio__InvalidBuyLimit();
     error Folio__AuctionCannotBeOpenedWithoutRestriction();
     error Folio__AuctionNotOngoing();
     error Folio__AuctionCollision();
-    error Folio__InvalidWeights();
     error Folio__InvalidPrices();
     error Folio__SlippageExceeded();
-    error Folio__InsufficientBalance();
+    error Folio__InsufficientSellAvailable();
     error Folio__InsufficientBid();
     error Folio__InsufficientSharesOut();
-    error Folio__ExcessiveBid();
     error Folio__InvalidAuctionTokens();
     error Folio__InvalidAuctionDelay();
     error Folio__TooManyFeeRecipients();
