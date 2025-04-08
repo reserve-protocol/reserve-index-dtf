@@ -129,20 +129,21 @@ contract Folio is
 
     /**
      * Rebalancing
-     *   BASKET_MANAGER only
-     *   - Rebalancing process runs until rebalance.availableUntil
-     *   - Auctions cannot be created by anyone other than the AUCTION_LAUNCHER until rebalance.restrictedUntil
-     *   - Any number of auctions can be opened within the rebalancing period toward reaching the rebalance limits
-     *   - The AUCTION_LAUNCHER can choose to use other limits and/or prices, as long as they are within range
-     *   - At anytime the rebalance can be stopped, or a new one started (all auctions are automatically closed)
+     *   BASKET_MANAGER
+     *   - There can only be 1 rebalance live at a time
+     *   - There can be an auction for each unique token pair in the basket
+     *   - A token can be ONLY sold or ONLY bought depending on whether it is in surplus or deficit
+     *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil, and end at availableUntil
+     *   - The AUCTION_LAUNCHER acts within the bounds set by the BASKET_MANAGER, adding precision to limits/prices
+     *   - If the AUCTION_LAUNCHER is not active, the original spot estimates from the BASKET_MANAGER are used
+     *   - At anytime the rebalance can be stopped or a new one can be started (closing live auctions)
+     *   - The AUCTION_LAUNCHER is limited in the damage they can do and can always be removed if griefing
      */
     Rebalance public rebalance;
 
     /**
      * Auctions
      *   Openable by AUCTION_LAUNCHER -> Openable by anyone (optional) -> Running -> Closed
-     *   - During rebalancing, auctions are only available to AUCTION_LAUNCHER until rebalance.restrictedUntil
-     *   - During rebalancing, auctions can be opened until rebalance.availableUntil
      *   - There can only be one live auction per token pair
      *   - Multiple bids can be executed against the same auction
      *   - All auctions are dutch auctions with an exponential decay curve, but startPrice can equal endPrice
@@ -150,6 +151,8 @@ contract Folio is
     mapping(uint256 id => Auction auction) public auctions;
     mapping(uint256 rebalanceNonce => mapping(bytes32 pair => uint256 endTime)) public auctionEnds;
     uint256 public nextAuctionId;
+
+    // ====
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -488,7 +491,6 @@ contract Folio is
             address token = newTokens[i];
 
             require(!rebalance.details[token].inRebalance, Folio__DuplicateAsset());
-            require(token != address(0) && token != address(this), Folio__InvalidAsset());
 
             require(
                 newLimits[i].low <= newLimits[i].spot &&
@@ -501,7 +503,7 @@ contract Folio is
             require(!deferPrices || (newPrices[i].low == 0 && newPrices[i].high == 0), Folio__InvalidPrices());
             require(newPrices[i].low <= newPrices[i].high && newPrices[i].high <= MAX_RATE, Folio__InvalidPrices());
 
-            basket.add(token);
+            _addToBasket(token);
             rebalance.details[token] = RebalanceDetails({
                 inRebalance: true,
                 limits: newLimits[i],
@@ -569,7 +571,7 @@ contract Folio is
         // bring basket range up behind us to prevent double trading
         // this reduces the damage a malicious AUCTION_LAUNCHER can do
         // TODO keep? might not be necessary depending on how much we want to trust the AUCTION_LAUNCHER
-        // on the other hand, maybe it's not about trust maybe it's about them having to know something extra
+        // on the other hand, maybe it's not about trust maybe it's about them having to know something extra to avoid
         sellDetails.limits.high = sellLimit;
         buyDetails.limits.low = buyLimit;
 
