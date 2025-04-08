@@ -484,7 +484,9 @@ contract Folio is
         require(len == newLimits.length, Folio__InvalidArrayLengths());
         require(len == newPrices.length, Folio__InvalidArrayLengths());
 
-        bool deferPrices = newPrices[0].low == 0 || newPrices[0].high == 0;
+        // enforce that if one price is 0, all prices are 0
+        bool deferPrices = newPrices[0].low == 0;
+        require(deferPrices == (newPrices[0].high == 0), Folio__InvalidPrices());
 
         // set new basket
         for (uint256 i; i < len; i++) {
@@ -499,8 +501,11 @@ contract Folio is
                 Folio__InvalidLimits()
             );
 
-            // 0 price will permit the AUCTION_LAUNCHER to set the price for ANY swap that includes that token
-            require(!deferPrices || (newPrices[i].low == 0 && newPrices[i].high == 0), Folio__InvalidPrices());
+            require(
+                deferPrices == (newPrices[i].low == 0) && deferPrices == (newPrices[i].high == 0),
+                Folio__InvalidPrices()
+            );
+
             require(newPrices[i].low <= newPrices[i].high && newPrices[i].high <= MAX_RATE, Folio__InvalidPrices());
 
             _addToBasket(token);
