@@ -127,7 +127,6 @@ contract Folio is
     bool public trustedFillerEnabled;
     IBaseTrustedFiller private activeTrustedFill;
 
-    // === 4.0.0 ===
     /**
      * Rebalancing
      *   BASKET_MANAGER only
@@ -485,7 +484,7 @@ contract Folio is
         bool deferPrices = newPrices[0].low == 0 || newPrices[0].high == 0;
 
         // set new basket
-        for (uint i; i < len; i++) {
+        for (uint256 i; i < len; i++) {
             address token = newTokens[i];
 
             require(!rebalance.details[token].inRebalance, Folio__DuplicateAsset());
