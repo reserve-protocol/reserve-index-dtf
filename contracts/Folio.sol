@@ -279,7 +279,7 @@ contract Folio is
 
     /// @dev Contains all pending fee shares
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, ) = _getPendingFeeShares();
 
         return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
@@ -392,7 +392,7 @@ contract Folio is
 
     /// @return {share} Up-to-date sum of DAO and fee recipients pending fee shares
     function getPendingFeeShares() public view returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, ) = _getPendingFeeShares();
         return _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
@@ -518,6 +518,8 @@ contract Folio is
         uint256 startPrice,
         uint256 endPrice
     ) external nonReentrant onlyRole(AUCTION_LAUNCHER) notDeprecated {
+        _poke();
+
         Auction storage auction = auctions[auctionId];
         AuctionDetails storage details = auctionDetails[auctionId];
 
@@ -550,6 +552,8 @@ contract Folio is
     /// Open an auction without restrictions
     /// @dev Unrestricted, callable only after the `auctionDelay`
     function openAuctionUnrestricted(uint256 auctionId) external nonReentrant notDeprecated {
+        _poke();
+
         Auction storage auction = auctions[auctionId];
         AuctionDetails storage details = auctionDetails[auctionId];
 
@@ -578,7 +582,7 @@ contract Folio is
         bool withCallback,
         bytes calldata data
     ) external nonReentrant notDeprecated returns (uint256 boughtAmt) {
-        _closeTrustedFill();
+        _poke();
         Auction storage auction = auctions[auctionId];
 
         uint256 _totalSupply = totalSupply();
@@ -614,9 +618,9 @@ contract Folio is
             address(trustedFillerRegistry) != address(0) && trustedFillerEnabled,
             Folio__TrustedFillerRegistryNotEnabled()
         );
+        _poke();
 
         Auction storage auction = auctions[auctionId];
-        _closeTrustedFill();
 
         // checks auction is ongoing and that sellAmount is below maxSellAmount
         (uint256 sellAmount, uint256 buyAmount, ) = AuctionLib.getBid(
@@ -708,13 +712,14 @@ contract Folio is
     function _getPendingFeeShares()
         internal
         view
-        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares)
+        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, uint256 _accountedTill)
     {
         // {s} Always in full days
-        uint256 elapsed = ((block.timestamp - lastPoke) / ONE_DAY) * ONE_DAY;
+        _accountedTill = (block.timestamp / ONE_DAY) * ONE_DAY;
+        uint256 elapsed = _accountedTill < lastPoke ? 0 : _accountedTill - lastPoke;
 
         if (elapsed == 0) {
-            return (daoPendingFeeShares, feeRecipientsPendingFeeShares);
+            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke);
         }
 
         _daoPendingFeeShares = daoPendingFeeShares;
@@ -836,10 +841,8 @@ contract Folio is
         _closeTrustedFill();
 
         // Update at most once a day
-        if (block.timestamp - lastPoke > ONE_DAY) {
-            (daoPendingFeeShares, feeRecipientsPendingFeeShares) = _getPendingFeeShares();
-
-            lastPoke = block.timestamp;
+        if (block.timestamp - lastPoke >= ONE_DAY) {
+            (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke) = _getPendingFeeShares();
         }
     }
 
