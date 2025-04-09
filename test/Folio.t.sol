@@ -837,18 +837,17 @@ contract FolioTest is BaseTest {
         vm.prank(owner);
         folio.setTVLFee(0);
 
-        // fast forward, accumulate fees
+        vm.warp(2 days);
+        folio.distributeFees();
+
+        uint256 initialSupply = folio.totalSupply();
+
         vm.warp(block.timestamp + YEAR_IN_SECONDS);
         vm.roll(block.number + 1000000);
         uint256 pendingFeeShares = folio.getPendingFeeShares();
         uint256 defaultFeeFloor = daoFeeRegistry.defaultFeeFloor();
-        uint256 expectedPendingFeeShares = (INITIAL_SUPPLY * 1e18) / (1e18 - defaultFeeFloor) - INITIAL_SUPPLY;
-        assertApproxEqAbs(
-            pendingFeeShares,
-            expectedPendingFeeShares,
-            expectedPendingFeeShares / 1e7,
-            "wrong pending fee shares"
-        );
+        uint256 expectedPendingFeeShares = (initialSupply * 1e18) / (1e18 - defaultFeeFloor) - initialSupply;
+        assertApproxEqRel(pendingFeeShares, expectedPendingFeeShares, 5e10, "wrong pending fee shares");
     }
 
     function test_setFeeRecipients_InvalidRecipient() public {
