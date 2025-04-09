@@ -91,7 +91,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         folio.grantRole(folio.DEFAULT_ADMIN_ROLE(), owner);
 
         for (uint256 i; i < basketManagers.length; i++) {
-            folio.grantRole(folio.BASKET_MANAGER(), basketManagers[i]);
+            folio.grantRole(folio.REBALANCE_MANAGER(), basketManagers[i]);
         }
         for (uint256 i; i < auctionLaunchers.length; i++) {
             folio.grantRole(folio.AUCTION_LAUNCHER(), auctionLaunchers[i]);

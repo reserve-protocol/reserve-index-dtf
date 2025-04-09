@@ -75,11 +75,11 @@ contract Folio is
     /**
      * Roles
      */
-    bytes32 public constant BASKET_MANAGER = keccak256("BASKET_MANAGER"); // expected to be trading governance's timelock
+    bytes32 public constant REBALANCE_MANAGER = keccak256("REBALANCE_MANAGER"); // expected to be trading governance's timelock
     bytes32 public constant AUCTION_LAUNCHER = keccak256("AUCTION_LAUNCHER"); // optional: EOA or multisig
     bytes32 public constant BRAND_MANAGER = keccak256("BRAND_MANAGER"); // optional: no permissions
     /// === DEPRECATED ===
-    bytes32 public constant AUCTION_APPROVER = keccak256("AUCTION_APPROVER");
+    bytes32 private constant AUCTION_APPROVER = keccak256("AUCTION_APPROVER");
 
     /**
      * Mandate
@@ -129,13 +129,13 @@ contract Folio is
 
     /**
      * Rebalancing
-     *   BASKET_MANAGER
+     *   REBALANCE_MANAGER
      *   - There can only be 1 rebalance live at a time
      *   - There can be an auction for each unique token pair in the basket
      *   - A token can be ONLY sold or ONLY bought depending on whether it is in surplus or deficit
      *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil, and end at availableUntil
-     *   - The AUCTION_LAUNCHER acts within the bounds set by the BASKET_MANAGER, adding precision to limits/prices
-     *   - If the AUCTION_LAUNCHER is not active, the original spot estimates from the BASKET_MANAGER are used
+     *   - The AUCTION_LAUNCHER acts within the bounds set by the REBALANCE_MANAGER, adding precision to limits/prices
+     *   - If the AUCTION_LAUNCHER is not active, the original spot estimates from the REBALANCE_MANAGER are used
      *   - At anytime the rebalance can be stopped or a new one can be started (closing live auctions)
      *   - The AUCTION_LAUNCHER is limited in the damage they can do and can always be removed if griefing
      */
@@ -223,7 +223,7 @@ contract Folio is
         require(_addToBasket(address(token)), Folio__BasketModificationFailed());
     }
 
-    /// @dev Enables permissonless removal of tokens for 0 balance tokens
+    /// @dev Enables permissionless removal of tokens for 0 balance tokens
     function removeFromBasket(IERC20 token) external nonReentrant {
         _closeTrustedFill();
 
@@ -478,7 +478,7 @@ contract Folio is
         Prices[] calldata newPrices,
         uint256 auctionLauncherWindow,
         uint256 ttl
-    ) external nonReentrant onlyRole(BASKET_MANAGER) notDeprecated {
+    ) external nonReentrant onlyRole(REBALANCE_MANAGER) notDeprecated {
         require(ttl >= auctionLauncherWindow && ttl <= MAX_TTL, Folio__InvalidTTL());
 
         // keep old tokens in the basket for mint/redeem, but remove from rebalance
@@ -740,11 +740,11 @@ contract Folio is
 
     /// Close an auction
     /// A auction can be closed from anywhere in its lifecycle, and cannot be restarted
-    /// @dev Callable by ADMIN or BASKET_MANAGER or AUCTION_LAUNCHER
+    /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function closeAuction(uint256 auctionId) external nonReentrant {
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
-                hasRole(BASKET_MANAGER, msg.sender) ||
+                hasRole(REBALANCE_MANAGER, msg.sender) ||
                 hasRole(AUCTION_LAUNCHER, msg.sender),
             Folio__Unauthorized()
         );
@@ -756,12 +756,12 @@ contract Folio is
     }
 
     /// End the current rebalance, including all ongoing auctions
-    /// @dev Callable by ADMIN or BASKET_MANAGER or AUCTION_LAUNCHER
+    /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     /// @dev Still have to wait out auctionEnds after
     function endRebalance() external nonReentrant {
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
-                hasRole(BASKET_MANAGER, msg.sender) ||
+                hasRole(REBALANCE_MANAGER, msg.sender) ||
                 hasRole(AUCTION_LAUNCHER, msg.sender),
             Folio__Unauthorized()
         );

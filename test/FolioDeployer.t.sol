@@ -72,7 +72,7 @@ contract FolioDeployerTest is BaseTest {
 
         assertTrue(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), owner), "wrong admin role");
 
-        assertTrue(folio.hasRole(folio.BASKET_MANAGER(), dao), "wrong basket manager role");
+        assertTrue(folio.hasRole(folio.REBALANCE_MANAGER(), dao), "wrong basket manager role");
 
         assertTrue(folio.hasRole(folio.AUCTION_LAUNCHER(), auctionLauncher), "wrong auction launcher role");
 
@@ -418,7 +418,7 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(tradingTimelock.hasRole(tradingTimelock.CANCELLER_ROLE(), user1), "wrong canceler role");
 
         // Check auction approver is properly set
-        assertTrue(folio.hasRole(folio.BASKET_MANAGER(), address(tradingTimelock)), "wrong basket manager role");
+        assertTrue(folio.hasRole(folio.REBALANCE_MANAGER(), address(tradingTimelock)), "wrong basket manager role");
     }
 
     function test_createGovernedFolio_withExistingAuctionApprover() public {
@@ -530,7 +530,7 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(ownerTimelock.hasRole(ownerTimelock.CANCELLER_ROLE(), user2), "wrong canceler role");
 
         // Check auction approver is properly set
-        assertTrue(folio.hasRole(folio.BASKET_MANAGER(), dao), "wrong basket manager role");
+        assertTrue(folio.hasRole(folio.REBALANCE_MANAGER(), dao), "wrong basket manager role");
     }
 
     function test_canMineVanityAddress() public {
