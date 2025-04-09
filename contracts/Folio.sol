@@ -712,11 +712,11 @@ contract Folio is
     function _getPendingFeeShares()
         internal
         view
-        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, uint256 _accountedTill)
+        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, uint256 _accountedUntil)
     {
         // {s} Always in full days
-        _accountedTill = (block.timestamp / ONE_DAY) * ONE_DAY;
-        uint256 elapsed = _accountedTill < lastPoke ? 0 : _accountedTill - lastPoke;
+        _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
+        uint256 elapsed = _accountedUntil < lastPoke ? 0 : _accountedUntil - lastPoke;
 
         if (elapsed == 0) {
             return (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke);
@@ -843,13 +843,13 @@ contract Folio is
         (
             uint256 _daoPendingFeeShares,
             uint256 _feeRecipientsPendingFeeShares,
-            uint256 _accountedTill
+            uint256 _accountedUntil
         ) = _getPendingFeeShares();
 
-        if (_accountedTill > lastPoke) {
+        if (_accountedUntil > lastPoke) {
             daoPendingFeeShares = _daoPendingFeeShares;
             feeRecipientsPendingFeeShares = _feeRecipientsPendingFeeShares;
-            lastPoke = _accountedTill;
+            lastPoke = _accountedUntil;
         }
     }
 
