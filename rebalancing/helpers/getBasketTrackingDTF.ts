@@ -1,11 +1,13 @@
 import { Auction } from "../types";
 import { getCurrentBasket } from "../utils";
+import { D9n } from "../numbers";
 
 /**
- * Get target basket for a tracking DTF based on a supplied index of basket ratios
+ * Get target basket for a tracking DTF based on prepared auctions and current balances
  *
  * @param auctions Auctions
  * @param tokens Addresses of tokens in the basket
+ * @param amounts {tok} Current balances of each token per Folio share
  * @param decimals Decimals of each token
  * @param _prices {USD/wholeTok} Current USD prices for each *whole* token
  * @returns basket D18{1} Resulting basket from running the smallest auction first
@@ -13,6 +15,7 @@ import { getCurrentBasket } from "../utils";
 export const getBasketTrackingDTF = (
   auctions: Auction[],
   tokens: string[],
+  amounts: bigint[],
   decimals: bigint[],
   _prices: number[],
 ): bigint[] => {
@@ -21,7 +24,7 @@ export const getBasketTrackingDTF = (
   console.log("--------------------------------------------------------------------------------");
 
   // D27{tok/share}
-  const basketRatios = getBasketRatiosFromAuctions(tokens, auctions);
+  const basketRatios = getBasketRatiosFromAuctions(tokens, amounts, auctions);
 
   return getCurrentBasket(basketRatios, decimals, _prices);
 };
@@ -30,7 +33,7 @@ export const getBasketTrackingDTF = (
  *
  * @return D27{tok/share} The basket ratios as 27-decimal bigints
  *  */
-export const getBasketRatiosFromAuctions = (tokens: string[], auctions: Auction[]): bigint[] => {
+export const getBasketRatiosFromAuctions = (tokens: string[], amounts: bigint[], auctions: Auction[]): bigint[] => {
   const basketRatios: bigint[] = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -55,8 +58,12 @@ export const getBasketRatiosFromAuctions = (tokens: string[], auctions: Auction[
     }
 
     if (basketRatio == -1n) {
-      console.log("token missing from auctions", tokens[i]);
-      throw new Error("token missing from auctions");
+      console.log("token missing from auctions, using current balance", tokens[i]);
+
+      // get amount from current balance
+
+      // D27{tok/share} = D18{tok/share} * D9
+      basketRatio = amounts[i] * D9n;
     }
 
     basketRatios.push(basketRatio);
