@@ -840,9 +840,16 @@ contract Folio is
     function _poke() internal {
         _closeTrustedFill();
 
-        // Update at most once a day
-        if (block.timestamp - lastPoke >= ONE_DAY) {
-            (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke) = _getPendingFeeShares();
+        (
+            uint256 _daoPendingFeeShares,
+            uint256 _feeRecipientsPendingFeeShares,
+            uint256 _accountedTill
+        ) = _getPendingFeeShares();
+
+        if (_accountedTill > lastPoke) {
+            daoPendingFeeShares = _daoPendingFeeShares;
+            feeRecipientsPendingFeeShares = _feeRecipientsPendingFeeShares;
+            lastPoke = _accountedTill;
         }
     }
 
