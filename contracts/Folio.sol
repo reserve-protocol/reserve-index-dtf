@@ -583,8 +583,9 @@ contract Folio is
 
         // bring basket range up behind us to prevent double trading
         // this reduces the damage a malicious AUCTION_LAUNCHER can do
-        // TODO keep? might not be necessary depending on how much we want to trust the AUCTION_LAUNCHER
+        // might not be necessary depending on how much we want to trust the AUCTION_LAUNCHER
         // on the other hand, maybe it's not about trust maybe it's about them having to know something extra to avoid
+        // TODO decide during audit whether to keep
         sellDetails.limits.high = sellLimit;
         buyDetails.limits.low = buyLimit;
 
