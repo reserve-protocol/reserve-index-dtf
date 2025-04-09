@@ -716,7 +716,7 @@ contract Folio is
     {
         // {s} Always in full days
         _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
-        uint256 elapsed = _accountedUntil < lastPoke ? 0 : _accountedUntil - lastPoke;
+        uint256 elapsed = _accountedUntil > lastPoke ? _accountedUntil - lastPoke : 0;
 
         if (elapsed == 0) {
             return (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke);
