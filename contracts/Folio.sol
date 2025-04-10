@@ -104,15 +104,15 @@ contract Folio is
         _;
     }
 
-    DeprecatedStruct[] public auctions_DEPRECATED;
-    mapping(address token => uint256 timepoint) public sellEnds_DEPRECATED; // {s} timestamp of last possible second we could sell the token
-    mapping(address token => uint256 timepoint) public buyEnds_DEPRECATED; // {s} timestamp of last possible second we could buy the token
-    uint256 public auctionDelay_DEPRECATED; // {s} delay in the APPROVED state before an auction can be opened by anyone
+    DeprecatedStruct[] private auctions_DEPRECATED;
+    mapping(address token => uint256 timepoint) private sellEnds_DEPRECATED; // {s} timestamp of last possible second we could sell the token
+    mapping(address token => uint256 timepoint) private buyEnds_DEPRECATED; // {s} timestamp of last possible second we could buy the token
+    uint256 private auctionDelay_DEPRECATED; // {s} delay in the APPROVED state before an auction can be opened by anyone
 
     uint256 public auctionLength; // {s} length of an auction
 
     // === 2.0.0 ===
-    mapping(uint256 auctionId => DeprecatedStruct details) public auctionDetails_DEPRECATED;
+    mapping(uint256 auctionId => DeprecatedStruct details) private auctionDetails_DEPRECATED;
     mapping(address token => uint256 amount) private dustAmount_DEPRECATED;
 
     // === 3.0.0 ===
