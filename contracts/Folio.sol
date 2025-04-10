@@ -518,9 +518,10 @@ contract Folio is
             });
         }
 
+        rebalance.nonce++;
+        rebalance.startedAt = block.timestamp;
         rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
         rebalance.availableUntil = block.timestamp + ttl;
-        rebalance.nonce++;
 
         emit RebalanceStarted(
             rebalance.nonce,
@@ -886,8 +887,11 @@ contract Folio is
             Folio__NotRebalancing()
         );
 
-        // confirm a rebalance ongoing
-        require(block.timestamp < rebalance.availableUntil, Folio__NotRebalancing());
+        // confirm rebalance ongoing
+        require(
+            block.timestamp >= rebalance.startedAt + auctionBuffer && block.timestamp < rebalance.availableUntil,
+            Folio__NotRebalancing()
+        );
 
         // confirm no auction collision on token pair
         {

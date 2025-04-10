@@ -1807,7 +1807,7 @@ contract FolioTest is BaseTest {
 
         // should not be openable after availableUntil
 
-        (, , uint256 availableUntil) = folio.rebalance();
+        (, , , uint256 availableUntil) = folio.rebalance();
         vm.warp(availableUntil + 1);
         vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
@@ -1946,7 +1946,7 @@ contract FolioTest is BaseTest {
 
         // but should be possible after auction delay
 
-        (, uint256 restrictedUntil, ) = folio.rebalance();
+        (, , uint256 restrictedUntil, ) = folio.rebalance();
         vm.warp(restrictedUntil);
         folio.openAuctionUnrestricted(USDC, DAI);
         vm.stopPrank();
@@ -1958,7 +1958,7 @@ contract FolioTest is BaseTest {
         vm.prank(dao);
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
-        (, uint256 restrictedUntil, ) = folio.rebalance();
+        (, , uint256 restrictedUntil, ) = folio.rebalance();
         vm.warp(restrictedUntil);
         vm.expectRevert();
         folio.openAuctionUnrestricted(USDC, DAI);
