@@ -79,24 +79,37 @@ export const openAuction = (
   // {buyTok/sellTok} = {wholeBuyTok/wholeSellTok} * {buyTok/wholeBuyTok} / {sellTok/wholeSellTok}
   const price = wholePrice.mul(new Decimal(`1e${decimals[y]}`)).div(new Decimal(`1e${decimals[x]}`));
 
+  // D27{buyTok/sellTok} = {buyTok/sellTok} / {1} * D27
+  const spotPrice = bn(price.mul(D27d));
+
   // {1}
-  let avgPriceError = priceError[x].plus(priceError[y]).div(TWO);
+  const avgPriceError = priceError[x].plus(priceError[y]).div(TWO);
   if (priceError[x].gte(ONE) || priceError[y].gte(ONE)) {
     throw new Error("price error too large");
   }
 
-  // D27{buyTok/sellTok} = {buyTok/sellTok} / {1} * D27
-  const idealStartPrice = bn(price.div(ONE.minus(avgPriceError)).mul(D27d));
-  const idealEndPrice = bn(price.mul(ONE.minus(avgPriceError)).mul(D27d));
-
   if (
     auction.prices.start > 0n &&
     auction.prices.end > 0n &&
-    (idealStartPrice > auction.prices.start || idealEndPrice < auction.prices.end)
+    (spotPrice > auction.prices.start * 50n || spotPrice < auction.prices.end)
   ) {
-    console.log("startPrice", auction.prices.start, idealStartPrice);
-    console.log("endPrice", auction.prices.end, idealEndPrice);
-    throw new Error("price has moved outside auction price range");
+    // use 50x multiplier on startPrice to keep lots of headroom for price to move more; don't want to lose value
+
+    console.log("startPrice", auction.prices.start);
+    console.log("endPrice", auction.prices.end);
+    console.log("spotPrice", spotPrice);
+    throw new Error("spot price has moved outside valid auction price range");
+  }
+
+  // D27{buyTok/sellTok} = {buyTok/sellTok} / {1} * D27
+  let idealStartPrice = bn(price.div(ONE.minus(avgPriceError)).mul(D27d));
+  let idealEndPrice = bn(price.mul(ONE.minus(avgPriceError)).mul(D27d));
+
+  if (idealStartPrice > auction.prices.start * 50n) {
+    idealStartPrice = auction.prices.start * 50n;
+  }
+  if (idealEndPrice < auction.prices.end) {
+    idealEndPrice = auction.prices.end;
   }
 
   // calculate sellLimit/buyLimit
