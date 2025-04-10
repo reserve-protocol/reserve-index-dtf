@@ -9,7 +9,8 @@ import { makeAuction } from "../utils";
  *
  * If:
  *   1. Native DTF: pass `_targetBasket` as their original basket intent (e.g. [100%, 0%, 0%])
- *   2. Tracking DTF: first call `utils/getAdjustedTargetBasket()`, then pass the result into `_targetBasket`
+ *   2. Tracking DTF: first call `utils/getCurrentBasket()` passing in the _target_ balances per share,
+ *      then pass the result into `_targetBasket` here in this function.
  *
  * Warnings:
  *   - Breakup large auctions into smaller auctions in advance of using this algo; a large Folio may have to use this
@@ -35,7 +36,7 @@ export const getAuctions = (
   _prices: number[],
   _priceError: number[],
   _dtfPrice: number,
-  _tolerance: bigint = 10n ** 14n, // 0.01%
+  _tolerance: bigint = 10n ** 15n, // 0.1%
 ): Auction[] => {
   console.log(
     "getAuctions()",
