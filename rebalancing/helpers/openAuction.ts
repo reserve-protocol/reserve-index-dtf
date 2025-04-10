@@ -88,28 +88,26 @@ export const openAuction = (
     throw new Error("price error too large");
   }
 
+  // D27{buyTok/sellTok} = {buyTok/sellTok} / {1} * D27
+  const startPrice = bn(price.div(ONE.minus(avgPriceError)).mul(D27d));
+  let endPrice = bn(price.mul(ONE.minus(avgPriceError)).mul(D27d));
+
+  if (endPrice < auction.prices.end) {
+    endPrice = auction.prices.end;
+  }
+
+  // check spot price against 50x multiple to keep headroom for price to move more; don't want to lose value
   if (
     auction.prices.start > 0n &&
     auction.prices.end > 0n &&
-    (spotPrice > auction.prices.start * 50n || spotPrice < auction.prices.end)
+    (spotPrice > auction.prices.start * 50n ||
+      startPrice > auction.prices.start * 100n ||
+      spotPrice < auction.prices.end)
   ) {
-    // use 50x multiplier on startPrice to keep lots of headroom for price to move more; don't want to lose value
-
-    console.log("startPrice", auction.prices.start);
-    console.log("endPrice", auction.prices.end);
+    console.log("startPrice", startPrice, auction.prices.start);
+    console.log("endPrice", endPrice, auction.prices.end);
     console.log("spotPrice", spotPrice);
     throw new Error("spot price has moved outside valid auction price range");
-  }
-
-  // D27{buyTok/sellTok} = {buyTok/sellTok} / {1} * D27
-  let idealStartPrice = bn(price.div(ONE.minus(avgPriceError)).mul(D27d));
-  let idealEndPrice = bn(price.mul(ONE.minus(avgPriceError)).mul(D27d));
-
-  if (idealStartPrice > auction.prices.start * 50n) {
-    idealStartPrice = auction.prices.start * 50n;
-  }
-  if (idealEndPrice < auction.prices.end) {
-    idealEndPrice = auction.prices.end;
   }
 
   // calculate sellLimit/buyLimit
@@ -149,5 +147,5 @@ export const openAuction = (
   console.log("sellLimit", auction.sellLimit.low, sellLimit, auction.sellLimit.high);
   console.log("buyLimit", auction.buyLimit.low, buyLimit, auction.buyLimit.high);
 
-  return [sellLimit, buyLimit, idealStartPrice, idealEndPrice];
+  return [sellLimit, buyLimit, startPrice, endPrice];
 };
