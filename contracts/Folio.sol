@@ -719,7 +719,7 @@ contract Folio is
         uint256 elapsed = _accountedUntil > lastPoke ? _accountedUntil - lastPoke : 0;
 
         if (elapsed == 0) {
-            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, _accountedUntil);
+            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke);
         }
 
         _daoPendingFeeShares = daoPendingFeeShares;
