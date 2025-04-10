@@ -13,3 +13,4 @@ utils/=test/utils/
 @gov/=contracts/governance/
 @staking/=contracts/staking/
 @deployer/=contracts/deployer/
+@spells/=contracts/spells/
