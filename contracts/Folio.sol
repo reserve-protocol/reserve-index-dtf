@@ -73,8 +73,6 @@ contract Folio is
     bytes32 public constant REBALANCE_MANAGER = keccak256("REBALANCE_MANAGER"); // expected to be trading governance's timelock
     bytes32 public constant AUCTION_LAUNCHER = keccak256("AUCTION_LAUNCHER"); // optional: EOA or multisig
     bytes32 public constant BRAND_MANAGER = keccak256("BRAND_MANAGER"); // optional: no permissions
-    /// === DEPRECATED ===
-    bytes32 private constant AUCTION_APPROVER = keccak256("AUCTION_APPROVER");
 
     /**
      * Mandate
@@ -147,6 +145,12 @@ contract Folio is
     mapping(uint256 rebalanceNonce => mapping(bytes32 pair => uint256 endTime)) public auctionEnds;
     uint256 public nextAuctionId;
 
+    /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
+    modifier sync() {
+        _poke();
+        _;
+    }
+
     // ====
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -194,12 +198,6 @@ contract Folio is
 
         _mint(_creator, _basicDetails.initialShares);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
-
-    /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
-    modifier action() {
-        _poke();
-        _;
     }
 
     /// @dev Testing function, no production use
@@ -293,7 +291,7 @@ contract Folio is
     // ==== Share + Asset Accounting ====
 
     /// @dev Contains all pending fee shares
-    function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
+    function totalSupply() public view override returns (uint256) {
         (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, ) = _getPendingFeeShares();
 
         return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
@@ -325,7 +323,7 @@ contract Folio is
         uint256 shares,
         address receiver,
         uint256 minSharesOut
-    ) external nonReentrant action notDeprecated returns (address[] memory _assets, uint256[] memory _amounts) {
+    ) external nonReentrant notDeprecated sync returns (address[] memory _assets, uint256[] memory _amounts) {
         // === Calculate fee shares ===
 
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
@@ -376,7 +374,7 @@ contract Folio is
         address receiver,
         address[] calldata assets,
         uint256[] calldata minAmountsOut
-    ) external nonReentrant action returns (uint256[] memory _amounts) {
+    ) external nonReentrant sync returns (uint256[] memory _amounts) {
         address[] memory _assets;
         (_assets, _amounts) = _toAssets(shares, Math.Rounding.Floor);
 
@@ -410,7 +408,7 @@ contract Folio is
     /// Distribute all pending fee shares
     /// @dev Recipients: DAO and fee recipients; if feeRecipients are empty, the DAO gets all the fees
     /// @dev Pending fee shares are already reflected in the total supply, this function only concretizes balances
-    function distributeFees() public nonReentrant action {
+    function distributeFees() public nonReentrant sync {
         // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
 
         // === Fee recipients ===
@@ -474,7 +472,7 @@ contract Folio is
         Prices[] calldata newPrices,
         uint256 auctionLauncherWindow,
         uint256 ttl
-    ) external nonReentrant action onlyRole(REBALANCE_MANAGER) notDeprecated {
+    ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
         require(ttl >= auctionLauncherWindow && ttl <= MAX_TTL, Folio__InvalidTTL());
 
         // keep old tokens in the basket for mint/redeem, but remove from rebalance
@@ -546,7 +544,7 @@ contract Folio is
         uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice
-    ) external nonReentrant action onlyRole(AUCTION_LAUNCHER) notDeprecated returns (uint256) {
+    ) external onlyRole(AUCTION_LAUNCHER) nonReentrant notDeprecated sync returns (uint256) {
         // auction launcher can:
         //   - select a sell limit within the approved basket weight range
         //   - select a buy limit within the approved basket weight range
@@ -594,7 +592,7 @@ contract Folio is
     function openAuctionUnrestricted(
         IERC20 sellToken,
         IERC20 buyToken
-    ) external nonReentrant action notDeprecated returns (uint256) {
+    ) external nonReentrant notDeprecated sync returns (uint256) {
         require(block.timestamp >= rebalance.restrictedUntil, Folio__AuctionCannotBeOpenedWithoutRestriction());
 
         // open an auction on spot limits + full price range
@@ -661,7 +659,7 @@ contract Folio is
         uint256 maxBuyAmount,
         bool withCallback,
         bytes calldata data
-    ) external nonReentrant action notDeprecated returns (uint256 boughtAmt) {
+    ) external nonReentrant notDeprecated sync returns (uint256 boughtAmt) {
         Auction storage auction = auctions[auctionId];
 
         require(auction.rebalanceNonce == rebalance.nonce, Folio__AuctionNotOngoing());
@@ -702,7 +700,7 @@ contract Folio is
         uint256 auctionId,
         address targetFiller,
         bytes32 deploymentSalt
-    ) external nonReentrant action notDeprecated returns (IBaseTrustedFiller filler) {
+    ) external nonReentrant notDeprecated sync returns (IBaseTrustedFiller filler) {
         Auction storage auction = auctions[auctionId];
 
         require(auction.rebalanceNonce == rebalance.nonce, Folio__AuctionNotOngoing());
@@ -747,6 +745,7 @@ contract Folio is
         // do not revert, to prevent griefing
         auctions[auctionId].endTime = block.timestamp - 1;
         delete auctionEnds[rebalance.nonce][_pairHash(auctions[auctionId].sellToken, auctions[auctionId].buyToken)];
+
         emit AuctionClosed(auctionId);
     }
 
@@ -814,7 +813,10 @@ contract Folio is
 
     /// @return pair The hash of the pair
     function _pairHash(IERC20 sellToken, IERC20 buyToken) internal pure returns (bytes32) {
-        return keccak256(abi.encode(sellToken, buyToken));
+        return
+            sellToken > buyToken
+                ? keccak256(abi.encode(sellToken, buyToken))
+                : keccak256(abi.encode(buyToken, sellToken));
     }
 
     /// @return _daoPendingFeeShares {share}
@@ -897,6 +899,7 @@ contract Folio is
         {
             bytes32 pair = _pairHash(sellToken, buyToken);
             require(block.timestamp > auctionEnds[rebalance.nonce][pair] + auctionBuffer, Folio__AuctionCollision());
+
             auctionEnds[rebalance.nonce][pair] = block.timestamp + auctionLength;
         }
 
