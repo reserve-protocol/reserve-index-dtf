@@ -23,38 +23,33 @@ import { IFolio } from "@interfaces/IFolio.sol";
 /**
  * @title Folio
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
- * @notice Folio is a backed ERC20 token with permissionless minting/redemption and rebalancing via dutch auction
+ * @notice Folio is a backed ERC20 token with permissionless minting/redemption and a rebalancing mechanism.
  *
  * A Folio is backed by a flexible number of ERC20 tokens of any denomination/price (within assumed ranges, see README)
  * All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
  *
  * There are 3 main roles:
  *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, auction delay, close auctions, and deprecateFolio
- *   2. AUCTION_APPROVER: can approve auctions and close auctions
- *   3. AUCTION_LAUNCHER: can open auctions optionally providing some amount of additional detail, and close auctions
+ *   2. REBALANCE_MANAGER: can start/end rebalances
+ *   3. AUCTION_LAUNCHER: can open auctions during an ongoing rebalance, and close auctions
  *
  * There is also an additional BRAND_MANAGER role that does not have any permissions. It is used off-chain.
  *
- * Auction lifecycle:
- *   approveAuction() -> openAuction() -> bid() -> [optional] closeAuction()
+ * Rebalance lifecycle:
+ *   startRebalance() -> openAuction() -> bid() -> [optional] closeAuction()
  *
- * After an auction is first approved there is an `auctionDelay` before it can be opened by anyone. This provides
- * an isolated period of time where the AUCTION_LAUNCHER can open the auction, optionally providing additional pricing
- * and basket information within the pre-approved ranges.
+ * After a new rebalance is started by the REBALANCE_MANAGER, there is a period of time where only the AUCTION_LAUNCHER
+ * can open auctions. They can choose to act within the range of the REBALANCE_MANAGER's initial estimates. After this
+ * period is over, anyone can open auctions until the rebalance expires.
  *
- * However, sometimes an auction may not fill. As long as it is before the `auction.launchDeadline` the auction can be
- * re-launched, up to the remaining number of `auction.availableRuns`. Between re-runs of the same auction, an
- * additional RESTRICTED_AUCTION_BUFFER (120s) is applied to give the AUCTION_LAUNCHER time to act first.
+ * An auction for a given token pair can run any number of times. However it requires the sell token to be in surplus
+ * and the buy token in deficit.
  *
- * An approved auction cannot block another approved auction from being opened. If an auction has been approved, then
- * it can be executed in parallel with any of the other approved auctions. Two auctions conflict on approval
- * if they share opposing tokens: if the sell token in one auction equals the buy token in the other.
- *
- * Rebalancing targets for auctions are defined in basket ratios: ratios of token to Folio shares, units D27{tok/share}
+ * Targets for the rebalance are called "limits" and defined in basket ratios: ratios of token to Folio shares, D27{tok/share}
  *
  * Fees:
- *   - TVL fee: fee per unit time. Max 10% annually
- *   - Mint fee: fee on mint. Max 5%
+ *   - TVL fee: fee per unit time. Max 10% annually. Causes supply inflation over time, discretely once a day.
+ *   - Mint fee: fee on mint. Max 5%. Does not cause supply inflation.
  *
  * After fees have been applied, the DAO takes a cut based on the configuration of the FolioDAOFeeRegistry including
  * a minimum fee floor of 15bps. The remaining portion above 15bps is distributed to the Folio's fee recipients.
