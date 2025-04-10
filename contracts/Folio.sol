@@ -508,9 +508,10 @@ contract Folio is
                 Folio__InvalidLimits()
             );
 
-            if (deferPrices) {
-                require(newPrices[i].low == 0 && newPrices[i].high == 0, Folio__InvalidPrices());
-            }
+            require(
+                deferPrices == (newPrices[i].low == 0) && deferPrices == (newPrices[i].high == 0),
+                Folio__InvalidPrices()
+            );
 
             require(newPrices[i].low <= newPrices[i].high && newPrices[i].high <= MAX_RATE, Folio__InvalidPrices());
 
