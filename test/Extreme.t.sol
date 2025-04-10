@@ -13,6 +13,8 @@ contract ExtremeTest is BaseExtremeTest {
     IFolio.BasketRange internal FULL_SELL = IFolio.BasketRange(0, 0, MAX_RATE);
     IFolio.BasketRange internal FULL_BUY = IFolio.BasketRange(MAX_RATE, MAX_RATE, MAX_RATE);
 
+    IFolio.Prices internal ZERO_PRICE = IFolio.Prices(0, 0);
+
     function _deployTestFolio(
         address[] memory _tokens,
         uint256[] memory _amounts,
@@ -41,7 +43,6 @@ contract ExtremeTest is BaseExtremeTest {
             _tokens,
             _amounts,
             initialSupply,
-            MAX_AUCTION_DELAY,
             MAX_AUCTION_LENGTH,
             recipients,
             tvlFee,
@@ -233,9 +234,21 @@ contract ExtremeTest is BaseExtremeTest {
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
         _deployTestFolio(tokens, amounts, initialSupply, tvlFee, 0, recipients);
 
-        // approveAuction
-        vm.prank(dao);
-        folio.approveAuction(sell, buy, FULL_SELL, FULL_BUY, IFolio.Prices(0, 0), MAX_TTL, 1);
+        // startRebalance
+        {
+            address[] memory assets = new address[](2);
+            IFolio.BasketRange[] memory limits = new IFolio.BasketRange[](2);
+            IFolio.Prices[] memory prices = new IFolio.Prices[](2);
+            assets[0] = address(sell);
+            assets[1] = address(buy);
+            limits[0] = IFolio.BasketRange(0, 0, MAX_RATE);
+            limits[1] = IFolio.BasketRange(0, 0, MAX_RATE);
+            prices[0] = ZERO_PRICE;
+            prices[1] = ZERO_PRICE;
+
+            vm.prank(dao);
+            folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
+        }
 
         // restrict price from being too low
         uint256 minPrice = type(uint256).max / Math.mulDiv(MAX_RATE, 1e23, initialSupply, Math.Rounding.Ceil);
@@ -244,12 +257,12 @@ contract ExtremeTest is BaseExtremeTest {
         // openAuction
         vm.prank(auctionLauncher);
         uint256 endPrice = (p.price + MAX_PRICE_RANGE - 1) / MAX_PRICE_RANGE;
-        folio.openAuction(0, 0, MAX_RATE, p.price, endPrice);
+        folio.openAuction(sell, buy, 0, MAX_RATE, p.price, endPrice);
 
         // sellAmount will be up to 1e36
         // buyAmount will be up to 1e54 and down to 1
 
-        (, , , , , , , , uint256 start, uint256 end, ) = folio.auctions(0);
+        (, , , , , , , uint256 start, uint256 end) = folio.auctions(0);
 
         (, , uint256 price) = folio.getBid(0, start, type(uint256).max);
         (, , uint256 price2) = folio.getBid(0, start + 1, type(uint256).max);

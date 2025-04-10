@@ -16,7 +16,7 @@ interface IGovernanceDeployer {
     }
 
     struct GovRoles {
-        address[] existingAuctionApprovers;
+        address[] existingBasketManagers;
         address[] auctionLaunchers;
         address[] brandManagers;
     }
