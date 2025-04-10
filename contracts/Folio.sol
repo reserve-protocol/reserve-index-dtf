@@ -490,12 +490,10 @@ contract Folio is
         }
 
         len = newTokens.length;
-        require(len == newLimits.length, Folio__InvalidArrayLengths());
-        require(len == newPrices.length, Folio__InvalidArrayLengths());
+        require(len == newLimits.length && len == newPrices.length, Folio__InvalidArrayLengths());
 
         // enforce that if one price is 0, all prices are 0
         bool deferPrices = newPrices[0].low == 0;
-        require(deferPrices == (newPrices[0].high == 0), Folio__InvalidPrices());
 
         // set new basket
         for (uint256 i; i < len; i++) {
@@ -510,10 +508,9 @@ contract Folio is
                 Folio__InvalidLimits()
             );
 
-            require(
-                deferPrices == (newPrices[i].low == 0) && deferPrices == (newPrices[i].high == 0),
-                Folio__InvalidPrices()
-            );
+            if (deferPrices) {
+                require(newPrices[i].low == 0 && newPrices[i].high == 0, Folio__InvalidPrices());
+            }
 
             require(newPrices[i].low <= newPrices[i].high && newPrices[i].high <= MAX_RATE, Folio__InvalidPrices());
 
@@ -881,8 +878,6 @@ contract Folio is
         uint256 endPrice,
         uint256 auctionBuffer
     ) internal returns (uint256 auctionId) {
-        _closeTrustedFill();
-
         // confirm tokens are in basket
         require(
             basket.contains(address(sellToken)) && basket.contains(address(buyToken)),
