@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { AuctionLib } from "@utils/AuctionLib.sol";
-import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_PRICE_RANGE, MAX_RATE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR } from "@utils/Constants.sol";
+import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_PRICE_RANGE, MAX_RATE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -201,6 +201,12 @@ contract Folio is
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
+    /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
+    modifier action() {
+        _poke();
+        _;
+    }
+
     /// @dev Testing function, no production use
     function poke() external nonReentrant {
         _poke();
@@ -293,7 +299,7 @@ contract Folio is
 
     /// @dev Contains all pending fee shares
     function totalSupply() public view virtual override(ERC20Upgradeable) returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, ) = _getPendingFeeShares();
 
         return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
@@ -324,9 +330,7 @@ contract Folio is
         uint256 shares,
         address receiver,
         uint256 minSharesOut
-    ) external nonReentrant notDeprecated returns (address[] memory _assets, uint256[] memory _amounts) {
-        _poke();
-
+    ) external nonReentrant action notDeprecated returns (address[] memory _assets, uint256[] memory _amounts) {
         // === Calculate fee shares ===
 
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
@@ -377,9 +381,7 @@ contract Folio is
         address receiver,
         address[] calldata assets,
         uint256[] calldata minAmountsOut
-    ) external nonReentrant returns (uint256[] memory _amounts) {
-        _poke();
-
+    ) external nonReentrant action returns (uint256[] memory _amounts) {
         address[] memory _assets;
         (_assets, _amounts) = _toAssets(shares, Math.Rounding.Floor);
 
@@ -406,15 +408,14 @@ contract Folio is
 
     /// @return {share} Up-to-date sum of DAO and fee recipients pending fee shares
     function getPendingFeeShares() public view returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) = _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, ) = _getPendingFeeShares();
         return _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
     /// Distribute all pending fee shares
     /// @dev Recipients: DAO and fee recipients; if feeRecipients are empty, the DAO gets all the fees
     /// @dev Pending fee shares are already reflected in the total supply, this function only concretizes balances
-    function distributeFees() public nonReentrant {
-        _poke();
+    function distributeFees() public nonReentrant action {
         // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
 
         // === Fee recipients ===
@@ -478,7 +479,7 @@ contract Folio is
         Prices[] calldata newPrices,
         uint256 auctionLauncherWindow,
         uint256 ttl
-    ) external nonReentrant onlyRole(REBALANCE_MANAGER) notDeprecated {
+    ) external nonReentrant action onlyRole(REBALANCE_MANAGER) notDeprecated {
         require(ttl >= auctionLauncherWindow && ttl <= MAX_TTL, Folio__InvalidTTL());
 
         // keep old tokens in the basket for mint/redeem, but remove from rebalance
@@ -551,7 +552,7 @@ contract Folio is
         uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice
-    ) external nonReentrant onlyRole(AUCTION_LAUNCHER) notDeprecated returns (uint256) {
+    ) external nonReentrant action onlyRole(AUCTION_LAUNCHER) notDeprecated returns (uint256) {
         // auction launcher can:
         //   - select a sell limit within the approved basket weight range
         //   - select a buy limit within the approved basket weight range
@@ -593,12 +594,13 @@ contract Folio is
         return _openAuction(sellToken, buyToken, sellLimit, buyLimit, startPrice, endPrice, 0);
     }
 
-    /// Open an auction between two tokens (without calling restriction)
+    /// Open an auction without restrictions
+    /// @dev Unrestricted, callable only after the `auctionDelay`
     /// @return auctionId The newly created auctionId
     function openAuctionUnrestricted(
         IERC20 sellToken,
         IERC20 buyToken
-    ) external nonReentrant notDeprecated returns (uint256) {
+    ) external nonReentrant action notDeprecated returns (uint256) {
         require(block.timestamp >= rebalance.restrictedUntil, Folio__AuctionCannotBeOpenedWithoutRestriction());
 
         // open an auction on spot limits + full price range
@@ -665,8 +667,7 @@ contract Folio is
         uint256 maxBuyAmount,
         bool withCallback,
         bytes calldata data
-    ) external nonReentrant notDeprecated returns (uint256 boughtAmt) {
-        _closeTrustedFill();
+    ) external nonReentrant action notDeprecated returns (uint256 boughtAmt) {
         Auction storage auction = auctions[auctionId];
 
         require(auction.rebalanceNonce == rebalance.nonce, Folio__AuctionNotOngoing());
@@ -707,8 +708,7 @@ contract Folio is
         uint256 auctionId,
         address targetFiller,
         bytes32 deploymentSalt
-    ) external nonReentrant notDeprecated returns (IBaseTrustedFiller filler) {
-        _closeTrustedFill();
+    ) external nonReentrant action notDeprecated returns (IBaseTrustedFiller filler) {
         Auction storage auction = auctions[auctionId];
 
         require(auction.rebalanceNonce == rebalance.nonce, Folio__AuctionNotOngoing());
@@ -828,8 +828,16 @@ contract Folio is
     function _getPendingFeeShares()
         internal
         view
-        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares)
+        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, uint256 _accountedUntil)
     {
+        // {s} Always in full days
+        _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
+        uint256 elapsed = _accountedUntil > lastPoke ? _accountedUntil - lastPoke : 0;
+
+        if (elapsed == 0) {
+            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke);
+        }
+
         _daoPendingFeeShares = daoPendingFeeShares;
         _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
 
@@ -847,9 +855,6 @@ contract Folio is
 
         // D18{1/s}
         uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
-
-        // {s}
-        uint256 elapsed = block.timestamp - lastPoke;
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
         uint256 feeShares = (supply * D18) / MathLib.powu(D18 - _tvlFee, elapsed) - supply;
@@ -1018,12 +1023,17 @@ contract Folio is
     function _poke() internal {
         _closeTrustedFill();
 
-        if (lastPoke == block.timestamp) {
-            return;
-        }
+        (
+            uint256 _daoPendingFeeShares,
+            uint256 _feeRecipientsPendingFeeShares,
+            uint256 _accountedUntil
+        ) = _getPendingFeeShares();
 
-        (daoPendingFeeShares, feeRecipientsPendingFeeShares) = _getPendingFeeShares();
-        lastPoke = block.timestamp;
+        if (_accountedUntil > lastPoke) {
+            daoPendingFeeShares = _daoPendingFeeShares;
+            feeRecipientsPendingFeeShares = _feeRecipientsPendingFeeShares;
+            lastPoke = _accountedUntil;
+        }
     }
 
     function _addToBasket(address token) internal returns (bool) {
