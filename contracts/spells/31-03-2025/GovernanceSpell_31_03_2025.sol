@@ -17,7 +17,7 @@ import { Versioned } from "@utils/Versioned.sol";
  * @title GovernanceSpell_31_03_2025
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  *
- * This spell enables governors/timelocks associated with 1.0.0 Folio deployment to upgrade to new instances,
+ * This spell enables governor/timelock pairs associated with 1.0.0 Folio deployment to upgrade to new instances,
  * with 2 changes:
  *   - proposal threshold lowered by factor of 100
  *   - quorum numerator and denominator converted from whole percent to D18{1}, without changing numerator / denominator
@@ -51,8 +51,10 @@ contract GovernanceSpell_31_03_2025 is Versioned {
     ) external returns (address newGovernor) {
         require(stakingVault.owner() == address(this), "GS: not staking vault owner");
 
+        bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
+
         address newTimelock;
-        (newGovernor, newTimelock) = _deployReplacementGovernance(oldGovernor, guardians, deploymentNonce);
+        (newGovernor, newTimelock) = _deployReplacementGovernance(oldGovernor, guardians, deploymentSalt);
 
         stakingVault.transferOwnership(newTimelock);
         assert(stakingVault.owner() == newTimelock);
@@ -78,6 +80,8 @@ contract GovernanceSpell_31_03_2025 is Versioned {
         require(oldOwnerGovernor.timelock() != address(0), "GS: owner timelock 0");
         require(oldTradingGovernor.timelock() != address(0), "GS: trading timelock 0");
 
+        bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
+
         // check privileges / setup
 
         require(proxyAdmin.owner() == address(this), "GS: not proxy admin owner");
@@ -100,14 +104,14 @@ contract GovernanceSpell_31_03_2025 is Versioned {
         (newOwnerGovernor, newOwnerTimelock) = _deployReplacementGovernance(
             oldOwnerGovernor,
             ownerGuardians,
-            deploymentNonce
+            deploymentSalt
         );
 
         address newTradingTimelock;
         (newTradingGovernor, newTradingTimelock) = _deployReplacementGovernance(
             oldTradingGovernor,
             tradingGuardians,
-            deploymentNonce
+            deploymentSalt
         );
 
         // upgrade roles and owners

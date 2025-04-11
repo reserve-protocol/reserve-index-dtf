@@ -58,6 +58,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         bytes32 deploymentSalt = keccak256(
             abi.encode(
+                msg.sender,
                 keccak256(
                     abi.encode(
                         basicDetails,
@@ -135,11 +136,13 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         GovernancePair memory ownerGovernance;
         GovernancePair memory tradingGovernance;
 
+        bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
+
         // Deploy Owner Governance
         (ownerGovernance.governor, ownerGovernance.timelock) = governanceDeployer.deployGovernanceWithTimelock(
             ownerGovParams,
             stToken,
-            deploymentNonce
+            deploymentSalt
         );
 
         address[] memory auctionApprovers = govRoles.existingAuctionApprovers;
@@ -150,7 +153,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             (tradingGovernance.governor, tradingGovernance.timelock) = governanceDeployer.deployGovernanceWithTimelock(
                 tradingGovParams,
                 stToken,
-                ~deploymentNonce
+                ~deploymentSalt
             );
 
             auctionApprovers = new address[](1);
@@ -166,7 +169,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             govRoles.auctionLaunchers,
             govRoles.brandManagers,
             trustedFillerEnabled,
-            deploymentNonce
+            deploymentSalt
         );
 
         emit GovernedFolioDeployed(

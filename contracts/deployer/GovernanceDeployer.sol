@@ -51,7 +51,9 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
         IGovernanceDeployer.GovParams calldata govParams,
         bytes32 deploymentNonce
     ) external returns (StakingVault stToken, address governor, address timelock) {
-        bytes32 deploymentSalt = keccak256(abi.encode(name, symbol, underlying, govParams, deploymentNonce));
+        bytes32 deploymentSalt = keccak256(
+            abi.encode(msg.sender, name, symbol, underlying, govParams, deploymentNonce)
+        );
 
         stToken = new StakingVault{ salt: deploymentSalt }(
             name,
@@ -74,7 +76,7 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
         IVotes stToken,
         bytes32 deploymentNonce
     ) public returns (address governor, address timelock) {
-        bytes32 deploymentSalt = keccak256(abi.encode(govParams, stToken, deploymentNonce));
+        bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, govParams, stToken, deploymentNonce));
 
         governor = Clones.cloneDeterministic(governorImplementation, deploymentSalt);
         timelock = Clones.cloneDeterministic(timelockImplementation, deploymentSalt);
