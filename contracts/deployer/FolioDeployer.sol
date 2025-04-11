@@ -48,7 +48,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         address owner,
-        address[] memory auctionApprovers,
+        address[] memory basketManagers,
         address[] memory auctionLaunchers,
         address[] memory brandManagers,
         bool trustedFillerEnabled,
@@ -60,14 +60,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             abi.encode(
                 msg.sender,
                 keccak256(
-                    abi.encode(
-                        basicDetails,
-                        additionalDetails,
-                        owner,
-                        auctionApprovers,
-                        auctionLaunchers,
-                        brandManagers
-                    )
+                    abi.encode(basicDetails, additionalDetails, owner, basketManagers, auctionLaunchers, brandManagers)
                 ),
                 deploymentNonce
             )
@@ -98,8 +91,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         // Setup Roles
         folio.grantRole(folio.DEFAULT_ADMIN_ROLE(), owner);
 
-        for (uint256 i; i < auctionApprovers.length; i++) {
-            folio.grantRole(folio.AUCTION_APPROVER(), auctionApprovers[i]);
+        for (uint256 i; i < basketManagers.length; i++) {
+            folio.grantRole(folio.REBALANCE_MANAGER(), basketManagers[i]);
         }
         for (uint256 i; i < auctionLaunchers.length; i++) {
             folio.grantRole(folio.AUCTION_LAUNCHER(), auctionLaunchers[i]);
@@ -146,10 +139,10 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             deploymentSalt
         );
 
-        address[] memory auctionApprovers = govRoles.existingAuctionApprovers;
+        address[] memory basketManagers = govRoles.existingBasketManagers;
 
         // Deploy trading Governance if auction approvers are not provided
-        if (auctionApprovers.length == 0) {
+        if (basketManagers.length == 0) {
             // Flip deployment nonce to avoid timelock/governor collisions
             (govPairs[1].governor, govPairs[1].timelock) = governanceDeployer.deployGovernanceWithTimelock(
                 tradingGovParams,
@@ -157,8 +150,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 ~deploymentSalt
             );
 
-            auctionApprovers = new address[](1);
-            auctionApprovers[0] = govPairs[1].timelock;
+            basketManagers = new address[](1);
+            basketManagers[0] = govPairs[1].timelock;
         }
 
         // Deploy Folio
@@ -166,7 +159,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             basicDetails,
             additionalDetails,
             govPairs[0].timelock,
-            auctionApprovers,
+            basketManagers,
             govRoles.auctionLaunchers,
             govRoles.brandManagers,
             trustedFillerEnabled,

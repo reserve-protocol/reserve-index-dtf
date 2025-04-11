@@ -196,7 +196,6 @@ contract DeployScript is Script {
                 initialShares: 1e18
             }),
             IFolio.FolioAdditionalDetails({
-                auctionDelay: 1,
                 auctionLength: 1 weeks,
                 feeRecipients: new IFolio.FeeRecipient[](0),
                 tvlFee: 0,
