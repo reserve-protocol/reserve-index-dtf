@@ -7,7 +7,6 @@ import { Votes } from "@openzeppelin/contracts/governance/utils/Votes.sol";
 
 import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
-import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { Folio } from "@src/Folio.sol";
