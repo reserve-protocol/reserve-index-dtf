@@ -133,13 +133,14 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         bool trustedFillerEnabled,
         bytes32 deploymentNonce
     ) external returns (Folio folio, address proxyAdmin) {
-        GovernancePair memory ownerGovernance;
-        GovernancePair memory tradingGovernance;
-
         bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
 
+        GovernancePair[] memory govPairs = new GovernancePair[](2);
+        // govPairs[0] is owner governor
+        // govPairs[1] is trading governor
+
         // Deploy Owner Governance
-        (ownerGovernance.governor, ownerGovernance.timelock) = governanceDeployer.deployGovernanceWithTimelock(
+        (govPairs[0].governor, govPairs[0].timelock) = governanceDeployer.deployGovernanceWithTimelock(
             ownerGovParams,
             stToken,
             deploymentSalt
@@ -148,23 +149,23 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         address[] memory auctionApprovers = govRoles.existingAuctionApprovers;
 
         // Deploy trading Governance if auction approvers are not provided
-        if (govRoles.existingAuctionApprovers.length == 0) {
+        if (auctionApprovers.length == 0) {
             // Flip deployment nonce to avoid timelock/governor collisions
-            (tradingGovernance.governor, tradingGovernance.timelock) = governanceDeployer.deployGovernanceWithTimelock(
+            (govPairs[1].governor, govPairs[1].timelock) = governanceDeployer.deployGovernanceWithTimelock(
                 tradingGovParams,
                 stToken,
                 ~deploymentSalt
             );
 
             auctionApprovers = new address[](1);
-            auctionApprovers[0] = tradingGovernance.timelock;
+            auctionApprovers[0] = govPairs[1].timelock;
         }
 
         // Deploy Folio
         (folio, proxyAdmin) = deployFolio(
             basicDetails,
             additionalDetails,
-            ownerGovernance.timelock,
+            govPairs[0].timelock,
             auctionApprovers,
             govRoles.auctionLaunchers,
             govRoles.brandManagers,
@@ -175,10 +176,10 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         emit GovernedFolioDeployed(
             address(stToken),
             address(folio),
-            ownerGovernance.governor,
-            ownerGovernance.timelock,
-            tradingGovernance.governor,
-            tradingGovernance.timelock
+            govPairs[0].governor,
+            govPairs[0].timelock,
+            govPairs[1].governor,
+            govPairs[1].timelock
         );
     }
 }
