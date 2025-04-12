@@ -14,6 +14,7 @@ import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.so
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { FolioDeployerV2 } from "test/utils/upgrades/FolioDeployerV2.sol";
+import { MockBidder } from "test/utils/MockBidder.sol";
 import { MockEIP712 } from "test/utils/MockEIP712.sol";
 import "./base/BaseTest.sol";
 

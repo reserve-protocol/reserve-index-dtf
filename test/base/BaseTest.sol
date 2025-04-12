@@ -11,7 +11,6 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
-import { MockBidder } from "utils/MockBidder.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";
@@ -70,9 +69,34 @@ abstract contract BaseTest is Script, Test {
 
     address cowswapFiller;
 
+    /// @dev Deployment Type
+    enum Deployment {
+        DEFAULT,
+        FORK,
+        CUSTOM
+    }
+
+    enum ForkNetwork {
+        ETHEREUM,
+        BASE
+    }
+
+    struct DeploymentData {
+        Deployment deploymentType;
+        ForkNetwork forkTarget;
+        uint256 forkBlock;
+    }
+
+    DeploymentData deploymentData;
+
     function setUp() public {
-        _testSetup();
-        // _setUp();
+        if (deploymentData.deploymentType == Deployment.DEFAULT) {
+            _testSetup();
+        } else if (deploymentData.deploymentType == Deployment.FORK) {
+            _forkSetup();
+        }
+
+        _setUp();
     }
 
     /// @dev Implement this if you want a custom configured deployment
@@ -83,6 +107,12 @@ abstract contract BaseTest is Script, Test {
         _testSetupBefore();
         _coreSetup();
         _testSetupAfter();
+    }
+
+    function _forkSetup() public virtual {
+        _forkSetupBefore();
+        _coreSetup();
+        _forkSetupAfter();
     }
 
     function _coreSetup() public {}
@@ -115,6 +145,23 @@ abstract contract BaseTest is Script, Test {
         vm.roll(1);
     }
 
+    function _getForkRpc(ForkNetwork target) internal view returns (string memory forkRpc) {
+        // Enforces that variable exists.
+        if (target == ForkNetwork.ETHEREUM) {
+            forkRpc = vm.envString("FORK_RPC_MAINNET");
+        } else if (target == ForkNetwork.BASE) {
+            forkRpc = vm.envString("FORK_RPC_BASE");
+        }
+    }
+
+    function _forkSetupBefore() public virtual {
+        if (deploymentData.forkBlock == 0) {
+            vm.createSelectFork(_getForkRpc(deploymentData.forkTarget));
+        } else {
+            vm.createSelectFork(_getForkRpc(deploymentData.forkTarget), deploymentData.forkBlock);
+        }
+    }
+
     function _testSetupAfter() public virtual {
         vm.label(address(auctionLauncher), "Auction Launcher");
         vm.label(address(dao), "DAO");
@@ -127,7 +174,7 @@ abstract contract BaseTest is Script, Test {
         vm.label(address(USDT), "USDT");
     }
 
-    function _forkSetupAfter() public {}
+    function _forkSetupAfter() public virtual {}
 
     function deployCoins() public {
         USDC = IERC20(new MockERC20("USDC", "USDC", 6));
