@@ -464,7 +464,7 @@ contract Folio is
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @param newTokens Tokens to add to the basket, MUST be unique
     /// @param newLimits D27{tok/share} New rebalance limits
-    /// @param newPrices D27{tok/share} New prices for each asset in terms of the Folio
+    /// @param newPrices D27{UoA/tok} New prices for each asset in terms of the Folio
     ///                  Can pass 0 for ALL token prices to defer to AUCTION_LAUNCHER (cannot pick and choose)
     function startRebalance(
         address[] calldata newTokens,
@@ -556,9 +556,9 @@ contract Folio is
 
         // invariant: if any of the tokens have a 0 price, they must all have a 0 price
         if (sellDetails.prices.high != 0) {
-            // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
-            uint256 oldStartPrice = (D27 * buyDetails.prices.low) / sellDetails.prices.high;
-            uint256 oldEndPrice = (D27 * buyDetails.prices.high) / sellDetails.prices.low;
+            // D27{buyTok/sellTok} = D27 * D27{UoA/sellTok} / D27{UoA/buyTok}
+            uint256 oldStartPrice = (D27 * sellDetails.prices.high) / buyDetails.prices.low;
+            uint256 oldEndPrice = (D27 * sellDetails.prices.low) / buyDetails.prices.high;
 
             // allow up to 100x price increase
             // TODO make smaller?
@@ -600,9 +600,9 @@ contract Folio is
         RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
         RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
 
-        // D27{buyTok/sellTok} = D27 * D27{buyTok/share} / D27{sellTok/share}
-        uint256 startPrice = (D27 * buyDetails.prices.low) / sellDetails.prices.high;
-        uint256 endPrice = (D27 * buyDetails.prices.high) / sellDetails.prices.low;
+        // D27{buyTok/sellTok} = D27 * D27{UoA/sellTok} / D27{UoA/buyTok}
+        uint256 startPrice = (D27 * sellDetails.prices.high) / buyDetails.prices.low;
+        uint256 endPrice = (D27 * sellDetails.prices.low) / buyDetails.prices.high;
 
         // open auction with spot limits
         return

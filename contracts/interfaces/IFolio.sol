@@ -111,14 +111,14 @@ interface IFolio {
     }
 
     struct Prices {
-        uint256 low; // D27{buyTok/sellTok}
-        uint256 high; // D27{buyTok/sellTok}
+        uint256 low; // D27{UoA/tok}
+        uint256 high; // D27{UoA/tok}
     }
 
     struct RebalanceDetails {
         bool inRebalance;
         BasketRange limits; // D27{tok/share}
-        Prices prices; // D27{tok/UoA} prices can be in any Unit of Account as long as it's consistent
+        Prices prices; // D27{UoA/tok} prices can be in any Unit of Account as long as it's consistent
     }
 
     struct Rebalance {

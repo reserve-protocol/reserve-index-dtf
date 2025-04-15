@@ -2360,23 +2360,23 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotOpenAuctionWithInvalidPrices() public {
-        prices[0] = IFolio.Prices(1e15, 1e15);
+        prices[0] = IFolio.Prices(1e39, 1e39);
         prices[1] = IFolio.Prices(1e27, 1e27);
-        prices[2] = IFolio.Prices(1e36, 1e36);
+        prices[2] = IFolio.Prices(1e18, 1e18);
 
         vm.prank(dao);
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
-        //  Revert if tried to open both below
+        // revert if both below
         vm.startPrank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
         folio.openAuction(USDC, DAI, 0, MAX_RATE, 1e39 - 1, 1e39 - 1);
 
-        //  Revert if tried to open in reverse order
+        // revert if in wrong order, above case
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
         folio.openAuction(USDC, DAI, 0, MAX_RATE, 1e39, 1e39 + 1);
 
-        //  Revert if tried to open in reverse order
+        // revert if in wrong order, below case
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
         folio.openAuction(USDC, DAI, 0, MAX_RATE, 1e39 - 1, 1e39);
 
