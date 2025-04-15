@@ -218,10 +218,10 @@ contract GovernanceSpell_31_03_2025 is Versioned {
         {
             Votes stakingVault = Votes(address(FolioGovernor(payable(newGovernor)).token()));
             uint256 pastSupply = stakingVault.getPastTotalSupply(stakingVault.clock() - 1);
-            uint256 _proposalThreshold = ((FolioGovernor(payable(newGovernor)).proposalThreshold() *
+            uint256 _proposalThreshold = (FolioGovernor(payable(newGovernor)).proposalThreshold() *
                 1e18 +
                 pastSupply -
-                1) / pastSupply) / 100;
+                1) / pastSupply;
 
             require(FolioGovernor(payable(newGovernor)).quorumNumerator() > _proposalThreshold, "GS: 8.2");
         }
