@@ -4,13 +4,15 @@
 
 Reserve Folio is a protocol for creating and managing portfolios of ERC20-compliant assets entirely onchain. Folios are designed to be used as a single-source of truth for asset allocations, enabling composability of complex, multi-asset portfolios.
 
-Folios support rebalancing via Dutch Auction over an exponential decay curve between two prices. Control flow over the auction is shared between two parties, with a `AUCTION_APPROVER` approving auctions in advance and a `AUCTION_LAUNCHER` opening them, optionally providing some amount of additional detail. Permissionless open execution is available after a delay.
+To change their composition, Folios support a rebalancing process over a finite period of time during which either the `AUCTION_LAUNCHER` or anyone else can start Dutch Auctions to rebalance the Folio toward the rebalance targets. Each Dutch Auction manifests as an exponential decay between two prices under the assumption that the ideal clearing price (incl slippage) lies in between the price bounds.
 
-`AUCTION_APPROVER` is expected to be the timelock of the rebalancing governor associated with the Folio.
+The `AUCTION_LAUNCHER` is trusted to be provide additional precision to the rebalance process, either by: (i) modifying the rebalance targets; or (ii) tweaking the auction price curve, within reason. In both cases, the `AUCTION_LAUNCHER` is bound to act within the bounds set by the `REBALANCE_MANAGER`. If an auction is opened permissionlessly instead, the caller has no sway over the rebalance targets or price curve. Rebalances _away_ from the rebalance targets are always disallowed.
 
-`AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig; They can open auctions within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the auction can be opened permissionlessly after a preset delay. If they are evil, at-best they can deviate rebalancing within the governance-granted range, or prevent a Folio from rebalancing entirely by repeatedly closing-out auctions.
+`REBALANCE_MANAGER` is expected to be the timelock of the rebalancing governor associated with the Folio.
 
-Auctions that have not expired can be re-opened up to a number of times specified by the `AUCTION_APPROVER`.
+`AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig; They can open auctions within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the auction can be opened through the permissonless route instead. If the `AUCTION_LAUNCHER` is not just offline but actively evil, at-best they can maximally deviate rebalancing within the governance-granted range, or prevent a Folio from rebalancing entirely by repeatedly closing-out auctions. (TODO follow-up after deciding on whether to keep the "no backpedaling" property during audit, in which case they can also cause double-trading arbitrarily)
+
+There is no limit to how many auctions can be opened during a rebalance, just how many auction lengths fit within the rebalance period.
 
 ### Architecture
 
@@ -45,11 +47,11 @@ A Folio has 3 roles:
 1. `DEFAULT_ADMIN_ROLE`
    - Expected: Timelock of Slow Folio Governor
    - Can add/remove assets, set fees, configure auction length, set the auction delay, and closeout auctions
-   - Can configure the `AUCTION_APPROVER`/ `AUCTION_LAUNCHER`
+   - Can configure the `REBALANCE_MANAGER`/ `AUCTION_LAUNCHER`
    - Primary owner of the Folio
-2. `AUCTION_APPROVER`
+2. `REBALANCE_MANAGER`
    - Expected: Timelock of Fast Folio Governor
-   - Can approve auctions
+   - Can start rebalances
 3. `AUCTION_LAUNCHER`
    - Expected: EOA or multisig
    - Can open and close auctions, optionally altering parameters of the auction within the approved ranges
@@ -63,77 +65,102 @@ The staking vault has ONLY a single owner:
 
 ### Rebalancing
 
-##### Auction Lifecycle
+##### Rebalance Lifecycle
 
-1. Auction is approved the `AUCTION_APPROVER`, including an initial price range and a range for the basket ratios
-2. Auction is opened, initiating the progression through the predetermined price curve
-   a. ...either by the auction launcher (immediately, or soon after)
-   b. ...or permissionlessly (after the auction delay passes)
+1. A rebalance is started by the `REBALANCE_MANAGER`, including initial prices for each asset as well as a range for basket ratios
+2. An auction is opened on a token pair, initiating the progression through a predetermined price curve
+   a. ...either by the auction launcher (optionally tweaking basket ratios / prices)
+   b. ...or permissionlessly (after the restricted period passes)
 3. Bids occur
 4. Auction expires
-5. (optional) Auction can be re-opened up to `availableRuns` times, going back to step 3
 
-##### Auction Usage
+A rebalance can have any number of auctions running in parallel. At anytime any auction can be closed or a new rebalance can be started, closing all running auctions.
+
+##### Rebalance Usage
+
+###### Auction Launcher Window
+
+Rebalances first pass through a restricted period where only the `AUCTION_LAUNCHER` can open auctions. This is to ensure that the `AUCTION_LAUNCHER` always has time to act first. Additionally, there is always >= 120s buffer before an auction can be opened permissionlessly.
 
 ###### TTL
 
-Auctions have a time-to-live (TTL) that controls how long they can exist in an `APPROVED` state.
-
-###### Runs
-
-Auctions can be repeated a specified number of times, up to a maximum of `availableRuns`.
+Rebalances have a time-to-live (TTL) that controls how long the rebalance can run. Any number of auctions can be opened during this time. Note: an auction can be opened at `ttl - 1` and run beyond the rebalance's TTL.
 
 ###### Buy/Sell limits
 
-The `AUCTION_APPROVER` configures buy and sell limits for the basket ratios, including a spot estimate:
+The `REBALANCE_MANAGER` configures buy and sell limits for the basket ratios, including a spot estimate:
 
 ```solidity
+struct RebalanceDetails {
+  bool inRebalance;
+  BasketRange limits; // D27{tok/share}
+  Prices prices; // D27{tok/UoA} prices can be in any Unit of Account as long as it's consistent across the rebalance
+}
+
 struct BasketRange {
   uint256 spot; // D27{tok/share}
   uint256 low; // D27{tok/share} inclusive
   uint256 high; // D27{tok/share} inclusive
 }
 
-BasketRange sellLimit; // D27{sellTok/share} min ratio of sell tokens in the basket, inclusive
-BasketRange buyLimit; // D27{buyTok/share} max ratio of buy tokens in the basket, exclusive
+struct Prices {
+  uint256 low; // D27{buyTok/sellTok}
+  uint256 high; // D27{buyTok/sellTok}
+}
 ```
 
-During `openAuction` the `AUCTION_LAUNCHER` can set the buy and sell limits within the approved ranges provided by the `AUCTION_APPROVER`. If the auction is opened permissionlessly instead, the pre-approved spot estimates will be used instead.
+During `openAuction` the `AUCTION_LAUNCHER` can set new spot limits as long as it is within the ranges initially provided by the `REBALANCE_MANAGER`. If the auction is opened permissionlessly, the pre-approved spot estimates will be used instead.
 
 ###### Price
 
-There are broadly 3 ways to parametrize `[startPrice, endPrice]`, as the `AUCTION_APPROVER`:
+For each token supplied to the rebalance, the `REBALANCE_MANAGER` provides a `low` and `high` price estimate. These should be set such that in the vast majority (99.9%+) of scenarios, the asset's price on secondary markets lies within the provided range. If the price of an asset rises above its `high` price, this can result in a loss of value for Folio holders due to the auction price curve on a token pair starting at too-low-a-price.
 
-1. Can provide `[0, 0]` to _fully_ defer to the `AUCTION_LAUNCHER` for pricing. In this mode the auction CANNOT be opened permissionlessly. Losses can arise either due to the `AUCTION_LAUNCHER` setting `startPrice` too low, or due to precision issues from traversing too large a range. Not recommended.
-2. Can provide `[startPrice, 0]` to defer to the `AUCTION_LAUNCHER` for _just_ the `endPrice`. In this mode the auction CANNOT be opened permissionlessly. Losses can arise due solely to precision issues only, assuming the `AUCTION_APPROVER` was honest in their setting of the `startPrice` and markets have not moved too much.
-3. Can provide `[startPrice, endPrice]` to constrain the `AUCTION_LAUNCHER`. In this mode the auction CAN be opened permissionlessly, after a delay. Suggested default option.
+When an auction is started, the `low` and `high` prices for both assets are used to calculate a `startPrice` and `endPrice` for the auction.
 
-The `AUCTION_LAUNCHER` can always choose to raise `startPrice` up to a limit of 100x, and `endPrice` by any amount. They cannot lower either price.
+There are 2 ways to price assets, depending on the risk tolerance of the `REBALANCE_MANAGER`:
 
-The price range (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues.
+1. **Priced**
+
+- The `REBALANCE_MANAGER` provides a list of NONZERO prices for each token. No token price can be 0.
+- The `AUCTION_LAUNCHER` can always choose to raise the starting price up to 100x from the natural starting price, or raise the ending price arbitrarily (up to the starting price). They cannot lower either price.
+
+2. **Unpriced**
+
+- The `REBALANCE_MANAGER` provides ALL 0 prices for each token. This allows the `AUCTION_LAUNCHER` to set prices freely and prevents auctions from being opened permissionlessly.
+
+Overall the price range for any dutch auction (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues. (TODO limit to 1e4 range per token in startRebalance?)
 
 ###### Price Curve
 
 ![alt text](auction.png "Auction Curve")
 
-Note: The first block may not have a price of exactly `startPrice`, if it does not occur on the `start` timestamp. Similarly, the `endPrice` may not be exactly `endPrice` in the final block if it does not occur on the `end` timestamp.
+Note: The first block may not have a price of exactly `startPrice` if it does not occur on the `start` timestamp. Similarly, the `endPrice` may not be exactly `endPrice` in the final block if it does not occur on the `end` timestamp.
 
 ###### Lot Sizing
 
-Auction lots are sized by the difference between current balances and `sellLimit` and `buyLimit`. Both correspond to Folio invariants about basket ratios that must be maintained throughout the auction:
+Auctions are sized by the difference between current balances and the basket ratios provided by the `limits`.
 
-- `sellLimit` is the min amount of sell token in the basket `D27{sellTok/share}`
-- `buyLimit` is the max amount of buy token in the basket `D27{buyTok/share}`
+The auction `sellAmount` represents the single largest quantity of sell token that can be transacted without violating the `limits` of either tokens in the pair.
 
-The auction `lot()` represents the single largest quantity of sell token that can be transacted under these invariants.
+In general it is possible for the `sellAmount` to either increase or decrease over time, depending on whether the surplus of the sell token or deficit of the buy token is the limiting factor.
 
-In general it is possible for the `lot` to either increase and remain static over time, depending on whether `buyLimit` or `sellLimit` is the constraining factor.
+1. If the surplus of the sell token is the limiting factor, the `sellAmount` will increase over time.
+2. If the deficit of the buy token is the limiting factor, the `sellAmount` will decrease over time.
 
 ###### Auction Participation
 
-Anyone can bid in any auction in size up to and including the `lot` size. Use `getBid()` to determine the amount of buy tokens required at any given timestamp.
+Anyone can bid in any auction up to and including the `sellAmount` size, as long as the `price` exchange rate is met.
 
-> `Folio.getBid(uint256 auctionId, uint256 timestamp, uint256 sellAmount) external view returns (uint256 bidAmount)`
+```
+/// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
+/// @return bidAmount {buyTok} The amount of buy tokens required to bid for the full sell amount
+/// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
+function getBid(
+   uint256 auctionId,
+   uint256 timestamp,
+   uint256 maxSellAmount
+) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price);
+```
 
 ### Fee Structure
 
@@ -174,9 +201,11 @@ Units:
 
 Example:
 
-```
+````
+
     // {share} = {share} * D18{1} / D18
     uint256 shares = (pendingFeeShares * feeRecipients[i].portion) / D18;
+
 ```
 
 ### Valid Ranges
@@ -241,3 +270,5 @@ The chain is assumed to have block times under 60s. The `AUCTION_LAUNCHER` has 1
 5. Deployment:
    - Deployment: `yarn deploy --rpc-url <RPC_URL> --verify --verifier etherscan`
      Set ETHERSCAN_API_KEY env var to the API key for whichever network you're targeting (basescan, etherscan, arbiscan, etc)
+```
+````
