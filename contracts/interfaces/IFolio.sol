@@ -31,7 +31,7 @@ interface IFolio {
         address[] tokens,
         BasketRange[] weights,
         Prices[] prices,
-        uint256 restrictedAt,
+        uint256 restrictedUntil,
         uint256 availableUntil
     );
     event RebalanceEnded(uint256 nonce);
