@@ -10,6 +10,7 @@ import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { Folio } from "@src/Folio.sol";
+import { DEFAULT_ADMIN_ROLE, AUCTION_APPROVER } from "@utils/Constants.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 /**
@@ -84,18 +85,12 @@ contract GovernanceSpell_31_03_2025 is Versioned {
         // check privileges / setup
 
         require(proxyAdmin.owner() == address(this), "GS: not proxy admin owner");
-        require(folio.getRoleMemberCount(folio.DEFAULT_ADMIN_ROLE()) == 2, "GS: unexpected number of admins");
-        require(folio.getRoleMemberCount(folio.AUCTION_APPROVER()) == 1, "GS: unexpected number of traders");
+        require(folio.getRoleMemberCount(DEFAULT_ADMIN_ROLE) == 2, "GS: unexpected number of admins");
+        require(folio.getRoleMemberCount(AUCTION_APPROVER) == 1, "GS: unexpected number of traders");
 
-        require(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), address(this)), "GS: not admin");
-        require(
-            folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), oldOwnerGovernor.timelock()),
-            "GS: old owner timelock not admin"
-        );
-        require(
-            folio.hasRole(folio.AUCTION_APPROVER(), oldTradingGovernor.timelock()),
-            "GS: old trading timelock not trader"
-        );
+        require(folio.hasRole(DEFAULT_ADMIN_ROLE, address(this)), "GS: not admin");
+        require(folio.hasRole(DEFAULT_ADMIN_ROLE, oldOwnerGovernor.timelock()), "GS: old owner timelock not admin");
+        require(folio.hasRole(AUCTION_APPROVER, oldTradingGovernor.timelock()), "GS: old trading timelock not trader");
 
         // deploy replacement governors + timelocks
 
@@ -117,20 +112,20 @@ contract GovernanceSpell_31_03_2025 is Versioned {
 
         proxyAdmin.transferOwnership(newOwnerTimelock);
 
-        folio.grantRole(folio.DEFAULT_ADMIN_ROLE(), newOwnerTimelock);
-        folio.grantRole(folio.AUCTION_APPROVER(), newTradingTimelock);
+        folio.grantRole(DEFAULT_ADMIN_ROLE, newOwnerTimelock);
+        folio.grantRole(AUCTION_APPROVER, newTradingTimelock);
 
-        folio.revokeRole(folio.AUCTION_APPROVER(), oldTradingGovernor.timelock());
-        folio.revokeRole(folio.DEFAULT_ADMIN_ROLE(), oldOwnerGovernor.timelock());
-        folio.renounceRole(folio.DEFAULT_ADMIN_ROLE(), address(this));
+        folio.revokeRole(AUCTION_APPROVER, oldTradingGovernor.timelock());
+        folio.revokeRole(DEFAULT_ADMIN_ROLE, oldOwnerGovernor.timelock());
+        folio.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
 
         // post validation
 
         require(proxyAdmin.owner() == newOwnerTimelock, "GS: 1");
-        require(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), newOwnerTimelock), "GS: 2");
-        require(folio.hasRole(folio.AUCTION_APPROVER(), newTradingTimelock), "GS: 3");
-        require(folio.getRoleMemberCount(folio.DEFAULT_ADMIN_ROLE()) == 1, "GS: 4");
-        require(folio.getRoleMemberCount(folio.AUCTION_APPROVER()) == 1, "GS: 5");
+        require(folio.hasRole(DEFAULT_ADMIN_ROLE, newOwnerTimelock), "GS: 2");
+        require(folio.hasRole(AUCTION_APPROVER, newTradingTimelock), "GS: 3");
+        require(folio.getRoleMemberCount(DEFAULT_ADMIN_ROLE) == 1, "GS: 4");
+        require(folio.getRoleMemberCount(AUCTION_APPROVER) == 1, "GS: 5");
     }
 
     // ==== Internal ====

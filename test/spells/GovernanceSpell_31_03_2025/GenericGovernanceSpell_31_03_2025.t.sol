@@ -12,6 +12,7 @@ import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
+import { DEFAULT_ADMIN_ROLE, AUCTION_APPROVER } from "@utils/Constants.sol";
 
 abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
     struct Config {
@@ -56,8 +57,8 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
         proxyAdmin = CONFIGS[i].proxyAdmin;
         ownerGovernor = CONFIGS[i].ownerGovernor;
         tradingGovernor = CONFIGS[i].tradingGovernor;
-        ownerTimelock = TimelockController(payable(folio.getRoleMember(folio.DEFAULT_ADMIN_ROLE(), 0)));
-        tradingTimelock = TimelockController(payable(folio.getRoleMember(folio.AUCTION_APPROVER(), 0)));
+        ownerTimelock = TimelockController(payable(folio.getRoleMember(DEFAULT_ADMIN_ROLE, 0)));
+        tradingTimelock = TimelockController(payable(folio.getRoleMember(AUCTION_APPROVER, 0)));
         assert(ownerGovernor.timelock() == address(ownerTimelock));
         assert(tradingGovernor.timelock() == address(tradingTimelock));
 
@@ -123,15 +124,15 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
             FolioGovernor newOwnerGovernor = FolioGovernor(payable(_newOwnerGovernor));
             FolioGovernor newTradingGovernor = FolioGovernor(payable(_newTradingGovernor));
 
-            assertFalse(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), address(spell)));
-            assertFalse(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), address(newOwnerGovernor)));
-            assertFalse(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), address(newTradingGovernor)));
-            assertTrue(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), newOwnerGovernor.timelock()));
+            assertFalse(folio.hasRole(DEFAULT_ADMIN_ROLE, address(spell)));
+            assertFalse(folio.hasRole(DEFAULT_ADMIN_ROLE, address(newOwnerGovernor)));
+            assertFalse(folio.hasRole(DEFAULT_ADMIN_ROLE, address(newTradingGovernor)));
+            assertTrue(folio.hasRole(DEFAULT_ADMIN_ROLE, newOwnerGovernor.timelock()));
 
-            assertFalse(folio.hasRole(folio.AUCTION_APPROVER(), address(spell)));
-            assertFalse(folio.hasRole(folio.AUCTION_APPROVER(), address(newTradingGovernor)));
-            assertFalse(folio.hasRole(folio.AUCTION_APPROVER(), newOwnerGovernor.timelock()));
-            assertTrue(folio.hasRole(folio.AUCTION_APPROVER(), newTradingGovernor.timelock()));
+            assertFalse(folio.hasRole(AUCTION_APPROVER, address(spell)));
+            assertFalse(folio.hasRole(AUCTION_APPROVER, address(newTradingGovernor)));
+            assertFalse(folio.hasRole(AUCTION_APPROVER, newOwnerGovernor.timelock()));
+            assertTrue(folio.hasRole(AUCTION_APPROVER, newTradingGovernor.timelock()));
 
             assertEq(newOwnerGovernor.votingDelay(), ownerGovernor.votingDelay());
             assertEq(newOwnerGovernor.votingPeriod(), ownerGovernor.votingPeriod());
