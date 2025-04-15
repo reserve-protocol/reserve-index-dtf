@@ -212,6 +212,7 @@ contract GovernanceSpell_31_03_2025 is Versioned {
         require(newGovernor != address(0), "GS: 6");
         require(newTimelock != address(0), "GS: 7");
         require(FolioGovernor(payable(newGovernor)).timelock() == newTimelock, "GS: 8");
+        require(FolioGovernor(payable(newGovernor)).quorumDenominator() == 1e18, "GS: 8.1");
 
         // check quorum > proposal threshold
         {
@@ -222,7 +223,7 @@ contract GovernanceSpell_31_03_2025 is Versioned {
                 pastSupply -
                 1) / pastSupply) / 100;
 
-            require(FolioGovernor(payable(newGovernor)).quorumNumerator() > _proposalThreshold, "GS: 8.5");
+            require(FolioGovernor(payable(newGovernor)).quorumNumerator() > _proposalThreshold, "GS: 8.2");
         }
 
         TimelockController _newTimelock = TimelockController(payable(newTimelock));
