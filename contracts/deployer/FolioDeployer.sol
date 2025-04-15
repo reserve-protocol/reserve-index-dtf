@@ -141,7 +141,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         address[] memory basketManagers = govRoles.existingBasketManagers;
 
-        // Deploy trading Governance if auction approvers are not provided
+        // Deploy trading Governance if rebalance managers are not provided
         if (basketManagers.length == 0) {
             // Flip deployment nonce to avoid timelock/governor collisions
             (govPairs[1].governor, govPairs[1].timelock) = governanceDeployer.deployGovernanceWithTimelock(

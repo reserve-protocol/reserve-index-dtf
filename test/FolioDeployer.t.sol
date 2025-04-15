@@ -417,7 +417,7 @@ contract FolioDeployerTest is BaseTest {
         assertFalse(tradingTimelock.hasRole(tradingTimelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
         assertTrue(tradingTimelock.hasRole(tradingTimelock.CANCELLER_ROLE(), user1), "wrong canceler role");
 
-        // Check auction approver is properly set
+        // Check rebalance manager is properly set
         assertTrue(folio.hasRole(folio.REBALANCE_MANAGER(), address(tradingTimelock)), "wrong basket manager role");
     }
 
@@ -529,7 +529,7 @@ contract FolioDeployerTest is BaseTest {
         assertFalse(ownerTimelock.hasRole(ownerTimelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
         assertTrue(ownerTimelock.hasRole(ownerTimelock.CANCELLER_ROLE(), user2), "wrong canceler role");
 
-        // Check auction approver is properly set
+        // Check rebalance manager is properly set
         assertTrue(folio.hasRole(folio.REBALANCE_MANAGER(), dao), "wrong basket manager role");
     }
 
