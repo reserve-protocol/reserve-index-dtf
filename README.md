@@ -94,7 +94,7 @@ The `REBALANCE_MANAGER` configures buy and sell limits for the basket ratios, in
 struct RebalanceDetails {
   bool inRebalance;
   BasketRange limits; // D27{tok/share}
-  Prices prices; // D27{tok/UoA} prices can be in any Unit of Account as long as it's consistent across the rebalance
+  Prices prices; // D27{UoA/tok} prices can be in any Unit of Account as long as it's consistent across the rebalance
 }
 
 struct BasketRange {
@@ -104,8 +104,8 @@ struct BasketRange {
 }
 
 struct Prices {
-  uint256 low; // D27{tok/share}
-  uint256 high; // D27{tok/share}
+  uint256 low; // D27{UoA/tok}
+  uint256 high; // D27{UoA/tok}
 }
 ```
 
