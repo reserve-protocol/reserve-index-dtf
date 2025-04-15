@@ -213,6 +213,18 @@ contract GovernanceSpell_31_03_2025 is Versioned {
         require(newTimelock != address(0), "GS: 7");
         require(FolioGovernor(payable(newGovernor)).timelock() == newTimelock, "GS: 8");
 
+        // check quorum > proposal threshold
+        {
+            Votes stakingVault = Votes(address(FolioGovernor(payable(newGovernor)).token()));
+            uint256 pastSupply = stakingVault.getPastTotalSupply(stakingVault.clock() - 1);
+            uint256 _proposalThreshold = ((FolioGovernor(payable(newGovernor)).proposalThreshold() *
+                1e18 +
+                pastSupply -
+                1) / pastSupply) / 100;
+
+            require(FolioGovernor(payable(newGovernor)).quorumNumerator() > _proposalThreshold, "GS: 8.5");
+        }
+
         TimelockController _newTimelock = TimelockController(payable(newTimelock));
 
         require(_newTimelock.hasRole(_newTimelock.PROPOSER_ROLE(), newGovernor), "GS: 9");
