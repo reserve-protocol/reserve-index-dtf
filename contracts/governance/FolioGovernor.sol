@@ -63,9 +63,9 @@ contract FolioGovernor is
     }
 
     function quorum(
-        uint256 blockNumber
+        uint256 timepoint
     ) public view override(GovernorUpgradeable, GovernorVotesQuorumFractionUpgradeable) returns (uint256) {
-        return super.quorum(blockNumber);
+        return super.quorum(timepoint);
     }
 
     function state(

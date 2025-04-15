@@ -18,3 +18,9 @@ uint256 constant ONE_DAY = 24 hours; // {s} 1 day
 
 uint256 constant D18 = 1e18; // D18
 uint256 constant D27 = 1e27; // D27
+
+bytes32 constant DEFAULT_ADMIN_ROLE = 0x00;
+bytes32 constant AUCTION_APPROVER = keccak256("AUCTION_APPROVER");
+bytes32 constant REBALANCE_MANAGER = keccak256("REBALANCE_MANAGER");
+bytes32 constant AUCTION_LAUNCHER = keccak256("AUCTION_LAUNCHER");
+bytes32 constant BRAND_MANAGER = keccak256("BRAND_MANAGER");
