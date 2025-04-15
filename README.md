@@ -104,8 +104,8 @@ struct BasketRange {
 }
 
 struct Prices {
-  uint256 low; // D27{buyTok/sellTok}
-  uint256 high; // D27{buyTok/sellTok}
+  uint256 low; // D27{tok/share}
+  uint256 high; // D27{tok/share}
 }
 ```
 
