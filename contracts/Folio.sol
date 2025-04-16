@@ -741,10 +741,11 @@ contract Folio is
                 hasRole(AUCTION_LAUNCHER, msg.sender),
             Folio__Unauthorized()
         );
+        Auction storage auction = auctions[auctionId];
 
         // do not revert, to prevent griefing
-        auctions[auctionId].endTime = block.timestamp - 1;
-        delete auctionEnds[rebalance.nonce][_pairHash(auctions[auctionId].sellToken, auctions[auctionId].buyToken)];
+        auction.endTime = block.timestamp - 1;
+        delete auctionEnds[auction.rebalanceNonce][_pairHash(auction.sellToken, auction.buyToken)];
 
         emit AuctionClosed(auctionId);
     }
