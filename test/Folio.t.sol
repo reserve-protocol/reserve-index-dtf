@@ -2434,6 +2434,24 @@ contract FolioTest is BaseTest {
         folio.openAuction(USDC, DAI, 0, MAX_RATE, 0, 0);
     }
 
+    function test_auctionCannotOpenAuctionUnrestrictedWithZeroPrices() public {
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.RebalanceStarted(
+            1,
+            assets,
+            limits,
+            prices,
+            block.timestamp + MAX_AUCTION_DELAY,
+            block.timestamp + MAX_TTL
+        );
+        folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
+
+        //  Revert if tried to open with zero price
+        vm.expectRevert(IFolio.Folio__AuctionCannotBeOpenedWithoutRestriction.selector);
+        folio.openAuctionUnrestricted(USDC, DAI);
+    }
+
     function test_auctionCannotOpenAuctionIfFolioDeprecated() public {
         vm.prank(dao);
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);

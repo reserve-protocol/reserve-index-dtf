@@ -603,6 +603,11 @@ contract Folio is
         RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
         RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
 
+        require(
+            buyDetails.prices.low != 0 && sellDetails.prices.high != 0,
+            Folio__AuctionCannotBeOpenedWithoutRestriction()
+        );
+
         // D27{buyTok/sellTok} = D27 * D27{UoA/sellTok} / D27{UoA/buyTok}
         uint256 startPrice = (D27 * sellDetails.prices.high) / buyDetails.prices.low;
         uint256 endPrice = (D27 * sellDetails.prices.low) / buyDetails.prices.high;
