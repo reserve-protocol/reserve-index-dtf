@@ -745,7 +745,7 @@ contract Folio is
 
         // do not revert, to prevent griefing
         auction.endTime = block.timestamp - 1;
-        delete auctionEnds[auction.rebalanceNonce][_pairHash(auction.sellToken, auction.buyToken)];
+        delete auctionEnds[auction.rebalanceNonce][AuctionLib.pairHash(auction.sellToken, auction.buyToken)];
 
         emit AuctionClosed(auctionId);
     }
@@ -810,14 +810,6 @@ contract Folio is
         ) {
             amount += token.balanceOf(address(activeTrustedFill));
         }
-    }
-
-    /// @return pair The hash of the pair
-    function _pairHash(IERC20 sellToken, IERC20 buyToken) internal pure returns (bytes32) {
-        return
-            sellToken > buyToken
-                ? keccak256(abi.encode(sellToken, buyToken))
-                : keccak256(abi.encode(buyToken, sellToken));
     }
 
     /// @return _daoPendingFeeShares {share}
@@ -898,7 +890,7 @@ contract Folio is
 
         // confirm no auction collision on token pair
         {
-            bytes32 pair = _pairHash(sellToken, buyToken);
+            bytes32 pair = AuctionLib.pairHash(sellToken, buyToken);
             require(block.timestamp > auctionEnds[rebalance.nonce][pair] + auctionBuffer, Folio__AuctionCollision());
 
             auctionEnds[rebalance.nonce][pair] = block.timestamp + auctionLength;

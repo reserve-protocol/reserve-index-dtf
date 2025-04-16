@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -99,7 +100,7 @@ library AuctionLib {
         // limits may not be reacheable due to limited precision + defensive roundings
         if (basketPresence == auction.sellLimit) {
             auction.endTime = block.timestamp - 1;
-            auctionEnds[keccak256(abi.encode(auction.sellToken, auction.buyToken))] = block.timestamp - 1;
+            auctionEnds[pairHash(auction.sellToken, auction.buyToken)] = block.timestamp - 1;
         }
 
         // {buyTok}
@@ -142,5 +143,13 @@ library AuctionLib {
         if (p < auction.endPrice) {
             p = auction.endPrice;
         }
+    }
+
+    /// @return pair The hash of the pair
+    function pairHash(IERC20 sellToken, IERC20 buyToken) internal pure returns (bytes32) {
+        return
+            sellToken > buyToken
+                ? keccak256(abi.encode(sellToken, buyToken))
+                : keccak256(abi.encode(buyToken, sellToken));
     }
 }
