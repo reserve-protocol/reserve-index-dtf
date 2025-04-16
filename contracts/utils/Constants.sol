@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 uint256 constant MAX_TVL_FEE = 0.1e18; // D18{1/year} 10% annually
 uint256 constant MAX_MINT_FEE = 0.05e18; // D18{1} 5%
+uint256 constant MIN_MINT_FEE = 0.0003e18; // D18{1} 0.03%
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_AUCTION_DELAY = 604800; // {s} 1 week
