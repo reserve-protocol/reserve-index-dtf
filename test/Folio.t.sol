@@ -2280,16 +2280,16 @@ contract FolioTest is BaseTest {
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.startPrank(auctionLauncher);
-        vm.expectRevert(IFolio.Folio__InvalidAuctionTokens.selector);
+        vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
         folio.openAuction(IERC20(address(0)), USDC, 0, MAX_RATE, 1e15, 1e15);
 
-        vm.expectRevert(IFolio.Folio__InvalidAuctionTokens.selector);
+        vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
         folio.openAuction(USDC, IERC20(address(0)), 0, 0, 1e27, 1e27); // zero address has 0 buyLimit.high
 
-        vm.expectRevert(IFolio.Folio__InvalidAuctionTokens.selector);
+        vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
         folio.openAuction(folio, USDC, 0, MAX_RATE, 1e15, 1e15);
 
-        vm.expectRevert(IFolio.Folio__InvalidAuctionTokens.selector);
+        vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
         folio.openAuction(USDC, folio, 0, 0, 1e27, 1e27); // folio has 0 buyLimit.high
     }
 

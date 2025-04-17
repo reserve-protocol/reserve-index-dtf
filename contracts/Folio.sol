@@ -891,12 +891,6 @@ contract Folio is
         uint256 endPrice,
         uint256 auctionBuffer
     ) internal returns (uint256 auctionId) {
-        // confirm tokens are in basket
-        require(
-            basket.contains(address(sellToken)) && basket.contains(address(buyToken)),
-            Folio__InvalidAuctionTokens()
-        );
-
         // confirm tokens are in rebalance
         require(
             rebalance.details[address(sellToken)].inRebalance && rebalance.details[address(buyToken)].inRebalance,
