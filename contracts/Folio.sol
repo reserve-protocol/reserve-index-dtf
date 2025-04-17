@@ -205,11 +205,15 @@ contract Folio is
         _poke();
     }
 
-    /// @dev Reentrancy guard check for consuming protocols
-    /// @dev Consuming protocols SHOULD call this function and ensure it returns false before
-    ///      strongly relying on the Folio state
-    function reentrancyGuardEntered() external view returns (bool) {
-        return _reentrancyGuardEntered();
+    /// Check if the Folio state can be relied upon to be complete
+    /// @dev Safety check for consuming protocols to check for synchronous and asynchronous state changes
+    /// @dev Consuming protocols SHOULD call this function and ensure it returns (false, false) before
+    ///      strongly relying on the Folio state.
+    function stateChangeActive() external view returns (bool syncStateChangeActive, bool asyncStateChangeActive) {
+        syncStateChangeActive = _reentrancyGuardEntered();
+        asyncStateChangeActive =
+            address(activeTrustedFill) != address(0) &&
+            activeTrustedFill.blockInitialized() == block.timestamp;
     }
 
     // ==== Governance ====
