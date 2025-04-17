@@ -477,6 +477,7 @@ contract Folio is
 
     /// Set basket and start rebalancing towards it, ending currently running auctions
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
+    /// @dev Note that limits will be _slightly_ stale after the fee supply inflation on a 24h boundary
     /// @param newTokens Tokens to add to the basket, MUST be unique
     /// @param newLimits D27{tok/share} New rebalance limits
     /// @param newPrices D27{UoA/tok} New prices for each asset in terms of the Folio
