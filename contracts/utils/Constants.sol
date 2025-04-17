@@ -9,8 +9,11 @@ uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
 uint256 constant MAX_AUCTION_DELAY = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
-uint256 constant MAX_RATE = 1e54; // D18{buyTok/sellTok}
-uint256 constant MAX_PRICE_RANGE = 1e9; // {1}
+uint256 constant MAX_LIMIT = 1e54; // D27{buyTok/sellTok}
+uint256 constant MAX_TOKEN_PRICE = 1e36; // D27{UoA/tok}
+uint256 constant MAX_TOKEN_PRICE_RANGE = 1e2; // {1}
+uint256 constant MAX_AUCTION_PRICE = 1e63; // D27{buyTok/sellTok}
+uint256 constant MAX_AUCTION_PRICE_RANGE = 1e6; // {1}
 uint256 constant RESTRICTED_AUCTION_BUFFER = 120; // {s} 2 min
 
 uint256 constant ONE_OVER_YEAR = 31709791983; // D18{1/s} 1e18 / 31536000

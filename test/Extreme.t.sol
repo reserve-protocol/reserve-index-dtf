@@ -5,13 +5,13 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
-import { MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TVL_FEE, MAX_TTL, MAX_PRICE_RANGE, MAX_RATE } from "@utils/Constants.sol";
+import { D27, MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TVL_FEE, MAX_TTL, MAX_AUCTION_PRICE_RANGE, MAX_LIMIT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, RESTRICTED_AUCTION_BUFFER, MAX_AUCTION_PRICE } from "@utils/Constants.sol";
 import { StakingVault } from "contracts/staking/StakingVault.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
-    IFolio.BasketRange internal FULL_SELL = IFolio.BasketRange(0, 0, MAX_RATE);
-    IFolio.BasketRange internal FULL_BUY = IFolio.BasketRange(MAX_RATE, MAX_RATE, MAX_RATE);
+    IFolio.BasketRange internal FULL_SELL = IFolio.BasketRange(0, 0, MAX_LIMIT);
+    IFolio.BasketRange internal FULL_BUY = IFolio.BasketRange(MAX_LIMIT, MAX_LIMIT, MAX_LIMIT);
 
     IFolio.Prices internal ZERO_PRICE = IFolio.Prices(0, 0);
 
@@ -241,28 +241,31 @@ contract ExtremeTest is BaseExtremeTest {
             IFolio.Prices[] memory prices = new IFolio.Prices[](2);
             assets[0] = address(sell);
             assets[1] = address(buy);
-            limits[0] = IFolio.BasketRange(0, 0, MAX_RATE);
-            limits[1] = IFolio.BasketRange(0, 0, MAX_RATE);
-            prices[0] = ZERO_PRICE;
-            prices[1] = ZERO_PRICE;
+            limits[0] = FULL_SELL;
+            limits[1] = FULL_BUY;
+            prices[0] = IFolio.Prices(
+                (p.sellTokenPrice + MAX_TOKEN_PRICE_RANGE - 1) / MAX_TOKEN_PRICE_RANGE,
+                p.sellTokenPrice
+            );
+            prices[1] = IFolio.Prices(
+                (p.buyTokenPrice + MAX_TOKEN_PRICE_RANGE - 1) / MAX_TOKEN_PRICE_RANGE,
+                p.buyTokenPrice
+            );
 
             vm.prank(dao);
-            folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
+            folio.startRebalance(assets, limits, prices, 0, MAX_TTL);
         }
 
-        // restrict price from being too low
-        uint256 minPrice = type(uint256).max / Math.mulDiv(MAX_RATE, 1e23, initialSupply, Math.Rounding.Ceil);
-        p.price = Math.max(p.price, minPrice);
-
-        // openAuction
-        vm.prank(auctionLauncher);
-        uint256 endPrice = (p.price + MAX_PRICE_RANGE - 1) / MAX_PRICE_RANGE;
-        folio.openAuction(sell, buy, 0, MAX_RATE, p.price, endPrice);
+        // openAuctionUnrestricted
+        vm.warp(block.timestamp + RESTRICTED_AUCTION_BUFFER);
+        folio.openAuctionUnrestricted(sell, buy);
 
         // sellAmount will be up to 1e36
-        // buyAmount will be up to 1e54 and down to 1
+        // buyAmount will be up to 1e72 and down to 1
 
         (, , , , , , , uint256 start, uint256 end) = folio.auctions(0);
+
+        // TODO fix
 
         (, , uint256 price) = folio.getBid(0, start, type(uint256).max);
         (, , uint256 price2) = folio.getBid(0, start + 1, type(uint256).max);
