@@ -233,11 +233,11 @@ library AuctionLib {
 
         // D18{1}
         // k = ln(P_0 / P_t) / t
-        uint256 k = MathLib.ln((auction.startPrice * D18) / auction.endPrice) / auctionLength;
+        uint256 k = MathLib.ln(Math.mulDiv(auction.startPrice, D18, auction.endPrice)) / auctionLength;
 
         // P_t = P_0 * e ^ -kt
         // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-        p = (auction.startPrice * MathLib.exp(-1 * int256(k * elapsed))) / D18;
+        p = Math.mulDiv(auction.startPrice, MathLib.exp(-1 * int256(k * elapsed)), D18);
         if (p < auction.endPrice) {
             p = auction.endPrice;
         }
