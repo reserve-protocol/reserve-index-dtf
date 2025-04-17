@@ -573,8 +573,8 @@ contract Folio is
         // startRebalance invariant: if any of the tokens have a 0 price, they must all have a 0 price
         if (sellDetails.prices.high != 0) {
             // D27{buyTok/sellTok} = D27 * D27{UoA/sellTok} / D27{UoA/buyTok}
-            uint256 oldStartPrice = (D27 * sellDetails.prices.high) / buyDetails.prices.low;
-            uint256 oldEndPrice = (D27 * sellDetails.prices.low) / buyDetails.prices.high;
+            uint256 oldStartPrice = (D27 * sellDetails.prices.high + buyDetails.prices.low - 1) / buyDetails.prices.low;
+            uint256 oldEndPrice = (D27 * sellDetails.prices.low + buyDetails.prices.high - 1) / buyDetails.prices.high;
 
             // allow up to 100x price increase
             // TODO make smaller?
@@ -606,8 +606,8 @@ contract Folio is
         );
 
         // D27{buyTok/sellTok} = D27 * D27{UoA/sellTok} / D27{UoA/buyTok}
-        uint256 startPrice = (D27 * sellDetails.prices.high) / buyDetails.prices.low;
-        uint256 endPrice = (D27 * sellDetails.prices.low) / buyDetails.prices.high;
+        uint256 startPrice = (D27 * sellDetails.prices.high + buyDetails.prices.low - 1) / buyDetails.prices.low;
+        uint256 endPrice = (D27 * sellDetails.prices.low + buyDetails.prices.high - 1) / buyDetails.prices.high;
 
         // many more checks, including confirming sellToken is in surplus and buyToken is in deficit
         return
