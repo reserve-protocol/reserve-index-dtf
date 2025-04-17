@@ -218,7 +218,7 @@ contract Folio is
     /// through any other means and should become part of the Folio without being sold.
     /// @dev Does not require a token balance
     /// @param token The token to add to the basket
-    function addToBasket(IERC20 token) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function addToBasket(IERC20 token) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_addToBasket(address(token)), Folio__BasketModificationFailed());
     }
 
