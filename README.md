@@ -209,7 +209,7 @@ Some ERC20s are NOT supported
 | Missing return values          | ✅    | ✅           |
 | No revert on failure           | ✅    | ✅           |
 
-Note: While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible. To check for reentrancy, call `reentrancyGuardEntered()` and require that the return value is false. The (non-ERC20) Folio mutator calls are all `nonReentrant`, but for view functions this check is important to perform.
+Note: While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible. To check for reentrancy, call `stateChangeActive()` and require that both return values are false. The (non-ERC20) Folio mutator calls are all `nonReentrant` and will close async actions as a pre-hook, but for view functions this check is important to perform before relying on any returned data.
 
 ### Chain Assumptions
 
