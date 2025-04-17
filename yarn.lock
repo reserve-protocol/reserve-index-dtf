@@ -1001,9 +1001,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@reserve-protocol/trusted-fillers@github:reserve-protocol/trusted-fillers#45fd7523816f98e2f79b1b582dc0e6fcc685b73f":
+"@reserve-protocol/trusted-fillers@github:reserve-protocol/trusted-fillers#80d03f04e40f9f048aaed8d26b7ff2613ce29046":
   version: 0.1.0
-  resolution: "@reserve-protocol/trusted-fillers@https://github.com/reserve-protocol/trusted-fillers.git#commit=45fd7523816f98e2f79b1b582dc0e6fcc685b73f"
+  resolution: "@reserve-protocol/trusted-fillers@https://github.com/reserve-protocol/trusted-fillers.git#commit=80d03f04e40f9f048aaed8d26b7ff2613ce29046"
   dependencies:
     "@cowprotocol/app-data": "npm:^2.5.1"
     "@cowprotocol/cow-sdk": "npm:^5.10.1"
@@ -1013,7 +1013,7 @@ __metadata:
     ethers: "npm:^5.7.2"
     forge-std: "github:foundry-rs/forge-std#v1.9.4"
     viem: "npm:^2.23.11"
-  checksum: 10c0/5cf1939d75cbf4871d1fb13cb39ddf895edc0aaa56423823a3955bdbb687ae41278c78c6945fd07655191d81dc7b511e48f2c6d4858c361df71fabae19e3368f
+  checksum: 10c0/15675ea6de1b2c5c8233c7a5cb5fca6b0b1fa59bac3a79b9e90ccbd460c242b8f02e5e1ef39e7eb0096c40eefe216d45399a834185e3581d61fda36cb5e1860f
   languageName: node
   linkType: hard
 
@@ -1165,16 +1165,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:*":
-  version: 22.10.6
-  resolution: "@types/node@npm:22.10.6"
-  dependencies:
-    undici-types: "npm:~6.20.0"
-  checksum: 10c0/8b67affc211e5f9c74f7949cda04ca669721e50b83d71b8772a7bed7a4a3c41d663b3a794413f618e763ca6c5da8c234c25ffebcb0737983fc3e7415818ab9a7
-  languageName: node
-  linkType: hard
-
-"@types/node@npm:>=13.7.0":
+"@types/node@npm:*, @types/node@npm:>=13.7.0":
   version: 22.13.10
   resolution: "@types/node@npm:22.13.10"
   dependencies:
@@ -2076,7 +2067,7 @@ __metadata:
     "@openzeppelin/contracts": "npm:^5.1.0"
     "@openzeppelin/contracts-upgradeable": "npm:^5.1.0"
     "@prb/math": "npm:^4.1.0"
-    "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#45fd7523816f98e2f79b1b582dc0e6fcc685b73f"
+    "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#80d03f04e40f9f048aaed8d26b7ff2613ce29046"
     decimal.js: "npm:^10.5.0"
     expect: "npm:^29.7.0"
     forge-std: "github:foundry-rs/forge-std#v1.9.4"
@@ -3815,21 +3806,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"semver@npm:^7.3.4, semver@npm:^7.5.4":
+"semver@npm:^7.3.4, semver@npm:^7.3.5, semver@npm:^7.3.7, semver@npm:^7.5.2, semver@npm:^7.5.4, semver@npm:^7.6.3":
   version: 7.7.1
   resolution: "semver@npm:7.7.1"
   bin:
     semver: bin/semver.js
   checksum: 10c0/fd603a6fb9c399c6054015433051bdbe7b99a940a8fb44b85c2b524c4004b023d7928d47cb22154f8d054ea7ee8597f586605e05b52047f048278e4ac56ae958
-  languageName: node
-  linkType: hard
-
-"semver@npm:^7.3.5, semver@npm:^7.3.7, semver@npm:^7.5.2, semver@npm:^7.6.3":
-  version: 7.6.3
-  resolution: "semver@npm:7.6.3"
-  bin:
-    semver: bin/semver.js
-  checksum: 10c0/88f33e148b210c153873cb08cfe1e281d518aaa9a666d4d148add6560db5cd3c582f3a08ccb91f38d5f379ead256da9931234ed122057f40bb5766e65e58adaf
   languageName: node
   linkType: hard
 
