@@ -565,12 +565,12 @@ contract Folio is
         //   - select a sell limit within the approved basket weight range
         //   - select a buy limit within the approved basket weight range
         //   - raise starting price by up to 100x
-        //   - raise ending price arbitrarily (can cause auction not to clear, same as closing auction)
+        //   - raise ending price arbitrarily (can cause auction not to clear, same end result as closing auction)
 
         RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
         RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
 
-        // invariant: if any of the tokens have a 0 price, they must all have a 0 price
+        // startRebalance invariant: if any of the tokens have a 0 price, they must all have a 0 price
         if (sellDetails.prices.high != 0) {
             // D27{buyTok/sellTok} = D27 * D27{UoA/sellTok} / D27{UoA/buyTok}
             uint256 oldStartPrice = (D27 * sellDetails.prices.high) / buyDetails.prices.low;
@@ -582,23 +582,7 @@ contract Folio is
             require(endPrice >= oldEndPrice, Folio__InvalidPrices());
         }
 
-        // check limits
-        require(sellLimit >= sellDetails.limits.low && sellLimit <= sellDetails.limits.high, Folio__InvalidSellLimit());
-        require(buyLimit >= buyDetails.limits.low && buyLimit <= buyDetails.limits.high, Folio__InvalidBuyLimit());
-
-        // update basket limits for next time, incase it is via openAuctionUnrestricted
-        sellDetails.limits.spot = sellLimit;
-        buyDetails.limits.spot = buyLimit;
-
-        // bring basket range up behind us to prevent double trading
-        // this reduces the damage a malicious AUCTION_LAUNCHER can do
-        // might not be necessary depending on how much we want to trust the AUCTION_LAUNCHER
-        // on the other hand, maybe it's not about trust maybe it's about them having to know something extra to avoid
-        // TODO decide during audit whether to keep
-        sellDetails.limits.high = sellLimit;
-        buyDetails.limits.low = buyLimit;
-
-        // more checks, including confirming sellToken is in surplus and buyToken is in deficit
+        // many more checks, including confirming sellToken is in surplus and buyToken is in deficit
         return _openAuction(sellToken, buyToken, sellLimit, buyLimit, startPrice, endPrice, 0);
     }
 
@@ -625,7 +609,7 @@ contract Folio is
         uint256 startPrice = (D27 * sellDetails.prices.high) / buyDetails.prices.low;
         uint256 endPrice = (D27 * sellDetails.prices.low) / buyDetails.prices.high;
 
-        // open auction with spot limits
+        // many more checks, including confirming sellToken is in surplus and buyToken is in deficit
         return
             _openAuction(
                 sellToken,
@@ -891,17 +875,17 @@ contract Folio is
         uint256 endPrice,
         uint256 auctionBuffer
     ) internal returns (uint256 auctionId) {
-        // confirm tokens are in rebalance
-        require(
-            rebalance.details[address(sellToken)].inRebalance && rebalance.details[address(buyToken)].inRebalance,
-            Folio__NotRebalancing()
-        );
+        RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
+        RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
 
         // confirm rebalance ongoing
         require(
             block.timestamp >= rebalance.startedAt + auctionBuffer && block.timestamp < rebalance.availableUntil,
             Folio__NotRebalancing()
         );
+
+        // confirm tokens are in rebalance
+        require(sellDetails.inRebalance && buyDetails.inRebalance, Folio__NotRebalancing());
 
         // confirm no auction collision on token pair
         {
@@ -910,6 +894,10 @@ contract Folio is
 
             auctionEnds[rebalance.nonce][pair] = block.timestamp + auctionLength;
         }
+
+        // preserve limits relative ordering
+        require(sellLimit >= sellDetails.limits.low && sellLimit <= sellDetails.limits.high, Folio__InvalidSellLimit());
+        require(buyLimit >= buyDetails.limits.low && buyLimit <= buyDetails.limits.high, Folio__InvalidBuyLimit());
 
         // confirm sellToken is in surplus and buyToken is in deficit
         {
@@ -924,10 +912,6 @@ contract Folio is
             require(buyToken.balanceOf(address(this)) < buyBalLimit, Folio__InvalidBuyLimit());
         }
 
-        // for upgraded Folios, pick up on the next auction index from the old array
-        nextAuctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
-        auctionId = nextAuctionId++;
-
         // ensure valid price range (startPrice == endPrice is valid)
         require(
             startPrice >= endPrice &&
@@ -936,6 +920,22 @@ contract Folio is
                 startPrice / endPrice <= MAX_PRICE_RANGE,
             Folio__InvalidPrices()
         );
+
+        // for upgraded Folios, pick up on the next auction index from the old array
+        nextAuctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
+        auctionId = nextAuctionId++;
+
+        // update spot limits to prevent double trading in the future by openAuctionUnrestricted()
+        sellDetails.limits.spot = sellLimit;
+        buyDetails.limits.spot = buyLimit;
+
+        // update low/high limits to prevent double trading in the future by openAuction()
+        sellDetails.limits.high = sellLimit;
+        buyDetails.limits.low = buyLimit;
+        // by lowering the high sell limit the AUCTION_LAUNCHER cannot backtrack and later buy the sellToken
+        // by raising the low buy limit the AUCTION_LAUNCHER cannot backtrack and later sell the buyToken
+        // intentional: by leaving the other 2 limits unchanged (sell.low and buy.high) there can be future
+        //              auctions to trade FURTHER, incase current auctions go better than expected
 
         Auction memory auction = Auction({
             rebalanceNonce: rebalance.nonce,
