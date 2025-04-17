@@ -2360,9 +2360,9 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotOpenAuctionWithInvalidPrices() public {
-        prices[0] = IFolio.Prices(1e39, 1e39);
-        prices[1] = IFolio.Prices(1e27, 1e27);
-        prices[2] = IFolio.Prices(1e18, 1e18);
+        prices[0] = IFolio.Prices(1e21, 1e21); // D27{UoA/tok} for USDC
+        prices[1] = IFolio.Prices(1e9, 1e9); // D27{UoA/tok} for DAI
+        prices[2] = IFolio.Prices(1, 1); // D27{UoA/tok} for MEME
 
         vm.prank(dao);
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
