@@ -8,7 +8,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
-import { D18, D27, MAX_RATE, MAX_PRICE_RANGE } from "@utils/Constants.sol";
+import { D18, D27, MAX_AUCTION_PRICE, MAX_AUCTION_PRICE_RANGE, MAX_TOKEN_BALANCE } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 
 library AuctionLib {
@@ -79,8 +79,8 @@ library AuctionLib {
         require(
             args.startPrice >= args.endPrice &&
                 args.endPrice != 0 &&
-                args.startPrice <= MAX_RATE &&
-                args.startPrice / args.endPrice <= MAX_PRICE_RANGE,
+                args.startPrice <= MAX_AUCTION_PRICE &&
+                args.startPrice / args.endPrice <= MAX_AUCTION_PRICE_RANGE,
             IFolio.Folio__InvalidPrices()
         );
 
@@ -144,6 +144,9 @@ library AuctionLib {
         // {buyTok} = D27{buyTok/share} * {share} / D27
         uint256 buyLimitBal = Math.mulDiv(auction.buyLimit, totalSupply, D27, Math.Rounding.Floor);
         uint256 buyAvailable = buyBal < buyLimitBal ? buyLimitBal - buyBal : 0;
+
+        // maximum valid token balance is 1e36; do not try to buy more than this
+        buyAvailable = Math.min(buyAvailable, MAX_TOKEN_BALANCE);
 
         // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
         uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
@@ -233,11 +236,11 @@ library AuctionLib {
 
         // D18{1}
         // k = ln(P_0 / P_t) / t
-        uint256 k = MathLib.ln((auction.startPrice * D18) / auction.endPrice) / auctionLength;
+        uint256 k = MathLib.ln(Math.mulDiv(auction.startPrice, D18, auction.endPrice)) / auctionLength;
 
         // P_t = P_0 * e ^ -kt
         // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-        p = (auction.startPrice * MathLib.exp(-1 * int256(k * elapsed))) / D18;
+        p = Math.mulDiv(auction.startPrice, MathLib.exp(-1 * int256(k * elapsed)), D18);
         if (p < auction.endPrice) {
             p = auction.endPrice;
         }

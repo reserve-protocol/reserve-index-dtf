@@ -3,15 +3,16 @@ pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio } from "contracts/Folio.sol";
-import { MAX_AUCTION_LENGTH, MAX_AUCTION_DELAY, MAX_TVL_FEE, MAX_TTL, MAX_PRICE_RANGE, MAX_RATE } from "@utils/Constants.sol";
-import { StakingVault } from "contracts/staking/StakingVault.sol";
+import { IFolio } from "@interfaces/IFolio.sol";
+import { Folio } from "@src/Folio.sol";
+import { D18, D27, MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_TTL, MAX_LIMIT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, RESTRICTED_AUCTION_BUFFER, MAX_TOKEN_BALANCE } from "@utils/Constants.sol";
+import { StakingVault } from "@staking/StakingVault.sol";
+import { MathLib } from "@utils/MathLib.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
-    IFolio.BasketRange internal FULL_SELL = IFolio.BasketRange(0, 0, MAX_RATE);
-    IFolio.BasketRange internal FULL_BUY = IFolio.BasketRange(MAX_RATE, MAX_RATE, MAX_RATE);
+    IFolio.BasketRange internal FULL_SELL = IFolio.BasketRange(0, 0, MAX_LIMIT);
+    IFolio.BasketRange internal FULL_BUY = IFolio.BasketRange(MAX_LIMIT, MAX_LIMIT, MAX_LIMIT);
 
     IFolio.Prices internal ZERO_PRICE = IFolio.Prices(0, 0);
 
@@ -218,21 +219,23 @@ contract ExtremeTest is BaseExtremeTest {
         IERC20 sell = deployCoin("Sell Token", "SELL", p.sellDecimals);
         IERC20 buy = deployCoin("Buy Token", "BUY", p.buyDecimals);
 
-        // Create and mint tokens
-        address[] memory tokens = new address[](1);
-        tokens[0] = address(sell);
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = p.sellAmount;
-
-        mintTokens(tokens[0], getActors(), amounts[0]);
-
         // deploy folio
-        uint256 initialSupply = p.sellAmount;
-        uint256 tvlFee = MAX_TVL_FEE;
-        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
-        _deployTestFolio(tokens, amounts, initialSupply, tvlFee, 0, recipients);
+        {
+            // Create and mint tokens
+            address[] memory tokens = new address[](1);
+            tokens[0] = address(sell);
+            uint256[] memory amounts = new uint256[](1);
+            amounts[0] = p.sellAmount;
+
+            mintTokens(tokens[0], getActors(), amounts[0]);
+
+            uint256 initialSupply = p.sellAmount;
+            uint256 tvlFee = MAX_TVL_FEE;
+            IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+            recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+            recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
+            _deployTestFolio(tokens, amounts, initialSupply, tvlFee, 0, recipients);
+        }
 
         // startRebalance
         {
@@ -241,47 +244,62 @@ contract ExtremeTest is BaseExtremeTest {
             IFolio.Prices[] memory prices = new IFolio.Prices[](2);
             assets[0] = address(sell);
             assets[1] = address(buy);
-            limits[0] = IFolio.BasketRange(0, 0, MAX_RATE);
-            limits[1] = IFolio.BasketRange(0, 0, MAX_RATE);
-            prices[0] = ZERO_PRICE;
-            prices[1] = ZERO_PRICE;
+            limits[0] = FULL_SELL;
+            limits[1] = FULL_BUY;
+            prices[0] = IFolio.Prices(
+                (p.sellTokenPrice + MAX_TOKEN_PRICE_RANGE - 1) / MAX_TOKEN_PRICE_RANGE,
+                p.sellTokenPrice
+            );
+            prices[1] = IFolio.Prices(
+                (p.buyTokenPrice + MAX_TOKEN_PRICE_RANGE - 1) / MAX_TOKEN_PRICE_RANGE,
+                p.buyTokenPrice
+            );
 
             vm.prank(dao);
-            folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
+            folio.startRebalance(assets, limits, prices, 0, MAX_TTL);
         }
 
-        // restrict price from being too low
-        uint256 minPrice = type(uint256).max / Math.mulDiv(MAX_RATE, 1e23, initialSupply, Math.Rounding.Ceil);
-        p.price = Math.max(p.price, minPrice);
+        // openAuctionUnrestricted
+        vm.warp(block.timestamp + RESTRICTED_AUCTION_BUFFER);
+        folio.openAuctionUnrestricted(sell, buy);
 
-        // openAuction
-        vm.prank(auctionLauncher);
-        uint256 endPrice = (p.price + MAX_PRICE_RANGE - 1) / MAX_PRICE_RANGE;
-        folio.openAuction(sell, buy, 0, MAX_RATE, p.price, endPrice);
+        (, , , , , uint256 startPrice, uint256 endPrice, uint256 start, uint256 end) = folio.auctions(0);
 
-        // sellAmount will be up to 1e36
-        // buyAmount will be up to 1e54 and down to 1
+        uint256 totalSupply = folio.totalSupply();
 
-        (, , , , , , , uint256 start, uint256 end) = folio.auctions(0);
+        // check that start >= start + 1
+        uint256 startBidAmount = _getBidAmount(sell, buy, totalSupply, startPrice, endPrice, start, end, start);
+        uint256 endBidAmount = _getBidAmount(sell, buy, totalSupply, startPrice, endPrice, start, end, start + 1);
 
-        (, , uint256 price) = folio.getBid(0, start, type(uint256).max);
-        (, , uint256 price2) = folio.getBid(0, start + 1, type(uint256).max);
-        // getBid should work at both ends of auction
-        assertLe(price2, price, "price should be non-increasing");
+        if (startBidAmount > 0 && endBidAmount > 0) {
+            // should not revert
+            (, , uint256 actualStartPrice) = folio.getBid(0, start, type(uint256).max);
 
-        (, , price) = folio.getBid(0, end - 1, type(uint256).max);
-        uint256 sellAmount2;
-        uint256 buyAmount2;
-        (sellAmount2, buyAmount2, price2) = folio.getBid(0, end, type(uint256).max);
-        assertLe(price2, price, "price should be non-increasing");
+            // getBid should work at start and start + 1, and they should be relatively ordered
+            (, , uint256 actualEndPrice) = folio.getBid(0, start + 1, type(uint256).max);
+            assertLe(actualEndPrice, actualStartPrice, "price should be non-increasing");
+        }
 
-        // mint buy tokens to user1 and bid
-        vm.warp(end);
-        deal(address(buy), address(user1), buyAmount2, true);
-        vm.startPrank(user1);
-        buy.approve(address(folio), buyAmount2);
-        folio.bid(0, sellAmount2, buyAmount2, false, bytes(""));
-        vm.stopPrank();
+        // check that end - 1 > end as well
+        startBidAmount = _getBidAmount(sell, buy, totalSupply, startPrice, endPrice, start, end, end - 1);
+        endBidAmount = _getBidAmount(sell, buy, totalSupply, startPrice, endPrice, start, end, end);
+
+        if (startBidAmount > 0 && endBidAmount > 0) {
+            // should not revert
+            (, , uint256 actualStartPrice) = folio.getBid(0, end - 1, type(uint256).max);
+
+            // getBid should work at end - 1 and end, and they should be relatively ordered
+            (uint256 sellAmount2, uint256 buyAmount2, uint256 actualEndPrice) = folio.getBid(0, end, type(uint256).max);
+            assertLe(actualEndPrice, actualStartPrice, "price should be non-increasing");
+
+            // mint buy tokens to user1 and bid
+            vm.warp(end);
+            deal(address(buy), address(user1), buyAmount2, true);
+            vm.startPrank(user1);
+            buy.approve(address(folio), buyAmount2);
+            folio.bid(0, sellAmount2, buyAmount2, false, bytes(""));
+            vm.stopPrank();
+        }
     }
 
     function run_fees_scenario(FeeTestParams memory p) public {
@@ -413,6 +431,78 @@ contract ExtremeTest is BaseExtremeTest {
         for (uint256 j = 0; j < p.numTokens; j++) {
             MockERC20 reward = MockERC20(rewardTokens[j]);
             assertApproxEqRel(reward.balanceOf(user1), expectedRewards, 1e14);
+        }
+    }
+
+    /// ==== Internal ====
+
+    /// Returns 0 where the actual getBid() function would revert
+    /// @return bidAmount {buyTok}
+    function _getBidAmount(
+        IERC20 sell,
+        IERC20 buy,
+        uint256 totalSupply,
+        uint256 startPrice,
+        uint256 endPrice,
+        uint256 startTime,
+        uint256 endTime,
+        uint256 timestamp
+    ) internal view returns (uint256 bidAmount) {
+        // D27{buyTok/sellTok}
+        uint256 price = _price(startPrice, endPrice, startTime, endTime, timestamp);
+
+        // {sellTok} = D27{sellTok/share} * {share} / D27
+        uint256 sellLimitBal = Math.mulDiv(0, totalSupply, D27, Math.Rounding.Ceil);
+        uint256 sellAvailable = sell.balanceOf(address(folio)) > sellLimitBal
+            ? sell.balanceOf(address(folio)) - sellLimitBal
+            : 0;
+
+        // {buyTok} = D27{buyTok/share} * {share} / D27
+        uint256 buyLimitBal = Math.mulDiv(MAX_LIMIT, totalSupply, D27, Math.Rounding.Floor);
+        uint256 buyAvailable = buy.balanceOf(address(folio)) < buyLimitBal
+            ? buyLimitBal - buy.balanceOf(address(folio))
+            : 0;
+
+        buyAvailable = Math.min(buyAvailable, MAX_TOKEN_BALANCE);
+
+        // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
+        uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
+        sellAvailable = Math.min(sellAvailable, sellAvailableFromBuy);
+
+        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
+        bidAmount = Math.mulDiv(sellAvailable, price, D27, Math.Rounding.Ceil);
+    }
+
+    /// @return p D27{buyTok/sellTok}
+    function _price(
+        uint256 startPrice,
+        uint256 endPrice,
+        uint256 startTime,
+        uint256 endTime,
+        uint256 timestamp
+    ) internal pure returns (uint256 p) {
+        // ensure auction is ongoing
+        require(timestamp >= startTime && timestamp <= endTime, IFolio.Folio__AuctionNotOngoing());
+
+        if (timestamp == startTime) {
+            return startPrice;
+        }
+        if (timestamp == endTime) {
+            return endPrice;
+        }
+
+        uint256 elapsed = timestamp - startTime;
+        uint256 auctionLength = endTime - startTime;
+
+        // D18{1}
+        // k = ln(P_0 / P_t) / t
+        uint256 k = MathLib.ln(Math.mulDiv(startPrice, D18, endPrice)) / auctionLength;
+
+        // P_t = P_0 * e ^ -kt
+        // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
+        p = Math.mulDiv(startPrice, MathLib.exp(-1 * int256(k * elapsed)), D18);
+        if (p < endPrice) {
+            p = endPrice;
         }
     }
 }

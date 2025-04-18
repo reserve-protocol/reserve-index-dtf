@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { AuctionLib } from "@utils/AuctionLib.sol";
-import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_RATE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
+import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_LIMIT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -513,7 +513,7 @@ contract Folio is
             require(
                 newLimits[i].low <= newLimits[i].spot &&
                     newLimits[i].spot <= newLimits[i].high &&
-                    newLimits[i].high <= MAX_RATE,
+                    newLimits[i].high <= MAX_LIMIT,
                 Folio__InvalidLimits()
             );
 
@@ -522,7 +522,14 @@ contract Folio is
                 Folio__InvalidPrices()
             );
 
-            require(newPrices[i].low <= newPrices[i].high && newPrices[i].high <= MAX_RATE, Folio__InvalidPrices());
+            if (!deferPrices) {
+                require(
+                    newPrices[i].low <= newPrices[i].high &&
+                        newPrices[i].high <= MAX_TOKEN_PRICE &&
+                        newPrices[i].high / newPrices[i].low <= MAX_TOKEN_PRICE_RANGE,
+                    Folio__InvalidPrices()
+                );
+            }
 
             _addToBasket(token);
             rebalance.details[token] = RebalanceDetails({
@@ -577,7 +584,6 @@ contract Folio is
             uint256 oldEndPrice = (D27 * sellDetails.prices.low + buyDetails.prices.high - 1) / buyDetails.prices.high;
 
             // allow up to 100x price increase
-            // TODO make smaller?
             require(
                 startPrice >= oldStartPrice && startPrice <= 100 * oldStartPrice && endPrice >= oldEndPrice,
                 Folio__InvalidPrices()
