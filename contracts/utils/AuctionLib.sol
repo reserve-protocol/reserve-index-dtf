@@ -8,10 +8,108 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
-import { D18, D27 } from "@utils/Constants.sol";
+import { D18, D27, MAX_RATE, MAX_PRICE_RANGE } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 
 library AuctionLib {
+    // stack-too-deep
+    struct AuctionArgs {
+        IERC20 sellToken;
+        IERC20 buyToken;
+        uint256 sellLimit;
+        uint256 buyLimit;
+        uint256 startPrice;
+        uint256 endPrice;
+        uint256 auctionBuffer;
+    }
+
+    /// @return auction The newly created auction
+    function makeAuction(
+        IFolio.Rebalance storage rebalance,
+        mapping(uint256 rebalanceNonce => mapping(bytes32 pair => uint256 endTime)) storage auctionEnds,
+        uint256 totalSupply,
+        uint256 auctionLength,
+        AuctionArgs memory args
+    ) external returns (IFolio.Auction memory auction) {
+        IFolio.RebalanceDetails storage sellDetails = rebalance.details[address(args.sellToken)];
+        IFolio.RebalanceDetails storage buyDetails = rebalance.details[address(args.buyToken)];
+
+        // confirm rebalance ongoing
+        require(
+            block.timestamp >= rebalance.startedAt + args.auctionBuffer && block.timestamp < rebalance.availableUntil,
+            IFolio.Folio__NotRebalancing()
+        );
+
+        // confirm tokens are in rebalance
+        require(sellDetails.inRebalance && buyDetails.inRebalance, IFolio.Folio__NotRebalancing());
+
+        // confirm no auction collision on token pair
+        {
+            bytes32 pair = AuctionLib.pairHash(args.sellToken, args.buyToken);
+            require(
+                block.timestamp > auctionEnds[rebalance.nonce][pair] + args.auctionBuffer,
+                IFolio.Folio__AuctionCollision()
+            );
+
+            auctionEnds[rebalance.nonce][pair] = block.timestamp + auctionLength;
+        }
+
+        // preserve limits relative ordering
+        require(
+            args.sellLimit >= sellDetails.limits.low && args.sellLimit <= sellDetails.limits.high,
+            IFolio.Folio__InvalidSellLimit()
+        );
+        require(
+            args.buyLimit >= buyDetails.limits.low && args.buyLimit <= buyDetails.limits.high,
+            IFolio.Folio__InvalidBuyLimit()
+        );
+
+        // confirm sellToken is in surplus and buyToken is in deficit
+        {
+            // {sellTok} = D27{sellTok/share} * {share} / D27
+            uint256 sellBalLimit = Math.mulDiv(args.sellLimit, totalSupply, D27, Math.Rounding.Ceil);
+            require(args.sellToken.balanceOf(address(this)) >= sellBalLimit, IFolio.Folio__InvalidSellLimit());
+
+            // {buyTok} = D27{buyTok/share} * {share} / D27
+            uint256 buyBalLimit = Math.mulDiv(args.buyLimit, totalSupply, D27, Math.Rounding.Floor);
+            require(args.buyToken.balanceOf(address(this)) < buyBalLimit, IFolio.Folio__InvalidBuyLimit());
+        }
+
+        // ensure valid price range (startPrice == endPrice is valid)
+        require(
+            args.startPrice >= args.endPrice &&
+                args.endPrice != 0 &&
+                args.startPrice <= MAX_RATE &&
+                args.startPrice / args.endPrice <= MAX_PRICE_RANGE,
+            IFolio.Folio__InvalidPrices()
+        );
+
+        // update spot limits to prevent double trading in the future by openAuctionUnrestricted()
+        sellDetails.limits.spot = args.sellLimit;
+        buyDetails.limits.spot = args.buyLimit;
+
+        // update low/high limits to prevent double trading in the future by openAuction()
+        sellDetails.limits.high = args.sellLimit;
+        buyDetails.limits.low = args.buyLimit;
+        // by lowering the high sell limit the AUCTION_LAUNCHER cannot backtrack and later buy the sellToken
+        // by raising the low buy limit the AUCTION_LAUNCHER cannot backtrack and later sell the buyToken
+        // intentional: by leaving the other 2 limits unchanged (sell.low and buy.high) there can be future
+        //              auctions to trade FURTHER, incase current auctions go better than expected
+
+        return
+            IFolio.Auction({
+                rebalanceNonce: rebalance.nonce,
+                sellToken: args.sellToken,
+                buyToken: args.buyToken,
+                sellLimit: args.sellLimit,
+                buyLimit: args.buyLimit,
+                startPrice: args.startPrice,
+                endPrice: args.endPrice,
+                startTime: block.timestamp,
+                endTime: block.timestamp + auctionLength
+            });
+    }
+
     /// Get bid parameters for an ongoing auction
     /// @param totalSupply {share} Current total supply of the Folio
     /// @param timestamp {s} Timestamp to fetch bid for
