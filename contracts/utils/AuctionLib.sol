@@ -68,7 +68,7 @@ library AuctionLib {
         {
             // {sellTok} = D27{sellTok/share} * {share} / D27
             uint256 sellBalLimit = Math.mulDiv(args.sellLimit, totalSupply, D27, Math.Rounding.Ceil);
-            require(args.sellToken.balanceOf(address(this)) >= sellBalLimit, IFolio.Folio__InvalidSellLimit());
+            require(args.sellToken.balanceOf(address(this)) > sellBalLimit, IFolio.Folio__InvalidSellLimit());
 
             // {buyTok} = D27{buyTok/share} * {share} / D27
             uint256 buyBalLimit = Math.mulDiv(args.buyLimit, totalSupply, D27, Math.Rounding.Floor);
