@@ -1944,7 +1944,7 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__AuctionCannotBeOpenedWithoutRestriction.selector);
         folio.openAuctionUnrestricted(USDC, DAI);
 
-        // but should be possible after auction delay
+        // but should be possible after auction launcher window
 
         (, , uint256 restrictedUntil, ) = folio.rebalance();
         vm.warp(restrictedUntil);

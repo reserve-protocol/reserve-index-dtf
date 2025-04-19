@@ -29,7 +29,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
  *
  * There are 3 main roles:
- *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, auction delay, close auctions, and deprecateFolio
+ *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, close auctions/rebalances, and deprecateFolio
  *   2. REBALANCE_MANAGER: can start/end rebalances
  *   3. AUCTION_LAUNCHER: can open auctions during an ongoing rebalance, and close auctions
  *
@@ -606,7 +606,7 @@ contract Folio is
     }
 
     /// Open an auction without restrictions
-    /// @dev Unrestricted, callable only after the `auctionDelay`
+    /// @dev Callable only after the auction launcher window passes
     /// @return auctionId The newly created auctionId
     function openAuctionUnrestricted(
         IERC20 sellToken,

@@ -44,7 +44,7 @@ A Folio has 3 roles:
 
 1. `DEFAULT_ADMIN_ROLE`
    - Expected: Timelock of Slow Folio Governor
-   - Can add/remove assets, set fees, configure auction length, set the auction delay, and closeout auctions
+   - Can add/remove assets, set fees, configure auction length, and closeout auctions / rebalances
    - Can configure the `AUCTION_APPROVER`/ `AUCTION_LAUNCHER`
    - Primary owner of the Folio
 2. `AUCTION_APPROVER`
@@ -68,7 +68,7 @@ The staking vault has ONLY a single owner:
 1. Auction is approved the `AUCTION_APPROVER`, including an initial price range and a range for the basket ratios
 2. Auction is opened, initiating the progression through the predetermined price curve
    a. ...either by the auction launcher (immediately, or soon after)
-   b. ...or permissionlessly (after the auction delay passes)
+   b. ...or permissionlessly (after the auction launcher window passes)
 3. Bids occur
 4. Auction expires
 5. (optional) Auction can be re-opened up to `availableRuns` times, going back to step 3
