@@ -617,8 +617,9 @@ contract Folio is
         RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
         RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
 
+        // startRebalance invariant: if any of the tokens have a 0 price, they must all have a 0 price
         require(
-            buyDetails.prices.low != 0 && sellDetails.prices.high != 0,
+            buyDetails.prices.low != 0,
             Folio__AuctionCannotBeOpenedWithoutRestriction()
         );
 
