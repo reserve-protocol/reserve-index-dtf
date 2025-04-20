@@ -126,7 +126,8 @@ contract Folio is
      *   - There can only be 1 rebalance live at a time
      *   - There can be an auction for each unique token pair in the basket
      *   - A token can be ONLY sold or ONLY bought depending on whether it is in surplus or deficit
-     *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil, and end at availableUntil
+     *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil
+     *   - Auctions cannot be launched after availableUntil, though their end time may extend past it
      *   - The AUCTION_LAUNCHER acts within the bounds set by the REBALANCE_MANAGER, adding precision to limits/prices
      *   - If the AUCTION_LAUNCHER is not active, the original spot estimates from the REBALANCE_MANAGER are used
      *   - At anytime the rebalance can be stopped or a new one can be started (closing live auctions)
