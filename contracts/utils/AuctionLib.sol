@@ -219,13 +219,12 @@ library AuctionLib {
 
             // D27{buyTok/share} = {buyTok} * D27 / {share}
             buyBasketPresence = Math.mulDiv(buyBalAfter, D27, totalSupply, Math.Rounding.Floor);
-            assert(buyBasketPresence <= auction.buyLimit);
         }
 
         // end auction at limits
         // can still be griefed
         // limits may not be reacheable due to limited precision + defensive roundings
-        if (sellBasketPresence == auction.sellLimit || buyBasketPresence == auction.buyLimit) {
+        if (sellBasketPresence == auction.sellLimit || buyBasketPresence >= auction.buyLimit) {
             auction.endTime = block.timestamp - 1;
             auctionEnds[pairHash(auction.sellToken, auction.buyToken)] = block.timestamp - 1;
         }
