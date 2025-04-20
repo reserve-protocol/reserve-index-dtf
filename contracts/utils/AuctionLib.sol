@@ -184,37 +184,51 @@ library AuctionLib {
         // pay bidder
         SafeERC20.safeTransfer(auction.sellToken, msg.sender, sellAmount);
 
-        // {sellTok}
-        uint256 sellBal = auction.sellToken.balanceOf(address(this));
+        // D27{sellTok/share}
+        uint256 sellBasketPresence;
+        {
+            // {sellTok}
+            uint256 sellBal = auction.sellToken.balanceOf(address(this));
 
-        // remove sell token from basket at 0 balance
-        if (sellBal == 0) {
-            shouldRemoveFromBasket = true;
+            // remove sell token from basket at 0 balance
+            if (sellBal == 0) {
+                shouldRemoveFromBasket = true;
+            }
+
+            // D27{sellTok/share} = {sellTok} * D27 / {share}
+            sellBasketPresence = Math.mulDiv(sellBal, D27, totalSupply, Math.Rounding.Ceil);
+            assert(sellBasketPresence >= auction.sellLimit); // function-use invariant
         }
 
-        // D27{sellTok/share} = {sellTok} * D27 / {share}
-        uint256 basketPresence = Math.mulDiv(sellBal, D27, totalSupply, Math.Rounding.Ceil);
-        assert(basketPresence >= auction.sellLimit); // function-use invariant
+        // D27{buyTok/share}
+        uint256 buyBasketPresence;
+        {
+            // {buyTok}
+            uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
 
-        // end auction at sell limit
+            // collect payment from bidder
+            if (withCallback) {
+                IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), bidAmount, data);
+            } else {
+                SafeERC20.safeTransferFrom(auction.buyToken, msg.sender, address(this), bidAmount);
+            }
+
+            uint256 buyBalAfter = auction.buyToken.balanceOf(address(this));
+
+            require(buyBalAfter - buyBalBefore >= bidAmount, IFolio.Folio__InsufficientBid());
+
+            // D27{buyTok/share} = {buyTok} * D27 / {share}
+            buyBasketPresence = Math.mulDiv(buyBalAfter, D27, totalSupply, Math.Rounding.Floor);
+            assert(buyBasketPresence <= auction.buyLimit);
+        }
+
+        // end auction at limits
         // can still be griefed
         // limits may not be reacheable due to limited precision + defensive roundings
-        if (basketPresence == auction.sellLimit) {
+        if (sellBasketPresence == auction.sellLimit || buyBasketPresence == auction.buyLimit) {
             auction.endTime = block.timestamp - 1;
             auctionEnds[pairHash(auction.sellToken, auction.buyToken)] = block.timestamp - 1;
         }
-
-        // {buyTok}
-        uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
-
-        // collect payment from bidder
-        if (withCallback) {
-            IBidderCallee(msg.sender).bidCallback(address(auction.buyToken), bidAmount, data);
-        } else {
-            SafeERC20.safeTransferFrom(auction.buyToken, msg.sender, address(this), bidAmount);
-        }
-
-        require(auction.buyToken.balanceOf(address(this)) - buyBalBefore >= bidAmount, IFolio.Folio__InsufficientBid());
     }
 
     // ==== Internal ====

@@ -619,10 +619,7 @@ contract Folio is
         RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
 
         // startRebalance invariant: if any of the tokens have a 0 price, they must all have a 0 price
-        require(
-            buyDetails.prices.low != 0,
-            Folio__AuctionCannotBeOpenedWithoutRestriction()
-        );
+        require(buyDetails.prices.low != 0, Folio__AuctionCannotBeOpenedWithoutRestriction());
 
         // D27{buyTok/sellTok} = D27 * D27{UoA/sellTok} / D27{UoA/buyTok}
         uint256 startPrice = (D27 * sellDetails.prices.high + buyDetails.prices.low - 1) / buyDetails.prices.low;
@@ -718,6 +715,7 @@ contract Folio is
         ) {
             _removeFromBasket(address(auction.sellToken));
         }
+
         emit AuctionBid(auctionId, sellAmount, boughtAmt);
     }
 
