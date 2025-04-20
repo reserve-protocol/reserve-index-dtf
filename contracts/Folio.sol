@@ -211,9 +211,7 @@ contract Folio is
     ///      strongly relying on the Folio state.
     function stateChangeActive() external view returns (bool syncStateChangeActive, bool asyncStateChangeActive) {
         syncStateChangeActive = _reentrancyGuardEntered();
-        asyncStateChangeActive =
-            address(activeTrustedFill) != address(0) &&
-            activeTrustedFill.blockInitialized() == block.timestamp;
+        asyncStateChangeActive = address(activeTrustedFill) != address(0) && activeTrustedFill.swapActive();
     }
 
     // ==== Governance ====
