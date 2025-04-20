@@ -284,7 +284,7 @@ contract Folio is
 
     /// Deprecate the Folio, callable only by the admin
     /// @dev Folio cannot be minted and auctions cannot be approved, opened, or bid on
-    function deprecateFolio() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function deprecateFolio() external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         isDeprecated = true;
 
         emit FolioDeprecated();
