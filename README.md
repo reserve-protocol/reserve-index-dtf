@@ -161,7 +161,7 @@ The universal 15 bps fee floor can be lowered by the DAO, as well as set (only l
 
 ### Units
 
-Units are documented with curly brackets (`{}`) throughout the codebase with the additional `D18` or `D27` prefixes being used to denote when additional decimals of precision have been applied, for example in the case of a ratio. Percentages are generally 18-decimal throughout the codebase while exchange rates are generally 27-decimal.
+Units are documented with curly brackets (`{}`) throughout the codebase with the additional `D18` or `D27` prefixes being used to denote when additional decimals of precision have been applied, for example in the case of a ratio. Percentages are generally 18-decimal throughout the codebase while exchange rates and prices are 27-decimal.
 
 Units:
 
@@ -169,7 +169,9 @@ Units:
 - `D27`: 1e27
 - `D18`: 1e18
 - `D18{1}`: a percentage value with 18 decimals of added precision
-- `D27{tok1/tok2}`: a ratio of two token balances with 18 decimals of added precision
+- `D27{tok/share}`: a ratio of token quanta to Folio share quanta, with 27 decimals of precision
+- `D27{UoA/tok}`: a price in USD per token quanta, with 27 decimals of precision
+- `D27{tok1/tok2}`: a ratio of two token balances, with 27 decimals of precision
 - `{s}`: seconds
 
 Example:
@@ -190,7 +192,11 @@ Tokens are assumed to be within the following ranges:
 
 It is the job of governance to ensure the Folio supply does not grow beyond 1e36 supply.
 
-Exchange rates / prices are permitted to be up to 1e54, and are 27 decimal fixed point numbers instead of 18.
+Exchange rates for rebalance limits are permitted to be up to 1e54, and are 27 decimal fixed point numbers.
+
+Prices for individual tokens are permitted to be up to 1e36, and are 27 decimal fixed point numbers.
+
+Prices for auctions are permitted to be up to 1e63, and are 27 decimal fixed point numbers.
 
 ### Weird ERC20s
 
