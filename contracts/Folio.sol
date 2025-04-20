@@ -756,7 +756,7 @@ contract Folio is
     }
 
     /// Close an auction
-    /// A auction can be closed from anywhere in its lifecycle, and cannot be restarted
+    /// A auction can be closed from anywhere in its lifecycle
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function closeAuction(uint256 auctionId) external nonReentrant {
         require(
@@ -769,7 +769,9 @@ contract Folio is
 
         // do not revert, to prevent griefing
         auction.endTime = block.timestamp - 1;
-        delete auctionEnds[auction.rebalanceNonce][AuctionLib.pairHash(auction.sellToken, auction.buyToken)];
+        auctionEnds[auction.rebalanceNonce][AuctionLib.pairHash(auction.sellToken, auction.buyToken)] =
+            block.timestamp -
+            1;
 
         emit AuctionClosed(auctionId);
     }
