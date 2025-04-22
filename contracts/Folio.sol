@@ -569,7 +569,7 @@ contract Folio is
         uint256 buyLimit,
         uint256 startPrice,
         uint256 endPrice
-    ) external onlyRole(AUCTION_LAUNCHER) nonReentrant notDeprecated sync returns (uint256) {
+    ) external onlyRole(AUCTION_LAUNCHER) nonReentrant notDeprecated sync returns (uint256 auctionId) {
         // auction launcher can:
         //   - select a sell limit within the approved basket weight range
         //   - select a buy limit within the approved basket weight range
@@ -592,19 +592,23 @@ contract Folio is
             );
         }
 
+        // for upgraded Folios, pick up on the next auction index from the old array
+        nextAuctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
+        auctionId = nextAuctionId++;
+
+        AuctionLib.AuctionArgs memory args = AuctionLib.AuctionArgs({
+            auctionId: auctionId,
+            sellToken: sellToken,
+            buyToken: buyToken,
+            sellLimit: sellLimit,
+            buyLimit: buyLimit,
+            startPrice: startPrice,
+            endPrice: endPrice,
+            auctionBuffer: 0
+        });
+
         // many more checks, including confirming sellToken is in surplus and buyToken is in deficit
-        return
-            _openAuction(
-                AuctionLib.AuctionArgs({
-                    sellToken: sellToken,
-                    buyToken: buyToken,
-                    sellLimit: sellLimit,
-                    buyLimit: buyLimit,
-                    startPrice: startPrice,
-                    endPrice: endPrice,
-                    auctionBuffer: 0
-                })
-            );
+        AuctionLib.openAuction(rebalance, auctions, auctionEnds, totalSupply(), auctionLength, args);
     }
 
     /// Open an auction without restrictions
@@ -613,7 +617,7 @@ contract Folio is
     function openAuctionUnrestricted(
         IERC20 sellToken,
         IERC20 buyToken
-    ) external nonReentrant notDeprecated sync returns (uint256) {
+    ) external nonReentrant notDeprecated sync returns (uint256 auctionId) {
         require(block.timestamp >= rebalance.restrictedUntil, Folio__AuctionCannotBeOpenedWithoutRestriction());
 
         // open an auction on spot limits + full price range
@@ -628,19 +632,23 @@ contract Folio is
         uint256 startPrice = (D27 * sellDetails.prices.high + buyDetails.prices.low - 1) / buyDetails.prices.low;
         uint256 endPrice = (D27 * sellDetails.prices.low + buyDetails.prices.high - 1) / buyDetails.prices.high;
 
+        // for upgraded Folios, pick up on the next auction index from the old array
+        nextAuctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
+        auctionId = nextAuctionId++;
+
+        AuctionLib.AuctionArgs memory args = AuctionLib.AuctionArgs({
+            auctionId: auctionId,
+            sellToken: sellToken,
+            buyToken: buyToken,
+            sellLimit: sellDetails.limits.spot,
+            buyLimit: buyDetails.limits.spot,
+            startPrice: startPrice,
+            endPrice: endPrice,
+            auctionBuffer: RESTRICTED_AUCTION_BUFFER
+        });
+
         // many more checks, including confirming sellToken is in surplus and buyToken is in deficit
-        return
-            _openAuction(
-                AuctionLib.AuctionArgs({
-                    sellToken: sellToken,
-                    buyToken: buyToken,
-                    sellLimit: sellDetails.limits.spot,
-                    buyLimit: buyDetails.limits.spot,
-                    startPrice: startPrice,
-                    endPrice: endPrice,
-                    auctionBuffer: RESTRICTED_AUCTION_BUFFER
-                })
-            );
+        AuctionLib.openAuction(rebalance, auctions, auctionEnds, totalSupply(), auctionLength, args);
     }
 
     /// Get auction bid parameters at the current timestamp, up to a maximum sell amount
@@ -888,18 +896,6 @@ contract Folio is
 
         _daoPendingFeeShares += daoShares;
         _feeRecipientsPendingFeeShares += feeShares - daoShares;
-    }
-
-    /// @return auctionId The newly created auctionId
-    function _openAuction(AuctionLib.AuctionArgs memory args) internal returns (uint256 auctionId) {
-        // for upgraded Folios, pick up on the next auction index from the old array
-        nextAuctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
-        auctionId = nextAuctionId++;
-
-        Auction memory auction = AuctionLib.makeAuction(rebalance, auctionEnds, totalSupply(), auctionLength, args);
-        auctions[auctionId] = auction;
-
-        emit AuctionOpened(auctionId, auction);
     }
 
     /// Set TVL fee by annual percentage. Different from how it is stored!

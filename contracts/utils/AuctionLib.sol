@@ -14,6 +14,7 @@ import { MathLib } from "@utils/MathLib.sol";
 library AuctionLib {
     // stack-too-deep
     struct AuctionArgs {
+        uint256 auctionId;
         IERC20 sellToken;
         IERC20 buyToken;
         uint256 sellLimit;
@@ -23,14 +24,15 @@ library AuctionLib {
         uint256 auctionBuffer;
     }
 
-    /// @return auction The newly created auction
-    function makeAuction(
+    /// Open a new auction
+    function openAuction(
         IFolio.Rebalance storage rebalance,
+        mapping(uint256 auctionId => IFolio.Auction auction) storage auctions,
         mapping(uint256 rebalanceNonce => mapping(bytes32 pair => uint256 endTime)) storage auctionEnds,
         uint256 totalSupply,
         uint256 auctionLength,
         AuctionArgs memory args
-    ) external returns (IFolio.Auction memory auction) {
+    ) external {
         IFolio.RebalanceDetails storage sellDetails = rebalance.details[address(args.sellToken)];
         IFolio.RebalanceDetails storage buyDetails = rebalance.details[address(args.buyToken)];
 
@@ -96,18 +98,20 @@ library AuctionLib {
         // intentional: by leaving the other 2 limits unchanged (sell.low and buy.high) there can be future
         //              auctions to trade FURTHER, incase current auctions go better than expected
 
-        return
-            IFolio.Auction({
-                rebalanceNonce: rebalance.nonce,
-                sellToken: args.sellToken,
-                buyToken: args.buyToken,
-                sellLimit: args.sellLimit,
-                buyLimit: args.buyLimit,
-                startPrice: args.startPrice,
-                endPrice: args.endPrice,
-                startTime: block.timestamp,
-                endTime: block.timestamp + auctionLength
-            });
+        IFolio.Auction memory auction = IFolio.Auction({
+            rebalanceNonce: rebalance.nonce,
+            sellToken: args.sellToken,
+            buyToken: args.buyToken,
+            sellLimit: args.sellLimit,
+            buyLimit: args.buyLimit,
+            startPrice: args.startPrice,
+            endPrice: args.endPrice,
+            startTime: block.timestamp,
+            endTime: block.timestamp + auctionLength
+        });
+        auctions[args.auctionId] = auction;
+
+        emit IFolio.AuctionOpened(args.auctionId, auction);
     }
 
     /// Get bid parameters for an ongoing auction
