@@ -421,7 +421,7 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(folio.hasRole(folio.REBALANCE_MANAGER(), address(tradingTimelock)), "wrong basket manager role");
     }
 
-    function test_createGovernedFolio_withExistingAuctionApprover() public {
+    function test_createGovernedFolio_withExistingRebalanceManager() public {
         // Deploy Community Governor
 
         address[] memory guardians = new address[](1);
@@ -450,8 +450,8 @@ contract FolioDeployerTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
 
-        address[] memory auctionApprovers = new address[](1);
-        auctionApprovers[0] = dao;
+        address[] memory rebalanceManagers = new address[](1);
+        rebalanceManagers[0] = dao;
 
         address[] memory auctionLaunchers = new address[](1);
         auctionLaunchers[0] = auctionLauncher;
@@ -482,7 +482,7 @@ contract FolioDeployerTest is BaseTest {
             }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 0.08e18, 2 days, _guardians2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 0.04e18, 1 days, _guardians1),
-            IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0)),
+            IGovernanceDeployer.GovRoles(rebalanceManagers, auctionLaunchers, new address[](0)),
             true,
             bytes32(0)
         );
@@ -563,8 +563,8 @@ contract FolioDeployerTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
 
-        address[] memory auctionApprovers = new address[](1);
-        auctionApprovers[0] = dao;
+        address[] memory rebalanceManagers = new address[](1);
+        rebalanceManagers[0] = dao;
 
         address[] memory auctionLaunchers = new address[](1);
         auctionLaunchers[0] = auctionLauncher;
@@ -600,7 +600,7 @@ contract FolioDeployerTest is BaseTest {
                 }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, guardians1),
-                IGovernanceDeployer.GovRoles(auctionApprovers, auctionLaunchers, new address[](0)),
+                IGovernanceDeployer.GovRoles(rebalanceManagers, auctionLaunchers, new address[](0)),
                 true,
                 bytes32(i)
             );
