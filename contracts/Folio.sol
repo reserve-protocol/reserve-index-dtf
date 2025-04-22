@@ -641,6 +641,7 @@ contract Folio is
     }
 
     /// Get auction bid parameters at the current timestamp, up to a maximum sell amount
+    /// @param timestamp {s} The timestamp to get the bid parameters for, or 0 to use the current timestamp
     /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder can offer the protocol
     /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
     /// @return bidAmount {buyTok} The amount of buy tokens required to bid for the full sell amount
