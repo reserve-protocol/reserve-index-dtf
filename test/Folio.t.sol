@@ -1563,7 +1563,7 @@ contract FolioTest is BaseTest {
         assertEq(buyAmount, 1, "wrong end buy amount"); // 1x
     }
 
-    function test_auctionCloseAuctionByAuctionApprover() public {
+    function test_auctionCloseAuctionByRebalanceManager() public {
         // Add USDT
         assets.push(address(USDT));
         limits.push(FULL_RANGE);
