@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
-import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 
-import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { Folio, IFolio } from "@src/Folio.sol";
 import { FolioProxyAdmin, FolioProxy } from "@folio/FolioProxy.sol";
 import { Versioned } from "@utils/Versioned.sol";
@@ -141,7 +138,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         address[] memory basketManagers = govRoles.existingBasketManagers;
 
-        // Deploy trading Governance if auction approvers are not provided
+        // Deploy trading Governance if rebalance managers are not provided
         if (basketManagers.length == 0) {
             // Flip deployment nonce to avoid timelock/governor collisions
             (govPairs[1].governor, govPairs[1].timelock) = governanceDeployer.deployGovernanceWithTimelock(
