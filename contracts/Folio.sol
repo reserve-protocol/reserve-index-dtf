@@ -517,6 +517,8 @@ contract Folio is
                 Folio__InvalidLimits()
             );
 
+            require(newLimits[i].spot != 0 || newLimits[i].high == 0, Folio__InvalidLimits());
+
             require(
                 deferPrices == (newPrices[i].low == 0) && deferPrices == (newPrices[i].high == 0),
                 Folio__InvalidPrices()

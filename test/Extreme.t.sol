@@ -11,7 +11,7 @@ import { MathLib } from "@utils/MathLib.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
-    IFolio.BasketRange internal FULL_SELL = IFolio.BasketRange(0, 0, MAX_LIMIT);
+    IFolio.BasketRange internal FULL_SELL = IFolio.BasketRange(0, 0, 0);
     IFolio.BasketRange internal FULL_BUY = IFolio.BasketRange(MAX_LIMIT, MAX_LIMIT, MAX_LIMIT);
 
     IFolio.Prices internal ZERO_PRICE = IFolio.Prices(0, 0);

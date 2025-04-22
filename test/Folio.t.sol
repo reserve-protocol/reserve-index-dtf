@@ -21,7 +21,7 @@ contract FolioTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
     uint256 internal constant MAX_TVL_FEE_PER_SECOND = 3340960028; // D18{1/s} 10% annually, per second
 
-    IFolio.BasketRange internal FULL_SELL = IFolio.BasketRange(0, 0, MAX_LIMIT);
+    IFolio.BasketRange internal FULL_RANGE = IFolio.BasketRange(1, 0, MAX_LIMIT);
     IFolio.BasketRange internal FULL_BUY = IFolio.BasketRange(MAX_LIMIT, 1, MAX_LIMIT);
 
     IFolio.Prices internal ZERO_PRICE = IFolio.Prices(0, 0);
@@ -43,9 +43,9 @@ contract FolioTest is BaseTest {
         amounts[0] = D6_TOKEN_10K;
         amounts[1] = D18_TOKEN_10K;
         amounts[2] = D27_TOKEN_10K;
-        limits.push(FULL_SELL);
-        limits.push(FULL_SELL);
-        limits.push(FULL_SELL);
+        limits.push(FULL_RANGE);
+        limits.push(FULL_RANGE);
+        limits.push(FULL_RANGE);
         prices.push(ZERO_PRICE);
         prices.push(ZERO_PRICE);
         prices.push(ZERO_PRICE);
@@ -969,7 +969,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_SELL);
+        limits.push(FULL_RANGE);
         prices.push(ZERO_PRICE);
 
         vm.prank(dao);
@@ -1040,7 +1040,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_SELL);
+        limits.push(FULL_RANGE);
         prices.push(ZERO_PRICE);
 
         vm.prank(dao);
@@ -1120,7 +1120,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_SELL);
+        limits.push(FULL_RANGE);
         prices.push(ZERO_PRICE);
 
         vm.prank(dao);
@@ -1191,7 +1191,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_SELL);
+        limits.push(FULL_RANGE);
         prices.push(ZERO_PRICE);
 
         vm.prank(dao);
@@ -1272,7 +1272,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_SELL);
+        limits.push(FULL_RANGE);
         prices.push(ZERO_PRICE);
 
         vm.prank(dao);
@@ -1359,7 +1359,7 @@ contract FolioTest is BaseTest {
     function test_auctionIsValidSignature() public {
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_SELL);
+        limits.push(FULL_RANGE);
         prices.push(ZERO_PRICE);
 
         bytes32 domainSeparator = 0xc078f884a2676e1345748b1feace7b0abee5d00ecadb6e574dcdd109a63e8943;
@@ -1439,7 +1439,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_SELL);
+        limits.push(FULL_RANGE);
         prices.push(ZERO_PRICE);
 
         // open auction
@@ -1566,7 +1566,7 @@ contract FolioTest is BaseTest {
     function test_auctionCloseAuctionByAuctionApprover() public {
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_SELL);
+        limits.push(FULL_RANGE);
         prices.push(ZERO_PRICE);
 
         uint256 amt = D6_TOKEN_10K;
@@ -1689,7 +1689,7 @@ contract FolioTest is BaseTest {
     function test_auctionCloseAuctionByOwner() public {
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_SELL);
+        limits.push(FULL_RANGE);
         prices.push(ZERO_PRICE);
 
         uint256 amt = D6_TOKEN_10K;
@@ -1763,7 +1763,7 @@ contract FolioTest is BaseTest {
     function test_auctionNotOpenableTwice() public {
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_SELL);
+        limits.push(FULL_RANGE);
         prices.push(ZERO_PRICE);
 
         vm.prank(dao);
@@ -1997,7 +1997,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_SELL);
+        limits.push(FULL_RANGE);
         prices.push(ZERO_PRICE);
 
         uint256 amt1 = USDC.balanceOf(address(folio));
@@ -2235,7 +2235,7 @@ contract FolioTest is BaseTest {
     function test_auctionCannotBidForMoreThanAvailable() public {
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_SELL);
+        limits.push(FULL_RANGE);
         prices.push(ZERO_PRICE);
 
         uint256 amt = D6_TOKEN_10K;
