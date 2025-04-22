@@ -498,7 +498,7 @@ contract Folio is
         }
 
         len = newTokens.length;
-        require(len == newLimits.length && len == newPrices.length, Folio__InvalidArrayLengths());
+        require(len != 0 && len == newLimits.length && len == newPrices.length, Folio__InvalidArrayLengths());
 
         // enforce that if one price is 0, all prices are 0
         bool deferPrices = newPrices[0].low == 0;
