@@ -463,12 +463,14 @@ contract Folio is
     {
         tokens = basket.values();
         uint256 len = tokens.length;
+
         limits = new BasketRange[](len);
         prices = new Prices[](len);
         inRebalance = new bool[](len);
 
         for (uint256 i; i < len; i++) {
             RebalanceDetails storage details = rebalance.details[tokens[i]];
+
             limits[i] = details.limits;
             prices[i] = details.prices;
             inRebalance[i] = details.inRebalance;
@@ -508,8 +510,10 @@ contract Folio is
         for (uint256 i; i < len; i++) {
             address token = newTokens[i];
 
+            // enforce no duplicates
             require(!rebalance.details[token].inRebalance, Folio__DuplicateAsset());
 
+            // enforce limit range is relatively ordered
             require(
                 newLimits[i].low <= newLimits[i].spot &&
                     newLimits[i].spot <= newLimits[i].high &&
@@ -517,14 +521,17 @@ contract Folio is
                 Folio__InvalidLimits()
             );
 
-            require(newLimits[i].spot != 0 || newLimits[i].high == 0, Folio__InvalidLimits());
+            // enforce limit range is all 0 or all >0
+            require(newLimits[i].low != 0 || newLimits[i].high == 0, Folio__InvalidLimits());
 
+            // enforce prices are all 0 or none are 0
             require(
                 deferPrices == (newPrices[i].low == 0) && deferPrices == (newPrices[i].high == 0),
                 Folio__InvalidPrices()
             );
 
             if (!deferPrices) {
+                // enforce price range is relatively ordered
                 require(
                     newPrices[i].low <= newPrices[i].high &&
                         newPrices[i].high <= MAX_TOKEN_PRICE &&

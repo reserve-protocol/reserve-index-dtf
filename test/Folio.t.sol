@@ -21,8 +21,9 @@ contract FolioTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
     uint256 internal constant MAX_TVL_FEE_PER_SECOND = 3340960028; // D18{1/s} 10% annually, per second
 
-    IFolio.BasketRange internal FULL_RANGE = IFolio.BasketRange(1, 0, MAX_LIMIT);
-    IFolio.BasketRange internal FULL_BUY = IFolio.BasketRange(MAX_LIMIT, 1, MAX_LIMIT);
+    IFolio.BasketRange internal REMOVE = IFolio.BasketRange(0, 0, 0);
+    IFolio.BasketRange internal SELL = IFolio.BasketRange(1, 1, MAX_LIMIT);
+    IFolio.BasketRange internal BUY = IFolio.BasketRange(MAX_LIMIT, 1, MAX_LIMIT);
 
     IFolio.Prices internal ZERO_PRICE = IFolio.Prices(0, 0);
 
@@ -43,9 +44,9 @@ contract FolioTest is BaseTest {
         amounts[0] = D6_TOKEN_10K;
         amounts[1] = D18_TOKEN_10K;
         amounts[2] = D27_TOKEN_10K;
-        limits.push(FULL_RANGE);
-        limits.push(FULL_RANGE);
-        limits.push(FULL_RANGE);
+        limits.push(REMOVE);
+        limits.push(REMOVE);
+        limits.push(REMOVE);
         prices.push(ZERO_PRICE);
         prices.push(ZERO_PRICE);
         prices.push(ZERO_PRICE);
@@ -969,7 +970,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_RANGE);
+        limits.push(BUY);
         prices.push(ZERO_PRICE);
 
         vm.prank(dao);
@@ -1040,7 +1041,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_RANGE);
+        limits.push(BUY);
         prices.push(ZERO_PRICE);
 
         vm.prank(dao);
@@ -1120,7 +1121,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_RANGE);
+        limits.push(BUY);
         prices.push(ZERO_PRICE);
 
         vm.prank(dao);
@@ -1191,7 +1192,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_RANGE);
+        limits.push(BUY);
         prices.push(ZERO_PRICE);
 
         vm.prank(dao);
@@ -1272,7 +1273,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_RANGE);
+        limits.push(BUY);
         prices.push(ZERO_PRICE);
 
         vm.prank(dao);
@@ -1359,7 +1360,7 @@ contract FolioTest is BaseTest {
     function test_auctionIsValidSignature() public {
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_RANGE);
+        limits.push(BUY);
         prices.push(ZERO_PRICE);
 
         bytes32 domainSeparator = 0xc078f884a2676e1345748b1feace7b0abee5d00ecadb6e574dcdd109a63e8943;
@@ -1439,7 +1440,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_RANGE);
+        limits.push(BUY);
         prices.push(ZERO_PRICE);
 
         // open auction
@@ -1527,6 +1528,7 @@ contract FolioTest is BaseTest {
             block.timestamp + MAX_AUCTION_DELAY,
             block.timestamp + MAX_TTL
         );
+        limits[0] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         IFolio.Auction memory auctionStruct = IFolio.Auction({
@@ -1566,7 +1568,7 @@ contract FolioTest is BaseTest {
     function test_auctionCloseAuctionByRebalanceManager() public {
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_RANGE);
+        limits.push(BUY);
         prices.push(ZERO_PRICE);
 
         uint256 amt = D6_TOKEN_10K;
@@ -1639,6 +1641,7 @@ contract FolioTest is BaseTest {
             block.timestamp + MAX_AUCTION_DELAY,
             block.timestamp + MAX_TTL
         );
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         IFolio.Auction memory auctionStruct = IFolio.Auction({
@@ -1689,7 +1692,7 @@ contract FolioTest is BaseTest {
     function test_auctionCloseAuctionByOwner() public {
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_RANGE);
+        limits.push(BUY);
         prices.push(ZERO_PRICE);
 
         uint256 amt = D6_TOKEN_10K;
@@ -1763,7 +1766,7 @@ contract FolioTest is BaseTest {
     function test_auctionNotOpenableTwice() public {
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_RANGE);
+        limits.push(BUY);
         prices.push(ZERO_PRICE);
 
         vm.prank(dao);
@@ -1828,6 +1831,7 @@ contract FolioTest is BaseTest {
     function test_auctionNotAvailableAfterEnd() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.prank(auctionLauncher);
@@ -1846,6 +1850,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.prank(auctionLauncher);
@@ -1876,6 +1881,8 @@ contract FolioTest is BaseTest {
 
         uint256 amt = D6_TOKEN_10K;
         vm.prank(dao);
+        limits[0] = SELL;
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.prank(auctionLauncher);
@@ -1908,6 +1915,7 @@ contract FolioTest is BaseTest {
 
     function test_auctionBidZeroAmount() public {
         vm.prank(dao);
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.prank(auctionLauncher);
@@ -1925,7 +1933,7 @@ contract FolioTest is BaseTest {
         prices[0] = IFolio.Prices({ low: 1e27, high: 1e27 });
         prices[1] = IFolio.Prices({ low: 1e27, high: 1e27 });
         prices[2] = IFolio.Prices({ low: 1e27, high: 1e27 });
-        limits[1] = FULL_BUY;
+        limits[1] = BUY;
 
         vm.startPrank(dao);
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
@@ -1953,9 +1961,8 @@ contract FolioTest is BaseTest {
     }
 
     function test_permissionlessAuctionNotAvailableForZeroPricedAuctions() public {
-        limits[1] = FULL_BUY;
-
         vm.prank(dao);
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         (, , uint256 restrictedUntil, ) = folio.rebalance();
@@ -1968,6 +1975,7 @@ contract FolioTest is BaseTest {
     function test_auctionDishonestCallback() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.prank(auctionLauncher);
@@ -1984,6 +1992,7 @@ contract FolioTest is BaseTest {
 
     function test_cannotOpenConflictingAuctions() public {
         vm.startPrank(dao);
+        limits[0] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.startPrank(auctionLauncher);
@@ -1997,7 +2006,7 @@ contract FolioTest is BaseTest {
 
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_RANGE);
+        limits.push(BUY);
         prices.push(ZERO_PRICE);
 
         uint256 amt1 = USDC.balanceOf(address(folio));
@@ -2045,6 +2054,8 @@ contract FolioTest is BaseTest {
 
     function test_parallelAuctionsOnSellToken() public {
         vm.startPrank(dao);
+        limits[1] = BUY;
+        limits[2] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.startPrank(auctionLauncher);
@@ -2057,6 +2068,7 @@ contract FolioTest is BaseTest {
             uint256 index = folio.nextAuctionId();
 
             vm.prank(dao);
+            limits[0] = BUY;
             folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
             // should not revert at top or bottom end
@@ -2078,6 +2090,7 @@ contract FolioTest is BaseTest {
 
     function test_priceCalculationGasCost() public {
         vm.prank(dao);
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.prank(auctionLauncher);
@@ -2206,6 +2219,7 @@ contract FolioTest is BaseTest {
             block.timestamp + MAX_AUCTION_DELAY,
             block.timestamp + MAX_TTL
         );
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         IFolio.Auction memory auctionStruct = IFolio.Auction({
@@ -2235,7 +2249,7 @@ contract FolioTest is BaseTest {
     function test_auctionCannotBidForMoreThanAvailable() public {
         // Add USDT
         assets.push(address(USDT));
-        limits.push(FULL_RANGE);
+        limits.push(BUY);
         prices.push(ZERO_PRICE);
 
         uint256 amt = D6_TOKEN_10K;
@@ -2335,6 +2349,7 @@ contract FolioTest is BaseTest {
 
     function test_auctionCannotApproveAuctionWithInvalidPrices() public {
         vm.prank(dao);
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
         emit IFolio.RebalanceStarted(
             1,
@@ -2365,6 +2380,7 @@ contract FolioTest is BaseTest {
         prices[2] = IFolio.Prices(1, 1); // D27{UoA/tok} for MEME
 
         vm.prank(dao);
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         // revert if both below
@@ -2385,8 +2401,9 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotOpenAuctionWithInvalidSellLimit() public {
-        limits[0] = IFolio.BasketRange(1, 1, MAX_LIMIT - 1);
         vm.prank(dao);
+        limits[0] = IFolio.BasketRange(1, 1, MAX_LIMIT - 1);
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.startPrank(auctionLauncher);
@@ -2400,8 +2417,8 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionCannotOpenAuctionWithInvalidBuyLimit() public {
-        limits[1] = IFolio.BasketRange(2, 2, MAX_LIMIT - 1);
         vm.prank(dao);
+        limits[1] = IFolio.BasketRange(2, 2, MAX_LIMIT - 1);
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.startPrank(auctionLauncher);
@@ -2426,6 +2443,7 @@ contract FolioTest is BaseTest {
             block.timestamp + MAX_AUCTION_DELAY,
             block.timestamp + MAX_TTL
         );
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         //  Revert if tried to open with zero price
@@ -2445,6 +2463,7 @@ contract FolioTest is BaseTest {
             block.timestamp + MAX_AUCTION_DELAY,
             block.timestamp + MAX_TTL
         );
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         //  Revert if tried to open with zero price
@@ -2454,6 +2473,7 @@ contract FolioTest is BaseTest {
 
     function test_auctionCannotOpenAuctionIfFolioDeprecated() public {
         vm.prank(dao);
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.prank(owner);
@@ -2466,6 +2486,7 @@ contract FolioTest is BaseTest {
 
     function test_auctionCannotBidIfFolioDeprecated() public {
         vm.prank(dao);
+        limits[1] = BUY;
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.prank(auctionLauncher);
