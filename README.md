@@ -10,7 +10,7 @@ The `AUCTION_LAUNCHER` is trusted to be provide additional precision to the reba
 
 `REBALANCE_MANAGER` is expected to be the timelock of the rebalancing governor associated with the Folio.
 
-`AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig; They can open auctions within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the auction can be opened through the permissonless route instead. If the `AUCTION_LAUNCHER` is not just offline but actively evil, at-best they can maximally deviate rebalancing within the governance-granted range, or prevent a Folio from rebalancing entirely by repeatedly closing-out auctions. (TODO follow-up after deciding on whether to keep the "no backpedaling" property during audit, in which case they can also cause double-trading arbitrarily)
+`AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig; They can open auctions within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the auction can be opened through the permissonless route instead. If the `AUCTION_LAUNCHER` is not just offline but actively evil, at-best they can maximally deviate rebalancing within the governance-granted range, or prevent a Folio from rebalancing entirely by repeatedly closing-out auctions.
 
 There is no limit to how many auctions can be opened during a rebalance, just how many auction lengths fit within the rebalance period.
 
@@ -113,7 +113,9 @@ During `openAuction` the `AUCTION_LAUNCHER` can set new spot limits as long as i
 
 ###### Price
 
-For each token supplied to the rebalance, the `REBALANCE_MANAGER` provides a `low` and `high` price estimate. These should be set such that in the vast majority (99.9%+) of scenarios, the asset's price on secondary markets lies within the provided range. If the price of an asset rises above its `high` price, this can result in a loss of value for Folio holders due to the auction price curve on a token pair starting at too-low-a-price.
+For each token supplied to the rebalance, the `REBALANCE_MANAGER` provides a `low` and `high` price estimate. These should be set such that in the vast majority (99.9%+) of scenarios, the asset's price on secondary markets lies within the provided range. The maximum allowable price range for a token is 1e2: `high / low` must be <= 1e2.
+
+If the price of an asset rises above its `high` price, this can result in a loss of value for Folio holders due to the auction price curve on a token pair starting at too-low-a-price.
 
 When an auction is started, the `low` and `high` prices for both assets are used to calculate a `startPrice` and `endPrice` for the auction.
 
@@ -128,7 +130,7 @@ There are 2 ways to price assets, depending on the risk tolerance of the `REBALA
 
 - The `REBALANCE_MANAGER` provides ALL 0 prices for each token. This allows the `AUCTION_LAUNCHER` to set prices freely and prevents auctions from being opened permissionlessly.
 
-Overall the price range for any dutch auction (`startPrice / endPrice`) must be less than `1e9` to prevent precision issues. (TODO limit to 1e4 range per token in startRebalance?)
+Overall the price range for any dutch auction (`startPrice / endPrice`) must be less than `1e6` to prevent precision issues.
 
 ###### Price Curve
 
