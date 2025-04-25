@@ -137,16 +137,16 @@ contract FolioTest is BaseTest {
             mandate: "mandate"
         });
 
+        IFolio.FolioRegistryIndex memory registryIndex = IFolio.FolioRegistryIndex({
+            daoFeeRegistry: address(daoFeeRegistry),
+            trustedFillerRegistry: address(trustedFillerRegistry)
+        });
+
+        IFolio.FolioRegistryFlags memory registryFlags = IFolio.FolioRegistryFlags({ trustedFillerEnabled: true });
+
         // Attempt to initialize
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
-        newFolio.initialize(
-            basicDetails,
-            additionalDetails,
-            address(this),
-            address(daoFeeRegistry),
-            address(trustedFillerRegistry),
-            true
-        );
+        newFolio.initialize(basicDetails, additionalDetails, registryIndex, registryFlags, address(this));
     }
 
     function test_cannotCreateWithZeroInitialShares() public {

@@ -162,10 +162,9 @@ contract Folio is
     function initialize(
         FolioBasicDetails calldata _basicDetails,
         FolioAdditionalDetails calldata _additionalDetails,
-        address _creator,
-        address _daoFeeRegistry,
-        address _trustedFillerRegistry,
-        bool _trustedFillerEnabled
+        FolioRegistryIndex calldata _folioRegistries,
+        FolioRegistryFlags calldata _folioFlags,
+        address _creator
     ) external initializer {
         __ERC20_init(_basicDetails.name, _basicDetails.symbol);
         __AccessControlEnumerable_init();
@@ -177,9 +176,9 @@ contract Folio is
         _setMintFee(_additionalDetails.mintFee);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
-        _setTrustedFillerRegistry(_trustedFillerRegistry, _trustedFillerEnabled);
 
-        daoFeeRegistry = IFolioDAOFeeRegistry(_daoFeeRegistry);
+        _setTrustedFillerRegistry(_folioRegistries.trustedFillerRegistry, _folioFlags.trustedFillerEnabled);
+        _setDaoFeeRegistry(_folioRegistries.daoFeeRegistry);
 
         require(_basicDetails.initialShares != 0, Folio__ZeroInitialShares());
 
@@ -1021,6 +1020,12 @@ contract Folio is
         }
 
         emit TrustedFillerRegistrySet(address(trustedFillerRegistry), trustedFillerEnabled);
+    }
+
+    function _setDaoFeeRegistry(address _newDaoFeeRegistry) internal {
+        require(_newDaoFeeRegistry != address(0), Folio__InvalidRegistry());
+
+        daoFeeRegistry = IFolioDAOFeeRegistry(_newDaoFeeRegistry);
     }
 
     /// Claim all token balances from outstanding trusted fill

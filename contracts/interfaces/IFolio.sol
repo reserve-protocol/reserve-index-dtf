@@ -75,6 +75,7 @@ interface IFolio {
     error Folio__InvalidArrayLengths();
     error Folio__InvalidTransferToSelf();
 
+    error Folio__InvalidRegistry();
     error Folio__TrustedFillerRegistryNotEnabled();
     error Folio__TrustedFillerRegistryAlreadySet();
 
@@ -97,6 +98,15 @@ interface IFolio {
         uint256 tvlFee; // D18{1/s}
         uint256 mintFee; // D18{1}
         string mandate;
+    }
+
+    struct FolioRegistryIndex {
+        address daoFeeRegistry;
+        address trustedFillerRegistry;
+    }
+
+    struct FolioRegistryFlags {
+        bool trustedFillerEnabled;
     }
 
     struct FeeRecipient {
