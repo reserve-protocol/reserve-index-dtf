@@ -58,10 +58,6 @@ jobs:
       - name: Install Dependencies
         run: yarn --immutable
 
-      - name: Compile Contracts
-        run: |
-          forge build
-
       - name: Contract Size Check
         run: |
           yarn size contracts/
