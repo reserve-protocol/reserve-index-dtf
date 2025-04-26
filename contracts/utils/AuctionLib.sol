@@ -56,7 +56,7 @@ library AuctionLib {
             auctionEnds[rebalance.nonce][pair] = block.timestamp + auctionLength;
         }
 
-        // confirm limits relative ordered
+        // validate auction limits
         require(
             args.sellLimit >= sellDetails.limits.low && args.sellLimit <= sellDetails.limits.high,
             IFolio.Folio__InvalidSellLimit()
@@ -75,7 +75,7 @@ library AuctionLib {
             IFolio.Folio__InvalidPrices()
         );
 
-        // confirm sell token is in surplus and update limits
+        // confirm sell token is in surplus and update rebalance limits
         {
             // D27{sellTok/share}
             uint256 currentSellPresence = _sellTokenPresence(args.sellToken.balanceOf(address(this)), totalSupply);
@@ -92,7 +92,7 @@ library AuctionLib {
             // leave low sell limit unchanged to allow future auctions to trade FURTHER if needed
         }
 
-        // confirm buy token is in deficit and update limits
+        // confirm buy token is in deficit and update rebalance limits
         {
             // D27{buyTok/share}
             uint256 currentBuyPresence = _buyTokenPresence(args.buyToken.balanceOf(address(this)), totalSupply);
