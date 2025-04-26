@@ -56,7 +56,7 @@ library AuctionLib {
             auctionEnds[rebalance.nonce][pair] = block.timestamp + auctionLength;
         }
 
-        // preserve limits relative ordering
+        // confirm limits relative ordered
         require(
             args.sellLimit >= sellDetails.limits.low && args.sellLimit <= sellDetails.limits.high,
             IFolio.Folio__InvalidSellLimit()
@@ -65,17 +65,6 @@ library AuctionLib {
             args.buyLimit >= buyDetails.limits.low && args.buyLimit <= buyDetails.limits.high,
             IFolio.Folio__InvalidBuyLimit()
         );
-
-        // confirm sellToken is in surplus and buyToken is in deficit
-        {
-            // {sellTok} = D27{sellTok/share} * {share} / D27
-            uint256 sellBalLimit = Math.mulDiv(args.sellLimit, totalSupply, D27, Math.Rounding.Ceil);
-            require(args.sellToken.balanceOf(address(this)) > sellBalLimit, IFolio.Folio__InvalidSellLimit());
-
-            // {buyTok} = D27{buyTok/share} * {share} / D27
-            uint256 buyBalLimit = Math.mulDiv(args.buyLimit, totalSupply, D27, Math.Rounding.Floor);
-            require(args.buyToken.balanceOf(address(this)) < buyBalLimit, IFolio.Folio__InvalidBuyLimit());
-        }
 
         // ensure valid price range (startPrice == endPrice is valid)
         require(
@@ -86,17 +75,39 @@ library AuctionLib {
             IFolio.Folio__InvalidPrices()
         );
 
-        // update spot limits to prevent double trading in the future by openAuctionUnrestricted()
-        sellDetails.limits.spot = args.sellLimit;
-        buyDetails.limits.spot = args.buyLimit;
+        // confirm sell token is in surplus and update limits
+        {
+            // D27{sellTok/share}
+            uint256 currentSellPresence = _sellTokenPresence(args.sellToken.balanceOf(address(this)), totalSupply);
+            require(currentSellPresence > args.sellLimit, IFolio.Folio__InvalidSellLimit());
 
-        // update low/high limits to prevent double trading in the future by openAuction()
-        sellDetails.limits.high = args.sellLimit;
-        buyDetails.limits.low = args.buyLimit;
-        // by lowering the high sell limit the AUCTION_LAUNCHER cannot backtrack and later buy the sellToken
-        // by raising the low buy limit the AUCTION_LAUNCHER cannot backtrack and later sell the buyToken
-        // intentional: by leaving the other 2 limits unchanged (sell.low and buy.high) there can be future
-        //              auctions to trade FURTHER, incase current auctions go better than expected
+            // bring down high sell limit to prevent double trading by AUCTION_LAUNCHER in future auctions
+            sellDetails.limits.high = args.sellLimit;
+
+            // lower spot sell limit to prevent permissionless double trading in future auctions
+            if (sellDetails.limits.spot > args.sellLimit) {
+                sellDetails.limits.spot = args.sellLimit;
+            }
+
+            // leave low sell limit unchanged to allow future auctions to trade FURTHER if needed
+        }
+
+        // confirm buy token is in deficit and update limits
+        {
+            // D27{buyTok/share}
+            uint256 currentBuyPresence = _buyTokenPresence(args.buyToken.balanceOf(address(this)), totalSupply);
+            require(currentBuyPresence < args.buyLimit, IFolio.Folio__InvalidBuyLimit());
+
+            // bring up low buy limit to prevent double trading by AUCTION_LAUNCHER in future auctions
+            buyDetails.limits.low = args.buyLimit;
+
+            // raise spot buy limit to prevent permissionless double trading in future auctions
+            if (buyDetails.limits.spot < args.buyLimit) {
+                buyDetails.limits.spot = args.buyLimit;
+            }
+
+            // leave high buy limit unchanged to allow future auctions to trade FURTHER if needed
+        }
 
         IFolio.Auction memory auction = IFolio.Auction({
             rebalanceNonce: rebalance.nonce,
@@ -189,7 +200,7 @@ library AuctionLib {
         SafeERC20.safeTransfer(auction.sellToken, msg.sender, sellAmount);
 
         // D27{sellTok/share}
-        uint256 sellBasketPresence;
+        uint256 currentSellPresence;
         {
             // {sellTok}
             uint256 sellBal = auction.sellToken.balanceOf(address(this));
@@ -199,13 +210,13 @@ library AuctionLib {
                 shouldRemoveFromBasket = true;
             }
 
-            // D27{sellTok/share} = {sellTok} * D27 / {share}
-            sellBasketPresence = Math.mulDiv(sellBal, D27, totalSupply, Math.Rounding.Ceil);
-            assert(sellBasketPresence >= auction.sellLimit); // function-use invariant
+            // D27{sellTok/share}
+            currentSellPresence = _sellTokenPresence(sellBal, totalSupply);
+            assert(currentSellPresence >= auction.sellLimit); // function-use invariant
         }
 
         // D27{buyTok/share}
-        uint256 buyBasketPresence;
+        uint256 currentBuyPresence;
         {
             // {buyTok}
             uint256 buyBalBefore = auction.buyToken.balanceOf(address(this));
@@ -218,17 +229,16 @@ library AuctionLib {
             }
 
             uint256 buyBalAfter = auction.buyToken.balanceOf(address(this));
-
             require(buyBalAfter - buyBalBefore >= bidAmount, IFolio.Folio__InsufficientBid());
 
-            // D27{buyTok/share} = {buyTok} * D27 / {share}
-            buyBasketPresence = Math.mulDiv(buyBalAfter, D27, totalSupply, Math.Rounding.Floor);
+            // D27{buyTok/share}
+            currentBuyPresence = _buyTokenPresence(buyBalAfter, totalSupply);
         }
 
         // end auction at limits
         // can still be griefed
         // limits may not be reacheable due to limited precision + defensive roundings
-        if (sellBasketPresence == auction.sellLimit || buyBasketPresence >= auction.buyLimit) {
+        if (currentSellPresence == auction.sellLimit || currentBuyPresence >= auction.buyLimit) {
             auction.endTime = block.timestamp - 1;
             auctionEnds[pairHash(auction.sellToken, auction.buyToken)] = block.timestamp - 1;
         }
@@ -261,6 +271,18 @@ library AuctionLib {
         if (p < auction.endPrice) {
             p = auction.endPrice;
         }
+    }
+
+    /// @return D27{sellTok/share}
+    function _sellTokenPresence(uint256 balance, uint256 totalSupply) internal pure returns (uint256) {
+        // D27{sellTok/share} = {sellTok} * D27 / {share}
+        return Math.mulDiv(balance, D27, totalSupply, Math.Rounding.Ceil);
+    }
+
+    /// @return D27{buyTok/share}
+    function _buyTokenPresence(uint256 balance, uint256 totalSupply) internal pure returns (uint256) {
+        // D27{buyTok/share} = {buyTok} * D27 / {share}
+        return Math.mulDiv(balance, D27, totalSupply, Math.Rounding.Floor);
     }
 
     /// @return pair The hash of the pair
