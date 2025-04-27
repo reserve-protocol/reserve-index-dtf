@@ -276,13 +276,13 @@ library AuctionLib {
     /// @return D27{sellTok/share}
     function _sellTokenPresence(uint256 balance, uint256 totalSupply) internal pure returns (uint256) {
         // D27{sellTok/share} = {sellTok} * D27 / {share}
-        return Math.mulDiv(balance, D27, totalSupply, Math.Rounding.Ceil);
+        return Math.mulDiv(balance, D27, totalSupply, Math.Rounding.Floor);
     }
 
     /// @return D27{buyTok/share}
     function _buyTokenPresence(uint256 balance, uint256 totalSupply) internal pure returns (uint256) {
         // D27{buyTok/share} = {buyTok} * D27 / {share}
-        return Math.mulDiv(balance, D27, totalSupply, Math.Rounding.Floor);
+        return Math.mulDiv(balance, D27, totalSupply, Math.Rounding.Ceil);
     }
 
     /// @return pair The hash of the pair
