@@ -44,11 +44,11 @@ contract FolioDeployer is IFolioDeployer, Versioned {
     function deployFolio(
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
+        IFolio.FolioRegistryFlags calldata registryFlags,
         address owner,
         address[] memory basketManagers,
         address[] memory auctionLaunchers,
         address[] memory brandManagers,
-        bool trustedFillerEnabled,
         bytes32 deploymentNonce
     ) public returns (Folio folio, address proxyAdmin) {
         require(basicDetails.assets.length == basicDetails.amounts.length, FolioDeployer__LengthMismatch());
@@ -79,10 +79,9 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         folio.initialize(
             basicDetails,
             additionalDetails,
-            msg.sender,
-            daoFeeRegistry,
-            trustedFillerRegistry,
-            trustedFillerEnabled
+            IFolio.FolioRegistryIndex({ daoFeeRegistry: daoFeeRegistry, trustedFillerRegistry: trustedFillerRegistry }),
+            registryFlags,
+            msg.sender
         );
 
         // Setup Roles
@@ -117,10 +116,10 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IVotes stToken,
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
+        IFolio.FolioRegistryFlags calldata registryFlags,
         IGovernanceDeployer.GovParams calldata ownerGovParams,
         IGovernanceDeployer.GovParams calldata tradingGovParams,
         IGovernanceDeployer.GovRoles calldata govRoles,
-        bool trustedFillerEnabled,
         bytes32 deploymentNonce
     ) external returns (Folio folio, address proxyAdmin) {
         bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
@@ -155,11 +154,11 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         (folio, proxyAdmin) = deployFolio(
             basicDetails,
             additionalDetails,
+            registryFlags,
             govPairs[0].timelock,
             basketManagers,
             govRoles.auctionLaunchers,
             govRoles.brandManagers,
-            trustedFillerEnabled,
             deploymentSalt
         );
 

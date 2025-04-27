@@ -233,6 +233,8 @@ abstract contract BaseTest is Script, Test {
 
     // === Internal ===
 
+    IFolio.FolioRegistryFlags _registryFlags = IFolio.FolioRegistryFlags({ trustedFillerEnabled: true });
+
     function createFolio(
         address[] memory _assets,
         uint256[] memory _amounts,
@@ -244,7 +246,7 @@ abstract contract BaseTest is Script, Test {
         address _owner,
         address _basketManager,
         address _auctionLauncher
-    ) internal returns (Folio, FolioProxyAdmin) {
+    ) internal returns (Folio _folio, FolioProxyAdmin _proxyAdmin) {
         IFolio.FolioBasicDetails memory _basicDetails = IFolio.FolioBasicDetails({
             name: "Test Folio",
             symbol: "TFOLIO",
@@ -268,17 +270,18 @@ abstract contract BaseTest is Script, Test {
         address[] memory _brandManagers = new address[](1);
         _brandManagers[0] = _owner;
 
-        (Folio _folio, address _proxyAdmin) = folioDeployer.deployFolio(
+        address _proxyAdmin2;
+        (_folio, _proxyAdmin2) = folioDeployer.deployFolio(
             _basicDetails,
             _additionalDetails,
+            _registryFlags,
             _owner,
             _basketManagers,
             _auctionLaunchers,
             _brandManagers,
-            true,
             bytes32(0)
         );
 
-        return (_folio, FolioProxyAdmin(_proxyAdmin));
+        _proxyAdmin = FolioProxyAdmin(_proxyAdmin2);
     }
 }

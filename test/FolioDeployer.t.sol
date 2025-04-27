@@ -317,10 +317,10 @@ contract FolioDeployerTest is BaseTest {
                     mintFee: MAX_MINT_FEE,
                     mandate: "mandate"
                 }),
+                IFolio.FolioRegistryFlags({ trustedFillerEnabled: true }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 0.08e18, 2 days, _guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 0.04e18, 1 days, _guardians1),
                 IGovernanceDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
-                true,
                 bytes32(0)
             );
             Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -480,10 +480,10 @@ contract FolioDeployerTest is BaseTest {
                 mintFee: MAX_MINT_FEE,
                 mandate: "mandate"
             }),
+            IFolio.FolioRegistryFlags({ trustedFillerEnabled: true }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 0.08e18, 2 days, _guardians2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 0.04e18, 1 days, _guardians1),
             IGovernanceDeployer.GovRoles(rebalanceManagers, auctionLaunchers, new address[](0)),
-            true,
             bytes32(0)
         );
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -563,15 +563,6 @@ contract FolioDeployerTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
 
-        address[] memory rebalanceManagers = new address[](1);
-        rebalanceManagers[0] = dao;
-
-        address[] memory auctionLaunchers = new address[](1);
-        auctionLaunchers[0] = auctionLauncher;
-
-        // Naively mine the salt for something that starts with 0xff
-        // first collision will occur at i = 211: 0xFfF804910Ce6E26a3Fc4ffEAf0D88f355E4ECa6D
-
         Folio folio;
 
         address[] memory guardians1 = new address[](1);
@@ -598,10 +589,10 @@ contract FolioDeployerTest is BaseTest {
                     mintFee: MAX_MINT_FEE,
                     mandate: "mandate"
                 }),
+                IFolio.FolioRegistryFlags({ trustedFillerEnabled: true }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, guardians1),
-                IGovernanceDeployer.GovRoles(rebalanceManagers, auctionLaunchers, new address[](0)),
-                true,
+                IGovernanceDeployer.GovRoles(new address[](0), new address[](0), new address[](0)),
                 bytes32(i)
             );
 
