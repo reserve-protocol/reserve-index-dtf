@@ -78,7 +78,7 @@ library AuctionLib {
         // confirm sell token is in surplus and update rebalance limits
         {
             // D27{sellTok/share}
-            uint256 currentSellPresence = _sellTokenPresence(args.sellToken.balanceOf(address(this)), totalSupply);
+            uint256 currentSellPresence = _presence(args.sellToken.balanceOf(address(this)), totalSupply, Side.Sell);
             require(currentSellPresence > args.sellLimit, IFolio.Folio__InvalidSellLimit());
 
             // bring down high sell limit to prevent double trading by AUCTION_LAUNCHER in future auctions
@@ -95,7 +95,7 @@ library AuctionLib {
         // confirm buy token is in deficit and update rebalance limits
         {
             // D27{buyTok/share}
-            uint256 currentBuyPresence = _buyTokenPresence(args.buyToken.balanceOf(address(this)), totalSupply);
+            uint256 currentBuyPresence = _presence(args.buyToken.balanceOf(address(this)), totalSupply, Side.Buy);
             require(currentBuyPresence < args.buyLimit, IFolio.Folio__InvalidBuyLimit());
 
             // bring up low buy limit to prevent double trading by AUCTION_LAUNCHER in future auctions
@@ -211,7 +211,7 @@ library AuctionLib {
             }
 
             // D27{sellTok/share}
-            currentSellPresence = _sellTokenPresence(sellBal, totalSupply);
+            currentSellPresence = _presence(sellBal, totalSupply, Side.Sell);
             assert(currentSellPresence >= auction.sellLimit); // function-use invariant
         }
 
@@ -232,7 +232,7 @@ library AuctionLib {
             require(buyBalAfter - buyBalBefore >= bidAmount, IFolio.Folio__InsufficientBid());
 
             // D27{buyTok/share}
-            currentBuyPresence = _buyTokenPresence(buyBalAfter, totalSupply);
+            currentBuyPresence = _presence(buyBalAfter, totalSupply, Side.Buy);
         }
 
         // end auction at limits
@@ -245,6 +245,17 @@ library AuctionLib {
     }
 
     // ==== Internal ====
+
+    enum Side {
+        Sell,
+        Buy
+    }
+
+    /// @return D27{tok/share}
+    function _presence(uint256 balance, uint256 totalSupply, Side side) internal pure returns (uint256) {
+        // D27{tok/share} = {tok} * D27 / {share}
+        return Math.mulDiv(balance, D27, totalSupply, side == Side.Sell ? Math.Rounding.Floor : Math.Rounding.Ceil);
+    }
 
     /// @return p D27{buyTok/sellTok}
     function _price(IFolio.Auction storage auction, uint256 timestamp) internal view returns (uint256 p) {
@@ -271,18 +282,6 @@ library AuctionLib {
         if (p < auction.endPrice) {
             p = auction.endPrice;
         }
-    }
-
-    /// @return D27{sellTok/share}
-    function _sellTokenPresence(uint256 balance, uint256 totalSupply) internal pure returns (uint256) {
-        // D27{sellTok/share} = {sellTok} * D27 / {share}
-        return Math.mulDiv(balance, D27, totalSupply, Math.Rounding.Floor);
-    }
-
-    /// @return D27{buyTok/share}
-    function _buyTokenPresence(uint256 balance, uint256 totalSupply) internal pure returns (uint256) {
-        // D27{buyTok/share} = {buyTok} * D27 / {share}
-        return Math.mulDiv(balance, D27, totalSupply, Math.Rounding.Ceil);
     }
 
     /// @return pair The hash of the pair
