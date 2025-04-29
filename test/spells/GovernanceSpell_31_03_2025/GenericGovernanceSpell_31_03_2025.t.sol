@@ -89,8 +89,16 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
             );
             assertEq(stakingVault.owner(), newStakingVaultGovernor.timelock());
 
-            assertEq(newStakingVaultGovernor.votingDelay(), stakingVaultGovernor.votingDelay());
-            assertEq(newStakingVaultGovernor.votingPeriod(), stakingVaultGovernor.votingPeriod());
+            uint256 periodMultiplier = 24;
+            if (
+                address(stakingVaultGovernor) == spell.ABX_GOVERNOR() ||
+                address(stakingVaultGovernor) == spell.AI_GOVERNOR()
+            ) {
+                periodMultiplier = 1;
+            }
+
+            assertEq(newStakingVaultGovernor.votingDelay(), stakingVaultGovernor.votingDelay() * periodMultiplier);
+            assertEq(newStakingVaultGovernor.votingPeriod(), stakingVaultGovernor.votingPeriod() * periodMultiplier);
             assertEq(newStakingVaultGovernor.quorumNumerator(), stakingVaultGovernor.quorumNumerator() * 1e16);
             assertEq(newStakingVaultGovernor.quorumDenominator(), stakingVaultGovernor.quorumDenominator() * 1e16);
             assertApproxEqAbs(
@@ -101,7 +109,7 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
             );
             assertEq(
                 TimelockController(payable(newStakingVaultGovernor.timelock())).getMinDelay(),
-                TimelockController(payable(stakingVaultGovernor.timelock())).getMinDelay()
+                TimelockController(payable(stakingVaultGovernor.timelock())).getMinDelay() * periodMultiplier
             );
 
             // folio

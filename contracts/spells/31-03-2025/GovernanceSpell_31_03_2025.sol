@@ -10,7 +10,7 @@ import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { Folio } from "@src/Folio.sol";
-import { DEFAULT_ADMIN_ROLE, AUCTION_APPROVER } from "@utils/Constants.sol";
+import { DEFAULT_ADMIN_ROLE, AUCTION_APPROVER, ONE_DAY } from "@utils/Constants.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 /**
@@ -22,11 +22,17 @@ import { Versioned } from "@utils/Versioned.sol";
  *   - proposal threshold lowered by factor of 100
  *   - quorum numerator and denominator converted from whole percent to D18{1}, without changing numerator / denominator
  *
+ * Additionally, for _just_ the StakingVault governor, it multiplies all governance periods by 24. The background context here
+ * is that the frontend misconfigured the 1.0.0 StakingVaults and deployed them with hour periods instead of days.
+ *
  * It does NOT upgrade the Folio itself.
  *
  * See dev comments below for details on how to use each function.
  */
 contract GovernanceSpell_31_03_2025 is Versioned {
+    address public constant ABX_GOVERNOR = 0xcdd675d848372596E5eCc1B0FE9e88C1CBc609Af;
+    address public constant AI_GOVERNOR = 0x61FA1b18F37A361E961c5fB07D730EE37DC0dC4d;
+
     GovernanceDeployer public immutable governanceDeployer;
 
     constructor(GovernanceDeployer _governanceDeployer) {
@@ -51,10 +57,27 @@ contract GovernanceSpell_31_03_2025 is Versioned {
     ) external returns (address newGovernor) {
         require(stakingVault.owner() == address(this), "GS: not staking vault owner");
 
+        // multiply all governance periods by 24 for all StakingVaults except for ABX's
+        uint256 periodMultiplier = 1;
+
+        if (address(oldGovernor) != ABX_GOVERNOR && address(oldGovernor) != AI_GOVERNOR) {
+            // all StakingVaults except for ABX's and AI's were incorrectly deployed at the level of hours instead of days
+            // ABX exists on base. while this address is hard-coded, nothing resides at it on mainnet ethereum
+
+            require(oldGovernor.votingPeriod() < ONE_DAY, "GS: old voting period seems too large");
+
+            periodMultiplier = 24;
+        }
+
         bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
 
         address newTimelock;
-        (newGovernor, newTimelock) = _deployReplacementGovernance(oldGovernor, guardians, deploymentSalt);
+        (newGovernor, newTimelock) = _deployReplacementGovernance(
+            oldGovernor,
+            guardians,
+            deploymentSalt,
+            periodMultiplier
+        );
 
         stakingVault.transferOwnership(newTimelock);
         assert(stakingVault.owner() == newTimelock);
@@ -98,14 +121,16 @@ contract GovernanceSpell_31_03_2025 is Versioned {
         (newOwnerGovernor, newOwnerTimelock) = _deployReplacementGovernance(
             oldOwnerGovernor,
             ownerGuardians,
-            deploymentSalt
+            deploymentSalt,
+            1 // no change to voting periods
         );
 
         address newTradingTimelock;
         (newTradingGovernor, newTradingTimelock) = _deployReplacementGovernance(
             oldTradingGovernor,
             tradingGuardians,
-            deploymentSalt
+            deploymentSalt,
+            1 // no change to voting periods
         );
 
         // upgrade roles and owners
@@ -135,10 +160,12 @@ contract GovernanceSpell_31_03_2025 is Versioned {
     ///   - Lower proposal threshold by factor of 100
     ///   - Convert quorum numerator from whole percent to D18{1}
     ///   - Use provided guardians, which must be a subset of the old guardians
+    ///   - Multiply all governance periods by periodMultiplier
     function _deployReplacementGovernance(
         FolioGovernor oldGovernor,
         address[] calldata guardians,
-        bytes32 deploymentNonce
+        bytes32 deploymentNonce,
+        uint256 periodMultiplier
     ) internal returns (address newGovernor, address newTimelock) {
         // verify current governor looks old: 1.0.0 governors used a quorum denominator of 100 instead of 1e18
 
@@ -147,11 +174,11 @@ contract GovernanceSpell_31_03_2025 is Versioned {
 
         // validate gov params
 
-        uint256 votingDelay = oldGovernor.votingDelay();
+        uint256 votingDelay = oldGovernor.votingDelay() * periodMultiplier;
         require(votingDelay != 0, "GS: voting delay 0");
         require(votingDelay <= type(uint48).max, "GS: voting delay too large");
 
-        uint256 votingPeriod = oldGovernor.votingPeriod();
+        uint256 votingPeriod = oldGovernor.votingPeriod() * periodMultiplier;
         require(votingPeriod != 0, "GS: voting period 0");
         require(votingPeriod <= type(uint32).max, "GS: voting period too large");
 
@@ -177,7 +204,7 @@ contract GovernanceSpell_31_03_2025 is Versioned {
         {
             TimelockController oldTimelock = TimelockController(payable(oldGovernor.timelock()));
 
-            timelockDelay = oldTimelock.getMinDelay();
+            timelockDelay = oldTimelock.getMinDelay() * periodMultiplier;
             require(timelockDelay != 0, "GS: timelock delay 0");
 
             require(guardians.length != 0, "GS: guardians empty");
@@ -190,22 +217,24 @@ contract GovernanceSpell_31_03_2025 is Versioned {
             }
         }
 
-        IGovernanceDeployer.GovParams memory govParams = IGovernanceDeployer.GovParams({
-            votingDelay: uint48(votingDelay),
-            votingPeriod: uint32(votingPeriod),
-            proposalThreshold: proposalThreshold,
-            quorumThreshold: quorumThreshold,
-            timelockDelay: timelockDelay,
-            guardians: guardians
-        });
+        {
+            IGovernanceDeployer.GovParams memory govParams = IGovernanceDeployer.GovParams({
+                votingDelay: uint48(votingDelay),
+                votingPeriod: uint32(votingPeriod),
+                proposalThreshold: proposalThreshold,
+                quorumThreshold: quorumThreshold,
+                timelockDelay: timelockDelay,
+                guardians: guardians
+            });
 
-        // deploy new governor + timelock
+            // deploy new governor + timelock
 
-        (newGovernor, newTimelock) = governanceDeployer.deployGovernanceWithTimelock(
-            govParams,
-            Votes(address(oldGovernor.token())),
-            deploymentNonce
-        );
+            (newGovernor, newTimelock) = governanceDeployer.deployGovernanceWithTimelock(
+                govParams,
+                Votes(address(oldGovernor.token())),
+                deploymentNonce
+            );
+        }
 
         // post validation
 
