@@ -589,13 +589,9 @@ contract Folio is
         if (sellDetails.prices.high != 0) {
             // D27{buyTok/sellTok} = D27 * D27{UoA/sellTok} / D27{UoA/buyTok}
             uint256 oldStartPrice = (D27 * sellDetails.prices.high + buyDetails.prices.low - 1) / buyDetails.prices.low;
-            uint256 oldEndPrice = (D27 * sellDetails.prices.low + buyDetails.prices.high - 1) / buyDetails.prices.high;
 
-            // allow up to 100x price increase
-            require(
-                startPrice >= oldStartPrice && startPrice <= 100 * oldStartPrice && endPrice >= oldEndPrice,
-                Folio__InvalidPrices()
-            );
+            require(startPrice >= oldStartPrice, Folio__InvalidPrices());
+            // AuctionLib.openAuction() will check that startPrice / endPrice <= MAX_AUCTION_PRICE_RANGE
         }
 
         // for upgraded Folios, pick up on the next auction index from the old array

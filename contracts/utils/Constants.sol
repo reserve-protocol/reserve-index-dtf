@@ -14,7 +14,7 @@ uint256 constant MAX_TOKEN_BALANCE = 1e36; // {tok}
 uint256 constant MAX_TOKEN_PRICE = 1e36; // D27{UoA/tok}
 uint256 constant MAX_TOKEN_PRICE_RANGE = 1e2; // {1}
 uint256 constant MAX_AUCTION_PRICE = 1e63; // D27{buyTok/sellTok}
-uint256 constant MAX_AUCTION_PRICE_RANGE = 1e6; // {1}
+uint256 constant MAX_AUCTION_PRICE_RANGE = 1e4; // {1}
 uint256 constant RESTRICTED_AUCTION_BUFFER = 120; // {s} 2 min
 
 uint256 constant ONE_OVER_YEAR = 31709791983; // D18{1/s} 1e18 / 31536000

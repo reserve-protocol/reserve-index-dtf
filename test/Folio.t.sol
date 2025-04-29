@@ -1537,7 +1537,7 @@ contract FolioTest is BaseTest {
             buyToken: USDC,
             sellLimit: 0,
             buyLimit: MAX_LIMIT,
-            startPrice: 1e5,
+            startPrice: 1e4,
             endPrice: 1,
             startTime: block.timestamp,
             endTime: block.timestamp + MAX_AUCTION_DELAY
@@ -1546,19 +1546,19 @@ contract FolioTest is BaseTest {
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
         emit IFolio.AuctionOpened(0, auctionStruct);
-        folio.openAuction(MEME, USDC, 0, MAX_LIMIT, 1e5, 1);
+        folio.openAuction(MEME, USDC, 0, MAX_LIMIT, 1e4, 1);
 
         // should have right bid at start, middle, and end of auction
 
         (, , , , , , , uint256 start, uint256 end) = folio.auctions(0);
 
         (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, start, amt);
-        assertEq(sellAmount, amt, "wrong start sell amount"); // 10x
-        assertEq(buyAmount, amt / 1e22, "wrong start buy amount"); // 10x
+        assertEq(sellAmount, amt, "wrong start sell amount"); // 10000x
+        assertEq(buyAmount, 1e4, "wrong start buy amount"); // 10000x
 
         (sellAmount, buyAmount, ) = folio.getBid(0, (start + end) / 2, amt);
-        assertEq(sellAmount, amt, "wrong mid sell amount"); // ~3.16x
-        assertEq(buyAmount, 316, "wrong mid buy amount"); // ~3.16x
+        assertEq(sellAmount, amt, "wrong mid sell amount"); // 100x
+        assertEq(buyAmount, 100, "wrong mid buy amount"); // 100x
 
         (sellAmount, buyAmount, ) = folio.getBid(0, end, amt);
         assertEq(sellAmount, amt, "wrong end sell amount"); // 1x
