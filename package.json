@@ -11,14 +11,10 @@
     "forge-std": "github:foundry-rs/forge-std#v1.9.4"
   },
   "devDependencies": {
-    "decimal.js": "^10.5.0",
-    "expect": "^29.7.0",
     "prettier": "^3.4.2",
     "prettier-plugin-solidity": "^1.4.2",
     "solhint": "^5.0.4",
-    "solhint-plugin-prettier": "^0.1.0",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "solhint-plugin-prettier": "^0.1.0"
   },
   "scripts": {
     "format": "prettier --write \"./**/*.{js,ts,json,md,sol,yaml,yml}\"",
@@ -28,8 +24,7 @@
     "compile": "forge compile",
     "test": "forge test --no-match-test extreme",
     "test:extreme": "forge test --match-test extreme",
-    "test:rebalancing": "tsx --test rebalancing/**/*.test.ts",
-    "test:all": "tsx --test rebalancing/**/*.test.ts && forge test",
+    "test:all": "forge test",
     "size": "forge compile --sizes",
     "coverage": "forge coverage --report lcov --no-match-coverage '(script|test)'",
     "coverage:summary": "forge coverage --report summary --no-match-coverage '(script|test)'",
