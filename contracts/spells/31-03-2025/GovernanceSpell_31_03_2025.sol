@@ -18,20 +18,25 @@ import { Versioned } from "@utils/Versioned.sol";
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  *
  * This spell enables governor/timelock pairs associated with 1.0.0 Folio deployment to upgrade to new instances,
- * with 2 changes:
- *   - proposal threshold lowered by factor of 100
+ * with some (conditional) changes:
  *   - quorum numerator and denominator converted from whole percent to D18{1}, without changing numerator / denominator
- *
- * Additionally, for _just_ the StakingVault governor, it multiplies all governance periods by 24. The background context here
- * is that the frontend misconfigured the 1.0.0 StakingVaults and deployed them with hour periods instead of days.
+ *   - JUST for the trading governors, lowers the proposal thresholds by a factor of 100
+ *   - JUST the StakingVault governor, multiplies all periods by the given period multipliers. Most are 24
+ *       - for a handful of DTFs (ABX, CLX, AI), there are custom multipliers
  *
  * It does NOT upgrade the Folio itself.
  *
  * See dev comments below for details on how to use each function.
  */
 contract GovernanceSpell_31_03_2025 is Versioned {
-    address public constant ABX_GOVERNOR = 0xcdd675d848372596E5eCc1B0FE9e88C1CBc609Af;
-    address public constant AI_GOVERNOR = 0x61FA1b18F37A361E961c5fB07D730EE37DC0dC4d;
+    struct GovernancePeriodMultipliers {
+        uint256 votingDelayMultiplier;
+        uint256 votingPeriodMultiplier;
+        uint256 executionDelayMultiplier;
+    }
+
+    // all StakingVault governors EXCEPT for these exceptions should apply a uniform multiplier of 24 to their periods
+    mapping(address stakingVaultGovernor => GovernancePeriodMultipliers) public exceptions;
 
     GovernanceDeployer public immutable governanceDeployer;
 
@@ -42,6 +47,27 @@ contract GovernanceSpell_31_03_2025 is Versioned {
             "GS: invalid gov deployer"
         );
         governanceDeployer = _governanceDeployer;
+
+        // ABX -- does not having a corresponding address on mainnet ethereum
+        exceptions[0xcdd675d848372596E5eCc1B0FE9e88C1CBc609Af] = GovernancePeriodMultipliers({
+            votingDelayMultiplier: 4, // 12 hrs -> 2 days
+            votingPeriodMultiplier: 3, // 1 day -> 3 days
+            executionDelayMultiplier: 4 // 12 hrs -> 2 days
+        });
+
+        // CLX -- does not having a corresponding address on mainnet ethereum
+        exceptions[0xa83E456ebC4bCED953e64F085c8A8C4E2a8a5Fa0] = GovernancePeriodMultipliers({
+            votingDelayMultiplier: 80, // 18 min -> 1 day
+            votingPeriodMultiplier: 80, // 18 min -> 1 day
+            executionDelayMultiplier: 80 // 18 min -> 1 day
+        });
+
+        // AI -- does not having a corresponding address on mainnet ethereum
+        exceptions[0x61FA1b18F37A361E961c5fB07D730EE37DC0dC4d] = GovernancePeriodMultipliers({
+            votingDelayMultiplier: 1, // 1 day -> 1 day
+            votingPeriodMultiplier: 10, // 1 day -> 10 days
+            executionDelayMultiplier: 2 // 1 day -> 2 days
+        });
     }
 
     /// @dev Expected use: pre-call, governance atomically transfers ownership of the StakingVault to this contract
@@ -57,16 +83,17 @@ contract GovernanceSpell_31_03_2025 is Versioned {
     ) external returns (address newGovernor) {
         require(stakingVault.owner() == address(this), "GS: not staking vault owner");
 
-        // multiply all governance periods by 24 for all StakingVaults except for ABX's
-        uint256 periodMultiplier = 1;
+        GovernancePeriodMultipliers memory periodMultiplier = exceptions[address(oldGovernor)];
 
-        if (address(oldGovernor) != ABX_GOVERNOR && address(oldGovernor) != AI_GOVERNOR) {
-            // all StakingVaults except for ABX's and AI's were incorrectly deployed at the level of hours instead of days
-            // ABX exists on base. while this address is hard-coded, nothing resides at it on mainnet ethereum
-
+        // 24x multiplier for all StakingVaults except for ABX's / CLX's / AI's
+        if (periodMultiplier.votingDelayMultiplier == 0) {
             require(oldGovernor.votingPeriod() < ONE_DAY, "GS: old voting period seems too large");
 
-            periodMultiplier = 24;
+            periodMultiplier = GovernancePeriodMultipliers({
+                votingDelayMultiplier: 24,
+                votingPeriodMultiplier: 24,
+                executionDelayMultiplier: 24
+            });
         }
 
         bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
@@ -76,7 +103,8 @@ contract GovernanceSpell_31_03_2025 is Versioned {
             oldGovernor,
             guardians,
             deploymentSalt,
-            periodMultiplier
+            periodMultiplier,
+            1 // no change to proposalThreshold
         );
 
         stakingVault.transferOwnership(newTimelock);
@@ -122,7 +150,12 @@ contract GovernanceSpell_31_03_2025 is Versioned {
             oldOwnerGovernor,
             ownerGuardians,
             deploymentSalt,
-            1 // no change to voting periods
+            GovernancePeriodMultipliers({
+                votingDelayMultiplier: 1, // no change to voting periods
+                votingPeriodMultiplier: 1, // no change to voting periods
+                executionDelayMultiplier: 1 // no change to timelock delay
+            }),
+            1 // no change to proposalThreshold
         );
 
         address newTradingTimelock;
@@ -130,7 +163,12 @@ contract GovernanceSpell_31_03_2025 is Versioned {
             oldTradingGovernor,
             tradingGuardians,
             deploymentSalt,
-            1 // no change to voting periods
+            GovernancePeriodMultipliers({
+                votingDelayMultiplier: 1, // no change to voting periods
+                votingPeriodMultiplier: 1, // no change to voting periods
+                executionDelayMultiplier: 1 // no change to timelock delay
+            }),
+            100 // divide proposal threshold by 100
         );
 
         // upgrade roles and owners
@@ -155,34 +193,23 @@ contract GovernanceSpell_31_03_2025 is Versioned {
 
     // ==== Internal ====
 
-    /// Deploy a replacement governance + timelock
+    /// Deploy a replacement governance + timelock, with updated values
     /// Should:
-    ///   - Lower proposal threshold by factor of 100
-    ///   - Convert quorum numerator from whole percent to D18{1}
+    ///   - Lower proposal threshold by the provided proposalThresholdDivisor
+    ///   - Convert quorum numerator from whole percent (1-100) to D18{1}
     ///   - Use provided guardians, which must be a subset of the old guardians
-    ///   - Multiply all governance periods by periodMultiplier
+    ///   - Multiply all governance periods by periodMultipliers
     function _deployReplacementGovernance(
         FolioGovernor oldGovernor,
         address[] calldata guardians,
         bytes32 deploymentNonce,
-        uint256 periodMultiplier
+        GovernancePeriodMultipliers memory periodMultipliers,
+        uint256 proposalThresholdDivisor
     ) internal returns (address newGovernor, address newTimelock) {
         // verify current governor looks old: 1.0.0 governors used a quorum denominator of 100 instead of 1e18
-
         require(oldGovernor.quorumDenominator() == 100, "GS: not old governor");
-        // the proposal thresholds should be 100x their correct value too, but no way to check for that
 
-        // validate gov params
-
-        uint256 votingDelay = oldGovernor.votingDelay() * periodMultiplier;
-        require(votingDelay != 0, "GS: voting delay 0");
-        require(votingDelay <= type(uint48).max, "GS: voting delay too large");
-
-        uint256 votingPeriod = oldGovernor.votingPeriod() * periodMultiplier;
-        require(votingPeriod != 0, "GS: voting period 0");
-        require(votingPeriod <= type(uint32).max, "GS: voting period too large");
-
-        // lower proposalThreshold by factor of 100
+        // lower proposalThreshold by given proposalThresholdDivisor
         uint256 proposalThreshold;
         {
             uint256 proposalThresholdWithSupply = oldGovernor.proposalThreshold();
@@ -190,21 +217,29 @@ contract GovernanceSpell_31_03_2025 is Versioned {
             uint256 pastSupply = stakingVault.getPastTotalSupply(stakingVault.clock() - 1);
             require(pastSupply != 0, "GS: past supply 0");
 
-            proposalThreshold = ((proposalThresholdWithSupply * 1e18 + pastSupply - 1) / pastSupply) / 100;
+            proposalThreshold =
+                ((proposalThresholdWithSupply * 1e18 + pastSupply - 1) / pastSupply) /
+                proposalThresholdDivisor;
             require(
                 proposalThreshold >= 1e14 && proposalThreshold <= 1e17,
                 "GS: proposal threshold not in expected range"
             );
         }
 
-        uint256 quorumThreshold = oldGovernor.quorumNumerator() * 1e16; // multiply by 1e16 to convert raw percent to D18{1}
-        require(quorumThreshold >= 1e16 && quorumThreshold <= 2e17, "GS: quorum threshold not in expected range");
+        // validate period multipliers
+        require(
+            periodMultipliers.votingDelayMultiplier != 0 &&
+                periodMultipliers.votingPeriodMultiplier != 0 &&
+                periodMultipliers.executionDelayMultiplier != 0,
+            "GS: period multiplier 0"
+        );
 
+        // update timelock delay
         uint256 timelockDelay;
         {
             TimelockController oldTimelock = TimelockController(payable(oldGovernor.timelock()));
 
-            timelockDelay = oldTimelock.getMinDelay() * periodMultiplier;
+            timelockDelay = oldTimelock.getMinDelay() * periodMultipliers.executionDelayMultiplier;
             require(timelockDelay != 0, "GS: timelock delay 0");
 
             require(guardians.length != 0, "GS: guardians empty");
@@ -217,20 +252,31 @@ contract GovernanceSpell_31_03_2025 is Versioned {
             }
         }
 
+        // deploy new governor + timelock with updated values
         {
-            IGovernanceDeployer.GovParams memory govParams = IGovernanceDeployer.GovParams({
-                votingDelay: uint48(votingDelay),
-                votingPeriod: uint32(votingPeriod),
-                proposalThreshold: proposalThreshold,
-                quorumThreshold: quorumThreshold,
-                timelockDelay: timelockDelay,
-                guardians: guardians
-            });
+            uint256 votingDelay = oldGovernor.votingDelay() * periodMultipliers.votingDelayMultiplier;
+            require(votingDelay != 0, "GS: voting delay 0");
+            require(votingDelay <= type(uint48).max, "GS: voting delay too large");
 
-            // deploy new governor + timelock
+            uint256 votingPeriod = oldGovernor.votingPeriod() * periodMultipliers.votingPeriodMultiplier;
+            require(votingPeriod != 0, "GS: voting period 0");
+            require(votingPeriod <= type(uint32).max, "GS: voting period too large");
+
+            uint256 quorumThreshold = oldGovernor.quorumNumerator() * 1e16; // multiply by 1e16 to convert raw percent to D18{1}
+            require(
+                quorumThreshold >= 1e16 && quorumThreshold <= 0.25e18,
+                "GS: quorum threshold not in expected range"
+            );
 
             (newGovernor, newTimelock) = governanceDeployer.deployGovernanceWithTimelock(
-                govParams,
+                IGovernanceDeployer.GovParams({
+                    votingDelay: uint48(votingDelay),
+                    votingPeriod: uint32(votingPeriod),
+                    proposalThreshold: proposalThreshold,
+                    quorumThreshold: quorumThreshold,
+                    timelockDelay: timelockDelay,
+                    guardians: guardians
+                }),
                 Votes(address(oldGovernor.token())),
                 deploymentNonce
             );

@@ -89,27 +89,39 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
             );
             assertEq(stakingVault.owner(), newStakingVaultGovernor.timelock());
 
-            uint256 periodMultiplier = 24;
-            if (
-                address(stakingVaultGovernor) == spell.ABX_GOVERNOR() ||
-                address(stakingVaultGovernor) == spell.AI_GOVERNOR()
-            ) {
-                periodMultiplier = 1;
+            // determine period multipliers
+            (
+                uint256 votingDelayPeriodMultiplier,
+                uint256 votingPeriodPeriodMultiplier,
+                uint256 executionDelayPeriodMultiplier
+            ) = spell.exceptions(address(stakingVaultGovernor));
+            if (votingDelayPeriodMultiplier == 0) {
+                votingDelayPeriodMultiplier = 24;
+                votingPeriodPeriodMultiplier = 24;
+                executionDelayPeriodMultiplier = 24;
             }
 
-            assertEq(newStakingVaultGovernor.votingDelay(), stakingVaultGovernor.votingDelay() * periodMultiplier);
-            assertEq(newStakingVaultGovernor.votingPeriod(), stakingVaultGovernor.votingPeriod() * periodMultiplier);
+            // check post-upgrade periods
+            assertEq(
+                newStakingVaultGovernor.votingDelay(),
+                stakingVaultGovernor.votingDelay() * votingDelayPeriodMultiplier
+            );
+            assertEq(
+                newStakingVaultGovernor.votingPeriod(),
+                stakingVaultGovernor.votingPeriod() * votingPeriodPeriodMultiplier
+            );
             assertEq(newStakingVaultGovernor.quorumNumerator(), stakingVaultGovernor.quorumNumerator() * 1e16);
             assertEq(newStakingVaultGovernor.quorumDenominator(), stakingVaultGovernor.quorumDenominator() * 1e16);
             assertApproxEqAbs(
                 newStakingVaultGovernor.proposalThreshold(),
-                stakingVaultGovernor.proposalThreshold() / 100,
-                1,
+                stakingVaultGovernor.proposalThreshold(),
+                1e9,
                 "proposal threshold changed"
             );
             assertEq(
                 TimelockController(payable(newStakingVaultGovernor.timelock())).getMinDelay(),
-                TimelockController(payable(stakingVaultGovernor.timelock())).getMinDelay() * periodMultiplier
+                TimelockController(payable(stakingVaultGovernor.timelock())).getMinDelay() *
+                    executionDelayPeriodMultiplier
             );
 
             // folio
@@ -148,8 +160,8 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
             assertEq(newOwnerGovernor.quorumDenominator(), ownerGovernor.quorumDenominator() * 1e16);
             assertApproxEqAbs(
                 FolioGovernor(payable(newOwnerGovernor)).proposalThreshold(),
-                ownerGovernor.proposalThreshold() / 100,
-                1,
+                ownerGovernor.proposalThreshold(),
+                1e9,
                 "owner proposal threshold changed"
             );
             assertEq(
@@ -164,7 +176,7 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
             assertApproxEqAbs(
                 FolioGovernor(payable(newTradingGovernor)).proposalThreshold(),
                 tradingGovernor.proposalThreshold() / 100,
-                1,
+                1e9,
                 "trading proposal threshold changed"
             );
             assertEq(
