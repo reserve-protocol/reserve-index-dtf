@@ -534,7 +534,7 @@ contract Folio is
                 require(
                     newPrices[i].low <= newPrices[i].high &&
                         newPrices[i].high <= MAX_TOKEN_PRICE &&
-                        newPrices[i].high / newPrices[i].low <= MAX_TOKEN_PRICE_RANGE,
+                        newPrices[i].high <= MAX_TOKEN_PRICE_RANGE * newPrices[i].low,
                     Folio__InvalidPrices()
                 );
             }
