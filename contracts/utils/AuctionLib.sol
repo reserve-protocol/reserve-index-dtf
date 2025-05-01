@@ -56,7 +56,7 @@ library AuctionLib {
         limits.high = sellLimit;
         limits.low = buyLimit;
 
-        // update spot rebalance target to prevent double trading in the future by openAuctionUnrestricted()
+        // update spot rebalance limits to prevent double trading in the future by openAuctionUnrestricted()
         if (sellLimit < limits.spot) {
             limits.spot = sellLimit;
         }

@@ -128,7 +128,7 @@ contract Folio is
      *   - An auction is implicitly for _all pairs_ of tokens in the basket
      *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil
      *   - Auctions cannot be launched after availableUntil, though their end time may extend past it
-     *   - If the AUCTION_LAUNCHER is not active, the original spot target provided by the REBALANCE_MANAGER are used
+     *   - If the AUCTION_LAUNCHER is not active, the original spot limit provided by the REBALANCE_MANAGER are used
      *   - At anytime the rebalance can be stopped or a new one can be started (closing live auctions)
      *   - The AUCTION_LAUNCHER is limited in the damage they can do and can always be removed if griefing
      */
@@ -564,7 +564,7 @@ contract Folio is
         );
     }
 
-    /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU targets
+    /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits
     /// @dev Allow clobbering existing running auction
     /// @param rebalanceNonce The nonce of the rebalance
     /// @param tokens The tokens in the rebalance to update weights/prices for
@@ -646,7 +646,7 @@ contract Folio is
         auctionId = nextAuctionId++;
 
         // open an auction on the spot limits
-        // use same spot target to determine BOTH surplus and deficits
+        // use same spot limit to determine BOTH surplus and deficits
         AuctionLib.openAuction(
             rebalance,
             rebalanceNonce,
