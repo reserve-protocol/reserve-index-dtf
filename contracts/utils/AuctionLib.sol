@@ -28,39 +28,40 @@ library AuctionLib {
         uint256 buyLimit,
         uint256 auctionBuffer
     ) external {
-        IFolio.RebalanceTargets storage targets = rebalance.targets;
+        IFolio.RebalanceLimits storage limits = rebalance.limits;
 
-        // confirm right rebalance
+        // enforce right rebalance
         require(rebalanceNonce == rebalance.nonce, IFolio.Folio__InvalidRebalanceNonce());
 
-        // confirm rebalance ongoing
+        // enforce rebalance ongoing
         require(
             block.timestamp >= rebalance.startedAt + auctionBuffer && block.timestamp < rebalance.availableUntil,
             IFolio.Folio__NotRebalancing()
         );
 
-        // confirm buffer between auctions
+        // enforce buffer between auctions
         IFolio.Auction storage lastAuction = auctions[auctionId - 1];
         require(
             lastAuction.rebalanceNonce != rebalanceNonce || lastAuction.endTime + auctionBuffer < block.timestamp,
             IFolio.Folio__AuctionCannotBeOpenedWithoutRestriction()
         );
 
-        // confirm valid limits
-        require(targets.high == 0 || sellLimit <= targets.high, IFolio.Folio__InvalidTargets());
-        require(targets.low == 0 || buyLimit >= targets.low, IFolio.Folio__InvalidTargets());
-        require(sellLimit >= buyLimit, IFolio.Folio__InvalidTargets());
+        // enforce valid limits
+        require(
+            sellLimit >= buyLimit && sellLimit <= limits.high && buyLimit >= limits.low,
+            IFolio.Folio__InvalidTargets()
+        );
 
-        // narrow low/high rebalance targets to prevent double trading in the future by openAuction()
-        targets.high = sellLimit;
-        targets.low = buyLimit;
+        // narrow low/high rebalance limits to prevent double trading in the future by openAuction()
+        limits.high = sellLimit;
+        limits.low = buyLimit;
 
         // update spot rebalance target to prevent double trading in the future by openAuctionUnrestricted()
-        if (sellLimit < targets.spot) {
-            targets.spot = sellLimit;
+        if (sellLimit < limits.spot) {
+            limits.spot = sellLimit;
         }
-        if (buyLimit > targets.spot) {
-            targets.spot = buyLimit;
+        if (buyLimit > limits.spot) {
+            limits.spot = buyLimit;
         }
 
         IFolio.Auction memory auction = IFolio.Auction({
@@ -115,7 +116,7 @@ library AuctionLib {
         // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
         uint256 sellLimit = Math.mulDiv(
             auction.sellLimit,
-            rebalance.details[address(sellToken)].weight,
+            rebalance.details[address(sellToken)].weights.spot,
             D18,
             Math.Rounding.Ceil
         );
@@ -127,7 +128,7 @@ library AuctionLib {
         // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
         uint256 buyLimit = Math.mulDiv(
             auction.buyLimit,
-            rebalance.details[address(buyToken)].weight,
+            rebalance.details[address(buyToken)].weights.spot,
             D18,
             Math.Rounding.Floor
         );

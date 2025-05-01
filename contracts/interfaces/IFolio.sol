@@ -29,12 +29,12 @@ interface IFolio {
     event RebalanceStarted(
         uint256 nonce,
         address[] tokens,
-        uint256[] weights,
+        WeightRange[] weights,
         PriceRange[] prices,
         uint256 targetBaskets,
         uint256 restrictedUntil,
         uint256 availableUntil,
-        bool deferPrices
+        bool trustAuctionLauncherPricing
     );
     event RebalanceEnded(uint256 nonce);
 
@@ -86,7 +86,7 @@ interface IFolio {
     error Folio__InvalidTTL();
     error Folio__NotRebalancing();
     error Folio__InvalidRebalanceNonce();
-    error Folio__PricingNotDeferred();
+    error Folio__PricingNotTrusted();
     error Folio__TokenNotInRebalance();
 
     // === Structures ===
@@ -121,10 +121,16 @@ interface IFolio {
         uint96 portion; // D18{1}
     }
 
-    struct RebalanceTargets {
-        uint256 spot; // D18{BU/share} // the final target destination
-        uint256 low; // D18{BU/share} // to buy assets up to
-        uint256 high; // D18{BU/share} // to sell assets down to
+    struct RebalanceLimits {
+        uint256 spot; // D18{BU/share} // the ideal destination (0, 1e36]
+        uint256 low; // D18{BU/share} // to buy assets up to (0, 1e36]
+        uint256 high; // D18{BU/share} // to sell assets down to (0, 1e36]
+    }
+
+    struct WeightRange {
+        uint256 spot; // D27{tok/BU} [0, 1e54]
+        uint256 low; // D27{tok/BU} [0, 1e54]
+        uint256 high; // D27{tok/BU} [0, 1e54]
     }
 
     struct PriceRange {
@@ -134,18 +140,18 @@ interface IFolio {
 
     struct RebalanceDetails {
         bool inRebalance;
-        uint256 weight; // D27{tok/BU} [0, 1e54]
+        WeightRange weights; // D27{tok/BU} [0, 1e54]
         PriceRange prices; // D27{UoA/tok} prices can be in any Unit of Account as long as it's consistent (0, 1e54]
     }
 
     struct Rebalance {
         uint256 nonce;
         mapping(address token => RebalanceDetails) details;
-        RebalanceTargets targets; // D18{BU/share} (0, 1e36]
+        RebalanceLimits limits; // D18{BU/share} (0, 1e36]
         uint256 startedAt; // {s} timestamp rebalancing started, inclusive
         uint256 restrictedUntil; // {s} timestamp rebalancing is unrestricted to everyone, exclusive
         uint256 availableUntil; // {s} timestamp rebalancing ends overall, exclusive
-        bool deferPrices; // whether prices were deferred to AUCTION_LAUNCHER
+        bool trustAuctionLauncherPricing; // whether prices can be revised by the AUCTION_LAUNCHER
     }
 
     /// Auction states:
