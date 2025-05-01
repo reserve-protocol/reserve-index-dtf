@@ -604,21 +604,30 @@ contract Folio is
 
         // save prices to ongoing rebalance
         for (uint256 i; i < len; i++) {
-            require(prices[i].low != 0 && prices[i].high != 0, Folio__InvalidPrices());
+            require(
+                prices[i].low != 0 &&
+                    prices[i].low <= prices[i].high &&
+                    prices[i].high <= MAX_TOKEN_PRICE &&
+                    prices[i].high <= MAX_TOKEN_PRICE_RANGE * prices[i].low,
+                Folio__InvalidPrices()
+            );
 
             RebalanceDetails storage details = rebalance.details[address(tokens[i])];
             require(details.inRebalance && details.prices.low == 0, Folio__PricingNotDeferred());
+            // can only set prices once
 
             details.prices = prices[i];
         }
 
-        address[] memory basketTokens = basket.values();
-        len = basketTokens.length;
-
         // ensure all tokens in rebalance have nonzero prices
-        for (uint256 i; i < len; i++) {
-            RebalanceDetails storage details = rebalance.details[address(tokens[i])];
-            require(!details.inRebalance || rebalance.details[basketTokens[i]].prices.low != 0, Folio__InvalidPrices());
+        if (len != 0) {
+            address[] memory basketTokens = basket.values();
+            len = basketTokens.length;
+
+            for (uint256 i; i < len; i++) {
+                RebalanceDetails storage basketTokenDetails = rebalance.details[address(basketTokens[i])];
+                require(basketTokenDetails.prices.low != 0 || !basketTokenDetails.inRebalance, Folio__InvalidPrices());
+            }
         }
 
         // open an auction on provided limits
