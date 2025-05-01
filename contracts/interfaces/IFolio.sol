@@ -29,8 +29,10 @@ interface IFolio {
     event RebalanceStarted(
         uint256 nonce,
         address[] tokens,
-        BasketRange[] weights,
+        uint256[] weights,
         Prices[] prices,
+        Range sellLimit,
+        Range buyLimit,
         uint256 restrictedUntil,
         uint256 availableUntil
     );
@@ -58,7 +60,9 @@ interface IFolio {
     error Folio__InvalidAssetAmount(address asset);
 
     error Folio__InvalidAuctionLength();
+    error Folio__InvalidAuctionPrices();
     error Folio__InvalidLimits();
+    error Folio__InvalidWeights();
     error Folio__InvalidSellLimit();
     error Folio__InvalidBuyLimit();
     error Folio__AuctionCannotBeOpenedWithoutRestriction();
@@ -81,6 +85,8 @@ interface IFolio {
 
     error Folio__InvalidTTL();
     error Folio__NotRebalancing();
+    error Folio__InvalidRebalanceNonce();
+    error Folio__TokenNotInRebalance();
 
     // === Structures ===
 
@@ -114,10 +120,10 @@ interface IFolio {
         uint96 portion; // D18{1}
     }
 
-    struct BasketRange {
-        uint256 spot; // D27{tok/share}
-        uint256 low; // D27{tok/share} inclusive
-        uint256 high; // D27{tok/share} inclusive
+    struct Range {
+        uint256 spot; // D18{BU/share}
+        uint256 low; // D18{BU/share}
+        uint256 high; // D18{BU/share}
     }
 
     struct Prices {
@@ -127,13 +133,15 @@ interface IFolio {
 
     struct RebalanceDetails {
         bool inRebalance;
-        BasketRange limits; // D27{tok/share}
-        Prices prices; // D27{UoA/tok} prices can be in any Unit of Account as long as it's consistent
+        uint256 weight; // D27{tok/BU} 1e54 max
+        Prices prices; // D27{UoA/tok} prices can be in any Unit of Account as long as it's consistent, 1e54 max
     }
 
     struct Rebalance {
         uint256 nonce;
         mapping(address token => RebalanceDetails) details;
+        Range sellLimit; // D18{BU/share} 1e36 max
+        Range buyLimit; // D18{BU/share} 1e36 max
         uint256 startedAt; // {s} inclusive, timestamp rebalancing started
         uint256 restrictedUntil; // {s} exclusive, timestamp rebalancing is unrestricted to everyone
         uint256 availableUntil; // {s} exclusive, timestamp rebalancing ends overall
@@ -145,12 +153,8 @@ interface IFolio {
     ///   - CLOSED: block.timestamp > endTime
     struct Auction {
         uint256 rebalanceNonce;
-        IERC20 sellToken;
-        IERC20 buyToken;
-        uint256 sellLimit; // D27{sellTok/share} min ratio of sell token in the basket, inclusive
-        uint256 buyLimit; // D27{buyTok/share} max ratio of buy token in the basket, exclusive
-        uint256 startPrice; // D27{buyTok/sellTok}
-        uint256 endPrice; // D27{buyTok/sellTok}
+        uint256 sellLimit; // D18{BU/share}
+        uint256 buyLimit; // D18{BU/share}
         uint256 startTime; // {s} inclusive
         uint256 endTime; // {s} inclusive
     }
