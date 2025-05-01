@@ -634,7 +634,7 @@ contract Folio is
         AuctionLib.openAuction(rebalance, rebalanceNonce, auctions, auctionId, auctionLength, sellLimit, buyLimit, 0);
 
         // extend deadlines if near
-        uint256 extension = block.timestamp + auctionLength + RESTRICTED_AUCTION_BUFFER;
+        uint256 extension = block.timestamp + auctionLength + RESTRICTED_AUCTION_BUFFER * 2;
         if (extension > rebalance.restrictedUntil) {
             rebalance.restrictedUntil = extension;
         }
