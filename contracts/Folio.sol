@@ -486,14 +486,14 @@ contract Folio is
     /// @param newWeights D27{tok/BU} New basket weights for basket unit definition
     /// @param newPrices D27{UoA/tok} PriceRange for each token in terms of the unit of account
     ///                  Can pass 0 for ALL token prices to defer to AUCTION_LAUNCHER (cannot pick and choose)
-    /// @param targets D18{BU/share} Targets to sell and buy up to / down to, inclusive (0, 1e36]
+    /// @param targetBaskets D18{BU/share} Ideal number of baskets should have at end of rebalance, inclusive (0, 1e36]
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions
     /// @param ttl {s} The amount of time the rebalance is valid for
     function startRebalance(
         address[] calldata newTokens,
         uint256[] calldata newWeights,
         PriceRange[] calldata newPrices,
-        RebalanceTargets calldata targets,
+        uint256 targetBaskets,
         uint256 auctionLauncherWindow,
         uint256 ttl
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
@@ -511,13 +511,7 @@ contract Folio is
         require(len != 0 && len == newWeights.length && len == newPrices.length, Folio__InvalidArrayLengths());
 
         // enforce targets validity
-        require(
-            targets.low != 0 &&
-                targets.low <= targets.spot &&
-                targets.spot <= targets.high &&
-                targets.high <= MAX_TARGET,
-            IFolio.Folio__InvalidTargets()
-        );
+        require(targetBaskets != 0 && targetBaskets <= MAX_TARGET, IFolio.Folio__InvalidTargets());
 
         // enforce that if one price is 0, all prices are 0
         bool deferPrices = newPrices[0].low == 0;
@@ -557,7 +551,7 @@ contract Folio is
         }
 
         rebalance.nonce++;
-        rebalance.targets = targets;
+        rebalance.targets = RebalanceTargets({ spot: targetBaskets, low: 0, high: 0 });
         rebalance.startedAt = block.timestamp;
         rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
         rebalance.availableUntil = block.timestamp + ttl;
@@ -568,16 +562,14 @@ contract Folio is
             newTokens,
             newWeights,
             newPrices,
-            targets,
+            targetBaskets,
             block.timestamp + auctionLauncherWindow,
             block.timestamp + ttl,
             deferPrices
         );
     }
 
-    // TODO modify openAuction() to support nativeDTFs
-    // if deferPrices: give full prices control every time
-    // does governance just pass in RebalanceTargets.spot?
+    // TODO modify openAuction() to support nativeDTFs?
 
     /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU targets
     /// @dev Allow clobbering existing running auction
@@ -600,26 +592,27 @@ contract Folio is
 
         uint256 len = tokens.length;
         require(len == prices.length, Folio__InvalidArrayLengths());
-        require(len == 0 || rebalance.deferPrices, Folio__InvalidPrices());
+        require(len == 0 || rebalance.deferPrices, Folio__PricingNotDeferred());
+        // TODO in !deferPrices case, what adjustments to prices should be allowed, if any?
 
-        // save prices to ongoing rebalance
-        for (uint256 i; i < len; i++) {
-            require(
-                prices[i].low != 0 &&
-                    prices[i].low <= prices[i].high &&
-                    prices[i].high <= MAX_TOKEN_PRICE &&
-                    prices[i].high <= MAX_TOKEN_PRICE_RANGE * prices[i].low,
-                Folio__InvalidPrices()
-            );
+        // update prices if deferred
+        if (rebalance.deferPrices) {
+            for (uint256 i; i < len; i++) {
+                require(
+                    prices[i].low != 0 &&
+                        prices[i].low <= prices[i].high &&
+                        prices[i].high <= MAX_TOKEN_PRICE &&
+                        prices[i].high <= MAX_TOKEN_PRICE_RANGE * prices[i].low,
+                    Folio__InvalidPrices()
+                );
 
-            RebalanceDetails storage details = rebalance.details[address(tokens[i])];
-            require(details.inRebalance, Folio__PricingNotDeferred());
+                RebalanceDetails storage details = rebalance.details[address(tokens[i])];
+                require(details.inRebalance, Folio__TokenNotInRebalance());
 
-            details.prices = prices[i];
-        }
+                details.prices = prices[i];
+            }
 
-        // ensure all tokens in rebalance have nonzero prices
-        if (len != 0) {
+            // ensure all tokens in rebalance have defined prices
             address[] memory basketTokens = basket.values();
             len = basketTokens.length;
 

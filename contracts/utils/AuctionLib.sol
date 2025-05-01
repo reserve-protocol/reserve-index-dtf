@@ -47,10 +47,9 @@ library AuctionLib {
         );
 
         // confirm valid limits
-        require(
-            sellLimit >= buyLimit && sellLimit <= targets.high && buyLimit >= targets.low,
-            IFolio.Folio__InvalidTargets()
-        );
+        require(targets.high == 0 || sellLimit <= targets.high, IFolio.Folio__InvalidTargets());
+        require(targets.low == 0 || buyLimit >= targets.low, IFolio.Folio__InvalidTargets());
+        require(sellLimit >= buyLimit, IFolio.Folio__InvalidTargets());
 
         // narrow low/high rebalance targets to prevent double trading in the future by openAuction()
         targets.high = sellLimit;
@@ -73,7 +72,7 @@ library AuctionLib {
         });
         auctions[auctionId] = auction;
 
-        // TODO add surplus / deficit arrays to event
+        // TODO add surplus / deficit arrays to event?
 
         emit IFolio.AuctionOpened(auctionId, auction);
     }

@@ -31,7 +31,7 @@ interface IFolio {
         address[] tokens,
         uint256[] weights,
         PriceRange[] prices,
-        RebalanceTargets targets,
+        uint256 targetBaskets,
         uint256 restrictedUntil,
         uint256 availableUntil,
         bool deferPrices
@@ -87,6 +87,7 @@ interface IFolio {
     error Folio__NotRebalancing();
     error Folio__InvalidRebalanceNonce();
     error Folio__PricingNotDeferred();
+    error Folio__TokenNotInRebalance();
 
     // === Structures ===
 
