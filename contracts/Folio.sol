@@ -623,6 +623,15 @@ contract Folio is
 
         // open an auction on provided limits
         AuctionLib.openAuction(rebalance, rebalanceNonce, auctions, auctionId, auctionLength, sellLimit, buyLimit, 0);
+
+        // extend deadlines if near
+        uint256 extension = block.timestamp + auctionLength + RESTRICTED_AUCTION_BUFFER;
+        if (extension > rebalance.restrictedUntil) {
+            rebalance.restrictedUntil = extension;
+        }
+        if (extension > rebalance.availableUntil) {
+            rebalance.availableUntil = extension;
+        }
     }
 
     /// Open an auction without restrictions
@@ -636,13 +645,6 @@ contract Folio is
         // for upgraded Folios, pick up on the next auction index from the old array
         nextAuctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
         auctionId = nextAuctionId++;
-
-        // confirm no auction collision
-        Auction storage lastAuction = auctions[auctionId - 1];
-        require(
-            lastAuction.rebalanceNonce != rebalanceNonce || lastAuction.endTime < block.timestamp,
-            Folio__AuctionCannotBeOpenedWithoutRestriction()
-        );
 
         // open an auction on saved spot limits
         AuctionLib.openAuction(
