@@ -28,8 +28,8 @@ library AuctionLib {
         uint256 buyLimit,
         uint256 auctionBuffer
     ) external {
-        IFolio.Range storage sellLimitRange = rebalance.sellLimit;
-        IFolio.Range storage buyLimitRange = rebalance.buyLimit;
+        IFolio.LimitRange storage sellLimitRange = rebalance.sellLimit;
+        IFolio.LimitRange storage buyLimitRange = rebalance.buyLimit;
 
         // confirm right rebalance
         require(rebalanceNonce == rebalance.nonce, IFolio.Folio__InvalidRebalanceNonce());
@@ -50,6 +50,8 @@ library AuctionLib {
         // confirm valid limits
         require(sellLimit >= sellLimitRange.low && sellLimit <= sellLimitRange.high, IFolio.Folio__InvalidSellLimit());
         require(buyLimit >= buyLimitRange.low && buyLimit <= buyLimitRange.high, IFolio.Folio__InvalidBuyLimit());
+
+        require(sellLimit >= buyLimit, IFolio.Folio__InvalidLimits());
 
         // update spot limits to prevent double trading in the future by openAuctionUnrestricted()
         sellLimitRange.spot = sellLimit;

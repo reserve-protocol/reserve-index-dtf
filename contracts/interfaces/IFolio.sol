@@ -30,9 +30,9 @@ interface IFolio {
         uint256 nonce,
         address[] tokens,
         uint256[] weights,
-        Prices[] prices,
-        Range sellLimit,
-        Range buyLimit,
+        PriceRange[] prices,
+        LimitRange sellLimit,
+        LimitRange buyLimit,
         uint256 restrictedUntil,
         uint256 availableUntil
     );
@@ -120,31 +120,31 @@ interface IFolio {
         uint96 portion; // D18{1}
     }
 
-    struct Range {
+    struct LimitRange {
         uint256 spot; // D18{BU/share}
         uint256 low; // D18{BU/share}
         uint256 high; // D18{BU/share}
     }
 
-    struct Prices {
+    struct PriceRange {
         uint256 low; // D27{UoA/tok}
         uint256 high; // D27{UoA/tok}
     }
 
     struct RebalanceDetails {
         bool inRebalance;
-        uint256 weight; // D27{tok/BU} 1e54 max
-        Prices prices; // D27{UoA/tok} prices can be in any Unit of Account as long as it's consistent, 1e54 max
+        uint256 weight; // D27{tok/BU} [0, 1e54]
+        PriceRange prices; // D27{UoA/tok} prices can be in any Unit of Account as long as it's consistent (0, 1e54]
     }
 
     struct Rebalance {
         uint256 nonce;
         mapping(address token => RebalanceDetails) details;
-        Range sellLimit; // D18{BU/share} 1e36 max
-        Range buyLimit; // D18{BU/share} 1e36 max
-        uint256 startedAt; // {s} inclusive, timestamp rebalancing started
-        uint256 restrictedUntil; // {s} exclusive, timestamp rebalancing is unrestricted to everyone
-        uint256 availableUntil; // {s} exclusive, timestamp rebalancing ends overall
+        LimitRange sellLimit; // D18{BU/share} (0, 1e36]
+        LimitRange buyLimit; // D18{BU/share} (0, 1e36]
+        uint256 startedAt; // {s} timestamp rebalancing started, inclusive
+        uint256 restrictedUntil; // {s} timestamp rebalancing is unrestricted to everyone, exclusive
+        uint256 availableUntil; // {s} timestamp rebalancing ends overall, exclusive
     }
 
     /// Auction states:
@@ -153,8 +153,8 @@ interface IFolio {
     ///   - CLOSED: block.timestamp > endTime
     struct Auction {
         uint256 rebalanceNonce;
-        uint256 sellLimit; // D18{BU/share}
-        uint256 buyLimit; // D18{BU/share}
+        uint256 sellLimit; // D18{BU/share} (0, 1e36]
+        uint256 buyLimit; // D18{BU/share} (0, 1e36]
         uint256 startTime; // {s} inclusive
         uint256 endTime; // {s} inclusive
     }

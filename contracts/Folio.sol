@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { AuctionLib } from "@utils/AuctionLib.sol";
-import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_WEIGHT, MAX_RATIO, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
+import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_WEIGHT, MAX_LIMIT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -138,8 +138,9 @@ contract Folio is
     /**
      * Auctions
      *   Openable by AUCTION_LAUNCHER -> Openable by anyone (optional) -> Running -> Closed
-     *   - There can only be one live auction per token pair
-     *   - Multiple bids can be executed against the same auction
+     *   - There can only be one live auction at a time
+     *   - An auction is in parallel on all token pairs at the same time
+     *   - Bids are of any size, up to a maximum
      *   - All auctions are dutch auctions with an exponential decay curve, but startPrice can equal endPrice
      */
     mapping(uint256 id => Auction auction) public auctions;
@@ -456,13 +457,18 @@ contract Folio is
     function getRebalance()
         external
         view
-        returns (address[] memory tokens, uint256[] memory weights, Prices[] memory prices, bool[] memory inRebalance)
+        returns (
+            address[] memory tokens,
+            uint256[] memory weights,
+            PriceRange[] memory prices,
+            bool[] memory inRebalance
+        )
     {
         tokens = basket.values();
         uint256 len = tokens.length;
 
         weights = new uint256[](len);
-        prices = new Prices[](len);
+        prices = new PriceRange[](len);
         inRebalance = new bool[](len);
 
         for (uint256 i; i < len; i++) {
@@ -474,21 +480,23 @@ contract Folio is
         }
     }
 
-    /// Start a new rebalance, ending currently running auctions
+    /// Start a new rebalance, ending the currently running auction
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
     /// @param newTokens Tokens to add to the basket, MUST be unique
     /// @param newWeights D27{tok/BU} New basket weights for basket unit definition
-    /// @param newPrices D27{UoA/tok} Prices for each token in terms of the unit of account
+    /// @param newPrices D27{UoA/tok} PriceRange for each token in terms of the unit of account
     ///                  Can pass 0 for ALL token prices to defer to AUCTION_LAUNCHER (cannot pick and choose)
+    /// @param sellLimit D18{BU/share} Level to sell down to, inclusive (0, 1e36]
+    /// @param buyLimit D18{BU/share} Level to buy up to, inclusive (0, 1e36]
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions
     /// @param ttl {s} The amount of time the rebalance is valid for
     function startRebalance(
         address[] calldata newTokens,
         uint256[] calldata newWeights,
-        Prices[] calldata newPrices,
-        Range calldata sellLimit,
-        Range calldata buyLimit,
+        PriceRange[] calldata newPrices,
+        LimitRange calldata sellLimit,
+        LimitRange calldata buyLimit,
         uint256 auctionLauncherWindow,
         uint256 ttl
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
@@ -501,19 +509,20 @@ contract Folio is
             delete rebalance.details[oldTokens[i]];
         }
 
-        // enforce array lengths are equal
+        // enforce array lengths
         len = newTokens.length;
         require(len != 0 && len == newWeights.length && len == newPrices.length, Folio__InvalidArrayLengths());
 
-        // enforce limits are valid
+        // enforce limits
         require(
-            sellLimit.low <= sellLimit.spot && sellLimit.spot <= sellLimit.high && sellLimit.high <= MAX_RATIO,
+            sellLimit.low <= sellLimit.spot && sellLimit.spot <= sellLimit.high && sellLimit.high <= MAX_LIMIT,
             Folio__InvalidLimits()
         );
         require(
-            buyLimit.low <= buyLimit.spot && buyLimit.spot <= buyLimit.high && buyLimit.high <= MAX_RATIO,
+            buyLimit.low <= buyLimit.spot && buyLimit.spot <= buyLimit.high && buyLimit.high <= MAX_LIMIT,
             Folio__InvalidLimits()
         );
+        require(sellLimit.low != 0 && buyLimit.low != 0 && sellLimit.spot >= buyLimit.spot, Folio__InvalidLimits());
 
         // enforce that if one price is 0, all prices are 0
         bool deferPrices = newPrices[0].low == 0;
@@ -574,7 +583,7 @@ contract Folio is
     /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits
     /// @dev Allow clobbering existing running auction
     /// @param rebalanceNonce The nonce of the rebalance
-    /// @param tokens The tokens in the rebalance, must be complete and unique; pass empty array if pricing already set
+    /// @param tokens The tokens in the rebalance to set prices for; pass empty array if pricing already set
     /// @param prices D27{UoA/tok} The prices of the provided tokens; pass empty array if pricing already set
     /// @param sellLimit D18{BU/share} Level to sell down to, inclusive
     /// @param buyLimit D18{BU/share} Level to buy up to, inclusive, 1e36 max
@@ -582,7 +591,7 @@ contract Folio is
     function openAuction(
         uint256 rebalanceNonce,
         IERC20[] calldata tokens,
-        Prices[] calldata prices,
+        PriceRange[] calldata prices,
         uint256 sellLimit,
         uint256 buyLimit
     ) external onlyRole(AUCTION_LAUNCHER) nonReentrant notDeprecated sync returns (uint256 auctionId) {
@@ -593,7 +602,7 @@ contract Folio is
         uint256 len = tokens.length;
         require(len == prices.length, Folio__InvalidArrayLengths());
 
-        // save prices to rebalance
+        // save prices to ongoing rebalance
         for (uint256 i; i < len; i++) {
             require(prices[i].low != 0 && prices[i].high != 0, Folio__InvalidPrices());
 
