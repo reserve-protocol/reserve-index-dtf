@@ -46,17 +46,17 @@ library AuctionLib {
             IFolio.Folio__AuctionCannotBeOpenedWithoutRestriction()
         );
 
-        // confirm valid targets
+        // confirm valid limits
         require(
             sellLimit >= buyLimit && sellLimit <= targets.high && buyLimit >= targets.low,
             IFolio.Folio__InvalidTargets()
         );
 
-        // narrow low/high targets to prevent double trading in the future by openAuction()
+        // narrow low/high rebalance targets to prevent double trading in the future by openAuction()
         targets.high = sellLimit;
         targets.low = buyLimit;
 
-        // update spot limits to prevent double trading in the future by openAuctionUnrestricted()
+        // update spot rebalance target to prevent double trading in the future by openAuctionUnrestricted()
         if (sellLimit < targets.spot) {
             targets.spot = sellLimit;
         }
@@ -72,6 +72,8 @@ library AuctionLib {
             endTime: block.timestamp + auctionLength
         });
         auctions[auctionId] = auction;
+
+        // TODO add surplus / deficit arrays to event
 
         emit IFolio.AuctionOpened(auctionId, auction);
     }

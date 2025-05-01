@@ -576,6 +576,8 @@ contract Folio is
     }
 
     // TODO modify openAuction() to support nativeDTFs
+    // if deferPrices: give full prices control every time
+    // does governance just pass in RebalanceTargets.spot?
 
     /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU targets
     /// @dev Allow clobbering existing running auction
