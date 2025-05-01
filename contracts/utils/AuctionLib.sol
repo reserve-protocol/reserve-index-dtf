@@ -13,6 +13,7 @@ import { MathLib } from "@utils/MathLib.sol";
 
 library AuctionLib {
     /// Open a new auction
+    /// @param rebalanceNonce The rebalance targeted by the auction opener
     /// @param auctionLength {s} The amount of time the auction is open for
     /// @param sellLimit D18{BU/share} Level to sell down to, inclusive
     /// @param buyLimit D18{BU/share} Level to buy up to, inclusive, 1e36 max
@@ -20,13 +21,15 @@ library AuctionLib {
     function openAuction(
         IFolio.Rebalance storage rebalance,
         uint256 rebalanceNonce,
+        mapping(uint256 auctionId => IFolio.Auction) storage auctions,
+        uint256 auctionId,
         uint256 auctionLength,
         uint256 sellLimit,
         uint256 buyLimit,
         uint256 auctionBuffer
-    ) external returns (IFolio.Auction memory auction) {
-        IFolio.Range storage sellRange = rebalance.sellLimit;
-        IFolio.Range storage buyRange = rebalance.buyLimit;
+    ) external {
+        IFolio.Range storage sellLimitRange = rebalance.sellLimit;
+        IFolio.Range storage buyLimitRange = rebalance.buyLimit;
 
         // confirm right rebalance
         require(rebalanceNonce == rebalance.nonce, IFolio.Folio__InvalidRebalanceNonce());
@@ -38,30 +41,34 @@ library AuctionLib {
         );
 
         // confirm valid limits
-        require(sellLimit >= sellRange.low && sellLimit <= sellRange.high, IFolio.Folio__InvalidSellLimit());
-        require(buyLimit >= buyRange.low && buyLimit <= buyRange.high, IFolio.Folio__InvalidBuyLimit());
+        require(sellLimit >= sellLimitRange.low && sellLimit <= sellLimitRange.high, IFolio.Folio__InvalidSellLimit());
+        require(buyLimit >= buyLimitRange.low && buyLimit <= buyLimitRange.high, IFolio.Folio__InvalidBuyLimit());
 
         // update spot limits to prevent double trading in the future by openAuctionUnrestricted()
-        sellRange.spot = sellLimit;
-        buyRange.spot = buyLimit;
+        sellLimitRange.spot = sellLimit;
+        buyLimitRange.spot = buyLimit;
 
         // update low/high limits to prevent double trading in the future by openAuction()
-        sellRange.high = sellLimit;
-        buyRange.low = buyLimit;
+        sellLimitRange.high = sellLimit;
+        buyLimitRange.low = buyLimit;
         // by lowering the high sell limit the AUCTION_LAUNCHER cannot backtrack by re-buying sell assets in the future
         // by raising the low buy limit the AUCTION_LAUNCHER cannot backtrack by re-selling buy assets in the future
         // intentional: by leaving the other 2 limits unchanged (sellLimit.low and buyLimit.high) there can be future
         //              auctions to trade FURTHER, incase current auction goes better than expected
 
-        auction = IFolio.Auction({
+        IFolio.Auction memory auction = IFolio.Auction({
             rebalanceNonce: rebalance.nonce,
             sellLimit: sellLimit,
             buyLimit: buyLimit,
             startTime: block.timestamp,
             endTime: block.timestamp + auctionLength
         });
+        auctions[auctionId] = auction;
+
+        emit IFolio.AuctionOpened(auctionId, auction);
     }
 
+    /// @dev stack-too-deep
     /// @param totalSupply {share} Current total supply of the Folio
     /// @param timestamp {s} Timestamp to fetch bid for
     /// @param sellBal {sellTok} Folio's available balance of sell token, including any active fills
@@ -92,21 +99,32 @@ library AuctionLib {
     ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
         assert(params.minSellAmount <= params.maxSellAmount);
 
-        IFolio.RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
-        IFolio.RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
-
-        require(sellDetails.inRebalance && buyDetails.inRebalance, IFolio.Folio__TokenNotInRebalance());
-
-        // checks auction is ongoing
+        // checks auction is ongoing and part of rebalance
         // D27{buyTok/sellTok}
-        price = _price(auction, sellDetails, buyDetails, params.timestamp);
+        price = _price(rebalance, auction, sellToken, buyToken, params.timestamp);
+
+        // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
+        uint256 sellLimit = Math.mulDiv(
+            auction.sellLimit,
+            rebalance.details[address(sellToken)].weight,
+            D18,
+            Math.Rounding.Ceil
+        );
 
         // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 sellLimitBal = Math.mulDiv(auction.sellLimit, params.totalSupply, D27, Math.Rounding.Ceil);
+        uint256 sellLimitBal = Math.mulDiv(sellLimit, params.totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = params.sellBal > sellLimitBal ? params.sellBal - sellLimitBal : 0;
 
+        // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
+        uint256 buyLimit = Math.mulDiv(
+            auction.buyLimit,
+            rebalance.details[address(buyToken)].weight,
+            D18,
+            Math.Rounding.Floor
+        );
+
         // {buyTok} = D27{buyTok/share} * {share} / D27
-        uint256 buyLimitBal = Math.mulDiv(auction.buyLimit, params.totalSupply, D27, Math.Rounding.Floor);
+        uint256 buyLimitBal = Math.mulDiv(buyLimit, params.totalSupply, D27, Math.Rounding.Floor);
         uint256 buyAvailable = params.buyBal < buyLimitBal ? buyLimitBal - params.buyBal : 0;
 
         // maximum valid token balance is 1e36; do not try to buy more than this
@@ -130,7 +148,6 @@ library AuctionLib {
     /// Bid in an ongoing auction
     ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
     ///   If withCallback is false, caller must have provided an allowance in advance
-    /// @dev Callable by anyone
     /// @param sellAmount {sellTok} Sell amount as returned by getBid
     /// @param bidAmount {buyTok} Bid amount as returned by getBid
     /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
@@ -198,13 +215,24 @@ library AuctionLib {
 
     /// @return p D27{buyTok/sellTok}
     function _price(
+        IFolio.Rebalance storage rebalance,
         IFolio.Auction storage auction,
-        IFolio.RebalanceDetails storage sellDetails,
-        IFolio.RebalanceDetails storage buyDetails,
+        IERC20 sellToken,
+        IERC20 buyToken,
         uint256 timestamp
     ) internal view returns (uint256 p) {
-        // ensure auction is ongoing
-        require(timestamp >= auction.startTime && timestamp <= auction.endTime, IFolio.Folio__AuctionNotOngoing());
+        IFolio.RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
+        IFolio.RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
+
+        // ensure auction is ongoing and token pair is in rebalance
+        require(
+            auction.rebalanceNonce == rebalance.nonce &&
+                sellDetails.inRebalance &&
+                buyDetails.inRebalance &&
+                timestamp >= auction.startTime &&
+                timestamp <= auction.endTime,
+            IFolio.Folio__AuctionNotOngoing()
+        );
 
         // D27{buyTok/sellTok} = D27{UoA/sellTok} * D27 / D27{UoA/buyTok}
         uint256 startPrice = Math.mulDiv(sellDetails.prices.high, D27, buyDetails.prices.low, Math.Rounding.Ceil);

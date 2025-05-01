@@ -479,7 +479,8 @@ contract Folio is
     /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
     /// @param newTokens Tokens to add to the basket, MUST be unique
     /// @param newWeights D27{tok/BU} New basket weights for basket unit definition
-    /// @param newPrices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be 0
+    /// @param newPrices D27{UoA/tok} Prices for each token in terms of the unit of account
+    ///                  Can pass 0 for ALL token prices to defer to AUCTION_LAUNCHER (cannot pick and choose)
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions
     /// @param ttl {s} The amount of time the rebalance is valid for
     function startRebalance(
@@ -514,6 +515,9 @@ contract Folio is
             Folio__InvalidLimits()
         );
 
+        // enforce that if one price is 0, all prices are 0
+        bool deferPrices = newPrices[0].low == 0;
+
         // set new token details
         for (uint256 i; i < len; i++) {
             address token = newTokens[i];
@@ -524,14 +528,21 @@ contract Folio is
             // enforce weight is in range
             require(newWeights[i] <= MAX_WEIGHT, Folio__InvalidWeights());
 
-            // enforce prices are valid and not too wide
+            // enforce prices are all 0 or all >0
             require(
-                newPrices[i].low != 0 &&
-                    newPrices[i].low <= newPrices[i].high &&
-                    newPrices[i].high <= MAX_TOKEN_PRICE &&
-                    newPrices[i].high <= MAX_TOKEN_PRICE_RANGE * newPrices[i].low,
+                deferPrices == (newPrices[i].low == 0) && deferPrices == (newPrices[i].high == 0),
                 Folio__InvalidPrices()
             );
+
+            if (!deferPrices) {
+                // confirm valid prices and not too wide
+                require(
+                    newPrices[i].low <= newPrices[i].high &&
+                        newPrices[i].high <= MAX_TOKEN_PRICE &&
+                        newPrices[i].high <= MAX_TOKEN_PRICE_RANGE * newPrices[i].low,
+                    Folio__InvalidPrices()
+                );
+            }
 
             _addToBasket(token);
             rebalance.details[token] = RebalanceDetails({
@@ -561,12 +572,17 @@ contract Folio is
     }
 
     /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits
+    /// @dev Allow clobbering existing running auction
     /// @param rebalanceNonce The nonce of the rebalance
+    /// @param tokens The tokens in the rebalance, must be complete and unique; pass empty array if pricing already set
+    /// @param prices D27{UoA/tok} The prices of the provided tokens; pass empty array if pricing already set
     /// @param sellLimit D18{BU/share} Level to sell down to, inclusive
     /// @param buyLimit D18{BU/share} Level to buy up to, inclusive, 1e36 max
     /// @return auctionId The newly created auctionId
     function openAuction(
         uint256 rebalanceNonce,
+        IERC20[] calldata tokens,
+        Prices[] calldata prices,
         uint256 sellLimit,
         uint256 buyLimit
     ) external onlyRole(AUCTION_LAUNCHER) nonReentrant notDeprecated sync returns (uint256 auctionId) {
@@ -574,13 +590,34 @@ contract Folio is
         nextAuctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
         auctionId = nextAuctionId++;
 
+        uint256 len = tokens.length;
+        require(len == prices.length, Folio__InvalidArrayLengths());
+
+        // save prices to rebalance
+        for (uint256 i; i < len; i++) {
+            require(prices[i].low != 0 && prices[i].high != 0, Folio__InvalidPrices());
+
+            RebalanceDetails storage details = rebalance.details[address(tokens[i])];
+            require(details.inRebalance && details.prices.low == 0, Folio__PricingNotDeferred());
+
+            details.prices = prices[i];
+        }
+
+        address[] memory basketTokens = basket.values();
+        len = basketTokens.length;
+
+        // ensure all tokens in rebalance have nonzero prices
+        for (uint256 i; i < len; i++) {
+            RebalanceDetails storage details = rebalance.details[address(tokens[i])];
+            require(!details.inRebalance || rebalance.details[basketTokens[i]].prices.low != 0, Folio__InvalidPrices());
+        }
+
         // open an auction on provided limits
-        auctions[auctionId] = AuctionLib.openAuction(rebalance, rebalanceNonce, auctionLength, sellLimit, buyLimit, 0);
-        emit AuctionOpened(auctionId, auctions[auctionId]);
+        AuctionLib.openAuction(rebalance, rebalanceNonce, auctions, auctionId, auctionLength, sellLimit, buyLimit, 0);
     }
 
     /// Open an auction without restrictions
-    /// @dev Callable only after the auction launcher window passes
+    /// @dev Callable only after the auction launcher window passes, and when no other auction is ongoing
     /// @return auctionId The newly created auctionId
     function openAuctionUnrestricted(
         uint256 rebalanceNonce
@@ -591,16 +628,24 @@ contract Folio is
         nextAuctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
         auctionId = nextAuctionId++;
 
+        // confirm no auction collision
+        Auction storage lastAuction = auctions[auctionId - 1];
+        require(
+            lastAuction.rebalanceNonce != rebalanceNonce || lastAuction.endTime < block.timestamp,
+            Folio__AuctionCannotBeOpenedWithoutRestriction()
+        );
+
         // open an auction on saved spot limits
-        auctions[auctionId] = AuctionLib.openAuction(
+        AuctionLib.openAuction(
             rebalance,
             rebalanceNonce,
+            auctions,
+            auctionId,
             auctionLength,
             rebalance.sellLimit.spot,
             rebalance.buyLimit.spot,
             RESTRICTED_AUCTION_BUFFER
         );
-        emit AuctionOpened(auctionId, auctions[auctionId]);
     }
 
     /// Get auction bid parameters at the current timestamp, up to a maximum sell amount
@@ -730,10 +775,9 @@ contract Folio is
                 hasRole(AUCTION_LAUNCHER, msg.sender),
             Folio__Unauthorized()
         );
-        Auction storage auction = auctions[auctionId];
 
         // do not revert, to prevent griefing
-        auction.endTime = block.timestamp - 1;
+        auctions[auctionId].endTime = block.timestamp - 1;
 
         emit AuctionClosed(auctionId);
     }

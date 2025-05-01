@@ -86,7 +86,7 @@ interface IFolio {
     error Folio__InvalidTTL();
     error Folio__NotRebalancing();
     error Folio__InvalidRebalanceNonce();
-    error Folio__TokenNotInRebalance();
+    error Folio__PricingNotDeferred();
 
     // === Structures ===
 
