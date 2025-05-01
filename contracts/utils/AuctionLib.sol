@@ -40,6 +40,13 @@ library AuctionLib {
             IFolio.Folio__NotRebalancing()
         );
 
+        // confirm buffer between auctions
+        IFolio.Auction storage lastAuction = auctions[auctionId - 1];
+        require(
+            lastAuction.rebalanceNonce != rebalanceNonce || lastAuction.endTime + auctionBuffer < block.timestamp,
+            IFolio.Folio__AuctionCannotBeOpenedWithoutRestriction()
+        );
+
         // confirm valid limits
         require(sellLimit >= sellLimitRange.low && sellLimit <= sellLimitRange.high, IFolio.Folio__InvalidSellLimit());
         require(buyLimit >= buyLimitRange.low && buyLimit <= buyLimitRange.high, IFolio.Folio__InvalidBuyLimit());
