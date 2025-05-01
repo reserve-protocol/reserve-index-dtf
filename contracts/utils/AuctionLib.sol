@@ -15,8 +15,8 @@ library AuctionLib {
     /// Open a new auction
     /// @param rebalanceNonce The rebalance targeted by the auction opener
     /// @param auctionLength {s} The amount of time the auction is open for
-    /// @param sellLimit D18{BU/share} Level to sell down to, inclusive
-    /// @param buyLimit D18{BU/share} Level to buy up to, inclusive, 1e36 max
+    /// @param sellLimit D18{BU/share} Target level to sell down to, inclusive (0, 1e36]
+    /// @param buyLimit D18{BU/share} Target level to buy up to, inclusive (0, 1e36]
     /// @param auctionBuffer {s} The amount of time the auction is open for
     function openAuction(
         IFolio.Rebalance storage rebalance,
@@ -28,8 +28,7 @@ library AuctionLib {
         uint256 buyLimit,
         uint256 auctionBuffer
     ) external {
-        IFolio.LimitRange storage sellLimitRange = rebalance.sellLimit;
-        IFolio.LimitRange storage buyLimitRange = rebalance.buyLimit;
+        IFolio.RebalanceTargets storage targets = rebalance.targets;
 
         // confirm right rebalance
         require(rebalanceNonce == rebalance.nonce, IFolio.Folio__InvalidRebalanceNonce());
@@ -47,23 +46,23 @@ library AuctionLib {
             IFolio.Folio__AuctionCannotBeOpenedWithoutRestriction()
         );
 
-        // confirm valid limits
-        require(sellLimit >= sellLimitRange.low && sellLimit <= sellLimitRange.high, IFolio.Folio__InvalidSellLimit());
-        require(buyLimit >= buyLimitRange.low && buyLimit <= buyLimitRange.high, IFolio.Folio__InvalidBuyLimit());
+        // confirm valid targets
+        require(
+            sellLimit >= buyLimit && sellLimit <= targets.high && buyLimit >= targets.low,
+            IFolio.Folio__InvalidTargets()
+        );
 
-        require(sellLimit >= buyLimit, IFolio.Folio__InvalidLimits());
+        // narrow low/high targets to prevent double trading in the future by openAuction()
+        targets.high = sellLimit;
+        targets.low = buyLimit;
 
         // update spot limits to prevent double trading in the future by openAuctionUnrestricted()
-        sellLimitRange.spot = sellLimit;
-        buyLimitRange.spot = buyLimit;
-
-        // update low/high limits to prevent double trading in the future by openAuction()
-        sellLimitRange.high = sellLimit;
-        buyLimitRange.low = buyLimit;
-        // by lowering the high sell limit the AUCTION_LAUNCHER cannot backtrack by re-buying sell assets in the future
-        // by raising the low buy limit the AUCTION_LAUNCHER cannot backtrack by re-selling buy assets in the future
-        // intentional: by leaving the other 2 limits unchanged (sellLimit.low and buyLimit.high) there can be future
-        //              auctions to trade FURTHER, incase current auction goes better than expected
+        if (sellLimit < targets.spot) {
+            targets.spot = sellLimit;
+        }
+        if (buyLimit > targets.spot) {
+            targets.spot = buyLimit;
+        }
 
         IFolio.Auction memory auction = IFolio.Auction({
             rebalanceNonce: rebalance.nonce,

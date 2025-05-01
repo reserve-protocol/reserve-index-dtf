@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { AuctionLib } from "@utils/AuctionLib.sol";
-import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_WEIGHT, MAX_LIMIT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
+import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_WEIGHT, MAX_TARGET, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -45,7 +45,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * An auction for a given token pair can run any number of times. However it requires the sell token to be in surplus
  * and the buy token in deficit.
  *
- * Targets for the rebalance are called "limits" and defined in basket ratios: ratios of token to Folio shares, D27{tok/share}
+ * Targets for the rebalance are defined in basket ratios: ratios of token to Folio shares, D27{tok/share}
  *
  * Fees:
  *   - TVL fee: fee per unit time. Max 10% annually. Causes supply inflation over time, discretely once a day.
@@ -128,8 +128,7 @@ contract Folio is
      *   - An auction is implicitly for _all pairs_ of tokens in the basket
      *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil
      *   - Auctions cannot be launched after availableUntil, though their end time may extend past it
-     *   - The AUCTION_LAUNCHER acts within the bounds set by the REBALANCE_MANAGER, adding precision to limits/prices
-     *   - If the AUCTION_LAUNCHER is not active, the original spot estimates from the REBALANCE_MANAGER are used
+     *   - If the AUCTION_LAUNCHER is not active, the original spot target provided by the REBALANCE_MANAGER are used
      *   - At anytime the rebalance can be stopped or a new one can be started (closing live auctions)
      *   - The AUCTION_LAUNCHER is limited in the damage they can do and can always be removed if griefing
      */
@@ -487,16 +486,14 @@ contract Folio is
     /// @param newWeights D27{tok/BU} New basket weights for basket unit definition
     /// @param newPrices D27{UoA/tok} PriceRange for each token in terms of the unit of account
     ///                  Can pass 0 for ALL token prices to defer to AUCTION_LAUNCHER (cannot pick and choose)
-    /// @param sellLimit D18{BU/share} Level to sell down to, inclusive (0, 1e36]
-    /// @param buyLimit D18{BU/share} Level to buy up to, inclusive (0, 1e36]
+    /// @param targets D18{BU/share} Targets to sell and buy up to / down to, inclusive (0, 1e36]
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions
     /// @param ttl {s} The amount of time the rebalance is valid for
     function startRebalance(
         address[] calldata newTokens,
         uint256[] calldata newWeights,
         PriceRange[] calldata newPrices,
-        LimitRange calldata sellLimit,
-        LimitRange calldata buyLimit,
+        RebalanceTargets calldata targets,
         uint256 auctionLauncherWindow,
         uint256 ttl
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
@@ -513,16 +510,14 @@ contract Folio is
         len = newTokens.length;
         require(len != 0 && len == newWeights.length && len == newPrices.length, Folio__InvalidArrayLengths());
 
-        // enforce limits
+        // enforce targets validity
         require(
-            sellLimit.low <= sellLimit.spot && sellLimit.spot <= sellLimit.high && sellLimit.high <= MAX_LIMIT,
-            Folio__InvalidLimits()
+            targets.low != 0 &&
+                targets.low <= targets.spot &&
+                targets.spot <= targets.high &&
+                targets.high <= MAX_TARGET,
+            IFolio.Folio__InvalidTargets()
         );
-        require(
-            buyLimit.low <= buyLimit.spot && buyLimit.spot <= buyLimit.high && buyLimit.high <= MAX_LIMIT,
-            Folio__InvalidLimits()
-        );
-        require(sellLimit.low != 0 && buyLimit.low != 0 && sellLimit.spot >= buyLimit.spot, Folio__InvalidLimits());
 
         // enforce that if one price is 0, all prices are 0
         bool deferPrices = newPrices[0].low == 0;
@@ -562,31 +557,33 @@ contract Folio is
         }
 
         rebalance.nonce++;
-        rebalance.sellLimit = sellLimit;
-        rebalance.buyLimit = buyLimit;
+        rebalance.targets = targets;
         rebalance.startedAt = block.timestamp;
         rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
         rebalance.availableUntil = block.timestamp + ttl;
+        rebalance.deferPrices = deferPrices;
 
         emit RebalanceStarted(
             rebalance.nonce,
             newTokens,
             newWeights,
             newPrices,
-            sellLimit,
-            buyLimit,
+            targets,
             block.timestamp + auctionLauncherWindow,
-            block.timestamp + ttl
+            block.timestamp + ttl,
+            deferPrices
         );
     }
 
-    /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits
+    // TODO modify openAuction() to support nativeDTFs
+
+    /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU targets
     /// @dev Allow clobbering existing running auction
     /// @param rebalanceNonce The nonce of the rebalance
-    /// @param tokens The tokens in the rebalance to set prices for; pass empty array if pricing already set
-    /// @param prices D27{UoA/tok} The prices of the provided tokens; pass empty array if pricing already set
-    /// @param sellLimit D18{BU/share} Level to sell down to, inclusive
-    /// @param buyLimit D18{BU/share} Level to buy up to, inclusive, 1e36 max
+    /// @param tokens The tokens in the rebalance to set prices for; must be empty if !deferPrices
+    /// @param prices D27{UoA/tok} The prices of the provided tokens; must be empty if !deferPrices
+    /// @param sellLimit D18{BU/share} Target level to sell down to, inclusive (0, 1e36]
+    /// @param buyLimit D18{BU/share} Target level to buy up to, inclusive (0, 1e36]
     /// @return auctionId The newly created auctionId
     function openAuction(
         uint256 rebalanceNonce,
@@ -601,6 +598,7 @@ contract Folio is
 
         uint256 len = tokens.length;
         require(len == prices.length, Folio__InvalidArrayLengths());
+        require(len == 0 || rebalance.deferPrices, Folio__InvalidPrices());
 
         // save prices to ongoing rebalance
         for (uint256 i; i < len; i++) {
@@ -613,8 +611,7 @@ contract Folio is
             );
 
             RebalanceDetails storage details = rebalance.details[address(tokens[i])];
-            require(details.inRebalance && details.prices.low == 0, Folio__PricingNotDeferred());
-            // can only set prices once
+            require(details.inRebalance, Folio__PricingNotDeferred());
 
             details.prices = prices[i];
         }
@@ -633,7 +630,7 @@ contract Folio is
         // open an auction on provided limits
         AuctionLib.openAuction(rebalance, rebalanceNonce, auctions, auctionId, auctionLength, sellLimit, buyLimit, 0);
 
-        // extend deadlines if near
+        // extend deadlines if near end
         uint256 extension = block.timestamp + auctionLength + RESTRICTED_AUCTION_BUFFER * 2;
         if (extension > rebalance.restrictedUntil) {
             rebalance.restrictedUntil = extension;
@@ -655,15 +652,16 @@ contract Folio is
         nextAuctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
         auctionId = nextAuctionId++;
 
-        // open an auction on saved spot limits
+        // open an auction on saved spot targets
+        // use same spot target to determine BOTH surplus and deficits
         AuctionLib.openAuction(
             rebalance,
             rebalanceNonce,
             auctions,
             auctionId,
             auctionLength,
-            rebalance.sellLimit.spot,
-            rebalance.buyLimit.spot,
+            rebalance.targets.spot,
+            rebalance.targets.spot,
             RESTRICTED_AUCTION_BUFFER
         );
     }

@@ -31,10 +31,10 @@ interface IFolio {
         address[] tokens,
         uint256[] weights,
         PriceRange[] prices,
-        LimitRange sellLimit,
-        LimitRange buyLimit,
+        RebalanceTargets targets,
         uint256 restrictedUntil,
-        uint256 availableUntil
+        uint256 availableUntil,
+        bool deferPrices
     );
     event RebalanceEnded(uint256 nonce);
 
@@ -61,7 +61,7 @@ interface IFolio {
 
     error Folio__InvalidAuctionLength();
     error Folio__InvalidAuctionPrices();
-    error Folio__InvalidLimits();
+    error Folio__InvalidTargets();
     error Folio__InvalidWeights();
     error Folio__InvalidSellLimit();
     error Folio__InvalidBuyLimit();
@@ -120,10 +120,10 @@ interface IFolio {
         uint96 portion; // D18{1}
     }
 
-    struct LimitRange {
-        uint256 spot; // D18{BU/share}
-        uint256 low; // D18{BU/share}
-        uint256 high; // D18{BU/share}
+    struct RebalanceTargets {
+        uint256 spot; // D18{BU/share} // the final target destination
+        uint256 low; // D18{BU/share} // to buy assets up to
+        uint256 high; // D18{BU/share} // to sell assets down to
     }
 
     struct PriceRange {
@@ -140,11 +140,11 @@ interface IFolio {
     struct Rebalance {
         uint256 nonce;
         mapping(address token => RebalanceDetails) details;
-        LimitRange sellLimit; // D18{BU/share} (0, 1e36]
-        LimitRange buyLimit; // D18{BU/share} (0, 1e36]
+        RebalanceTargets targets; // D18{BU/share} (0, 1e36]
         uint256 startedAt; // {s} timestamp rebalancing started, inclusive
         uint256 restrictedUntil; // {s} timestamp rebalancing is unrestricted to everyone, exclusive
         uint256 availableUntil; // {s} timestamp rebalancing ends overall, exclusive
+        bool deferPrices; // whether prices were deferred to AUCTION_LAUNCHER
     }
 
     /// Auction states:
