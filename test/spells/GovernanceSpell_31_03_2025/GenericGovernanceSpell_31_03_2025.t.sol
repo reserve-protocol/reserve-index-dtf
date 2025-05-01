@@ -124,6 +124,13 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
                     executionDelayPeriodMultiplier
             );
 
+            console2.log("daoGovernor.votingDelay()", newStakingVaultGovernor.votingDelay());
+            console2.log("daoGovernor.votingPeriod()", newStakingVaultGovernor.votingPeriod());
+            console2.log(
+                "daoGovernor.executionDelay()",
+                TimelockController(payable(newStakingVaultGovernor.timelock())).getMinDelay()
+            );
+
             // folio
 
             vm.startPrank(address(ownerTimelock));
@@ -169,6 +176,13 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
                 TimelockController(payable(ownerGovernor.timelock())).getMinDelay()
             );
 
+            console2.log("ownerGovernor.votingDelay()", newOwnerGovernor.votingDelay());
+            console2.log("ownerGovernor.votingPeriod()", newOwnerGovernor.votingPeriod());
+            console2.log(
+                "ownerTimelock.executionDelay()",
+                TimelockController(payable(newOwnerGovernor.timelock())).getMinDelay()
+            );
+
             assertEq(newTradingGovernor.votingDelay(), tradingGovernor.votingDelay());
             assertEq(newTradingGovernor.votingPeriod(), tradingGovernor.votingPeriod());
             assertEq(newTradingGovernor.quorumNumerator(), tradingGovernor.quorumNumerator() * 1e16);
@@ -182,6 +196,13 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
             assertEq(
                 TimelockController(payable(newTradingGovernor.timelock())).getMinDelay(),
                 TimelockController(payable(tradingGovernor.timelock())).getMinDelay()
+            );
+
+            console2.log("tradingGovernor.votingDelay()", newTradingGovernor.votingDelay());
+            console2.log("tradingGovernor.votingPeriod()", newTradingGovernor.votingPeriod());
+            console2.log(
+                "tradingTimelock.executionDelay()",
+                TimelockController(payable(newTradingGovernor.timelock())).getMinDelay()
             );
 
             // post-fork proposal
