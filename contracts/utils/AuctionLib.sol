@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
@@ -12,6 +13,8 @@ import { D18, D27, MAX_TOKEN_BALANCE } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 
 library AuctionLib {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
     /// Open a new auction
     /// @param rebalanceNonce The rebalance targeted by the auction opener
     /// @param auctionLength {s} The amount of time the auction is open for
@@ -73,7 +76,9 @@ library AuctionLib {
         });
         auctions[auctionId] = auction;
 
-        // TODO add surplus / deficit arrays to event?
+        // TODO
+        // add surplus / deficit arrays to event?
+        // Facade-like contract to reduce RPC requirements?
 
         emit IFolio.AuctionOpened(auctionId, auction);
     }
@@ -108,6 +113,8 @@ library AuctionLib {
         GetBidParams memory params
     ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
         assert(params.minSellAmount <= params.maxSellAmount);
+
+        require(auction.rebalanceNonce == rebalance.nonce, IFolio.Folio__AuctionNotOngoing());
 
         // checks auction is ongoing and part of rebalance
         // D27{buyTok/sellTok}

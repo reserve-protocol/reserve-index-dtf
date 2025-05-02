@@ -34,7 +34,7 @@ interface IFolio {
         uint256 targetBaskets,
         uint256 restrictedUntil,
         uint256 availableUntil,
-        bool trustAuctionLauncherPricing
+        TrustLevel auctionLauncherTrustLevel
     );
     event RebalanceEnded(uint256 nonce);
 
@@ -91,6 +91,13 @@ interface IFolio {
 
     // === Structures ===
 
+    /// AUCTION_LAUNCHER trust level
+    enum TrustLevel {
+        UNTRUSTED, // cannot revise prices
+        SEMI_TRUSTED, // can revise prices, within bounds
+        TRUSTED // can revise prices arbitrarily
+    }
+
     struct FolioBasicDetails {
         string name;
         string symbol;
@@ -121,29 +128,36 @@ interface IFolio {
         uint96 portion; // D18{1}
     }
 
+    /// Target limits for rebalancing
     struct RebalanceLimits {
-        uint256 spot; // D18{BU/share} // the ideal destination (0, 1e36]
+        uint256 spot; // D18{BU/share} // estimate of the ideal destination for rebalancing (0, 1e36]
         uint256 low; // D18{BU/share} // to buy assets up to (0, 1e36]
         uint256 high; // D18{BU/share} // to sell assets down to (0, 1e36]
     }
 
+    /// Range of basket weights for BU definition
     struct WeightRange {
         uint256 spot; // D27{tok/BU} [0, 1e54]
         uint256 low; // D27{tok/BU} [0, 1e54]
         uint256 high; // D27{tok/BU} [0, 1e54]
     }
 
+    /// Individual token price ranges
+    /// @dev Unit of Account can be anything as long as it's consistent; USD is most common
     struct PriceRange {
         uint256 low; // D27{UoA/tok}
         uint256 high; // D27{UoA/tok}
     }
 
+    /// Rebalance details for a token
     struct RebalanceDetails {
         bool inRebalance;
         WeightRange weights; // D27{tok/BU} [0, 1e54]
-        PriceRange prices; // D27{UoA/tok} prices can be in any Unit of Account as long as it's consistent (0, 1e54]
+        PriceRange prices; // D27{UoA/tok} current latest prices (0, 1e54]
+        PriceRange initialPrices; // D27{UoA/tok} (0, 1e54]
     }
 
+    /// Singleton rebalance state
     struct Rebalance {
         uint256 nonce;
         mapping(address token => RebalanceDetails) details;
@@ -151,17 +165,18 @@ interface IFolio {
         uint256 startedAt; // {s} timestamp rebalancing started, inclusive
         uint256 restrictedUntil; // {s} timestamp rebalancing is unrestricted to everyone, exclusive
         uint256 availableUntil; // {s} timestamp rebalancing ends overall, exclusive
-        bool trustAuctionLauncherPricing; // whether prices can be revised by the AUCTION_LAUNCHER
+        TrustLevel auctionLauncherTrustLevel; // degree to which prices can be revised by the AUCTION_LAUNCHER
     }
 
+    /// 1 running auction at a time; N per rebalance overall
     /// Auction states:
     ///   - APPROVED: startTime == 0 && endTime == 0
     ///   - OPEN: block.timestamp >= startTime && block.timestamp <= endTime
     ///   - CLOSED: block.timestamp > endTime
     struct Auction {
         uint256 rebalanceNonce;
-        uint256 sellLimit; // D18{BU/share} (0, 1e36]
-        uint256 buyLimit; // D18{BU/share} (0, 1e36]
+        uint256 sellLimit; // D18{BU/share} rebalance limit to sell down to (0, 1e36]
+        uint256 buyLimit; // D18{BU/share} rebalance limit to buy up to (0, 1e36]
         uint256 startTime; // {s} inclusive
         uint256 endTime; // {s} inclusive
     }

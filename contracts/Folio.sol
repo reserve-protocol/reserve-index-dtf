@@ -125,22 +125,20 @@ contract Folio is
      *   REBALANCE_MANAGER
      *   - There can only be 1 rebalance live at a time
      *   - There can be any number of auctions within a rebalance, but only one live at a time
-     *   - An auction is implicitly for _all pairs_ of tokens in the basket
-     *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil
+     *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil, with possible extensions
      *   - Auctions cannot be launched after availableUntil, though their end time may extend past it
-     *   - If the AUCTION_LAUNCHER is not active, the original spot limit provided by the REBALANCE_MANAGER are used
-     *   - At anytime the rebalance can be stopped or a new one can be started (closing live auctions)
-     *   - The AUCTION_LAUNCHER is limited in the damage they can do and can always be removed if griefing
+     *   - The first auction the AUCTION_LAUNCHER can set new basket weights, within bounds
+     *   - Depending on the TrustLevel, the AUCTION_LAUNCHER can set new prices either completely, within bounds, or never
+     *   - At anytime the rebalance can be stopped or a new one can be started (closing any ongoing auction)
      */
     Rebalance public rebalance;
 
     /**
      * Auctions
      *   Openable by AUCTION_LAUNCHER -> Openable by anyone (optional) -> Running -> Closed
-     *   - There can only be one live auction at a time
-     *   - An auction is in parallel on all token pairs at the same time
+     *   - An auction is in parallel on all surplus/deficit token pairs at the same time
      *   - Bids are of any size, up to a maximum
-     *   - All auctions are dutch auctions with an exponential decay curve, but startPrice can equal endPrice
+     *   - All auctions are dutch auctions with an exponential decay curve, but startPrice can potentiallny equal endPrice
      */
     mapping(uint256 id => Auction auction) public auctions;
     uint256 public nextAuctionId;
@@ -451,7 +449,8 @@ contract Folio is
     /// @dev Nonzero return values do not imply a rebalance is ongoing; check `rebalance.availableUntil`
     /// @return tokens The tokens in the basket
     /// @return weights D27{tok/BU} The weights of the tokens in the basket
-    /// @return prices D27{UoA/tok} The prices of the tokens in the basket
+    /// @return prices D27{UoA/tok} The current prices of the tokens in the basket
+    /// @return initialPrices D27{UoA/tok} The initial prices of the tokens in the basket
     /// @return inRebalance Whether the token is in the rebalance
     function getRebalance()
         external
@@ -460,6 +459,7 @@ contract Folio is
             address[] memory tokens,
             WeightRange[] memory weights,
             PriceRange[] memory prices,
+            PriceRange[] memory initialPrices,
             bool[] memory inRebalance
         )
     {
@@ -468,6 +468,7 @@ contract Folio is
 
         weights = new WeightRange[](len);
         prices = new PriceRange[](len);
+        initialPrices = new PriceRange[](len);
         inRebalance = new bool[](len);
 
         for (uint256 i; i < len; i++) {
@@ -475,6 +476,7 @@ contract Folio is
 
             weights[i] = details.weights;
             prices[i] = details.prices;
+            initialPrices[i] = details.initialPrices;
             inRebalance[i] = details.inRebalance;
         }
     }
@@ -483,12 +485,12 @@ contract Folio is
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
     /// @param newTokens Tokens to add to the basket, MUST be unique
-    /// @param newBasketWeights D27{tok/BU} New basket weight ranges for the basket unit definition [0, 1e54]
-    /// @param newPrices D27{UoA/tok} Prices for each token in terms of the unit of account, cannot be 0 or empty (0, 1e54]
+    /// @param newBasketWeights D27{tok/BU} New basket weight ranges for the basket unit definition; cannot be empty [0, 1e54]
+    /// @param newPrices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e54]
     /// @param targetBaskets D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e36]
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
     /// @param ttl {s} The amount of time the rebalance is valid for, can be extended
-    /// @param trustAuctionLauncherPricing If true, the AUCTION_LAUNCHER can revise prices on every auction
+    /// @param auctionLauncherTrustLevel How much to trust AUCTION_LAUNCHER pricing [UNTRUSTED, SEMI_TRUSTED, TRUSTED]
     function startRebalance(
         address[] calldata newTokens,
         WeightRange[] calldata newBasketWeights,
@@ -496,7 +498,7 @@ contract Folio is
         uint256 targetBaskets,
         uint256 auctionLauncherWindow,
         uint256 ttl,
-        bool trustAuctionLauncherPricing
+        TrustLevel auctionLauncherTrustLevel
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
         require(ttl >= auctionLauncherWindow && ttl <= MAX_TTL, Folio__InvalidTTL());
 
@@ -529,9 +531,10 @@ contract Folio is
                 Folio__InvalidWeights()
             );
 
-            // enforce valid prices and not too wide
+            // enforce prices internal consistency
             require(
-                newPrices[i].low <= newPrices[i].high &&
+                newPrices[i].low != 0 &&
+                    newPrices[i].low <= newPrices[i].high &&
                     newPrices[i].high <= MAX_TOKEN_PRICE &&
                     newPrices[i].high <= MAX_TOKEN_PRICE_RANGE * newPrices[i].low,
                 Folio__InvalidPrices()
@@ -540,7 +543,8 @@ contract Folio is
             rebalance.details[token] = RebalanceDetails({
                 inRebalance: true,
                 weights: newBasketWeights[i],
-                prices: newPrices[i]
+                prices: newPrices[i],
+                initialPrices: newPrices[i]
             });
             _addToBasket(token);
         }
@@ -550,7 +554,7 @@ contract Folio is
         rebalance.startedAt = block.timestamp;
         rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
         rebalance.availableUntil = block.timestamp + ttl;
-        rebalance.trustAuctionLauncherPricing = trustAuctionLauncherPricing;
+        rebalance.auctionLauncherTrustLevel = auctionLauncherTrustLevel;
 
         emit RebalanceStarted(
             rebalance.nonce,
@@ -560,7 +564,7 @@ contract Folio is
             targetBaskets,
             block.timestamp + auctionLauncherWindow,
             block.timestamp + ttl,
-            trustAuctionLauncherPricing
+            auctionLauncherTrustLevel
         );
     }
 
@@ -569,7 +573,7 @@ contract Folio is
     /// @param rebalanceNonce The nonce of the rebalance
     /// @param tokens The tokens in the rebalance to update weights/prices for
     /// @param newWeights D27{tok/BU} New weights of the provided tokens
-    /// @param newPrices D27{UoA/tok} New price ranges of the provided tokens; empty if !trustAuctionLauncherPricing
+    /// @param newPrices D27{UoA/tok} New price ranges of the provided tokens; ignored for UNTRUSTED auction launchers
     /// @param sellLimit D18{BU/share} Target level to sell down to, inclusive (0, 1e36]
     /// @param buyLimit D18{BU/share} Target level to buy up to, inclusive (0, 1e36]
     /// @return auctionId The newly created auctionId
@@ -587,7 +591,8 @@ contract Folio is
 
         uint256 len = tokens.length;
         require(
-            len == newWeights.length && (len == newPrices.length || !rebalance.trustAuctionLauncherPricing),
+            len == newWeights.length &&
+                (len == newPrices.length || rebalance.auctionLauncherTrustLevel == TrustLevel.UNTRUSTED),
             Folio__InvalidArrayLengths()
         );
 
@@ -602,11 +607,17 @@ contract Folio is
                     Folio__InvalidWeights()
                 );
                 details.weights = WeightRange({ spot: newWeights[i], low: newWeights[i], high: newWeights[i] });
-                // weights can only be updated in the first auction of a rebalance
+                // weights can only be updated in the first auction of a rebalance, if a range was originally provided
             }
 
             // update prices
-            if (rebalance.trustAuctionLauncherPricing) {
+            {
+                // UNTRUSTED: prices cannot be revised
+                if (rebalance.auctionLauncherTrustLevel == TrustLevel.UNTRUSTED) {
+                    continue;
+                }
+
+                // internal consistency checks
                 require(
                     newPrices[i].low != 0 &&
                         newPrices[i].low <= newPrices[i].high &&
@@ -615,8 +626,17 @@ contract Folio is
                     Folio__InvalidPrices()
                 );
 
+                // SEMI_TRUSTED: prices can be revised within the bounds of the initial prices
+                if (rebalance.auctionLauncherTrustLevel == TrustLevel.SEMI_TRUSTED) {
+                    require(
+                        newPrices[i].low >= details.initialPrices.low &&
+                            newPrices[i].high <= details.initialPrices.high,
+                        Folio__InvalidPrices()
+                    );
+                }
+
+                // TRUSTED: prices can be arbitrarily revised
                 details.prices = newPrices[i];
-                // prices can be revised on every run if auction launcher is trusted
             }
         }
 
@@ -659,7 +679,7 @@ contract Folio is
         );
     }
 
-    /// Get auction bid parameters for a token pair at the current timestamp, up to a maximum sell amount
+    /// Get auction bid parameters for an ongoing auction at a target timestamp, for some token pair
     /// @param sellToken The token to sell
     /// @param buyToken The token to buy
     /// @param timestamp {s} The timestamp to get the bid parameters for, or 0 to use the current timestamp
@@ -674,22 +694,17 @@ contract Folio is
         uint256 timestamp,
         uint256 maxSellAmount
     ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
-        Auction storage auction = auctions[auctionId];
-
-        require(auction.rebalanceNonce == rebalance.nonce, Folio__AuctionNotOngoing());
-
-        AuctionLib.GetBidParams memory params = AuctionLib.GetBidParams({
-            totalSupply: totalSupply(),
-            timestamp: timestamp,
-            sellBal: _balanceOfToken(sellToken),
-            buyBal: _balanceOfToken(buyToken),
-            minSellAmount: 0,
-            maxSellAmount: maxSellAmount,
-            maxBuyAmount: type(uint256).max
-        });
-
-        // checks auction is ongoing and that sellAmount is below maxSellAmount
-        (sellAmount, bidAmount, price) = AuctionLib.getBid(rebalance, auction, sellToken, buyToken, params);
+        return
+            _getBid(
+                auctions[auctionId],
+                sellToken,
+                buyToken,
+                totalSupply(),
+                timestamp != 0 ? timestamp : 0,
+                0,
+                maxSellAmount,
+                type(uint256).max
+            );
     }
 
     /// Bid in an ongoing auction
@@ -712,29 +727,26 @@ contract Folio is
     ) external nonReentrant notDeprecated sync returns (uint256 boughtAmt) {
         Auction storage auction = auctions[auctionId];
 
-        require(auction.rebalanceNonce == rebalance.nonce, Folio__AuctionNotOngoing());
-
         uint256 _totalSupply = totalSupply();
 
-        AuctionLib.GetBidParams memory params = AuctionLib.GetBidParams({
-            totalSupply: _totalSupply,
-            timestamp: block.timestamp,
-            sellBal: _balanceOfToken(sellToken),
-            buyBal: _balanceOfToken(buyToken),
-            minSellAmount: sellAmount,
-            maxSellAmount: sellAmount,
-            maxBuyAmount: maxBuyAmount
-        });
-
-        // checks auction is ongoing and that sellAmount is below maxSellAmount
-        (, boughtAmt, ) = AuctionLib.getBid(rebalance, auction, sellToken, buyToken, params);
+        // checks auction is ongoing and that boughtAmt is below maxBuyAmount
+        (, boughtAmt, ) = _getBid(
+            auction,
+            sellToken,
+            buyToken,
+            _totalSupply,
+            block.timestamp,
+            sellAmount,
+            sellAmount,
+            maxBuyAmount
+        );
 
         // bid via approval or callback
-        if (AuctionLib.bid(auction, sellToken, buyToken, _totalSupply, sellAmount, boughtAmt, withCallback, data)) {
+        if (AuctionLib.bid(auction, sellToken, buyToken, totalSupply(), sellAmount, boughtAmt, withCallback, data)) {
             _removeFromBasket(address(sellToken));
         }
 
-        emit AuctionBid(auctionId, sellAmount, boughtAmt);
+        emit IFolio.AuctionBid(auctionId, sellAmount, boughtAmt);
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
@@ -745,26 +757,22 @@ contract Folio is
         address targetFiller,
         bytes32 deploymentSalt
     ) external nonReentrant notDeprecated sync returns (IBaseTrustedFiller filler) {
-        Auction storage auction = auctions[auctionId];
-
-        require(auction.rebalanceNonce == rebalance.nonce, Folio__AuctionNotOngoing());
         require(
             address(trustedFillerRegistry) != address(0) && trustedFillerEnabled,
             Folio__TrustedFillerRegistryNotEnabled()
         );
 
-        AuctionLib.GetBidParams memory params = AuctionLib.GetBidParams({
-            totalSupply: totalSupply(),
-            timestamp: block.timestamp,
-            sellBal: sellToken.balanceOf(address(this)),
-            buyBal: buyToken.balanceOf(address(this)),
-            minSellAmount: 0,
-            maxSellAmount: type(uint256).max,
-            maxBuyAmount: type(uint256).max
-        });
-
-        // checks auction is ongoing and that sellAmount is below maxSellAmount
-        (uint256 sellAmount, uint256 buyAmount, ) = AuctionLib.getBid(rebalance, auction, sellToken, buyToken, params);
+        // checks auction is ongoing
+        (uint256 sellAmount, uint256 buyAmount, ) = _getBid(
+            auctions[auctionId],
+            sellToken,
+            buyToken,
+            totalSupply(),
+            block.timestamp,
+            0,
+            type(uint256).max,
+            type(uint256).max
+        );
 
         // Create Trusted Filler
         filler = trustedFillerRegistry.createTrustedFiller(msg.sender, targetFiller, deploymentSalt);
@@ -788,14 +796,13 @@ contract Folio is
         );
 
         // do not revert, to prevent griefing
-        auctions[auctionId].endTime = block.timestamp - 1;
+        auctions[auctionId].endTime = block.timestamp - 1; // inclusive
 
         emit AuctionClosed(auctionId);
     }
 
-    /// End the current rebalance, including all ongoing auctions
+    /// End the current rebalance, including any ongoing auction
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
-    /// @dev Still have to wait out auctionEnds after
     function endRebalance() external nonReentrant {
         require(
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
@@ -807,8 +814,8 @@ contract Folio is
         emit RebalanceEnded(rebalance.nonce);
 
         // do not revert, to prevent griefing
-        rebalance.nonce++; // advancing nonce clears auctionEnds
-        rebalance.availableUntil = block.timestamp;
+        rebalance.nonce++;
+        rebalance.availableUntil = block.timestamp; // exclusive
     }
 
     // ==== Internal ====
@@ -853,6 +860,39 @@ contract Folio is
         ) {
             amount += token.balanceOf(address(activeTrustedFill));
         }
+    }
+
+    /// Get auction bid parameters for a token pair at a target timestamp, up to a maximum sell amount
+    /// @dev Slightly misleading quotes just before the daily supply fee inflation event
+    /// @param sellToken The token to sell
+    /// @param buyToken The token to buy
+    /// @param timestamp {s} The timestamp to get the bid parameters for
+    /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder can offer the protocol
+    /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at the given timestamp
+    /// @return bidAmount {buyTok} The amount of buy tokens required to bid for the full sell amount
+    /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
+    function _getBid(
+        Auction storage auction,
+        IERC20 sellToken,
+        IERC20 buyToken,
+        uint256 _totalSupply,
+        uint256 timestamp,
+        uint256 minSellAmount,
+        uint256 maxSellAmount,
+        uint256 maxBuyAmount
+    ) internal view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
+        AuctionLib.GetBidParams memory params = AuctionLib.GetBidParams({
+            totalSupply: _totalSupply,
+            timestamp: timestamp,
+            sellBal: _balanceOfToken(sellToken),
+            buyBal: _balanceOfToken(buyToken),
+            minSellAmount: minSellAmount,
+            maxSellAmount: maxSellAmount,
+            maxBuyAmount: maxBuyAmount
+        });
+
+        // checks auction is ongoing and that sellAmount is below maxSellAmount
+        (sellAmount, bidAmount, price) = AuctionLib.getBid(rebalance, auction, sellToken, buyToken, params);
     }
 
     /// @return _daoPendingFeeShares {share}
