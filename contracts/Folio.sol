@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { AuctionLib } from "@utils/AuctionLib.sol";
-import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_WEIGHT, MAX_TARGET, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
+import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_WEIGHT, MAX_LIMIT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -484,21 +484,21 @@ contract Folio is
     /// Start a new rebalance, ending the currently running auction
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
+    /// @param auctionLauncherTrustLevel How much to trust AUCTION_LAUNCHER pricing [UNTRUSTED, SEMI_TRUSTED, TRUSTED]
     /// @param newTokens Tokens to add to the basket, MUST be unique
     /// @param newBasketWeights D27{tok/BU} New basket weight ranges for the basket unit definition; cannot be empty [0, 1e54]
     /// @param newPrices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e54]
-    /// @param targetBaskets D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e36]
+    /// @param newLimits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e36]
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
     /// @param ttl {s} The amount of time the rebalance is valid for, can be extended
-    /// @param auctionLauncherTrustLevel How much to trust AUCTION_LAUNCHER pricing [UNTRUSTED, SEMI_TRUSTED, TRUSTED]
     function startRebalance(
+        TrustLevel auctionLauncherTrustLevel,
         address[] calldata newTokens,
         WeightRange[] calldata newBasketWeights,
         PriceRange[] calldata newPrices,
-        uint256 targetBaskets,
+        RebalanceLimits calldata newLimits,
         uint256 auctionLauncherWindow,
-        uint256 ttl,
-        TrustLevel auctionLauncherTrustLevel
+        uint256 ttl
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
         require(ttl >= auctionLauncherWindow && ttl <= MAX_TTL, Folio__InvalidTTL());
 
@@ -513,8 +513,14 @@ contract Folio is
         len = newTokens.length;
         require(len != 0 && len == newBasketWeights.length && len == newPrices.length, Folio__InvalidArrayLengths());
 
-        // enforce valid basket target
-        require(targetBaskets != 0 && targetBaskets <= MAX_TARGET, IFolio.Folio__InvalidTargets());
+        // enforce valid basket limits
+        require(
+            newLimits.low != 0 &&
+                newLimits.low <= newLimits.spot &&
+                newLimits.spot <= newLimits.high &&
+                newLimits.high <= MAX_LIMIT,
+            IFolio.Folio__InvalidLimits()
+        );
 
         // set new token details
         for (uint256 i; i < len; i++) {
@@ -550,7 +556,7 @@ contract Folio is
         }
 
         rebalance.nonce++;
-        rebalance.limits = RebalanceLimits({ spot: targetBaskets, low: 1, high: MAX_TARGET });
+        rebalance.limits = newLimits;
         rebalance.startedAt = block.timestamp;
         rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
         rebalance.availableUntil = block.timestamp + ttl;
@@ -561,7 +567,7 @@ contract Folio is
             newTokens,
             newBasketWeights,
             newPrices,
-            targetBaskets,
+            newLimits,
             block.timestamp + auctionLauncherWindow,
             block.timestamp + ttl,
             auctionLauncherTrustLevel

@@ -31,7 +31,7 @@ interface IFolio {
         address[] tokens,
         WeightRange[] weights,
         PriceRange[] prices,
-        uint256 targetBaskets,
+        RebalanceLimits limits,
         uint256 restrictedUntil,
         uint256 availableUntil,
         TrustLevel auctionLauncherTrustLevel
@@ -61,7 +61,7 @@ interface IFolio {
 
     error Folio__InvalidAuctionLength();
     error Folio__InvalidAuctionPrices();
-    error Folio__InvalidTargets();
+    error Folio__InvalidLimits();
     error Folio__InvalidWeights();
     error Folio__InvalidSellLimit();
     error Folio__InvalidBuyLimit();

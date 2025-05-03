@@ -52,7 +52,7 @@ library AuctionLib {
         // enforce valid limits
         require(
             sellLimit >= buyLimit && sellLimit <= limits.high && buyLimit >= limits.low,
-            IFolio.Folio__InvalidTargets()
+            IFolio.Folio__InvalidLimits()
         );
 
         // narrow low/high rebalance limits to prevent double trading in the future by openAuction()
