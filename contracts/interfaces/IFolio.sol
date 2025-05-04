@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
 interface IFolio {
     // === Events ===
 
-    event AuctionOpened(uint256 indexed auctionId, Auction auction);
+    event AuctionOpened(
+        uint256 indexed auctionId,
+        uint256 rebalanceNonce,
+        address[] tokens,
+        uint256 sellLimit,
+        uint256 buyLimit,
+        uint256 startTime,
+        uint256 endTime
+    );
     event AuctionBid(uint256 indexed auctionId, uint256 sellAmount, uint256 buyAmount);
     event AuctionClosed(uint256 indexed auctionId);
     event AuctionTrustedFillCreated(uint256 indexed auctionId, address filler);
@@ -175,6 +181,7 @@ interface IFolio {
     ///   - CLOSED: block.timestamp > endTime
     struct Auction {
         uint256 rebalanceNonce;
+        mapping(address token => bool) inAuction; // if the token in the auction
         uint256 sellLimit; // D18{BU/share} rebalance limit to sell down to (0, 1e36]
         uint256 buyLimit; // D18{BU/share} rebalance limit to buy up to (0, 1e36]
         uint256 startTime; // {s} inclusive

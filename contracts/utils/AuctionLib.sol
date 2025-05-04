@@ -16,25 +16,21 @@ library AuctionLib {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /// Open a new auction
-    /// @param rebalanceNonce The rebalance targeted by the auction opener
     /// @param auctionLength {s} The amount of time the auction is open for
     /// @param sellLimit D18{BU/share} Target level to sell down to, inclusive (0, 1e36]
     /// @param buyLimit D18{BU/share} Target level to buy up to, inclusive (0, 1e36]
     /// @param auctionBuffer {s} The amount of time the auction is open for
     function openAuction(
         IFolio.Rebalance storage rebalance,
-        uint256 rebalanceNonce,
         mapping(uint256 auctionId => IFolio.Auction) storage auctions,
         uint256 auctionId,
+        address[] memory tokens,
         uint256 auctionLength,
         uint256 sellLimit,
         uint256 buyLimit,
         uint256 auctionBuffer
     ) external {
         IFolio.RebalanceLimits storage limits = rebalance.limits;
-
-        // enforce right rebalance
-        require(rebalanceNonce == rebalance.nonce, IFolio.Folio__InvalidRebalanceNonce());
 
         // enforce rebalance ongoing
         require(
@@ -45,7 +41,7 @@ library AuctionLib {
         // enforce buffer between auctions
         IFolio.Auction storage lastAuction = auctions[auctionId - 1];
         require(
-            lastAuction.rebalanceNonce != rebalanceNonce || lastAuction.endTime + auctionBuffer < block.timestamp,
+            lastAuction.endTime + auctionBuffer < block.timestamp || lastAuction.rebalanceNonce != rebalance.nonce,
             IFolio.Folio__AuctionCannotBeOpenedWithoutRestriction()
         );
 
@@ -67,20 +63,42 @@ library AuctionLib {
             limits.spot = buyLimit;
         }
 
-        IFolio.Auction memory auction = IFolio.Auction({
-            rebalanceNonce: rebalance.nonce,
-            sellLimit: sellLimit,
-            buyLimit: buyLimit,
-            startTime: block.timestamp,
-            endTime: block.timestamp + auctionLength
-        });
-        auctions[auctionId] = auction;
+        // save auction
+        IFolio.Auction storage auction = auctions[auctionId];
+        auction.rebalanceNonce = rebalance.nonce;
+        auction.sellLimit = sellLimit;
+        auction.buyLimit = buyLimit;
+        auction.startTime = block.timestamp;
+        auction.endTime = block.timestamp + auctionLength;
 
-        // TODO
-        // add surplus / deficit arrays to event?
-        // Facade-like contract to reduce RPC requirements?
+        for (uint256 i = 0; i < tokens.length; i++) {
+            if (rebalance.details[address(tokens[i])].inRebalance) {
+                auctions[auctionId].inAuction[tokens[i]] = true;
+            } else {
+                tokens[i] = address(0);
+            }
+        }
 
-        emit IFolio.AuctionOpened(auctionId, auction);
+        emit IFolio.AuctionOpened(
+            auctionId,
+            rebalance.nonce,
+            tokens,
+            sellLimit,
+            buyLimit,
+            block.timestamp,
+            block.timestamp + auctionLength
+        );
+
+        // bump rebalance deadlines permissioned caller needs more time
+        if (auctionBuffer == 0) {
+            uint256 extension = block.timestamp + auctionLength + auctionBuffer * 2;
+            if (extension > rebalance.restrictedUntil) {
+                rebalance.restrictedUntil = extension;
+            }
+            if (extension > rebalance.availableUntil) {
+                rebalance.availableUntil = extension;
+            }
+        }
     }
 
     /// @dev stack-too-deep
@@ -113,8 +131,6 @@ library AuctionLib {
         GetBidParams memory params
     ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
         assert(params.minSellAmount <= params.maxSellAmount);
-
-        require(auction.rebalanceNonce == rebalance.nonce, IFolio.Folio__AuctionNotOngoing());
 
         // checks auction is ongoing and part of rebalance
         // D27{buyTok/sellTok}
@@ -241,11 +257,11 @@ library AuctionLib {
         IFolio.RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
         IFolio.RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
 
-        // ensure auction is ongoing and token pair is in rebalance
+        // ensure auction is ongoing and token pair is in it
         require(
             auction.rebalanceNonce == rebalance.nonce &&
-                sellDetails.inRebalance &&
-                buyDetails.inRebalance &&
+                auction.inAuction[address(sellToken)] &&
+                auction.inAuction[address(buyToken)] &&
                 timestamp >= auction.startTime &&
                 timestamp <= auction.endTime,
             IFolio.Folio__AuctionNotOngoing()

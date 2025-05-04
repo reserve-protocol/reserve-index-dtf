@@ -574,27 +574,23 @@ contract Folio is
         );
     }
 
-    /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits
+    /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits, for a given set of tokens
     /// @dev Allow clobbering existing running auction
-    /// @param rebalanceNonce The nonce of the rebalance
-    /// @param tokens The tokens in the rebalance to update weights/prices for
-    /// @param newWeights D27{tok/BU} New weights of the provided tokens
-    /// @param newPrices D27{UoA/tok} New price ranges of the provided tokens; ignored for UNTRUSTED auction launchers
+    /// @param rebalanceNonce The nonce of the rebalance being targeted
+    /// @param tokens The tokens from the rebalance to include in the auction
+    /// @param newWeights D27{tok/BU} New weights
+    /// @param newPrices D27{UoA/tok} New price ranges; ignored for UNTRUSTED auction launchers
     /// @param sellLimit D18{BU/share} Target level to sell down to, inclusive (0, 1e36]
     /// @param buyLimit D18{BU/share} Target level to buy up to, inclusive (0, 1e36]
     /// @return auctionId The newly created auctionId
     function openAuction(
         uint256 rebalanceNonce,
-        IERC20[] calldata tokens,
+        address[] calldata tokens,
         uint256[] calldata newWeights,
         PriceRange[] calldata newPrices,
         uint256 sellLimit,
         uint256 buyLimit
     ) external onlyRole(AUCTION_LAUNCHER) nonReentrant notDeprecated sync returns (uint256 auctionId) {
-        // for upgraded Folios, pick up on the next auction index from the old array
-        nextAuctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
-        auctionId = nextAuctionId++;
-
         uint256 len = tokens.length;
         require(
             len == newWeights.length &&
@@ -602,6 +598,7 @@ contract Folio is
             Folio__InvalidArrayLengths()
         );
 
+        // update weights and prices
         for (uint256 i; i < len; i++) {
             RebalanceDetails storage details = rebalance.details[address(tokens[i])];
             require(details.inRebalance, Folio__TokenNotInRebalance());
@@ -647,19 +644,10 @@ contract Folio is
         }
 
         // open an auction on the provided limits
-        AuctionLib.openAuction(rebalance, rebalanceNonce, auctions, auctionId, auctionLength, sellLimit, buyLimit, 0);
-
-        // extend deadlines if near end
-        uint256 extension = block.timestamp + auctionLength + RESTRICTED_AUCTION_BUFFER * 2;
-        if (extension > rebalance.restrictedUntil) {
-            rebalance.restrictedUntil = extension;
-        }
-        if (extension > rebalance.availableUntil) {
-            rebalance.availableUntil = extension;
-        }
+        auctionId = _openAuction(rebalanceNonce, tokens, sellLimit, buyLimit, 0);
     }
 
-    /// Open an auction, without caller restrictions
+    /// Open an auction, without caller restrictions, and for all tokens in the rebalance
     /// @dev Callable only after the auction launcher window passes, and when no other auction is ongoing
     /// @return auctionId The newly created auctionId
     function openAuctionUnrestricted(
@@ -667,18 +655,11 @@ contract Folio is
     ) external nonReentrant notDeprecated sync returns (uint256 auctionId) {
         require(block.timestamp >= rebalance.restrictedUntil, Folio__AuctionCannotBeOpenedWithoutRestriction());
 
-        // for upgraded Folios, pick up on the next auction index from the old array
-        nextAuctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
-        auctionId = nextAuctionId++;
-
         // open an auction on the spot limits
         // use same spot limit to determine BOTH surplus and deficits
-        AuctionLib.openAuction(
-            rebalance,
+        auctionId = _openAuction(
             rebalanceNonce,
-            auctions,
-            auctionId,
-            auctionLength,
+            basket.values(),
             rebalance.limits.spot,
             rebalance.limits.spot,
             RESTRICTED_AUCTION_BUFFER
@@ -866,6 +847,35 @@ contract Folio is
         ) {
             amount += token.balanceOf(address(activeTrustedFill));
         }
+    }
+
+    /// Open an auction
+    /// @param rebalanceNonce The nonce of the rebalance being targeted
+    /// @param tokens The tokens from the rebalance to include in the auction
+    /// @param sellLimit D18{BU/share} Target level to sell down to, inclusive (0, 1e36]
+    /// @param buyLimit D18{BU/share} Target level to buy up to, inclusive (0, 1e36]
+    /// @param auctionBuffer {s} The amount of time the auction is open for
+    /// @return auctionId The newly created auctionId
+    function _openAuction(
+        uint256 rebalanceNonce,
+        address[] memory tokens,
+        uint256 sellLimit,
+        uint256 buyLimit,
+        uint256 auctionBuffer
+    ) internal returns (uint256 auctionId) {
+        require(rebalance.nonce == rebalanceNonce, Folio__InvalidRebalanceNonce());
+
+        auctionId = _nextAuctionId();
+        AuctionLib.openAuction(
+            rebalance,
+            auctions,
+            auctionId,
+            tokens,
+            auctionLength,
+            sellLimit,
+            buyLimit,
+            auctionBuffer
+        );
     }
 
     /// Get auction bid parameters for a token pair at a target timestamp, up to a maximum sell amount
@@ -1087,5 +1097,10 @@ contract Folio is
         require(to != address(this), Folio__InvalidTransferToSelf());
 
         super._update(from, to, value);
+    }
+
+    function _nextAuctionId() internal view returns (uint256) {
+        // for upgraded Folios, pick up on the next auction index from the old array
+        return 1 + (nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length);
     }
 }
