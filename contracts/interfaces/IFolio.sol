@@ -28,13 +28,13 @@ interface IFolio {
 
     event RebalanceStarted(
         uint256 nonce,
+        TrustLevel auctionLauncherTrustLevel,
         address[] tokens,
         WeightRange[] weights,
         PriceRange[] prices,
         RebalanceLimits limits,
         uint256 restrictedUntil,
-        uint256 availableUntil,
-        TrustLevel auctionLauncherTrustLevel
+        uint256 availableUntil
     );
     event RebalanceEnded(uint256 nonce);
 

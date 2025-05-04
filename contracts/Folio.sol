@@ -564,13 +564,13 @@ contract Folio is
 
         emit RebalanceStarted(
             rebalance.nonce,
+            auctionLauncherTrustLevel,
             newTokens,
             newBasketWeights,
             newPrices,
             newLimits,
             block.timestamp + auctionLauncherWindow,
-            block.timestamp + ttl,
-            auctionLauncherTrustLevel
+            block.timestamp + ttl
         );
     }
 
