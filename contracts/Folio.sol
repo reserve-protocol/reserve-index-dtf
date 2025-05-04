@@ -485,18 +485,18 @@ contract Folio is
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
     /// @param auctionLauncherTrustLevel How much to trust AUCTION_LAUNCHER pricing [UNTRUSTED, SEMI_TRUSTED, TRUSTED]
-    /// @param newTokens Tokens to add to the basket, MUST be unique
-    /// @param newBasketWeights D27{tok/BU} New basket weight ranges for the basket unit definition; cannot be empty [0, 1e54]
-    /// @param newPrices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e54]
-    /// @param newLimits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e36]
+    /// @param tokens Tokens to rebalance, MUST be unique
+    /// @param weights D27{tok/BU} Basket weight ranges for the basket unit definition; cannot be empty [0, 1e54]
+    /// @param prices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e54]
+    /// @param limits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e36]
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
     /// @param ttl {s} The amount of time the rebalance is valid for, can be extended
     function startRebalance(
         TrustLevel auctionLauncherTrustLevel,
-        address[] calldata newTokens,
-        WeightRange[] calldata newBasketWeights,
-        PriceRange[] calldata newPrices,
-        RebalanceLimits calldata newLimits,
+        address[] calldata tokens,
+        WeightRange[] calldata weights,
+        PriceRange[] calldata prices,
+        RebalanceLimits calldata limits,
         uint256 auctionLauncherWindow,
         uint256 ttl
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
@@ -510,53 +510,50 @@ contract Folio is
         }
 
         // enforce array lengths
-        len = newTokens.length;
-        require(len != 0 && len == newBasketWeights.length && len == newPrices.length, Folio__InvalidArrayLengths());
+        len = tokens.length;
+        require(len != 0 && len == weights.length && len == prices.length, Folio__InvalidArrayLengths());
 
         // enforce valid basket limits
         require(
-            newLimits.low != 0 &&
-                newLimits.low <= newLimits.spot &&
-                newLimits.spot <= newLimits.high &&
-                newLimits.high <= MAX_LIMIT,
+            limits.low != 0 && limits.low <= limits.spot && limits.spot <= limits.high && limits.high <= MAX_LIMIT,
             IFolio.Folio__InvalidLimits()
         );
 
         // set new token details
         for (uint256 i; i < len; i++) {
-            address token = newTokens[i];
+            address token = tokens[i];
 
             // enforce no duplicates
             require(!rebalance.details[token].inRebalance, Folio__DuplicateAsset());
 
             // enforce weight is in range
             require(
-                newBasketWeights[i].low <= newBasketWeights[i].spot &&
-                    newBasketWeights[i].spot <= newBasketWeights[i].high &&
-                    newBasketWeights[i].high <= MAX_WEIGHT,
+                weights[i].low <= weights[i].spot &&
+                    weights[i].spot <= weights[i].high &&
+                    weights[i].high <= MAX_WEIGHT,
                 Folio__InvalidWeights()
             );
 
             // enforce prices internal consistency
             require(
-                newPrices[i].low != 0 &&
-                    newPrices[i].low <= newPrices[i].high &&
-                    newPrices[i].high <= MAX_TOKEN_PRICE &&
-                    newPrices[i].high <= MAX_TOKEN_PRICE_RANGE * newPrices[i].low,
+                prices[i].low != 0 &&
+                    prices[i].low <= prices[i].high &&
+                    prices[i].high <= MAX_TOKEN_PRICE &&
+                    prices[i].high <= MAX_TOKEN_PRICE_RANGE * prices[i].low,
                 Folio__InvalidPrices()
             );
 
             rebalance.details[token] = RebalanceDetails({
                 inRebalance: true,
-                weights: newBasketWeights[i],
-                prices: newPrices[i],
-                initialPrices: newPrices[i]
+                weights: weights[i],
+                prices: prices[i],
+                initialPrices: prices[i]
             });
             _addToBasket(token);
         }
 
         rebalance.nonce++;
-        rebalance.limits = newLimits;
+        rebalance.limits = limits;
         rebalance.startedAt = block.timestamp;
         rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
         rebalance.availableUntil = block.timestamp + ttl;
@@ -565,10 +562,10 @@ contract Folio is
         emit RebalanceStarted(
             rebalance.nonce,
             auctionLauncherTrustLevel,
-            newTokens,
-            newBasketWeights,
-            newPrices,
-            newLimits,
+            tokens,
+            weights,
+            prices,
+            limits,
             block.timestamp + auctionLauncherWindow,
             block.timestamp + ttl
         );
