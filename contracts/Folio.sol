@@ -572,7 +572,6 @@ contract Folio is
     }
 
     /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits, for a given set of tokens
-    /// @dev Allow clobbering existing running auction
     /// @param rebalanceNonce The nonce of the rebalance being targeted
     /// @param tokens The tokens from the rebalance to include in the auction
     /// @param newWeights D27{tok/BU} New weights
