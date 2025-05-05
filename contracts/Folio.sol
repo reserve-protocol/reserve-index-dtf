@@ -730,7 +730,19 @@ contract Folio is
         );
 
         // bid via approval or callback
-        if (AuctionLib.bid(auction, sellToken, buyToken, totalSupply(), sellAmount, boughtAmt, withCallback, data)) {
+        if (
+            AuctionLib.bid(
+                rebalance,
+                auction,
+                sellToken,
+                buyToken,
+                totalSupply(),
+                sellAmount,
+                boughtAmt,
+                withCallback,
+                data
+            )
+        ) {
             _removeFromBasket(address(sellToken));
         }
 
@@ -865,7 +877,8 @@ contract Folio is
     ) internal returns (uint256 auctionId) {
         require(rebalance.nonce == rebalanceNonce, Folio__InvalidRebalanceNonce());
 
-        auctionId = _nextAuctionId();
+        auctionId = 1 + (nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length);
+
         AuctionLib.openAuction(
             rebalance,
             auctions,
@@ -1097,10 +1110,5 @@ contract Folio is
         require(to != address(this), Folio__InvalidTransferToSelf());
 
         super._update(from, to, value);
-    }
-
-    function _nextAuctionId() internal view returns (uint256) {
-        // for upgraded Folios, pick up on the next auction index from the old array
-        return 1 + (nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length);
     }
 }

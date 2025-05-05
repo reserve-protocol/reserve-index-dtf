@@ -193,6 +193,7 @@ library AuctionLib {
     /// @param data Arbitrary data to pass to the callback
     /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after
     function bid(
+        IFolio.Rebalance storage rebalance,
         IFolio.Auction storage auction,
         IERC20 sellToken,
         IERC20 buyToken,
@@ -204,6 +205,14 @@ library AuctionLib {
     ) external returns (bool shouldRemoveFromBasket) {
         // pay bidder
         SafeERC20.safeTransfer(sellToken, msg.sender, sellAmount);
+
+        // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
+        uint256 sellLimit = Math.mulDiv(
+            auction.sellLimit,
+            rebalance.details[address(sellToken)].weights.spot,
+            D18,
+            Math.Rounding.Ceil
+        );
 
         // D27{sellTok/share}
         uint256 sellBasketPresence;
@@ -218,8 +227,16 @@ library AuctionLib {
 
             // D27{sellTok/share} = {sellTok} * D27 / {share}
             sellBasketPresence = Math.mulDiv(sellBal, D27, totalSupply, Math.Rounding.Ceil);
-            assert(sellBasketPresence >= auction.sellLimit); // function-use invariant
+            assert(sellBasketPresence >= sellLimit); // function-use invariant
         }
+
+        // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
+        uint256 buyLimit = Math.mulDiv(
+            auction.buyLimit,
+            rebalance.details[address(buyToken)].weights.spot,
+            D18,
+            Math.Rounding.Floor
+        );
 
         // D27{buyTok/share}
         uint256 buyBasketPresence;
@@ -245,7 +262,7 @@ library AuctionLib {
         // end auction at limits
         // can still be griefed
         // limits may not be reacheable due to limited precision + defensive roundings
-        if (sellBasketPresence == auction.sellLimit || buyBasketPresence >= auction.buyLimit) {
+        if (sellBasketPresence == sellLimit || buyBasketPresence >= buyLimit) {
             auction.endTime = block.timestamp - 1;
         }
     }
