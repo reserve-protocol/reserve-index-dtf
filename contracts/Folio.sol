@@ -128,7 +128,7 @@ contract Folio is
      *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil, with possible extensions
      *   - Auctions cannot be launched after availableUntil, though their end time may extend past it
      *   - The first auction the AUCTION_LAUNCHER can set new basket weights, within bounds
-     *   - Depending on the TrustLevel, the AUCTION_LAUNCHER can set new prices either completely, within bounds, or never
+     *   - Depending on the PriceControl, the AUCTION_LAUNCHER can set new prices either completely, within bounds, or never
      *   - At anytime the rebalance can be stopped or a new one can be started (closing any ongoing auction)
      */
     Rebalance public rebalance;
@@ -484,7 +484,7 @@ contract Folio is
     /// Start a new rebalance, ending the currently running auction
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
-    /// @param auctionLauncherTrustLevel How much to trust AUCTION_LAUNCHER pricing [UNTRUSTED, SEMI_TRUSTED, TRUSTED]
+    /// @param priceControl How much price control to give to AUCTION_LAUNCHER: [NONE, PARTIAL, TRUSTED]
     /// @param tokens Tokens to rebalance, MUST be unique
     /// @param weights D27{tok/BU} Basket weight ranges for the basket unit definition; cannot be empty [0, 1e54]
     /// @param prices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e54]
@@ -492,7 +492,7 @@ contract Folio is
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
     /// @param ttl {s} The amount of time the rebalance is valid for, can be extended
     function startRebalance(
-        TrustLevel auctionLauncherTrustLevel,
+        PriceControl priceControl,
         address[] calldata tokens,
         WeightRange[] calldata weights,
         PriceRange[] calldata prices,
@@ -557,11 +557,11 @@ contract Folio is
         rebalance.startedAt = block.timestamp;
         rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
         rebalance.availableUntil = block.timestamp + ttl;
-        rebalance.auctionLauncherTrustLevel = auctionLauncherTrustLevel;
+        rebalance.priceControl = priceControl;
 
         emit RebalanceStarted(
             rebalance.nonce,
-            auctionLauncherTrustLevel,
+            priceControl,
             tokens,
             weights,
             prices,
@@ -575,7 +575,7 @@ contract Folio is
     /// @param rebalanceNonce The nonce of the rebalance being targeted
     /// @param tokens The tokens from the rebalance to include in the auction
     /// @param newWeights D27{tok/BU} New weights
-    /// @param newPrices D27{UoA/tok} New price ranges; ignored for UNTRUSTED auction launchers
+    /// @param newPrices D27{UoA/tok} New price ranges; ignored for NONE auction launchers
     /// @param sellLimit D18{BU/share} Target level to sell down to, inclusive (0, 1e36]
     /// @param buyLimit D18{BU/share} Target level to buy up to, inclusive (0, 1e36]
     /// @return auctionId The newly created auctionId
@@ -589,8 +589,7 @@ contract Folio is
     ) external onlyRole(AUCTION_LAUNCHER) nonReentrant notDeprecated sync returns (uint256 auctionId) {
         uint256 len = tokens.length;
         require(
-            len == newWeights.length &&
-                (len == newPrices.length || rebalance.auctionLauncherTrustLevel == TrustLevel.UNTRUSTED),
+            len == newWeights.length && (len == newPrices.length || rebalance.priceControl == PriceControl.NONE),
             Folio__InvalidArrayLengths()
         );
 
@@ -611,8 +610,8 @@ contract Folio is
 
             // update prices
             {
-                // UNTRUSTED: prices cannot be revised
-                if (rebalance.auctionLauncherTrustLevel == TrustLevel.UNTRUSTED) {
+                // NONE: prices cannot be revised
+                if (rebalance.priceControl == PriceControl.NONE) {
                     continue;
                 }
 
@@ -625,8 +624,8 @@ contract Folio is
                     Folio__InvalidPrices()
                 );
 
-                // SEMI_TRUSTED: prices can be revised within the bounds of the initial prices
-                if (rebalance.auctionLauncherTrustLevel == TrustLevel.SEMI_TRUSTED) {
+                // PARTIAL: prices can be revised within the bounds of the initial prices
+                if (rebalance.priceControl == PriceControl.PARTIAL) {
                     require(
                         newPrices[i].low >= details.initialPrices.low &&
                             newPrices[i].high <= details.initialPrices.high,
@@ -634,7 +633,7 @@ contract Folio is
                     );
                 }
 
-                // TRUSTED: prices can be arbitrarily revised
+                // FULL: prices can be arbitrarily revised
                 details.prices = newPrices[i];
             }
         }
@@ -797,7 +796,6 @@ contract Folio is
         emit RebalanceEnded(rebalance.nonce);
 
         // do not revert, to prevent griefing
-        rebalance.nonce++;
         rebalance.availableUntil = block.timestamp; // exclusive
     }
 

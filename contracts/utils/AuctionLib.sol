@@ -38,12 +38,15 @@ library AuctionLib {
             IFolio.Folio__NotRebalancing()
         );
 
-        // enforce buffer between auctions
-        IFolio.Auction storage lastAuction = auctions[auctionId - 1];
-        require(
-            lastAuction.endTime + auctionBuffer < block.timestamp || lastAuction.rebalanceNonce != rebalance.nonce,
-            IFolio.Folio__AuctionCannotBeOpenedWithoutRestriction()
-        );
+        // enforce auction not ongoing, if unrestricted
+        // AUCTION_LAUNCHER can overwrite an existing auction
+        if (auctionBuffer != 0) {
+            IFolio.Auction storage lastAuction = auctions[auctionId - 1];
+            require(
+                lastAuction.endTime + auctionBuffer < block.timestamp || lastAuction.rebalanceNonce != rebalance.nonce,
+                IFolio.Folio__AuctionCannotBeOpenedWithoutRestriction()
+            );
+        }
 
         // enforce valid limits
         require(
@@ -58,8 +61,7 @@ library AuctionLib {
         // update spot rebalance limits to prevent double trading in the future by openAuctionUnrestricted()
         if (sellLimit < limits.spot) {
             limits.spot = sellLimit;
-        }
-        if (buyLimit > limits.spot) {
+        } else if (buyLimit > limits.spot) {
             limits.spot = buyLimit;
         }
 
@@ -71,11 +73,13 @@ library AuctionLib {
         auction.startTime = block.timestamp;
         auction.endTime = block.timestamp + auctionLength;
 
+        // only include tokens from rebalance in the auction
         for (uint256 i = 0; i < tokens.length; i++) {
             if (rebalance.details[address(tokens[i])].inRebalance) {
                 auctions[auctionId].inAuction[tokens[i]] = true;
             } else {
                 tokens[i] = address(0);
+                // imperfect but ok, only impacts event
             }
         }
 
@@ -89,9 +93,11 @@ library AuctionLib {
             block.timestamp + auctionLength
         );
 
-        // bump rebalance deadlines permissioned caller needs more time
+        // bump rebalance deadlines if permissioned caller needs more time
         if (auctionBuffer == 0) {
             uint256 extension = block.timestamp + auctionLength + auctionBuffer * 2;
+
+            // TODO revisit this logic
             if (extension > rebalance.restrictedUntil) {
                 rebalance.restrictedUntil = extension;
             }

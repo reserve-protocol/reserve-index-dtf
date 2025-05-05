@@ -9,11 +9,11 @@ import { Folio } from "@src/Folio.sol";
 import { D27 } from "@utils/Constants.sol";
 
 /**
- * @title FolioFacade
+ * @title FolioLens
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  * @notice Read-only interface for Folio summary info
  */
-contract FolioFacade is Versioned {
+contract FolioLens is Versioned {
     constructor() {}
 
     /// Get token-share weights given by the current balances of the Folio

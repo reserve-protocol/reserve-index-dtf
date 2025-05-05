@@ -34,7 +34,7 @@ interface IFolio {
 
     event RebalanceStarted(
         uint256 nonce,
-        TrustLevel auctionLauncherTrustLevel,
+        PriceControl priceControl,
         address[] tokens,
         WeightRange[] weights,
         PriceRange[] prices,
@@ -97,11 +97,11 @@ interface IFolio {
 
     // === Structures ===
 
-    /// AUCTION_LAUNCHER trust level
-    enum TrustLevel {
-        UNTRUSTED, // cannot revise prices
-        SEMI_TRUSTED, // can revise prices, within bounds
-        TRUSTED // can revise prices arbitrarily
+    /// AUCTION_LAUNCHER trust level for prices
+    enum PriceControl {
+        NONE, // cannot revise prices at all
+        PARTIAL, // can revise prices, within bounds
+        FULL // can revise prices arbitrarily
     }
 
     struct FolioBasicDetails {
@@ -171,7 +171,7 @@ interface IFolio {
         uint256 startedAt; // {s} timestamp rebalancing started, inclusive
         uint256 restrictedUntil; // {s} timestamp rebalancing is unrestricted to everyone, exclusive
         uint256 availableUntil; // {s} timestamp rebalancing ends overall, exclusive
-        TrustLevel auctionLauncherTrustLevel; // degree to which prices can be revised by the AUCTION_LAUNCHER
+        PriceControl priceControl; // degree to which prices can be revised by the AUCTION_LAUNCHER
     }
 
     /// 1 running auction at a time; N per rebalance overall
