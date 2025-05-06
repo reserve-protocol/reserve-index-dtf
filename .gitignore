@@ -10,6 +10,7 @@ artifacts/
 broadcast/
 .gas-snapshot
 lcov.info
+snapshots/
 
 # JS
 node_modules/

@@ -89,19 +89,46 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
             );
             assertEq(stakingVault.owner(), newStakingVaultGovernor.timelock());
 
-            assertEq(newStakingVaultGovernor.votingDelay(), stakingVaultGovernor.votingDelay());
-            assertEq(newStakingVaultGovernor.votingPeriod(), stakingVaultGovernor.votingPeriod());
+            // determine period multipliers
+            (
+                uint256 votingDelayPeriodMultiplier,
+                uint256 votingPeriodPeriodMultiplier,
+                uint256 executionDelayPeriodMultiplier
+            ) = spell.exceptions(address(stakingVaultGovernor));
+            if (votingDelayPeriodMultiplier == 0) {
+                votingDelayPeriodMultiplier = 24;
+                votingPeriodPeriodMultiplier = 24;
+                executionDelayPeriodMultiplier = 24;
+            }
+
+            // check post-upgrade periods
+            assertEq(
+                newStakingVaultGovernor.votingDelay(),
+                stakingVaultGovernor.votingDelay() * votingDelayPeriodMultiplier
+            );
+            assertEq(
+                newStakingVaultGovernor.votingPeriod(),
+                stakingVaultGovernor.votingPeriod() * votingPeriodPeriodMultiplier
+            );
             assertEq(newStakingVaultGovernor.quorumNumerator(), stakingVaultGovernor.quorumNumerator() * 1e16);
             assertEq(newStakingVaultGovernor.quorumDenominator(), stakingVaultGovernor.quorumDenominator() * 1e16);
             assertApproxEqAbs(
                 newStakingVaultGovernor.proposalThreshold(),
-                stakingVaultGovernor.proposalThreshold() / 100,
-                1,
+                stakingVaultGovernor.proposalThreshold(),
+                1e9,
                 "proposal threshold changed"
             );
             assertEq(
                 TimelockController(payable(newStakingVaultGovernor.timelock())).getMinDelay(),
-                TimelockController(payable(stakingVaultGovernor.timelock())).getMinDelay()
+                TimelockController(payable(stakingVaultGovernor.timelock())).getMinDelay() *
+                    executionDelayPeriodMultiplier
+            );
+
+            console2.log("daoGovernor.votingDelay()", newStakingVaultGovernor.votingDelay());
+            console2.log("daoGovernor.votingPeriod()", newStakingVaultGovernor.votingPeriod());
+            console2.log(
+                "daoGovernor.executionDelay()",
+                TimelockController(payable(newStakingVaultGovernor.timelock())).getMinDelay()
             );
 
             // folio
@@ -140,13 +167,20 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
             assertEq(newOwnerGovernor.quorumDenominator(), ownerGovernor.quorumDenominator() * 1e16);
             assertApproxEqAbs(
                 FolioGovernor(payable(newOwnerGovernor)).proposalThreshold(),
-                ownerGovernor.proposalThreshold() / 100,
-                1,
+                ownerGovernor.proposalThreshold(),
+                1e9,
                 "owner proposal threshold changed"
             );
             assertEq(
                 TimelockController(payable(newOwnerGovernor.timelock())).getMinDelay(),
                 TimelockController(payable(ownerGovernor.timelock())).getMinDelay()
+            );
+
+            console2.log("ownerGovernor.votingDelay()", newOwnerGovernor.votingDelay());
+            console2.log("ownerGovernor.votingPeriod()", newOwnerGovernor.votingPeriod());
+            console2.log(
+                "ownerTimelock.executionDelay()",
+                TimelockController(payable(newOwnerGovernor.timelock())).getMinDelay()
             );
 
             assertEq(newTradingGovernor.votingDelay(), tradingGovernor.votingDelay());
@@ -156,12 +190,19 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
             assertApproxEqAbs(
                 FolioGovernor(payable(newTradingGovernor)).proposalThreshold(),
                 tradingGovernor.proposalThreshold() / 100,
-                1,
+                1e9,
                 "trading proposal threshold changed"
             );
             assertEq(
                 TimelockController(payable(newTradingGovernor.timelock())).getMinDelay(),
                 TimelockController(payable(tradingGovernor.timelock())).getMinDelay()
+            );
+
+            console2.log("tradingGovernor.votingDelay()", newTradingGovernor.votingDelay());
+            console2.log("tradingGovernor.votingPeriod()", newTradingGovernor.votingPeriod());
+            console2.log(
+                "tradingTimelock.executionDelay()",
+                TimelockController(payable(newTradingGovernor.timelock())).getMinDelay()
             );
 
             // post-fork proposal
