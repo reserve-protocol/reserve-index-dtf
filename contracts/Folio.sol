@@ -490,7 +490,7 @@ contract Folio is
     /// Start a new rebalance, ending the currently running auction
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
-    /// @param priceControl How much price control to give to AUCTION_LAUNCHER: [NONE, PARTIAL, TRUSTED]
+    /// @param priceControl How much price control to give to AUCTION_LAUNCHER: [NONE, PARTIAL, FULL]
     /// @param tokens Tokens to rebalance, MUST be unique
     /// @param weights D27{tok/BU} Basket weight ranges for the basket unit definition; cannot be empty [0, 1e54]
     /// @param prices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e54]
@@ -879,7 +879,8 @@ contract Folio is
     ) internal returns (uint256 auctionId) {
         require(rebalance.nonce == rebalanceNonce, Folio__InvalidRebalanceNonce());
 
-        auctionId = (nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length) + 1;
+        auctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
+        nextAuctionId++;
 
         AuctionLib.openAuction(
             rebalance,

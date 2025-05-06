@@ -100,6 +100,7 @@ interface IFolio {
     error Folio__InvalidRebalanceNonce();
     error Folio__PricingNotTrusted();
     error Folio__TokenNotInRebalance();
+    error Folio__EmptyAuction();
 
     // === Structures ===
 
