@@ -288,7 +288,7 @@ library AuctionLib {
         }
 
         // D27{buyTok/sellTok} = D27{UoA/sellTok} * D27 / D27{UoA/buyTok}
-        uint256 endPrice = Math.mulDiv(sellDetails.prices.low, D27, buyDetails.prices.high, Math.Rounding.Floor);
+        uint256 endPrice = Math.mulDiv(sellDetails.prices.low, D27, buyDetails.prices.high, Math.Rounding.Ceil);
         if (timestamp == auction.endTime) {
             return endPrice;
         }
