@@ -691,7 +691,7 @@ contract Folio is
                 sellToken,
                 buyToken,
                 totalSupply(),
-                timestamp != 0 ? timestamp : 0,
+                timestamp != 0 ? timestamp : block.timestamp,
                 0,
                 maxSellAmount,
                 type(uint256).max
