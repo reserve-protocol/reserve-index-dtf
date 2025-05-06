@@ -983,7 +983,9 @@ contract FolioTest is BaseTest {
             block.timestamp + MAX_AUCTION_DELAY,
             block.timestamp + MAX_TTL
         );
+        vm.startSnapshotGas("startRebalance");
         folio.startRebalance(assets, limits, prices, MAX_AUCTION_DELAY, MAX_TTL);
+        vm.stopSnapshotGas("startRebalance");
 
         IFolio.Auction memory auctionStruct = IFolio.Auction({
             rebalanceNonce: 1,
@@ -999,8 +1001,9 @@ contract FolioTest is BaseTest {
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, false);
         emit IFolio.AuctionOpened(0, auctionStruct);
+        vm.startSnapshotGas("openAuction");
         folio.openAuction(USDC, USDT, 0, MAX_LIMIT, 1e27, 1e27);
-
+        vm.stopSnapshotGas("openAuction");
         // bid once at start time
 
         vm.startPrank(user1);
