@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { AuctionLib } from "@utils/AuctionLib.sol";
-import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_LIMIT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
+import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_AUCTION_PRICE_RANGE, MAX_FEE_RECIPIENTS, MAX_LIMIT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -534,7 +534,7 @@ contract Folio is
                 require(
                     newPrices[i].low <= newPrices[i].high &&
                         newPrices[i].high <= MAX_TOKEN_PRICE &&
-                        newPrices[i].high / newPrices[i].low <= MAX_TOKEN_PRICE_RANGE,
+                        newPrices[i].high <= MAX_TOKEN_PRICE_RANGE * newPrices[i].low,
                     Folio__InvalidPrices()
                 );
             }
@@ -589,13 +589,10 @@ contract Folio is
         if (sellDetails.prices.high != 0) {
             // D27{buyTok/sellTok} = D27 * D27{UoA/sellTok} / D27{UoA/buyTok}
             uint256 oldStartPrice = (D27 * sellDetails.prices.high + buyDetails.prices.low - 1) / buyDetails.prices.low;
-            uint256 oldEndPrice = (D27 * sellDetails.prices.low + buyDetails.prices.high - 1) / buyDetails.prices.high;
 
-            // allow up to 100x price increase
-            require(
-                startPrice >= oldStartPrice && startPrice <= 100 * oldStartPrice && endPrice >= oldEndPrice,
-                Folio__InvalidPrices()
-            );
+            // allow to lower the end price, but compel the auction launcher to a high startPrice
+            require(startPrice >= oldStartPrice, Folio__InvalidPrices());
+            // overall auction price range checked later
         }
 
         // for upgraded Folios, pick up on the next auction index from the old array
