@@ -540,6 +540,9 @@ contract Folio is
                 Folio__InvalidWeights()
             );
 
+            // enforce weights are all 0 or all >0
+            require(weights[i].low != 0 || weights[i].high == 0, Folio__InvalidWeights());
+
             // enforce prices internal consistency
             require(
                 prices[i].low != 0 &&
