@@ -583,8 +583,8 @@ contract Folio is
     /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits, for a given set of tokens
     /// @param rebalanceNonce The nonce of the rebalance being targeted
     /// @param tokens The tokens from the rebalance to include in the auction
-    /// @param newWeights D27{tok/BU} New weights
-    /// @param newPrices D27{UoA/tok} New price ranges; ignored for NONE auction launchers
+    /// @param newWeights D27{tok/BU} New weights; must be provided
+    /// @param newPrices D27{UoA/tok} New price ranges; must be provided in non-PriceControl.NONE case
     /// @param sellLimit D18{BU/share} Target level to sell down to, inclusive (0, 1e36]
     /// @param buyLimit D18{BU/share} Target level to buy up to, inclusive (0, 1e36]
     /// @return auctionId The newly created auctionId
@@ -737,9 +737,10 @@ contract Folio is
             AuctionLib.bid(
                 rebalance,
                 auction,
+                auctionId,
                 sellToken,
                 buyToken,
-                totalSupply(),
+                _totalSupply,
                 sellAmount,
                 boughtAmt,
                 withCallback,
@@ -748,8 +749,6 @@ contract Folio is
         ) {
             _removeFromBasket(address(sellToken));
         }
-
-        emit IFolio.AuctionBid(auctionId, sellAmount, boughtAmt);
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
@@ -880,7 +879,7 @@ contract Folio is
     ) internal returns (uint256 auctionId) {
         require(rebalance.nonce == rebalanceNonce, Folio__InvalidRebalanceNonce());
 
-        auctionId = 1 + (nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length);
+        auctionId = (nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length) + 1;
 
         AuctionLib.openAuction(
             rebalance,
@@ -1075,6 +1074,7 @@ contract Folio is
         emit BasketTokenRemoved(token);
 
         delete rebalance.details[token];
+        // auction.inAuction is not updated but it's ok
 
         return basket.remove(token);
     }

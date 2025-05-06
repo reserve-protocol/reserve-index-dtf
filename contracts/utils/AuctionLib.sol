@@ -195,6 +195,7 @@ library AuctionLib {
     function bid(
         IFolio.Rebalance storage rebalance,
         IFolio.Auction storage auction,
+        uint256 auctionId,
         IERC20 sellToken,
         IERC20 buyToken,
         uint256 totalSupply,
@@ -206,16 +207,7 @@ library AuctionLib {
         // pay bidder
         SafeERC20.safeTransfer(sellToken, msg.sender, sellAmount);
 
-        // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
-        uint256 sellLimit = Math.mulDiv(
-            auction.sellLimit,
-            rebalance.details[address(sellToken)].weights.spot,
-            D18,
-            Math.Rounding.Ceil
-        );
-
-        // D27{sellTok/share}
-        uint256 sellBasketPresence;
+        // ensure remaining sell balance is sufficient
         {
             // {sellTok}
             uint256 sellBal = sellToken.balanceOf(address(this));
@@ -225,46 +217,39 @@ library AuctionLib {
                 shouldRemoveFromBasket = true;
             }
 
+            // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
+            uint256 sellLimit = Math.mulDiv(
+                auction.sellLimit,
+                rebalance.details[address(sellToken)].weights.spot,
+                D18,
+                Math.Rounding.Ceil
+            );
+
             // D27{sellTok/share} = {sellTok} * D27 / {share}
-            sellBasketPresence = Math.mulDiv(sellBal, D27, totalSupply, Math.Rounding.Ceil);
+            uint256 sellBasketPresence = Math.mulDiv(sellBal, D27, totalSupply, Math.Rounding.Ceil);
             assert(sellBasketPresence >= sellLimit); // function-use invariant
         }
 
-        // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
-        uint256 buyLimit = Math.mulDiv(
-            auction.buyLimit,
-            rebalance.details[address(buyToken)].weights.spot,
-            D18,
-            Math.Rounding.Floor
+        // {buyTok}
+        uint256 buyBalBefore = buyToken.balanceOf(address(this));
+
+        // collect payment from bidder
+        if (withCallback) {
+            IBidderCallee(msg.sender).bidCallback(address(buyToken), bidAmount, data);
+        } else {
+            SafeERC20.safeTransferFrom(buyToken, msg.sender, address(this), bidAmount);
+        }
+
+        uint256 buyBalAfter = buyToken.balanceOf(address(this));
+        require(buyBalAfter - buyBalBefore >= bidAmount, IFolio.Folio__InsufficientBid());
+
+        emit IFolio.AuctionBid(
+            auctionId,
+            address(sellToken),
+            address(buyToken),
+            sellAmount,
+            buyBalAfter - buyBalBefore
         );
-
-        // D27{buyTok/share}
-        uint256 buyBasketPresence;
-        {
-            // {buyTok}
-            uint256 buyBalBefore = buyToken.balanceOf(address(this));
-
-            // collect payment from bidder
-            if (withCallback) {
-                IBidderCallee(msg.sender).bidCallback(address(buyToken), bidAmount, data);
-            } else {
-                SafeERC20.safeTransferFrom(buyToken, msg.sender, address(this), bidAmount);
-            }
-
-            uint256 buyBalAfter = buyToken.balanceOf(address(this));
-
-            require(buyBalAfter - buyBalBefore >= bidAmount, IFolio.Folio__InsufficientBid());
-
-            // D27{buyTok/share} = {buyTok} * D27 / {share}
-            buyBasketPresence = Math.mulDiv(buyBalAfter, D27, totalSupply, Math.Rounding.Floor);
-        }
-
-        // end auction at limits
-        // can still be griefed
-        // limits may not be reacheable due to limited precision + defensive roundings
-        if (sellBasketPresence == sellLimit || buyBasketPresence >= buyLimit) {
-            auction.endTime = block.timestamp - 1;
-        }
     }
 
     // ==== Internal ====
@@ -283,6 +268,8 @@ library AuctionLib {
         // ensure auction is ongoing and token pair is in it
         require(
             auction.rebalanceNonce == rebalance.nonce &&
+                sellDetails.inRebalance &&
+                buyDetails.inRebalance &&
                 auction.inAuction[address(sellToken)] &&
                 auction.inAuction[address(buyToken)] &&
                 timestamp >= auction.startTime &&

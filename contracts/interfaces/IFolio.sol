@@ -6,14 +6,20 @@ interface IFolio {
 
     event AuctionOpened(
         uint256 indexed auctionId,
-        uint256 rebalanceNonce,
+        uint256 indexed rebalanceNonce,
         address[] tokens,
         uint256 sellLimit,
         uint256 buyLimit,
         uint256 startTime,
         uint256 endTime
     );
-    event AuctionBid(uint256 indexed auctionId, uint256 sellAmount, uint256 buyAmount);
+    event AuctionBid(
+        uint256 indexed auctionId,
+        address indexed sellToken,
+        address indexed buyToken,
+        uint256 sellAmount,
+        uint256 buyAmount
+    );
     event AuctionClosed(uint256 indexed auctionId);
     event AuctionTrustedFillCreated(uint256 indexed auctionId, address filler);
 
