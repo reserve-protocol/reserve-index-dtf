@@ -5,8 +5,8 @@ interface IFolio {
     // === Events ===
 
     event AuctionOpened(
-        uint256 indexed auctionId,
         uint256 indexed rebalanceNonce,
+        uint256 indexed auctionId,
         address[] tokens,
         uint256 sellLimit,
         uint256 buyLimit,
@@ -72,21 +72,15 @@ interface IFolio {
     error Folio__InvalidAssetAmount(address asset);
 
     error Folio__InvalidAuctionLength();
-    error Folio__InvalidAuctionPrices();
     error Folio__InvalidLimits();
     error Folio__InvalidWeights();
-    error Folio__InvalidSellLimit();
-    error Folio__InvalidBuyLimit();
     error Folio__AuctionCannotBeOpenedWithoutRestriction();
     error Folio__AuctionNotOngoing();
-    error Folio__AuctionCollision();
     error Folio__InvalidPrices();
     error Folio__SlippageExceeded();
     error Folio__InsufficientSellAvailable();
     error Folio__InsufficientBid();
     error Folio__InsufficientSharesOut();
-    error Folio__InvalidAuctionTokens();
-    error Folio__InvalidAuctionDelay();
     error Folio__TooManyFeeRecipients();
     error Folio__InvalidArrayLengths();
     error Folio__InvalidTransferToSelf();
@@ -98,7 +92,6 @@ interface IFolio {
     error Folio__InvalidTTL();
     error Folio__NotRebalancing();
     error Folio__InvalidRebalanceNonce();
-    error Folio__PricingNotTrusted();
     error Folio__TokenNotInRebalance();
     error Folio__EmptyAuction();
 

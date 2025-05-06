@@ -40,7 +40,7 @@ library AuctionLib {
 
         // enforce auction not ongoing, if unrestricted
         // AUCTION_LAUNCHER can overwrite an existing auction
-        if (auctionBuffer != 0) {
+        if (auctionId != 0 && auctionBuffer != 0) {
             IFolio.Auction storage lastAuction = auctions[auctionId - 1];
             require(
                 lastAuction.endTime + auctionBuffer < block.timestamp || lastAuction.rebalanceNonce != rebalance.nonce,
@@ -87,8 +87,8 @@ library AuctionLib {
         require(!empty, IFolio.Folio__EmptyAuction());
 
         emit IFolio.AuctionOpened(
-            auctionId,
             rebalance.nonce,
+            auctionId,
             tokens,
             sellLimit,
             buyLimit,
