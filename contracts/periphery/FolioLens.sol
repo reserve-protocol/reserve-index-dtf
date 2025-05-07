@@ -20,7 +20,7 @@ contract FolioLens is Versioned {
     /// @return tokens The tokens in the basket
     /// @return weights D27{tok/share} The weights of the tokens per share given by the current balances
     function getSpotWeights(Folio folio) external view returns (address[] memory tokens, uint256[] memory weights) {
-        (tokens, , , , ) = folio.getRebalance();
+        (, tokens, , , , , , , , , ) = folio.getRebalance();
         weights = new uint256[](tokens.length);
 
         uint256 totalSupply = folio.totalSupply();
@@ -53,7 +53,7 @@ contract FolioLens is Versioned {
             uint256[] memory prices
         )
     {
-        (address[] memory tokens, , , , ) = folio.getRebalance();
+        (, address[] memory tokens, , , , , , , , , ) = folio.getRebalance();
 
         sellTokens = new address[](tokens.length * tokens.length);
         buyTokens = new address[](tokens.length * tokens.length);

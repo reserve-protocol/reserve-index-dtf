@@ -6,7 +6,7 @@ import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/contracts/filler
 import { GPV2_SETTLEMENT } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/Constants.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
-import { D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_AUCTION_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
+import { D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_AUCTION_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT } from "@utils/Constants.sol";
 import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
@@ -2165,7 +2165,7 @@ contract FolioTest is BaseTest {
         folio.openAuctionUnrestricted(1);
 
         // but should be possible after auction launcher window
-        (, , , uint256 restrictedUntil, , ) = folio.rebalance();
+        (, , , , , , , , uint256 restrictedUntil, , ) = folio.getRebalance();
         vm.warp(restrictedUntil);
         folio.openAuctionUnrestricted(1);
 

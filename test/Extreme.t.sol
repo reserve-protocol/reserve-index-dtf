@@ -5,9 +5,8 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 import { Folio } from "@src/Folio.sol";
-import { D18, D27, MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_TTL, MAX_LIMIT, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, RESTRICTED_AUCTION_BUFFER, MAX_TOKEN_BALANCE } from "@utils/Constants.sol";
+import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_TTL, MAX_WEIGHT, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
-import { MathLib } from "@utils/MathLib.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {

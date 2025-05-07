@@ -182,7 +182,7 @@ interface IFolio {
     ///   - CLOSED: block.timestamp > endTime
     struct Auction {
         uint256 rebalanceNonce;
-        mapping(address token => bool) inAuction; // if the token in the auction
+        mapping(address token => bool) inAuction; // if the token is in the auction
         uint256 sellLimit; // D18{BU/share} rebalance limit to sell down to (0, 1e36]
         uint256 buyLimit; // D18{BU/share} rebalance limit to buy up to (0, 1e36]
         uint256 startTime; // {s} inclusive
