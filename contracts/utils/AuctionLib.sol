@@ -185,7 +185,7 @@ library AuctionLib {
 
         // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
         bidAmount = Math.mulDiv(sellAmount, price, D27, Math.Rounding.Ceil);
-        require(bidAmount != 0 && bidAmount <= params.maxBuyAmount, IFolio.Folio__SlippageExceeded());
+        require(bidAmount <= params.maxBuyAmount, IFolio.Folio__SlippageExceeded());
     }
 
     /// Bid in an ongoing auction
@@ -208,6 +208,8 @@ library AuctionLib {
         bool withCallback,
         bytes calldata data
     ) external returns (bool shouldRemoveFromBasket) {
+        require(bidAmount != 0, IFolio.Folio__InsufficientBuyAvailable());
+
         // pay bidder
         SafeERC20.safeTransfer(sellToken, msg.sender, sellAmount);
 

@@ -79,6 +79,7 @@ interface IFolio {
     error Folio__InvalidPrices();
     error Folio__SlippageExceeded();
     error Folio__InsufficientSellAvailable();
+    error Folio__InsufficientBuyAvailable();
     error Folio__InsufficientBid();
     error Folio__InsufficientSharesOut();
     error Folio__TooManyFeeRecipients();

@@ -775,6 +775,7 @@ contract Folio is
             type(uint256).max,
             type(uint256).max
         );
+        require(buyAmount != 0, Folio__InsufficientBuyAvailable());
 
         // Create Trusted Filler
         filler = trustedFillerRegistry.createTrustedFiller(msg.sender, targetFiller, deploymentSalt);
@@ -790,12 +791,7 @@ contract Folio is
     /// A auction can be closed from anywhere in its lifecycle
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function closeAuction(uint256 auctionId) external nonReentrant {
-        require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
-                hasRole(REBALANCE_MANAGER, msg.sender) ||
-                hasRole(AUCTION_LAUNCHER, msg.sender),
-            Folio__Unauthorized()
-        );
+        _requireAnyRole(); // undo if contract size is not a barrier anymore
 
         // do not revert, to prevent griefing
         auctions[auctionId].endTime = block.timestamp - 1; // inclusive
@@ -806,12 +802,7 @@ contract Folio is
     /// End the current rebalance, including any ongoing auction
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function endRebalance() external nonReentrant {
-        require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
-                hasRole(REBALANCE_MANAGER, msg.sender) ||
-                hasRole(AUCTION_LAUNCHER, msg.sender),
-            Folio__Unauthorized()
-        );
+        _requireAnyRole(); // undo if contract size is not a barrier anymore
 
         emit RebalanceEnded(rebalance.nonce);
 
@@ -1114,5 +1105,14 @@ contract Folio is
         require(to != address(this), Folio__InvalidTransferToSelf());
 
         super._update(from, to, value);
+    }
+
+    function _requireAnyRole() internal view {
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
+                hasRole(REBALANCE_MANAGER, msg.sender) ||
+                hasRole(AUCTION_LAUNCHER, msg.sender),
+            Folio__Unauthorized()
+        );
     }
 }

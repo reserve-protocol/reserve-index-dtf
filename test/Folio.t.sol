@@ -2143,7 +2143,7 @@ contract FolioTest is BaseTest {
 
         vm.startPrank(user1);
         USDT.approve(address(folio), 0);
-        vm.expectRevert(IFolio.Folio__SlippageExceeded.selector);
+        vm.expectRevert(IFolio.Folio__InsufficientBuyAvailable.selector);
         folio.bid(0, IERC20(address(USDC)), IERC20(address(DAI)), 0, 0, false, bytes(""));
     }
 
