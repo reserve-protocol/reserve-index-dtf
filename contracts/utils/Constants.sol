@@ -12,7 +12,7 @@ uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MAX_LIMIT = 1e36; // D18{1}
 uint256 constant MAX_WEIGHT = 1e54; // D27{tok/share}
 uint256 constant MAX_TOKEN_BALANCE = 1e36; // {tok}
-uint256 constant MAX_TOKEN_PRICE = 1e45; // D27{UoA/tok} // TODO return to, maybe should be 1e36
+uint256 constant MAX_TOKEN_PRICE = 1e45; // D27{UoA/tok}
 uint256 constant MAX_TOKEN_PRICE_RANGE = 1e2; // {1}
 uint256 constant RESTRICTED_AUCTION_BUFFER = 120; // {s} 2 min
 

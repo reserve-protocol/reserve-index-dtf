@@ -36,16 +36,28 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * There is also an additional BRAND_MANAGER role that does not have any permissions. It is used off-chain.
  *
  * Rebalance lifecycle:
- *   startRebalance() -> openAuction() -> bid() -> [optional] closeAuction()
+ *   startRebalance() -> openAuction()/openAuctionUnrestricted() -> bid()/createTrustedFill() -> [optional] closeAuction()
  *
  * After a new rebalance is started by the REBALANCE_MANAGER, there is a period of time where only the AUCTION_LAUNCHER
- * can open auctions. They can choose to act within the range of the REBALANCE_MANAGER's initial estimates. After this
- * period is over, anyone can open auctions until the rebalance expires.
+ * can start an auction on a set of tokens. They can specify a few different things:
+ *   - The list of tokens to include in the auction; must be a subset of the tokens in the rebalance
+ *   - Basket weights: they can pick a weight within the provided initial range
+ *   - Price range: depending on their PriceControl level, they may either have to work within the initial range,
+ *                  no ability to change prices, or full flexibility to set prices arbitrarily.
+ *   - Rebalance limits: they can progressively tighten the limits each auction
  *
- * An auction for a given token pair can run any number of times. However it requires the sell token to be in surplus
- * and the buy token in deficit.
+ * The AUCTION_LAUNCHER can run as many auctions as they need to, and if they are close to the end of their restricted
+ * period, the period will be extended on each auction-length. Potentially they can run auctions forever.
  *
- * Targets for the rebalance are defined in basket ratios: ratios of token to Folio shares, D27{tok/share}
+ * After the AUCTION_LAUNCHER's restricted period is over, anyone can open auctions until the rebalance expires.
+ *
+ * An auction for a set of tokens runs in parallel all different pairs simultaneously. The clearing price for each
+ * pair is interpolated in the auction curve between their most-optimistic and most-pessimistic price estimates.
+ *
+ * In order for a pair to be eligible for an auction, the sell token must be in surplus and the buy token in deficit.
+ *
+ * Targets for the rebalance are defined in terms of basket units: D27{tok/BU}
+ * A Basket Unit (BU) can be defined arbitrarily, but the expected usage is to define BUs as 1:1 with shares.
  *
  * Fees:
  *   - TVL fee: fee per unit time. Max 10% annually. Causes supply inflation over time, discretely once a day.

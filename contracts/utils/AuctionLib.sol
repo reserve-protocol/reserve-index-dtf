@@ -305,7 +305,7 @@ library AuctionLib {
 
         // P_t = P_0 * e ^ -kt
         // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-        p = Math.mulDiv(startPrice, MathLib.exp(-1 * int256(k * elapsed)), D18);
+        p = Math.mulDiv(startPrice, MathLib.exp(-1 * int256(k * elapsed)), D18, Math.Rounding.Ceil);
         if (p < endPrice) {
             p = endPrice;
         }

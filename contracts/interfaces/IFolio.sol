@@ -152,8 +152,8 @@ interface IFolio {
     /// Individual token price ranges
     /// @dev Unit of Account can be anything as long as it's consistent; USD is most common
     struct PriceRange {
-        uint256 low; // D27{UoA/tok}
-        uint256 high; // D27{UoA/tok}
+        uint256 low; // D27{UoA/tok} (0, 1e54]
+        uint256 high; // D27{UoA/tok} (0, 1e54]
     }
 
     /// Rebalance details for a token

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
 import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/IBaseTrustedFiller.sol";
@@ -1722,7 +1721,7 @@ contract FolioTest is BaseTest {
             type(uint256).max
         );
         assertEq(sellAmount, amt, "wrong mid sell amount");
-        assertEq(buyAmount, amt / 1e21, "wrong mid buy amount"); // 10x
+        assertEq(buyAmount, amt / 1e21 + amt / 1e27, "wrong mid buy amount"); // 10x + small rounding
 
         (sellAmount, buyAmount, ) = folio.getBid(
             0,
