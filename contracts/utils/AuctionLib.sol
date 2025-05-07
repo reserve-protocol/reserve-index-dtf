@@ -276,6 +276,7 @@ library AuctionLib {
         // ensure auction is ongoing and token pair is in it
         require(
             auction.rebalanceNonce == rebalance.nonce &&
+                sellToken != buyToken &&
                 sellDetails.inRebalance &&
                 buyDetails.inRebalance &&
                 auction.inAuction[address(sellToken)] &&
