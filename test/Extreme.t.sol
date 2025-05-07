@@ -11,8 +11,8 @@ import { MathLib } from "@utils/MathLib.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
-    IFolio.WeightRange internal REMOVE = IFolio.WeightRange(0, 0, 0);
-    IFolio.WeightRange internal BUY = IFolio.WeightRange(MAX_WEIGHT, 1, MAX_WEIGHT);
+    IFolio.WeightRange internal REMOVE = IFolio.WeightRange({ low: 0, spot: 0, high: 0 });
+    IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: 1, spot: MAX_WEIGHT, high: MAX_WEIGHT });
 
     function _deployTestFolio(
         address[] memory _tokens,
@@ -161,6 +161,7 @@ contract ExtremeTest is BaseExtremeTest {
         // check balances
         assertEq(folio.balanceOf(user1), mintAmount - (mintAmount * 3) / 2000, "wrong user1 balance");
         for (uint256 j = 0; j < tokens.length; j++) {
+            {}
             IERC20 _token = IERC20(tokens[j]);
 
             uint256 tolerance = (p.decimals > 18) ? 10 ** (p.decimals - 18) : 1;
@@ -240,7 +241,7 @@ contract ExtremeTest is BaseExtremeTest {
             address[] memory assets = new address[](2);
             IFolio.WeightRange[] memory weights = new IFolio.WeightRange[](2);
             IFolio.PriceRange[] memory prices = new IFolio.PriceRange[](2);
-            IFolio.RebalanceLimits memory limits = IFolio.RebalanceLimits(1e18, 1, 1e36);
+            IFolio.RebalanceLimits memory limits = IFolio.RebalanceLimits({ low: 1, spot: 1e18, high: 1e36 });
             assets[0] = address(sell);
             assets[1] = address(buy);
             weights[0] = REMOVE;

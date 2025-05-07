@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
 import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/IBaseTrustedFiller.sol";
@@ -21,31 +22,31 @@ contract FolioTest is BaseTest {
     uint256 internal constant MAX_TVL_FEE_PER_SECOND = 3340960028; // D18{1/s} 10% annually, per second
     uint256 internal constant AUCTION_LAUNCHER_WINDOW = MAX_TTL / 2;
 
-    IFolio.WeightRange internal REMOVE = IFolio.WeightRange(0, 0, 0);
-    IFolio.WeightRange internal BUY = IFolio.WeightRange(MAX_WEIGHT, 1, MAX_WEIGHT);
+    IFolio.WeightRange internal REMOVE = IFolio.WeightRange({ low: 0, spot: 0, high: 0 });
+    IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: 1, spot: MAX_WEIGHT, high: MAX_WEIGHT });
 
-    IFolio.WeightRange internal WEIGHTS_6 = IFolio.WeightRange(1e15, 1, MAX_WEIGHT); // D27{tok/BU}
-    IFolio.WeightRange internal WEIGHTS_18 = IFolio.WeightRange(1e27, 1, MAX_WEIGHT); // D27{tok/BU}
-    IFolio.WeightRange internal WEIGHTS_27 = IFolio.WeightRange(1e36, 1, MAX_WEIGHT); // D27{tok/BU}
+    IFolio.WeightRange internal WEIGHTS_6 = IFolio.WeightRange({ low: 1, spot: 1e15, high: MAX_WEIGHT }); // D27{tok/BU}
+    IFolio.WeightRange internal WEIGHTS_18 = IFolio.WeightRange({ low: 1, spot: 1e27, high: MAX_WEIGHT }); // D27{tok/BU}
+    IFolio.WeightRange internal WEIGHTS_27 = IFolio.WeightRange({ low: 1, spot: 1e36, high: MAX_WEIGHT }); // D27{tok/BU}
 
-    IFolio.PriceRange internal FULL_PRICE_RANGE_6 = IFolio.PriceRange(1e20, 1e22); // D27{UoA/tok}
-    IFolio.PriceRange internal FULL_PRICE_RANGE_18 = IFolio.PriceRange(1e8, 1e10); // D27{UoA/tok}
-    IFolio.PriceRange internal FULL_PRICE_RANGE_27 = IFolio.PriceRange(1, 100); // D27{UoA/tok} worth $10 not $1
+    IFolio.PriceRange internal FULL_PRICE_RANGE_6 = IFolio.PriceRange({ low: 1e20, high: 1e22 }); // D27{UoA/tok}
+    IFolio.PriceRange internal FULL_PRICE_RANGE_18 = IFolio.PriceRange({ low: 1e8, high: 1e10 }); // D27{UoA/tok}
+    IFolio.PriceRange internal FULL_PRICE_RANGE_27 = IFolio.PriceRange({ low: 1, high: 100 }); // D27{UoA/tok} worth $10 not $1
 
-    IFolio.PriceRange internal HALF_PRICE_RANGE_6 = IFolio.PriceRange(1e20, 1e21); // D27{UoA/tok}
-    IFolio.PriceRange internal HALF_PRICE_RANGE_18 = IFolio.PriceRange(1e8, 1e9); // D27{UoA/tok}
-    IFolio.PriceRange internal HALF_PRICE_RANGE_27 = IFolio.PriceRange(1, 10); // D27{UoA/tok}
+    IFolio.PriceRange internal HALF_PRICE_RANGE_6 = IFolio.PriceRange({ low: 1e20, high: 1e21 }); // D27{UoA/tok}
+    IFolio.PriceRange internal HALF_PRICE_RANGE_18 = IFolio.PriceRange({ low: 1e8, high: 1e9 }); // D27{UoA/tok}
+    IFolio.PriceRange internal HALF_PRICE_RANGE_27 = IFolio.PriceRange({ low: 1, high: 10 }); // D27{UoA/tok}
 
-    IFolio.PriceRange internal PRICE_POINT_6 = IFolio.PriceRange(1e21, 1e21); // D27{UoA/tok}
-    IFolio.PriceRange internal PRICE_POINT_18 = IFolio.PriceRange(1e9, 1e9); // D27{UoA/tok}
-    IFolio.PriceRange internal PRICE_POINT_27 = IFolio.PriceRange(1, 1); // D27{UoA/tok}
+    IFolio.PriceRange internal PRICE_POINT_6 = IFolio.PriceRange({ low: 1e21, high: 1e21 }); // D27{UoA/tok}
+    IFolio.PriceRange internal PRICE_POINT_18 = IFolio.PriceRange({ low: 1e9, high: 1e9 }); // D27{UoA/tok}
+    IFolio.PriceRange internal PRICE_POINT_27 = IFolio.PriceRange({ low: 1, high: 1 }); // D27{UoA/tok}
 
     uint256 internal constant ONE_BU = 1e18;
 
     address[] assets;
     IFolio.WeightRange[] weights;
     IFolio.PriceRange[] prices;
-    IFolio.RebalanceLimits limits = IFolio.RebalanceLimits({ spot: ONE_BU, low: 1, high: MAX_LIMIT });
+    IFolio.RebalanceLimits limits = IFolio.RebalanceLimits({ low: 1, spot: ONE_BU, high: MAX_LIMIT });
 
     function _testSetup() public virtual override {
         super._testSetup();

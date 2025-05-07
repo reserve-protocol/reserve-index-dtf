@@ -137,15 +137,15 @@ interface IFolio {
 
     /// Target limits for rebalancing
     struct RebalanceLimits {
-        uint256 spot; // D18{BU/share} // estimate of the ideal destination for rebalancing (0, 1e36]
         uint256 low; // D18{BU/share} // to buy assets up to (0, 1e36]
+        uint256 spot; // D18{BU/share} // estimate of the ideal destination for rebalancing (0, 1e36]
         uint256 high; // D18{BU/share} // to sell assets down to (0, 1e36]
     }
 
     /// Range of basket weights for BU definition
     struct WeightRange {
-        uint256 spot; // D27{tok/BU} [0, 1e54]
         uint256 low; // D27{tok/BU} [0, 1e54]
+        uint256 spot; // D27{tok/BU} [0, 1e54]
         uint256 high; // D27{tok/BU} [0, 1e54]
     }
 

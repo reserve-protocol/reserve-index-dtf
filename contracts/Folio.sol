@@ -625,7 +625,7 @@ contract Folio is
                     details.weights.low <= newWeights[i] && newWeights[i] <= details.weights.high,
                     Folio__InvalidWeights()
                 );
-                details.weights = WeightRange({ spot: newWeights[i], low: newWeights[i], high: newWeights[i] });
+                details.weights = WeightRange({ low: newWeights[i], spot: newWeights[i], high: newWeights[i] });
                 // weights can only be updated in the first auction of a rebalance, if a range was originally provided
             }
 
