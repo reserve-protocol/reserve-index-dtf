@@ -594,7 +594,7 @@ contract Folio is
 
     /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits, for a given set of tokens
     /// @param rebalanceNonce The nonce of the rebalance being targeted
-    /// @param tokens The tokens from the rebalance to include in the auction
+    /// @param tokens The tokens from the rebalance to include in the auction; must be unique
     /// @param newWeights D27{tok/BU} New weights; must be provided
     /// @param newPrices D27{UoA/tok} New price ranges; must be provided in non-PriceControl.NONE case
     /// @param sellLimit D18{BU/share} Target level to sell down to, inclusive (0, 1e36]

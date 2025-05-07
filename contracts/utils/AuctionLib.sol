@@ -77,7 +77,9 @@ library AuctionLib {
         bool empty = true;
         for (uint256 i = 0; i < tokens.length; i++) {
             if (rebalance.details[address(tokens[i])].inRebalance) {
-                auctions[auctionId].inAuction[tokens[i]] = true;
+                require(!auction.inAuction[tokens[i]], IFolio.Folio__DuplicateAsset());
+
+                auction.inAuction[tokens[i]] = true;
                 empty = false;
             } else {
                 tokens[i] = address(0);
