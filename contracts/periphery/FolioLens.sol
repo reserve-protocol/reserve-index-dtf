@@ -2,12 +2,13 @@
 pragma solidity 0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import { Versioned } from "@utils/Versioned.sol";
 
+import { IFolio } from "@src/interfaces/IFolio.sol";
 import { Folio } from "@src/Folio.sol";
-import { D27 } from "@utils/Constants.sol";
-
+import { D18, D27 } from "@utils/Constants.sol";
 /**
  * @title FolioLens
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
@@ -81,9 +82,49 @@ contract FolioLens is Versioned {
         }
     }
 
+    /// Get all surplus and deficit balances at the given sell and buy limits
+    /// @param sellLimit D18{BU/share} A sell limit of the rebalance
+    /// @param buyLimit D18{BU/share} A buy limit of the rebalance
     function surplusesAndDeficits(
-        Folio folio
+        Folio folio,
+        uint256 sellLimit,
+        uint256 buyLimit
     ) external view returns (address[] memory tokens, uint256[] memory surpluses, uint256[] memory deficits) {
-        // TODO
+        require(sellLimit >= buyLimit, "sellLimit < buyLimit");
+
+        uint256 totalSupply = folio.totalSupply();
+
+        IFolio.WeightRange[] memory weights;
+        (, tokens, weights, , , , , , , , ) = folio.getRebalance();
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            // {tok}
+            uint256 bal = IERC20(tokens[i]).balanceOf(address(folio));
+
+            // surpluses
+            {
+                // D27{tok/share} = D18{BU/share} * D27{tok/BU} / D18
+                uint256 tokenSellLimit = Math.mulDiv(sellLimit, weights[i].spot, D18, Math.Rounding.Ceil);
+
+                // {tok} = D27{tok/share} * {share} / D27
+                uint256 sellLimitBal = Math.mulDiv(tokenSellLimit, totalSupply, D27, Math.Rounding.Ceil);
+                if (bal > sellLimitBal) {
+                    surpluses[i] = bal - sellLimitBal;
+                }
+            }
+
+            // deficits
+            // only possible if there wasn't a surplus
+            if (surpluses[i] == 0) {
+                // D27{tok/share} = D18{BU/share} * D27{tok/BU} / D18
+                uint256 tokenBuyLimit = Math.mulDiv(buyLimit, weights[i].spot, D18, Math.Rounding.Floor);
+
+                // {tok} = D27{tok/share} * {share} / D27
+                uint256 buyLimitBal = Math.mulDiv(tokenBuyLimit, totalSupply, D27, Math.Rounding.Floor);
+                if (bal < buyLimitBal) {
+                    deficits[i] = buyLimitBal - bal;
+                }
+            }
+        }
     }
 }
