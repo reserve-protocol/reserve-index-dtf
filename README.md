@@ -4,15 +4,15 @@
 
 Reserve Folio is a protocol for creating and managing portfolios of ERC20-compliant assets entirely onchain. Folios are designed to be used as a single-source of truth for asset allocations, enabling composability of complex, multi-asset portfolios.
 
-To change their composition, Folios support a rebalancing process over a finite period of time during which either the `AUCTION_LAUNCHER` or anyone else can start Dutch Auctions to rebalance the Folio toward the rebalance targets. Each Dutch Auction manifests as an exponential decay between two prices under the assumption that the ideal clearing price (incl slippage) lies in between the price bounds.
+To change their composition, Folios support a rebalancing process during which either the `AUCTION_LAUNCHER` (or anyone else, with restriction) can start Dutch Auctions to rebalance the Folio toward the defined basket unit. Each Dutch Auction manifests as an exponential decay between two prices under the assumption that the ideal clearing price (incl slippage) lies in between the price bounds.
 
-The `AUCTION_LAUNCHER` is trusted to be provide additional precision to the rebalance process, either by: (i) modifying the rebalance targets; or (ii) tweaking the auction price curve, within reason. In both cases, the `AUCTION_LAUNCHER` is bound to act within the bounds set by the `REBALANCE_MANAGER`. If an auction is opened permissionlessly instead, the caller has no sway over the rebalance targets or price curve. Rebalances _away_ from the rebalance targets are always disallowed.
+The `AUCTION_LAUNCHER` is trusted to be provide additional input to the rebalance process, either by: (i) setting the final BU weights to use; (ii) setting the basket unit targets (limits) to use to size the auction; (iii) what tokens to include in the auction; or (iv) tweaking the asset prices, depending on `IFolio.PriceControl` level. In all cases, the `AUCTION_LAUNCHER` is bound to act within the bounds set by the `REBALANCE_MANAGER`, who is free to use zero-width ranges to remove degrees of freedom from the `AUCTION_LAUNCHER` . If an auction is opened permissionlessly instead of by the `AUCTION_LAUNCHER`, the caller has no sway over any details of the auction, and it is always for all tokens in the rebalance.
 
 `REBALANCE_MANAGER` is expected to be the timelock of the rebalancing governor associated with the Folio.
 
 `AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig; They can open auctions within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the auction can be opened through the permissonless route instead. If the `AUCTION_LAUNCHER` is not just offline but actively evil, at-best they can maximally deviate rebalancing within the governance-granted range, or prevent a Folio from rebalancing entirely by repeatedly closing-out auctions.
 
-There is no limit to how many auctions can be opened during a rebalance, just how many auction lengths fit within the rebalance period.
+There is no limit to how many auctions can be opened during a rebalance. If the `AUCTION_LAUNCHER` is calling `openAuction` near any boundary that would expire their period, the period is extended so that a period of nonuse occurs before transition to the next phase.
 
 ### Architecture
 
@@ -67,70 +67,85 @@ The staking vault has ONLY a single owner:
 
 ##### Rebalance Lifecycle
 
-1. A rebalance is started by the `REBALANCE_MANAGER`, including initial prices for each asset as well as a range for basket ratios
-2. An auction is opened on a token pair, initiating the progression through a predetermined price curve
+1. A rebalance is started by the `REBALANCE_MANAGER`, specifying ranges for all variables
+2. An auction is opened within a subset of the provided ranges
    a. ...either by the auction launcher (optionally tweaking basket ratios / prices)
    b. ...or permissionlessly (after the restricted period passes)
-3. Bids occur
+3. Bids occur on any token pairs included in the auction at nonzero size
 4. Auction expires
 
-A rebalance can have any number of auctions running in parallel. At anytime any auction can be closed or a new rebalance can be started, closing all running auctions.
+A rebalance can only have 1 auction run at a time. The `AUCTION_LAUNCHER` can always overwrite the existing auction while an unpermissioned caller must wait for the auction to close before opening a new one. At anytime the current auction can be closed or a new rebalance can be started, which also closes the running auction.
 
 ##### Rebalance Usage
 
 ###### Auction Launcher Window
 
-Rebalances first pass through a restricted period where only the `AUCTION_LAUNCHER` can open auctions. This is to ensure that the `AUCTION_LAUNCHER` always has time to act first. Additionally, there is always >= 120s buffer before an auction can be opened permissionlessly.
+Rebalances first pass through a restricted period where only the `AUCTION_LAUNCHER` can open auctions. This is to ensure that the `AUCTION_LAUNCHER` always has time to act first. Their time gets bumped if they are using it near the end. Additionally, there is always >= 120s buffer before an auction can be opened permissionlessly.
 
 ###### TTL
 
-Rebalances have a time-to-live (TTL) that controls how long the rebalance can run. Any number of auctions can be opened during this time. Note: an auction can be opened at `ttl - 1` and run beyond the rebalance's TTL.
+Rebalances have a time-to-live (TTL) that controls how long the rebalance can run. Any number of auctions can be opened during this time, and it can be extended by the `AUCTION_LAUNCHER` if they are near the end. Note: an auction can be opened at `ttl - 1` and run beyond the rebalance's TTL.
 
 ###### Buy/Sell limits
 
-The `REBALANCE_MANAGER` configures buy and sell limits for the basket ratios, including a spot estimate:
+The `REBALANCE_MANAGER` configures a large number of rebalance ranges, including spot estimates to be used in the unrestricted case:
 
 ```solidity
-struct RebalanceDetails {
-  bool inRebalance;
-  BasketRange limits; // D27{tok/share}
-  Prices prices; // D27{UoA/tok} prices can be in any Unit of Account as long as it's consistent across the rebalance
+/// Target limits for rebalancing
+struct RebalanceLimits {
+  uint256 spot; // D18{BU/share} // estimate of the ideal destination for rebalancing (0, 1e36]
+  uint256 low; // D18{BU/share} // to buy assets up to (0, 1e36]
+  uint256 high; // D18{BU/share} // to sell assets down to (0, 1e36]
 }
 
-struct BasketRange {
-  uint256 spot; // D27{tok/share}
-  uint256 low; // D27{tok/share} inclusive
-  uint256 high; // D27{tok/share} inclusive
+/// Range of basket weights for BU definition
+struct WeightRange {
+  uint256 spot; // D27{tok/BU} [0, 1e54]
+  uint256 low; // D27{tok/BU} [0, 1e54]
+  uint256 high; // D27{tok/BU} [0, 1e54]
 }
 
-struct Prices {
-  uint256 low; // D27{UoA/tok}
-  uint256 high; // D27{UoA/tok}
+/// Individual token price ranges
+/// @dev Unit of Account can be anything as long as it's consistent; USD is most common
+struct PriceRange {
+  uint256 low; // D27{UoA/tok} (0, 1e54]
+  uint256 high; // D27{UoA/tok} (0, 1e54]
+}
+
+/// AUCTION_LAUNCHER trust level for prices
+enum PriceControl {
+  NONE, // cannot revise prices at all
+  PARTIAL, // can revise prices, within bounds
+  FULL // can revise prices arbitrarily
 }
 ```
 
-During `openAuction` the `AUCTION_LAUNCHER` can set new spot limits as long as it is within the ranges initially provided by the `REBALANCE_MANAGER`. If the auction is opened permissionlessly, the pre-approved spot estimates will be used instead.
+During `openAuction` the `AUCTION_LAUNCHER` can revise any of the variables within the provided ranges. If the auction is opened permissionlessly, the pre-approved spot estimates will be used instead.
 
 ###### Price
 
-For each token supplied to the rebalance, the `REBALANCE_MANAGER` provides a `low` and `high` price estimate. These should be set such that in the vast majority (99.9%+) of scenarios, the asset's price on secondary markets lies within the provided range. The maximum allowable price range for a token is 1e2: `high / low` must be <= 1e2.
+For each token supplied to the rebalance, the `REBALANCE_MANAGER` provides a `low` and `high` price estimate. These should be set such that in the vast majority (99.9%+) of scenarios, the asset's price on secondary markets lies within the provided range, and the slippage from imprecision is not too large. The maximum allowable price range for a token is 1e2: `high / low` must be <= 1e2.
 
-If the price of an asset rises above its `high` price, this can result in a loss of value for Folio holders due to the auction price curve on a token pair starting at too-low-a-price.
+If the price of an asset rises above its `high` price, this can result in a loss of value for Folio holders due to the auction price curve on a token pair starting at too-low-a-price. In this case it would be the job of the `AUCTION_LAUNCHER` to end the rebalance.
 
-When an auction is started, the `low` and `high` prices for both assets are used to calculate a `startPrice` and `endPrice` for the auction.
+When an auction is started, the `low` and `high` prices for both assets are used to calculate a `startPrice` and `endPrice` for the auction, with the `startPrice` representing the most-optimistic price and `endPrice` representing the most-pessimistic price.
 
-There are 2 ways to price assets, depending on the risk tolerance of the `REBALANCE_MANAGER`:
+There are 3 ways the `AUCTION_LAUNCHER` can control the price of an asset, depending configuration:
 
-1. **Priced**
+1. **PriceControl.NONE**
 
-- The `REBALANCE_MANAGER` provides a list of NONZERO prices for each token. No token price can be 0.
-- The `AUCTION_LAUNCHER` can always choose to raise the starting price up to 100x from the natural starting price, or raise the ending price arbitrarily (up to the starting price). They cannot lower either price.
+- The `REBALANCE_MANAGER` provides a list of NONZERO prices for each token.
+- The `AUCTION_LAUNCHER` cannot edit or narrow prices.
 
-2. **Unpriced**
+2. **PriceControl.PARTIAL**
 
-- The `REBALANCE_MANAGER` provides ALL 0 prices for each token. This allows the `AUCTION_LAUNCHER` to set prices freely and prevents auctions from being opened permissionlessly.
+- The `REBALANCE_MANAGER` provides a list of NONZERO prices for each token
+- The `AUCTION_LAUNCHER` can narrow the `low`/`high` range for any token before each auction
 
-Overall the price range for any dutch auction (`startPrice / endPrice`) must be less than `1e6` to prevent precision issues.
+3. **PriceControl.FULL**
+
+- The `REBALANCE_MANAGER` provides a list of NONZERO prices for each token
+- The `AUCTION_LAUNCHER` can fully edit prices before each auction
 
 ###### Price Curve
 
@@ -140,7 +155,7 @@ Note: The first block may not have a price of exactly `startPrice` if it does no
 
 ###### Lot Sizing
 
-Auctions are sized by the difference between current balances and the basket ratios provided by the `limits`.
+Auctions are sized by the difference between current balances and what balance the Folio would need at the given `limit`. Surpluses are defined relative to `RebalanceLimits.high`, while deficits are defined relative to `RebalanceLimits.low`. Each auction, the `AUCTION_LAUNCHER` is able to progressively narrow this range, until eventually an auction is run where `RebalanceLimits.high == RebalanceLimits.low` is true.
 
 The auction `sellAmount` represents the single largest quantity of sell token that can be transacted without violating the `limits` of either tokens in the pair.
 
@@ -159,6 +174,8 @@ Anyone can bid in any auction up to and including the `sellAmount` size, as long
 /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
 function getBid(
    uint256 auctionId,
+   IERC20 sellToken,
+   IERC20 buyToken,
    uint256 timestamp,
    uint256 maxSellAmount
 ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price);
@@ -223,11 +240,11 @@ Tokens are assumed to be within the following ranges:
 
 It is the job of governance to ensure the Folio supply does not grow beyond 1e36 supply.
 
-Exchange rates for rebalance limits are permitted to be up to 1e54, and are 27 decimal fixed point numbers.
+Exchange rates for rebalance limits are permitted to be up to 1e36, and are 18 decimal fixed point numbers.
 
-Prices for individual tokens are permitted to be up to 1e36, and are 27 decimal fixed point numbers.
+Basket weights for each token are permitted to be up to 1e54, and are 27 decimal fixed point numbers.
 
-Prices for auctions are permitted to be up to 1e63, and are 27 decimal fixed point numbers.
+UoA (USD) Prices for individual tokens are permitted to be up to 1e45, and are 27 decimal fixed point numbers.
 
 ### Weird ERC20s
 
