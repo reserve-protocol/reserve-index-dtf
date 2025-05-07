@@ -22,24 +22,24 @@ contract FolioTest is BaseTest {
     uint256 internal constant MAX_TVL_FEE_PER_SECOND = 3340960028; // D18{1/s} 10% annually, per second
     uint256 internal constant AUCTION_LAUNCHER_WINDOW = MAX_TTL / 2;
 
-    IFolio.WeightRange internal REMOVE = IFolio.WeightRange({ low: 0, spot: 0, high: 0 });
-    IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: 1, spot: MAX_WEIGHT, high: MAX_WEIGHT });
+    IFolio.WeightRange internal SELL = IFolio.WeightRange({ low: 0, spot: 0, high: 0 }); // sell as much as possible
+    IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: 1, spot: MAX_WEIGHT, high: MAX_WEIGHT }); // buy as much as possible
 
-    IFolio.WeightRange internal WEIGHTS_6 = IFolio.WeightRange({ low: 1, spot: 1e15, high: MAX_WEIGHT }); // D27{tok/BU}
-    IFolio.WeightRange internal WEIGHTS_18 = IFolio.WeightRange({ low: 1, spot: 1e27, high: MAX_WEIGHT }); // D27{tok/BU}
-    IFolio.WeightRange internal WEIGHTS_27 = IFolio.WeightRange({ low: 1, spot: 1e36, high: MAX_WEIGHT }); // D27{tok/BU}
+    IFolio.WeightRange internal WEIGHTS_6 = IFolio.WeightRange({ low: 1, spot: 1e15, high: MAX_WEIGHT }); // D27{tok/BU} 1:1 with BUs
+    IFolio.WeightRange internal WEIGHTS_18 = IFolio.WeightRange({ low: 1, spot: 1e27, high: MAX_WEIGHT }); // D27{tok/BU} 1:1 with BUs
+    IFolio.WeightRange internal WEIGHTS_27 = IFolio.WeightRange({ low: 1, spot: 1e36, high: MAX_WEIGHT }); // D27{tok/BU} 1:1 with BUs
 
-    IFolio.PriceRange internal FULL_PRICE_RANGE_6 = IFolio.PriceRange({ low: 1e20, high: 1e22 }); // D27{UoA/tok}
-    IFolio.PriceRange internal FULL_PRICE_RANGE_18 = IFolio.PriceRange({ low: 1e8, high: 1e10 }); // D27{UoA/tok}
-    IFolio.PriceRange internal FULL_PRICE_RANGE_27 = IFolio.PriceRange({ low: 1, high: 100 }); // D27{UoA/tok} worth $10 not $1
+    IFolio.PriceRange internal FULL_PRICE_RANGE_6 = IFolio.PriceRange({ low: 1e20, high: 1e22 }); // D27{UoA/tok} worth $1 on average
+    IFolio.PriceRange internal FULL_PRICE_RANGE_18 = IFolio.PriceRange({ low: 1e8, high: 1e10 }); // D27{UoA/tok} worth $1 on average
+    IFolio.PriceRange internal FULL_PRICE_RANGE_27 = IFolio.PriceRange({ low: 1, high: 100 }); // D27{UoA/tok} worth $10 on average
 
-    IFolio.PriceRange internal HALF_PRICE_RANGE_6 = IFolio.PriceRange({ low: 1e20, high: 1e21 }); // D27{UoA/tok}
-    IFolio.PriceRange internal HALF_PRICE_RANGE_18 = IFolio.PriceRange({ low: 1e8, high: 1e9 }); // D27{UoA/tok}
-    IFolio.PriceRange internal HALF_PRICE_RANGE_27 = IFolio.PriceRange({ low: 1, high: 10 }); // D27{UoA/tok}
+    IFolio.PriceRange internal HALF_PRICE_RANGE_6 = IFolio.PriceRange({ low: 1e20, high: 1e21 }); // D27{UoA/tok} worth $1 at high end
+    IFolio.PriceRange internal HALF_PRICE_RANGE_18 = IFolio.PriceRange({ low: 1e8, high: 1e9 }); // D27{UoA/tok} worth $1 at high end
+    IFolio.PriceRange internal HALF_PRICE_RANGE_27 = IFolio.PriceRange({ low: 1, high: 10 }); // D27{UoA/tok} worth $10 at high end
 
-    IFolio.PriceRange internal PRICE_POINT_6 = IFolio.PriceRange({ low: 1e21, high: 1e21 }); // D27{UoA/tok}
-    IFolio.PriceRange internal PRICE_POINT_18 = IFolio.PriceRange({ low: 1e9, high: 1e9 }); // D27{UoA/tok}
-    IFolio.PriceRange internal PRICE_POINT_27 = IFolio.PriceRange({ low: 1, high: 1 }); // D27{UoA/tok}
+    IFolio.PriceRange internal PRICE_POINT_6 = IFolio.PriceRange({ low: 1e21, high: 1e21 }); // D27{UoA/tok} worth $1
+    IFolio.PriceRange internal PRICE_POINT_18 = IFolio.PriceRange({ low: 1e9, high: 1e9 }); // D27{UoA/tok} worth $1
+    IFolio.PriceRange internal PRICE_POINT_27 = IFolio.PriceRange({ low: 10, high: 10 }); // D27{UoA/tok} worth $10
 
     uint256 internal constant ONE_BU = 1e18;
 
@@ -986,7 +986,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
 
         // Sell USDC
-        weights[0] = REMOVE;
+        weights[0] = SELL;
         prices[0] = PRICE_POINT_6;
 
         // Add USDT to buy
@@ -1074,7 +1074,7 @@ contract FolioTest is BaseTest {
         // bid in two chunks, one at start time and one at end time
 
         // Sell USDC
-        weights[0] = REMOVE;
+        weights[0] = SELL;
         prices[0] = PRICE_POINT_6;
 
         // Add USDT to buy
@@ -1172,7 +1172,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
 
         // Sell USDC
-        weights[0] = REMOVE;
+        weights[0] = SELL;
         prices[0] = PRICE_POINT_6;
 
         // Add USDT to buy
@@ -1263,7 +1263,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
 
         // Sell USDC
-        weights[0] = REMOVE;
+        weights[0] = SELL;
         prices[0] = PRICE_POINT_6;
 
         // Add USDT to buy
@@ -1361,7 +1361,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
 
         // Sell USDC
-        weights[0] = REMOVE;
+        weights[0] = SELL;
         prices[0] = PRICE_POINT_6;
 
         // Add USDT to buy
@@ -1482,7 +1482,7 @@ contract FolioTest is BaseTest {
 
     function test_auctionIsValidSignature() public {
         // Sell USDC
-        weights[0] = REMOVE;
+        weights[0] = SELL;
         prices[0] = PRICE_POINT_6;
 
         // Add USDT to buy
@@ -1574,7 +1574,7 @@ contract FolioTest is BaseTest {
         folio.createTrustedFill(0, IERC20(address(USDC)), IERC20(address(USDT)), cowswapFiller, bytes32(0));
 
         // Sell USDC
-        weights[0] = REMOVE;
+        weights[0] = SELL;
         prices[0] = PRICE_POINT_6;
 
         // Add USDT to buy
@@ -1670,7 +1670,7 @@ contract FolioTest is BaseTest {
         // 1e-19 price
 
         // Sell MEME
-        weights[2] = REMOVE;
+        weights[2] = SELL;
         prices[2] = PRICE_POINT_27;
 
         // Buy USDC
@@ -1712,7 +1712,7 @@ contract FolioTest is BaseTest {
             type(uint256).max
         );
         assertEq(sellAmount, amt, "wrong start sell amount");
-        assertEq(buyAmount, (amt * 10) / 1e21, "wrong start buy amount"); // 100x
+        assertEq(buyAmount, (amt * 100) / 1e21, "wrong start buy amount"); // 100x
 
         (sellAmount, buyAmount, ) = folio.getBid(
             0,
@@ -1722,7 +1722,7 @@ contract FolioTest is BaseTest {
             type(uint256).max
         );
         assertEq(sellAmount, amt, "wrong mid sell amount");
-        assertEq(buyAmount, amt / 1e21 + amt / 1e27, "wrong mid buy amount"); // 10x + small rounding
+        assertEq(buyAmount, (amt * 10) / 1e21 + amt / 1e27, "wrong mid buy amount"); // 10x + small rounding
 
         (sellAmount, buyAmount, ) = folio.getBid(
             0,
@@ -1732,7 +1732,7 @@ contract FolioTest is BaseTest {
             type(uint256).max
         );
         assertEq(sellAmount, amt, "wrong end sell amount");
-        assertEq(buyAmount, (amt / 10) / 1e21, "wrong end buy amount"); // 1x
+        assertEq(buyAmount, amt / 1e21, "wrong end buy amount"); // 1x
     }
 
     function test_auctionCloseAuctionByRebalanceManager() public {
@@ -1805,7 +1805,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
 
         // Sell USDC
-        weights[0] = REMOVE;
+        weights[0] = SELL;
 
         // Buy DAI
         weights[1] = BUY;
@@ -2040,7 +2040,7 @@ contract FolioTest is BaseTest {
     function test_auctionNotAvailableAfterEnd() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        weights[0] = REMOVE;
+        weights[0] = SELL;
         weights[1] = BUY;
         folio.startRebalance(
             IFolio.PriceControl.FULL,
@@ -2074,7 +2074,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_10K;
 
         // Configure weights for selling USDC and buying DAI
-        weights[0] = REMOVE;
+        weights[0] = SELL;
         prices[0] = PRICE_POINT_6;
         weights[1] = BUY;
         prices[1] = PRICE_POINT_18;
@@ -2182,7 +2182,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_1;
 
         // Sell USDC
-        weights[0] = REMOVE;
+        weights[0] = SELL;
         prices[0] = PRICE_POINT_6;
 
         // Buy DAI
@@ -2220,8 +2220,8 @@ contract FolioTest is BaseTest {
         // launch two auction in parallel to sell ALL USDC/DAI
 
         // Sell USDC + DAI
-        weights[0] = REMOVE;
-        weights[1] = REMOVE;
+        weights[0] = SELL;
+        weights[1] = SELL;
 
         // Add USDT
         assets.push(address(USDT));
@@ -2268,7 +2268,7 @@ contract FolioTest is BaseTest {
 
     function test_parallelAuctionsOnSellToken() public {
         // Sell USDC
-        weights[0] = REMOVE;
+        weights[0] = SELL;
 
         // Buy DAI and USDT
         weights[1] = BUY;
@@ -2330,7 +2330,7 @@ contract FolioTest is BaseTest {
 
     function test_auctionPriceRange() public {
         // Sell USDC
-        weights[0] = REMOVE;
+        weights[0] = SELL;
 
         // Add USDT
         assets.push(address(USDT));
@@ -2478,7 +2478,7 @@ contract FolioTest is BaseTest {
         uint256 amt = D6_TOKEN_1;
 
         // Sell USDC
-        weights[0] = REMOVE;
+        weights[0] = SELL;
         prices[0] = PRICE_POINT_6;
 
         // Buy USDT
