@@ -13,6 +13,8 @@ import { D18, D27 } from "@utils/Constants.sol";
  * @title FolioLens
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  * @notice Read-only interface for Folio summary info
+ *
+ * Not intended for onchain use; only for offchain analysis
  */
 contract FolioLens is Versioned {
     constructor() {}
@@ -62,9 +64,11 @@ contract FolioLens is Versioned {
         bidAmounts = new uint256[](tokens.length * tokens.length);
         prices = new uint256[](tokens.length * tokens.length);
 
-        for (uint256 i = 0; i < tokens.length; i++) {
-            for (uint256 j = 0; j < tokens.length; j++) {
-                uint256 index = i * tokens.length + j;
+        uint256 len = tokens.length;
+
+        for (uint256 i = 0; i < len; i++) {
+            for (uint256 j = 0; j < len; j++) {
+                uint256 index = i * len + j;
 
                 sellTokens[index] = tokens[i];
                 buyTokens[index] = tokens[j];

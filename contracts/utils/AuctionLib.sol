@@ -9,7 +9,7 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
-import { D18, D27, MAX_TOKEN_BALANCE } from "@utils/Constants.sol";
+import { D18, D27, MAX_TOKEN_BALANCE, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 
 library AuctionLib {
@@ -100,7 +100,7 @@ library AuctionLib {
 
         // bump rebalance deadlines if permissioned caller needs more time
         if (auctionBuffer == 0) {
-            uint256 delta = auctionLength + auctionBuffer * 2; // {s}
+            uint256 delta = auctionLength + RESTRICTED_AUCTION_BUFFER * 2; // {s}
 
             // give AUCTION_LAUNCHER more time to act if it is within their isolated period and about to spill over
             if (block.timestamp < rebalance.restrictedUntil && block.timestamp + delta >= rebalance.restrictedUntil) {
