@@ -153,6 +153,7 @@ contract Folio is
      *   - All auctions are dutch auctions with an exponential decay curve, but startPrice can potentiallny equal endPrice
      */
     mapping(uint256 id => Auction auction) public auctions;
+    mapping(uint256 rebalanceNonce => mapping(bytes32 pair => uint256 endTime)) private auctionEnds_DEPRECATED;
     uint256 public nextAuctionId;
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
