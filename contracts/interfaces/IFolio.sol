@@ -8,6 +8,7 @@ interface IFolio {
         uint256 indexed rebalanceNonce,
         uint256 indexed auctionId,
         address[] tokens,
+        uint256[] weights,
         uint256 sellLimit,
         uint256 buyLimit,
         uint256 startTime,

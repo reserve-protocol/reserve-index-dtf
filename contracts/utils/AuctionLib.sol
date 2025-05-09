@@ -25,12 +25,15 @@ library AuctionLib {
         mapping(uint256 auctionId => IFolio.Auction) storage auctions,
         uint256 auctionId,
         address[] memory tokens,
+        uint256[] memory weights,
+        uint256 totalSupply,
         uint256 auctionLength,
         uint256 sellLimit,
         uint256 buyLimit,
         uint256 auctionBuffer
     ) external {
-        IFolio.RebalanceLimits storage limits = rebalance.limits;
+        uint256 len = tokens.length;
+        require(len == weights.length, IFolio.Folio__InvalidWeights());
 
         // enforce rebalance ongoing
         require(
@@ -48,50 +51,91 @@ library AuctionLib {
             );
         }
 
-        // enforce valid limits
-        require(
-            sellLimit >= buyLimit && sellLimit <= limits.high && buyLimit >= limits.low,
-            IFolio.Folio__InvalidLimits()
-        );
+        // update rebalance limits
+        {
+            IFolio.RebalanceLimits storage limits = rebalance.limits;
 
-        // narrow low/high rebalance limits to prevent double trading in the future by openAuction()
-        limits.high = sellLimit;
-        limits.low = buyLimit;
+            // enforce valid limits
+            require(
+                sellLimit >= buyLimit && sellLimit <= limits.high && buyLimit >= limits.low,
+                IFolio.Folio__InvalidLimits()
+            );
 
-        // update spot rebalance limits to prevent double trading in the future by openAuctionUnrestricted()
-        if (sellLimit < limits.spot) {
-            limits.spot = sellLimit;
-        } else if (buyLimit > limits.spot) {
-            limits.spot = buyLimit;
+            // narrow low/high rebalance limits to prevent double trading in the future by openAuction()
+            limits.high = sellLimit;
+            limits.low = buyLimit;
+
+            // update spot rebalance limits to prevent double trading in the future by openAuctionUnrestricted()
+            if (sellLimit < limits.spot) {
+                limits.spot = sellLimit;
+            } else if (buyLimit > limits.spot) {
+                limits.spot = buyLimit;
+            }
+        }
+
+        IFolio.Auction storage auction = auctions[auctionId];
+
+        // update basket weights
+        for (uint256 i = 0; i < len; i++) {
+            IFolio.RebalanceDetails storage details = rebalance.details[address(tokens[i])];
+
+            // only include tokens from rebalance
+            if (!details.inRebalance) {
+                tokens[i] = address(0); // imperfect but ok, only impacts event
+                weights[i] = 0;
+                continue;
+            }
+
+            // add token to auction
+            require(!auction.inAuction[tokens[i]], IFolio.Folio__DuplicateAsset());
+            auction.inAuction[tokens[i]] = true;
+
+            // update spot weight
+            require(
+                details.weights.low <= weights[i] && weights[i] <= details.weights.high,
+                IFolio.Folio__InvalidWeights()
+            );
+            details.weights.spot = weights[i];
+
+            // narrow high/low weights
+            {
+                // D27{tok/share} = D27 * {tok} / {share}
+                uint256 currentPresence = Math.mulDiv(
+                    D27,
+                    IERC20(tokens[i]).balanceOf(address(this)),
+                    totalSupply,
+                    Math.Rounding.Floor
+                );
+
+                // D27{tok/BU} = D27{tok/share} * D18 / D18{BU/share}
+                uint256 sellLimitWeight = Math.mulDiv(currentPresence, D18, sellLimit, Math.Rounding.Ceil);
+
+                // D27{tok/BU} = D27{tok/share} * D18 / D18{BU/share}
+                uint256 buyLimitWeight = Math.mulDiv(currentPresence, D18, buyLimit, Math.Rounding.Floor);
+
+                // prevent future double trading
+                if (sellLimitWeight > weights[i]) {
+                    // surplus scenario: prevent trading in the future towards a higher weight
+                    details.weights.high = weights[i];
+                } else if (buyLimitWeight < weights[i]) {
+                    // deficit scenario: prevent trading in the future towards a lower weight
+                    details.weights.low = weights[i];
+                }
+            }
         }
 
         // save auction
-        IFolio.Auction storage auction = auctions[auctionId];
         auction.rebalanceNonce = rebalance.nonce;
         auction.sellLimit = sellLimit;
         auction.buyLimit = buyLimit;
         auction.startTime = block.timestamp;
         auction.endTime = block.timestamp + auctionLength;
 
-        // only include tokens from rebalance in the auction
-        bool empty = true;
-        for (uint256 i = 0; i < tokens.length; i++) {
-            if (rebalance.details[address(tokens[i])].inRebalance) {
-                require(!auction.inAuction[tokens[i]], IFolio.Folio__DuplicateAsset());
-
-                auction.inAuction[tokens[i]] = true;
-                empty = false;
-            } else {
-                tokens[i] = address(0);
-                // imperfect but ok, only impacts event
-            }
-        }
-        require(!empty, IFolio.Folio__EmptyAuction());
-
         emit IFolio.AuctionOpened(
             rebalance.nonce,
             auctionId,
             tokens,
+            weights,
             sellLimit,
             buyLimit,
             block.timestamp,
