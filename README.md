@@ -222,8 +222,7 @@ Units:
 
 Example:
 
-````
-
+```
     // {share} = {share} * D18{1} / D18
     uint256 shares = (pendingFeeShares * feeRecipients[i].portion) / D18;
 
@@ -273,6 +272,13 @@ The chain is assumed to have block times under 60s. The `AUCTION_LAUNCHER` has 1
 
 - If governors plan to remove a token from the basket via `Folio.removeFromBasket()`, users will only have a limited amount of time to redeem before the token becomes inaccessible. Removal should only be used if the reward token has become malicious or otherwise compromised.
 
+### Releases
+
+- [1.0.0](https://github.com/reserve-protocol/reserve-index-dtf/releases/tag/r1.0.0): Intial release: Non-repeatable pairwise auctions
+- [2.0.0](https://github.com/reserve-protocol/reserve-index-dtf/releases/tag/r2.0.0): Repeatable pairwise auctions
+- 3.0.0 (skipped; never deployed): Pairwise auctions around a rebalance
+- 4.0.0: Basket auctions around a rebalance
+
 ### Future Work / Not Implemented Yet
 
 1. **`delegatecall` functionality / way to claim rewards**
@@ -295,5 +301,7 @@ The chain is assumed to have block times under 60s. The `AUCTION_LAUNCHER` has 1
 5. Deployment:
    - Deployment: `yarn deploy --rpc-url <RPC_URL> --verify --verifier etherscan`
      Set ETHERSCAN_API_KEY env var to the API key for whichever network you're targeting (basescan, etherscan, arbiscan, etc)
+
 ```
-````
+
+```
