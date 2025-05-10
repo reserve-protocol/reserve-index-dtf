@@ -43,12 +43,24 @@ library AuctionLib {
 
         // enforce auction not ongoing, if unrestricted
         // AUCTION_LAUNCHER can overwrite an existing auction
-        if (auctionId != 0 && auctionBuffer != 0) {
+        if (auctionId != 0) {
             IFolio.Auction storage lastAuction = auctions[auctionId - 1];
-            require(
-                lastAuction.endTime + auctionBuffer < block.timestamp || lastAuction.rebalanceNonce != rebalance.nonce,
-                IFolio.Folio__AuctionCannotBeOpenedWithoutRestriction()
-            );
+
+            if (auctionBuffer != 0) {
+                // restricted caller case
+
+                require(
+                    lastAuction.endTime + auctionBuffer < block.timestamp ||
+                        lastAuction.rebalanceNonce != rebalance.nonce,
+                    IFolio.Folio__AuctionCannotBeOpenedWithoutRestriction()
+                );
+            } else {
+                // AUCTION_LAUNCHER case
+
+                // close existing auction
+                lastAuction.endTime = block.timestamp - 1;
+                emit IFolio.AuctionClosed(auctionId - 1);
+            }
         }
 
         // update rebalance limits
