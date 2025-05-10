@@ -1,13 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
 interface IFolio {
     // === Events ===
 
-    event AuctionOpened(uint256 indexed auctionId, Auction auction);
-    event AuctionBid(uint256 indexed auctionId, uint256 sellAmount, uint256 buyAmount);
+    event AuctionOpened(
+        uint256 indexed rebalanceNonce,
+        uint256 indexed auctionId,
+        address[] tokens,
+        uint256[] weights,
+        uint256 sellLimit,
+        uint256 buyLimit,
+        uint256 startTime,
+        uint256 endTime
+    );
+    event AuctionBid(
+        uint256 indexed auctionId,
+        address indexed sellToken,
+        address indexed buyToken,
+        uint256 sellAmount,
+        uint256 buyAmount
+    );
     event AuctionClosed(uint256 indexed auctionId);
     event AuctionTrustedFillCreated(uint256 indexed auctionId, address filler);
 
@@ -28,9 +41,11 @@ interface IFolio {
 
     event RebalanceStarted(
         uint256 nonce,
+        PriceControl priceControl,
         address[] tokens,
-        BasketRange[] weights,
-        Prices[] prices,
+        WeightRange[] weights,
+        PriceRange[] prices,
+        RebalanceLimits limits,
         uint256 restrictedUntil,
         uint256 availableUntil
     );
@@ -59,18 +74,15 @@ interface IFolio {
 
     error Folio__InvalidAuctionLength();
     error Folio__InvalidLimits();
-    error Folio__InvalidSellLimit();
-    error Folio__InvalidBuyLimit();
+    error Folio__InvalidWeights();
     error Folio__AuctionCannotBeOpenedWithoutRestriction();
     error Folio__AuctionNotOngoing();
-    error Folio__AuctionCollision();
     error Folio__InvalidPrices();
     error Folio__SlippageExceeded();
     error Folio__InsufficientSellAvailable();
+    error Folio__InsufficientBuyAvailable();
     error Folio__InsufficientBid();
     error Folio__InsufficientSharesOut();
-    error Folio__InvalidAuctionTokens();
-    error Folio__InvalidAuctionDelay();
     error Folio__TooManyFeeRecipients();
     error Folio__InvalidArrayLengths();
     error Folio__InvalidTransferToSelf();
@@ -81,8 +93,18 @@ interface IFolio {
 
     error Folio__InvalidTTL();
     error Folio__NotRebalancing();
+    error Folio__InvalidRebalanceNonce();
+    error Folio__TokenNotInRebalance();
+    error Folio__EmptyAuction();
 
     // === Structures ===
+
+    /// AUCTION_LAUNCHER trust level for prices
+    enum PriceControl {
+        NONE, // cannot revise prices at all
+        PARTIAL, // can revise prices, within bounds
+        FULL // can revise prices arbitrarily
+    }
 
     struct FolioBasicDetails {
         string name;
@@ -114,43 +136,56 @@ interface IFolio {
         uint96 portion; // D18{1}
     }
 
-    struct BasketRange {
-        uint256 spot; // D27{tok/share}
-        uint256 low; // D27{tok/share} inclusive
-        uint256 high; // D27{tok/share} inclusive
+    /// Target limits for rebalancing
+    struct RebalanceLimits {
+        uint256 low; // D18{BU/share} // to buy assets up to (0, 1e36]
+        uint256 spot; // D18{BU/share} // estimate of the ideal destination for rebalancing (0, 1e36]
+        uint256 high; // D18{BU/share} // to sell assets down to (0, 1e36]
     }
 
-    struct Prices {
-        uint256 low; // D27{UoA/tok}
-        uint256 high; // D27{UoA/tok}
+    /// Range of basket weights for BU definition
+    struct WeightRange {
+        uint256 low; // D27{tok/BU} [0, 1e54]
+        uint256 spot; // D27{tok/BU} [0, 1e54]
+        uint256 high; // D27{tok/BU} [0, 1e54]
     }
 
+    /// Individual token price ranges
+    /// @dev Unit of Account can be anything as long as it's consistent; USD is most common
+    struct PriceRange {
+        uint256 low; // D27{UoA/tok} (0, 1e54]
+        uint256 high; // D27{UoA/tok} (0, 1e54]
+    }
+
+    /// Rebalance details for a token
     struct RebalanceDetails {
         bool inRebalance;
-        BasketRange limits; // D27{tok/share}
-        Prices prices; // D27{UoA/tok} prices can be in any Unit of Account as long as it's consistent
+        WeightRange weights; // D27{tok/BU} [0, 1e54]
+        PriceRange prices; // D27{UoA/tok} current latest prices (0, 1e54]
+        PriceRange initialPrices; // D27{UoA/tok} (0, 1e54]
     }
 
+    /// Singleton rebalance state
     struct Rebalance {
         uint256 nonce;
         mapping(address token => RebalanceDetails) details;
-        uint256 startedAt; // {s} inclusive, timestamp rebalancing started
-        uint256 restrictedUntil; // {s} exclusive, timestamp rebalancing is unrestricted to everyone
-        uint256 availableUntil; // {s} exclusive, timestamp rebalancing ends overall
+        RebalanceLimits limits; // D18{BU/share} (0, 1e36]
+        uint256 startedAt; // {s} timestamp rebalancing started, inclusive
+        uint256 restrictedUntil; // {s} timestamp rebalancing is unrestricted to everyone, exclusive
+        uint256 availableUntil; // {s} timestamp rebalancing ends overall, exclusive
+        PriceControl priceControl; // degree to which prices can be revised by the AUCTION_LAUNCHER
     }
 
+    /// 1 running auction at a time; N per rebalance overall
     /// Auction states:
     ///   - APPROVED: startTime == 0 && endTime == 0
     ///   - OPEN: block.timestamp >= startTime && block.timestamp <= endTime
     ///   - CLOSED: block.timestamp > endTime
     struct Auction {
         uint256 rebalanceNonce;
-        IERC20 sellToken;
-        IERC20 buyToken;
-        uint256 sellLimit; // D27{sellTok/share} min ratio of sell token in the basket, inclusive
-        uint256 buyLimit; // D27{buyTok/share} max ratio of buy token in the basket, exclusive
-        uint256 startPrice; // D27{buyTok/sellTok}
-        uint256 endPrice; // D27{buyTok/sellTok}
+        mapping(address token => bool) inAuction; // if the token is in the auction
+        uint256 sellLimit; // D18{BU/share} rebalance limit to sell down to (0, 1e36]
+        uint256 buyLimit; // D18{BU/share} rebalance limit to buy up to (0, 1e36]
         uint256 startTime; // {s} inclusive
         uint256 endTime; // {s} inclusive
     }
