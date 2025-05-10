@@ -49,6 +49,7 @@ library AuctionLib {
             if (auctionBuffer != 0) {
                 // restricted caller case
 
+                //
                 require(
                     lastAuction.endTime + auctionBuffer < block.timestamp ||
                         lastAuction.rebalanceNonce != rebalance.nonce,
@@ -120,16 +121,17 @@ library AuctionLib {
                 );
 
                 // D27{tok/BU} = D27{tok/share} * D18 / D18{BU/share}
-                uint256 sellLimitWeight = Math.mulDiv(currentPresence, D18, sellLimit, Math.Rounding.Ceil);
+                uint256 currentWeightSellLimit = Math.mulDiv(currentPresence, D18, sellLimit, Math.Rounding.Ceil);
 
                 // D27{tok/BU} = D27{tok/share} * D18 / D18{BU/share}
-                uint256 buyLimitWeight = Math.mulDiv(currentPresence, D18, buyLimit, Math.Rounding.Floor);
+                uint256 currentWeightBuyLimit = Math.mulDiv(currentPresence, D18, buyLimit, Math.Rounding.Floor);
 
                 // prevent future double trading
-                if (sellLimitWeight > weights[i]) {
+                if (currentWeightSellLimit > weights[i]) {
                     // surplus scenario: prevent trading in the future towards a higher weight
                     details.weights.high = weights[i];
-                } else if (buyLimitWeight < weights[i]) {
+                }
+                if (currentWeightBuyLimit < weights[i]) {
                     // deficit scenario: prevent trading in the future towards a lower weight
                     details.weights.low = weights[i];
                 }
