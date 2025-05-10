@@ -113,25 +113,24 @@ library AuctionLib {
             // narrow high/low weights
             {
                 // D27{tok/share} = D27 * {tok} / {share}
-                uint256 currentPresence = Math.mulDiv(
+                uint256 tokenCurrent = Math.mulDiv(
                     D27,
                     IERC20(tokens[i]).balanceOf(address(this)),
                     totalSupply,
                     Math.Rounding.Floor
                 );
 
-                // D27{tok/BU} = D27{tok/share} * D18 / D18{BU/share}
-                uint256 currentWeightSellLimit = Math.mulDiv(currentPresence, D18, sellLimit, Math.Rounding.Ceil);
+                // D27{tok/share} = D27{tok/BU} * D18{BU/share} / D18
+                uint256 tokenSellLimit = Math.mulDiv(weights[i], sellLimit, D18, Math.Rounding.Ceil);
 
-                // D27{tok/BU} = D27{tok/share} * D18 / D18{BU/share}
-                uint256 currentWeightBuyLimit = Math.mulDiv(currentPresence, D18, buyLimit, Math.Rounding.Floor);
+                // D27{tok/share} = D27{tok/BU} * D18{BU/share} / D18
+                uint256 tokenBuyLimit = Math.mulDiv(weights[i], buyLimit, D18, Math.Rounding.Floor);
 
                 // prevent future double trading
-                if (currentWeightSellLimit > weights[i]) {
+                if (tokenCurrent > tokenSellLimit) {
                     // surplus scenario: prevent trading in the future towards a higher weight
                     details.weights.high = weights[i];
-                }
-                if (currentWeightBuyLimit < weights[i]) {
+                } else if (tokenCurrent < tokenBuyLimit) {
                     // deficit scenario: prevent trading in the future towards a lower weight
                     details.weights.low = weights[i];
                 }
