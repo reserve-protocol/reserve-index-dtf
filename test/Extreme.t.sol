@@ -256,7 +256,7 @@ contract ExtremeTest is BaseExtremeTest {
         vm.warp(block.timestamp + RESTRICTED_AUCTION_BUFFER);
         folio.openAuctionUnrestricted(1);
 
-        (, , , uint256 start, uint256 end) = folio.auctions(0);
+        (, uint256 start, uint256 end) = folio.auctions(0);
 
         // should quote at both ends
 

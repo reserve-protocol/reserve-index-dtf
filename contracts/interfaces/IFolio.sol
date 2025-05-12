@@ -9,8 +9,7 @@ interface IFolio {
         uint256 indexed auctionId,
         address[] tokens,
         uint256[] weights,
-        uint256 sellLimit,
-        uint256 buyLimit,
+        RebalanceLimits limits,
         uint256 startTime,
         uint256 endTime
     );
@@ -136,18 +135,18 @@ interface IFolio {
         uint96 portion; // D18{1}
     }
 
-    /// Target limits for rebalancing
+    /// Basket limits for rebalancing
     struct RebalanceLimits {
-        uint256 low; // D18{BU/share} // to buy assets up to (0, 1e36]
-        uint256 spot; // D18{BU/share} // estimate of the ideal destination for rebalancing (0, 1e36]
-        uint256 high; // D18{BU/share} // to sell assets down to (0, 1e36]
+        uint256 low; // D18{BU/share} (0, 1e36] to buy assets up to
+        uint256 spot; // D18{BU/share} (0, 1e36] point estimate to be used in the event of unrestricted caller
+        uint256 high; // D18{BU/share} (0, 1e36] to sell assets down to
     }
 
     /// Range of basket weights for BU definition
     struct WeightRange {
-        uint256 low; // D27{tok/BU} [0, 1e54]
-        uint256 spot; // D27{tok/BU} [0, 1e54]
-        uint256 high; // D27{tok/BU} [0, 1e54]
+        uint256 low; // D27{tok/BU} [0, 1e54] lowest possible weight in the basket
+        uint256 spot; // D27{tok/BU} [0, 1e54] point estimate to be used in the event of unrestricted caller
+        uint256 high; // D27{tok/BU} [0, 1e54] highest possible weight in the basket
     }
 
     /// Individual token price ranges
@@ -161,7 +160,7 @@ interface IFolio {
     struct RebalanceDetails {
         bool inRebalance;
         WeightRange weights; // D27{tok/BU} [0, 1e54]
-        PriceRange prices; // D27{UoA/tok} current latest prices (0, 1e54]
+        PriceRange prices; // D27{UoA/tok} (0, 1e54] current latest prices
         PriceRange initialPrices; // D27{UoA/tok} (0, 1e54]
     }
 
@@ -184,8 +183,6 @@ interface IFolio {
     struct Auction {
         uint256 rebalanceNonce;
         mapping(address token => bool) inAuction; // if the token is in the auction
-        uint256 sellLimit; // D18{BU/share} rebalance limit to sell down to (0, 1e36]
-        uint256 buyLimit; // D18{BU/share} rebalance limit to buy up to (0, 1e36]
         uint256 startTime; // {s} inclusive
         uint256 endTime; // {s} inclusive
     }

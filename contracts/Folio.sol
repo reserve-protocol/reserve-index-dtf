@@ -612,16 +612,14 @@ contract Folio is
     /// @param tokens The tokens from the rebalance to include in the auction; must be unique
     /// @param newWeights D27{tok/BU} New precise basket weights; must always be provided
     /// @param newPrices D27{UoA/tok} New price ranges; must always be provided in non-PriceControl.NONE case
-    /// @param sellLimit D18{BU/share} Target level to sell down to, inclusive (0, 1e36]
-    /// @param buyLimit D18{BU/share} Target level to buy up to, inclusive (0, 1e36]
+    /// @param newLimits D18{BU/share} New BU limits; must always be provided
     /// @return auctionId The newly created auctionId
     function openAuction(
         uint256 rebalanceNonce,
         address[] calldata tokens,
         uint256[] calldata newWeights,
         PriceRange[] calldata newPrices,
-        uint256 sellLimit,
-        uint256 buyLimit
+        RebalanceLimits calldata newLimits
     ) external onlyRole(AUCTION_LAUNCHER) nonReentrant notDeprecated sync returns (uint256 auctionId) {
         if (rebalance.priceControl != PriceControl.NONE) {
             uint256 len = tokens.length;
@@ -656,7 +654,7 @@ contract Folio is
         }
 
         // open an auction on the provided limits
-        auctionId = _openAuction(rebalanceNonce, tokens, newWeights, sellLimit, buyLimit, 0);
+        auctionId = _openAuction(rebalanceNonce, tokens, newWeights, newLimits, 0);
     }
 
     /// Open an auction, without caller restrictions, and for all tokens in the rebalance
@@ -678,14 +676,7 @@ contract Folio is
 
         // open an auction on the spot limits
         // use same spot limit to determine BOTH surplus and deficits
-        auctionId = _openAuction(
-            rebalanceNonce,
-            tokens,
-            weights,
-            rebalance.limits.spot,
-            rebalance.limits.spot,
-            RESTRICTED_AUCTION_BUFFER
-        );
+        auctionId = _openAuction(rebalanceNonce, tokens, weights, rebalance.limits, RESTRICTED_AUCTION_BUFFER);
     }
 
     /// Get auction bid parameters for an ongoing auction at a target timestamp, for some token pair
@@ -875,16 +866,14 @@ contract Folio is
     /// Open an auction
     /// @param rebalanceNonce The nonce of the rebalance being targeted
     /// @param tokens The tokens from the rebalance to include in the auction
-    /// @param sellLimit D18{BU/share} Target level to sell down to, inclusive (0, 1e36]
-    /// @param buyLimit D18{BU/share} Target level to buy up to, inclusive (0, 1e36]
+    /// @param limits D18{BU/share} The BU limits for the auction
     /// @param auctionBuffer {s} The amount of time the auction is open for
     /// @return auctionId The newly created auctionId
     function _openAuction(
         uint256 rebalanceNonce,
         address[] memory tokens,
         uint256[] memory weights,
-        uint256 sellLimit,
-        uint256 buyLimit,
+        RebalanceLimits memory limits,
         uint256 auctionBuffer
     ) internal returns (uint256 auctionId) {
         require(rebalance.nonce == rebalanceNonce, Folio__InvalidRebalanceNonce());
@@ -898,10 +887,9 @@ contract Folio is
             auctionId,
             tokens,
             weights,
+            limits,
             totalSupply(),
             auctionLength,
-            sellLimit,
-            buyLimit,
             auctionBuffer
         );
     }

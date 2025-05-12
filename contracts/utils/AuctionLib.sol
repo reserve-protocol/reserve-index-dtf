@@ -17,8 +17,6 @@ library AuctionLib {
 
     /// Open a new auction
     /// @param auctionLength {s} The amount of time the auction is open for
-    /// @param sellLimit D18{BU/share} Target level to sell down to, inclusive (0, 1e36]
-    /// @param buyLimit D18{BU/share} Target level to buy up to, inclusive (0, 1e36]
     /// @param auctionBuffer {s} The amount of time the auction is open for
     function openAuction(
         IFolio.Rebalance storage rebalance,
@@ -26,10 +24,9 @@ library AuctionLib {
         uint256 auctionId,
         address[] memory tokens,
         uint256[] memory weights,
+        IFolio.RebalanceLimits calldata limits,
         uint256 totalSupply,
         uint256 auctionLength,
-        uint256 sellLimit,
-        uint256 buyLimit,
         uint256 auctionBuffer
     ) external {
         uint256 len = tokens.length;
@@ -66,24 +63,15 @@ library AuctionLib {
 
         // update rebalance limits
         {
-            IFolio.RebalanceLimits storage limits = rebalance.limits;
+            IFolio.RebalanceLimits storage prevLimits = rebalance.limits;
 
             // enforce valid limits
-            require(
-                sellLimit >= buyLimit && sellLimit <= limits.high && buyLimit >= limits.low,
-                IFolio.Folio__InvalidLimits()
-            );
+            require(limits.low <= limits.spot && limits.spot <= limits.high, IFolio.Folio__InvalidLimits());
+            require(limits.low >= prevLimits.low && limits.high <= prevLimits.high, IFolio.Folio__InvalidLimits());
 
-            // narrow low/high rebalance limits to prevent double trading in the future by openAuction()
-            limits.high = sellLimit;
-            limits.low = buyLimit;
-
-            // update spot rebalance limits to prevent double trading in the future by openAuctionUnrestricted()
-            if (sellLimit < limits.spot) {
-                limits.spot = sellLimit;
-            } else if (buyLimit > limits.spot) {
-                limits.spot = buyLimit;
-            }
+            prevLimits.low = limits.low;
+            prevLimits.spot = limits.spot;
+            prevLimits.high = limits.high;
         }
 
         IFolio.Auction storage auction = auctions[auctionId];
@@ -121,10 +109,10 @@ library AuctionLib {
                 );
 
                 // D27{tok/share} = D27{tok/BU} * D18{BU/share} / D18
-                uint256 tokenSellLimit = Math.mulDiv(weights[i], sellLimit, D18, Math.Rounding.Ceil);
+                uint256 tokenSellLimit = Math.mulDiv(weights[i], limits.high, D18, Math.Rounding.Ceil);
 
                 // D27{tok/share} = D27{tok/BU} * D18{BU/share} / D18
-                uint256 tokenBuyLimit = Math.mulDiv(weights[i], buyLimit, D18, Math.Rounding.Floor);
+                uint256 tokenBuyLimit = Math.mulDiv(weights[i], limits.low, D18, Math.Rounding.Floor);
 
                 // prevent future double trading
                 if (tokenCurrent > tokenSellLimit) {
@@ -139,8 +127,6 @@ library AuctionLib {
 
         // save auction
         auction.rebalanceNonce = rebalance.nonce;
-        auction.sellLimit = sellLimit;
-        auction.buyLimit = buyLimit;
         auction.startTime = block.timestamp;
         auction.endTime = block.timestamp + auctionLength;
 
@@ -149,8 +135,7 @@ library AuctionLib {
             auctionId,
             tokens,
             weights,
-            sellLimit,
-            buyLimit,
+            limits,
             block.timestamp,
             block.timestamp + auctionLength
         );
@@ -207,7 +192,7 @@ library AuctionLib {
 
         // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
         uint256 sellLimit = Math.mulDiv(
-            auction.sellLimit,
+            rebalance.limits.high,
             rebalance.details[address(sellToken)].weights.spot,
             D18,
             Math.Rounding.Ceil
@@ -219,7 +204,7 @@ library AuctionLib {
 
         // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
         uint256 buyLimit = Math.mulDiv(
-            auction.buyLimit,
+            rebalance.limits.low,
             rebalance.details[address(buyToken)].weights.spot,
             D18,
             Math.Rounding.Floor
@@ -284,7 +269,7 @@ library AuctionLib {
 
             // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
             uint256 sellLimit = Math.mulDiv(
-                auction.sellLimit,
+                rebalance.limits.high,
                 rebalance.details[address(sellToken)].weights.spot,
                 D18,
                 Math.Rounding.Ceil
