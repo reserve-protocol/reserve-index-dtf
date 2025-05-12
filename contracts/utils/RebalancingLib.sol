@@ -224,15 +224,12 @@ library RebalancingLib {
 
         // bump rebalance deadlines if permissioned caller needs more time
         if (auctionBuffer == 0) {
-            uint256 delta = auctionLength + RESTRICTED_AUCTION_BUFFER * 2; // {s}
+            uint256 delta = auctionLength + RESTRICTED_AUCTION_BUFFER; // {s}
 
             // give AUCTION_LAUNCHER more time to act if it is within their isolated period and about to spill over
             if (block.timestamp < rebalance.restrictedUntil && block.timestamp + delta >= rebalance.restrictedUntil) {
                 rebalance.restrictedUntil += delta;
-                rebalance.availableUntil += delta;
                 // the AUCTION_LAUNCER can DoS unrestricted auctions, but this is already true because of closeAuction()
-            } else if (block.timestamp + delta > rebalance.availableUntil) {
-                rebalance.availableUntil += delta;
             }
         }
     }
