@@ -256,6 +256,7 @@ abstract contract BaseTest is Script, Test {
         });
 
         IFolio.FolioAdditionalDetails memory _additionalDetails = IFolio.FolioAdditionalDetails({
+            indexType: IFolio.IndexType.NATIVE,
             auctionLength: _auctionLength,
             feeRecipients: _feeRecipients,
             tvlFee: _tvlFee,

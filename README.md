@@ -93,16 +93,16 @@ The `REBALANCE_MANAGER` configures a large number of rebalance ranges, including
 ```solidity
 /// Target limits for rebalancing
 struct RebalanceLimits {
-  uint256 spot; // D18{BU/share} // estimate of the ideal destination for rebalancing (0, 1e36]
-  uint256 low; // D18{BU/share} // to buy assets up to (0, 1e36]
-  uint256 high; // D18{BU/share} // to sell assets down to (0, 1e36]
+  uint256 low; // D18{BU/share} (0, 1e36] to buy assets up to
+  uint256 spot; // D18{BU/share} (0, 1e36] point estimate to be used in the event of unrestricted caller
+  uint256 high; // D18{BU/share} (0, 1e36] to sell assets down to
 }
 
 /// Range of basket weights for BU definition
 struct WeightRange {
-  uint256 spot; // D27{tok/BU} [0, 1e54]
-  uint256 low; // D27{tok/BU} [0, 1e54]
-  uint256 high; // D27{tok/BU} [0, 1e54]
+  uint256 low; // D27{tok/BU} [0, 1e54] lowest possible weight in the basket
+  uint256 spot; // D27{tok/BU} [0, 1e54] point estimate to be used in the event of unrestricted caller
+  uint256 high; // D27{tok/BU} [0, 1e54] highest possible weight in the basket
 }
 
 /// Individual token price ranges

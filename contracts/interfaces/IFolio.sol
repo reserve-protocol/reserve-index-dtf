@@ -37,6 +37,7 @@ interface IFolio {
     event MandateSet(string newMandate);
     event TrustedFillerRegistrySet(address trustedFillerRegistry, bool isEnabled);
     event FolioDeprecated();
+    event IndexTypeSet(IndexType newIndexType);
 
     event RebalanceStarted(
         uint256 nonce,
@@ -105,6 +106,12 @@ interface IFolio {
         FULL // can revise prices arbitrarily
     }
 
+    /// Type of index rebalancing logic
+    enum IndexType {
+        TRACKING, // fixed basket weights; variable rebalance limits
+        NATIVE // variable basket weights; fixed rebalance limits
+    }
+
     struct FolioBasicDetails {
         string name;
         string symbol;
@@ -114,6 +121,7 @@ interface IFolio {
     }
 
     struct FolioAdditionalDetails {
+        IndexType indexType;
         uint256 auctionLength; // {s}
         FeeRecipient[] feeRecipients;
         uint256 tvlFee; // D18{1/s}

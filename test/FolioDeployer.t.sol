@@ -311,6 +311,7 @@ contract FolioDeployerTest is BaseTest {
                     initialShares: INITIAL_SUPPLY
                 }),
                 IFolio.FolioAdditionalDetails({
+                    indexType: IFolio.IndexType.NATIVE,
                     auctionLength: MAX_AUCTION_LENGTH,
                     feeRecipients: recipients,
                     tvlFee: MAX_TVL_FEE,
@@ -474,6 +475,7 @@ contract FolioDeployerTest is BaseTest {
                 initialShares: INITIAL_SUPPLY
             }),
             IFolio.FolioAdditionalDetails({
+                indexType: IFolio.IndexType.NATIVE,
                 auctionLength: MAX_AUCTION_LENGTH,
                 feeRecipients: recipients,
                 tvlFee: MAX_TVL_FEE,
@@ -583,6 +585,7 @@ contract FolioDeployerTest is BaseTest {
                     initialShares: INITIAL_SUPPLY
                 }),
                 IFolio.FolioAdditionalDetails({
+                    indexType: IFolio.IndexType.NATIVE,
                     auctionLength: MAX_AUCTION_LENGTH,
                     feeRecipients: recipients,
                     tvlFee: MAX_TVL_FEE,

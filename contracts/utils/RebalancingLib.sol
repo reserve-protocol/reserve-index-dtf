@@ -4,16 +4,94 @@ pragma solidity 0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
-import { D18, D27, MAX_TOKEN_BALANCE, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
+import { D18, D27, MAX_LIMIT, MAX_TOKEN_BALANCE, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL, MAX_WEIGHT, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 
-library AuctionLib {
-    using EnumerableSet for EnumerableSet.AddressSet;
+library RebalancingLib {
+    struct StartRebalanceParams {
+        IFolio.IndexType indexType;
+        IFolio.PriceControl priceControl;
+        uint256 auctionLauncherWindow; // {s}
+        uint256 ttl; // {s}
+    }
+
+    /// Start a new rebalance
+    function startRebalance(
+        IFolio.Rebalance storage rebalance,
+        address[] calldata tokens,
+        IFolio.WeightRange[] calldata weights,
+        IFolio.PriceRange[] calldata prices,
+        IFolio.RebalanceLimits calldata limits,
+        StartRebalanceParams calldata params
+    ) external {
+        require(params.ttl >= params.auctionLauncherWindow && params.ttl <= MAX_TTL, IFolio.Folio__InvalidTTL());
+
+        uint256 len = tokens.length;
+        require(len != 0 && len == weights.length && len == prices.length, IFolio.Folio__InvalidArrayLengths());
+
+        // check limits and weights
+        if (params.indexType == IFolio.IndexType.TRACKING) {
+            // TRACKING DTFs have variable limits and constant weights
+
+            _checkTrackingDTF(limits, weights);
+        } else {
+            // NATIVE DTFs have constant limits and variable weights
+
+            _checkNativeDTF(limits, weights);
+        }
+
+        // set new rebalance details and prices
+        for (uint256 i; i < len; i++) {
+            address token = tokens[i];
+
+            // enforce no duplicates
+            require(!rebalance.details[token].inRebalance, IFolio.Folio__DuplicateAsset());
+
+            // enforce weights are all 0 or all non-zero
+            require(
+                (weights[i].low == 0 && weights[i].high == 0) || (weights[i].low != 0 && weights[i].high != 0),
+                IFolio.Folio__InvalidWeights()
+            );
+
+            // enforce prices are internally consistent
+            require(
+                prices[i].low != 0 &&
+                    prices[i].low <= prices[i].high &&
+                    prices[i].high <= MAX_TOKEN_PRICE &&
+                    prices[i].high <= MAX_TOKEN_PRICE_RANGE * prices[i].low,
+                IFolio.Folio__InvalidPrices()
+            );
+
+            rebalance.details[token] = IFolio.RebalanceDetails({
+                inRebalance: true,
+                weights: weights[i],
+                prices: prices[i],
+                initialPrices: prices[i]
+            });
+        }
+
+        rebalance.nonce++;
+        rebalance.limits = limits;
+        rebalance.startedAt = block.timestamp;
+        rebalance.restrictedUntil = block.timestamp + params.auctionLauncherWindow;
+        rebalance.availableUntil = block.timestamp + params.ttl;
+        rebalance.priceControl = params.priceControl;
+
+        emit IFolio.RebalanceStarted(
+            rebalance.nonce,
+            params.priceControl,
+            tokens,
+            weights,
+            prices,
+            limits,
+            block.timestamp + params.auctionLauncherWindow,
+            block.timestamp + params.ttl
+        );
+    }
 
     /// Open a new auction
     /// @param auctionLength {s} The amount of time the auction is open for
@@ -46,7 +124,6 @@ library AuctionLib {
             if (auctionBuffer != 0) {
                 // restricted caller case
 
-                //
                 require(
                     lastAuction.endTime + auctionBuffer < block.timestamp ||
                         lastAuction.rebalanceNonce != rebalance.nonce,
@@ -63,15 +140,20 @@ library AuctionLib {
 
         // update rebalance limits
         {
-            IFolio.RebalanceLimits storage prevLimits = rebalance.limits;
+            IFolio.RebalanceLimits storage rebalanceLimits = rebalance.limits;
 
             // enforce valid limits
-            require(limits.low <= limits.spot && limits.spot <= limits.high, IFolio.Folio__InvalidLimits());
-            require(limits.low >= prevLimits.low && limits.high <= prevLimits.high, IFolio.Folio__InvalidLimits());
+            require(
+                rebalanceLimits.low <= limits.low &&
+                    limits.low <= limits.spot &&
+                    limits.spot <= limits.high &&
+                    limits.high <= rebalanceLimits.high,
+                IFolio.Folio__InvalidLimits()
+            );
 
-            prevLimits.low = limits.low;
-            prevLimits.spot = limits.spot;
-            prevLimits.high = limits.high;
+            rebalanceLimits.low = limits.low; // to buy up to
+            rebalanceLimits.spot = limits.spot; // for future unrestricted auctions
+            rebalanceLimits.high = limits.high; // to sell down to
         }
 
         IFolio.Auction storage auction = auctions[auctionId];
@@ -241,12 +323,9 @@ library AuctionLib {
     /// @param data Arbitrary data to pass to the callback
     /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after
     function bid(
-        IFolio.Rebalance storage rebalance,
-        IFolio.Auction storage auction,
         uint256 auctionId,
         IERC20 sellToken,
         IERC20 buyToken,
-        uint256 totalSupply,
         uint256 sellAmount,
         uint256 bidAmount,
         bool withCallback,
@@ -257,27 +336,9 @@ library AuctionLib {
         // pay bidder
         SafeERC20.safeTransfer(sellToken, msg.sender, sellAmount);
 
-        // ensure remaining sell balance is sufficient
-        {
-            // {sellTok}
-            uint256 sellBal = sellToken.balanceOf(address(this));
-
-            // remove sell token from basket at 0 balance
-            if (sellBal == 0) {
-                shouldRemoveFromBasket = true;
-            }
-
-            // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
-            uint256 sellLimit = Math.mulDiv(
-                rebalance.limits.high,
-                rebalance.details[address(sellToken)].weights.spot,
-                D18,
-                Math.Rounding.Ceil
-            );
-
-            // D27{sellTok/share} = {sellTok} * D27 / {share}
-            uint256 sellBasketPresence = Math.mulDiv(sellBal, D27, totalSupply, Math.Rounding.Ceil);
-            assert(sellBasketPresence >= sellLimit); // function-use invariant
+        // remove sell token from basket at 0 balance
+        if (sellToken.balanceOf(address(this)) == 0) {
+            shouldRemoveFromBasket = true;
         }
 
         // {buyTok}
@@ -290,16 +351,10 @@ library AuctionLib {
             SafeERC20.safeTransferFrom(buyToken, msg.sender, address(this), bidAmount);
         }
 
-        uint256 buyBalAfter = buyToken.balanceOf(address(this));
-        require(buyBalAfter - buyBalBefore >= bidAmount, IFolio.Folio__InsufficientBid());
+        uint256 delta = buyToken.balanceOf(address(this)) - buyBalBefore;
+        require(delta >= bidAmount, IFolio.Folio__InsufficientBid());
 
-        emit IFolio.AuctionBid(
-            auctionId,
-            address(sellToken),
-            address(buyToken),
-            sellAmount,
-            buyBalAfter - buyBalBefore
-        );
+        emit IFolio.AuctionBid(auctionId, address(sellToken), address(buyToken), sellAmount, delta);
     }
 
     // ==== Internal ====
@@ -353,6 +408,52 @@ library AuctionLib {
         p = Math.mulDiv(startPrice, MathLib.exp(-1 * int256(k * elapsed)), D18, Math.Rounding.Ceil);
         if (p < endPrice) {
             p = endPrice;
+        }
+    }
+
+    /// TRACKING: Variable limits, constant weights
+    function _checkTrackingDTF(
+        IFolio.RebalanceLimits memory limits,
+        IFolio.WeightRange[] memory weights
+    ) internal pure {
+        // enforce limits are internally consistent
+        require(
+            limits.low != 0 && limits.low <= limits.spot && limits.spot <= limits.high && limits.high <= MAX_LIMIT,
+            IFolio.Folio__InvalidLimits()
+        );
+
+        // enforce weights are constant
+        uint256 len = weights.length;
+        for (uint256 i; i < len; i++) {
+            require(
+                weights[i].low == weights[i].spot &&
+                    weights[i].spot == weights[i].high &&
+                    weights[i].high <= MAX_WEIGHT,
+                IFolio.Folio__InvalidWeights()
+            );
+        }
+    }
+
+    /// NATIVE: Constant limits, variable weights
+    function _checkNativeDTF(IFolio.RebalanceLimits memory limits, IFolio.WeightRange[] memory weights) internal pure {
+        // enforce limits are constant
+        require(
+            limits.low != 0 && limits.low == limits.spot && limits.spot == limits.high && limits.high <= MAX_LIMIT,
+            IFolio.Folio__InvalidLimits()
+        );
+
+        // enforce weights are internally consistent
+        uint256 len = weights.length;
+        for (uint256 i; i < len; i++) {
+            require(
+                weights[i].low <= weights[i].spot &&
+                    weights[i].spot <= weights[i].high &&
+                    weights[i].high <= MAX_WEIGHT,
+                IFolio.Folio__InvalidWeights()
+            );
+
+            // all 0, or none are 0
+            require(weights[i].low != 0 || weights[i].high == 0, IFolio.Folio__InvalidWeights());
         }
     }
 }
