@@ -377,6 +377,8 @@ library RebalancingLib {
                 rebalance.details[address(sellToken)].inRebalance &&
                 rebalance.details[address(buyToken)].inRebalance &&
                 sellToken != buyToken &&
+                sellPrices.low != 0 &&
+                buyPrices.low != 0 &&
                 timestamp >= auction.startTime &&
                 timestamp <= auction.endTime,
             IFolio.Folio__AuctionNotOngoing()
@@ -412,8 +414,8 @@ library RebalancingLib {
 
     /// Check that limits are variable and weights are constant
     function _checkTrackingDTF(
-        IFolio.RebalanceLimits memory limits,
-        IFolio.WeightRange[] memory weights
+        IFolio.RebalanceLimits calldata limits,
+        IFolio.WeightRange[] calldata weights
     ) internal pure {
         // enforce limits are internally consistent
         require(
@@ -434,7 +436,10 @@ library RebalancingLib {
     }
 
     /// Check that limits are constant and weights are variable
-    function _checkNativeDTF(IFolio.RebalanceLimits memory limits, IFolio.WeightRange[] memory weights) internal pure {
+    function _checkNativeDTF(
+        IFolio.RebalanceLimits calldata limits,
+        IFolio.WeightRange[] calldata weights
+    ) internal pure {
         // enforce limits are constant
         require(
             limits.low != 0 && limits.low == limits.spot && limits.spot == limits.high && limits.high <= MAX_LIMIT,
