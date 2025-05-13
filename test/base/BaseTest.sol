@@ -233,8 +233,7 @@ abstract contract BaseTest is Script, Test {
 
     // === Internal ===
 
-    IFolio.FolioRegistryFlags _registryFlags =
-        IFolio.FolioRegistryFlags({ trustedFillerEnabled: true, indexType: IFolio.IndexType.TRACKING });
+    IFolio.FolioRegistryFlags _registryFlags = IFolio.FolioRegistryFlags({ trustedFillerEnabled: true });
 
     function createFolio(
         address[] memory _assets,

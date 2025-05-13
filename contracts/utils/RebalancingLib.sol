@@ -20,7 +20,6 @@ import { MathLib } from "@utils/MathLib.sol";
  */
 library RebalancingLib {
     struct StartRebalanceParams {
-        IFolio.IndexType indexType; // [TRACKING, NATIVE]
         IFolio.PriceControl priceControl; // [NONE, PARTIAL, FULL]
         uint256 auctionLauncherWindow; // {s} how long auction launcher has to act first
         uint256 ttl; // {s} how long overall rebalance is valid
@@ -38,19 +37,14 @@ library RebalancingLib {
     ) external {
         require(params.ttl >= params.auctionLauncherWindow && params.ttl <= MAX_TTL, IFolio.Folio__InvalidTTL());
 
+        // enforce limits are internally consistent
+        require(
+            limits.low != 0 && limits.low <= limits.spot && limits.spot <= limits.high && limits.high <= MAX_LIMIT,
+            IFolio.Folio__InvalidLimits()
+        );
+
         uint256 len = tokens.length;
         require(len != 0 && len == weights.length && len == prices.length, IFolio.Folio__InvalidArrayLengths());
-
-        // check limits and weights
-        if (params.indexType == IFolio.IndexType.TRACKING) {
-            // TRACKING: variable limits; constant weights
-
-            _checkTrackingDTF(limits, weights);
-        } else {
-            // NATIVE: constant limits; variable weights
-
-            _checkNativeDTF(limits, weights);
-        }
 
         // set new rebalance details and prices
         for (uint256 i; i < len; i++) {
@@ -62,11 +56,15 @@ library RebalancingLib {
             // enforce no duplicates
             require(!rebalance.details[token].inRebalance, IFolio.Folio__DuplicateAsset());
 
-            // enforce weights are all 0 or all non-zero
             require(
-                (weights[i].low == 0 && weights[i].high == 0) || (weights[i].low != 0 && weights[i].high != 0),
+                weights[i].low <= weights[i].spot &&
+                    weights[i].spot <= weights[i].high &&
+                    weights[i].high <= MAX_WEIGHT,
                 IFolio.Folio__InvalidWeights()
             );
+
+            // all 0, or none are 0
+            require(weights[i].low != 0 || weights[i].high == 0, IFolio.Folio__InvalidWeights());
 
             // enforce prices are internally consistent
             require(
@@ -409,55 +407,6 @@ library RebalancingLib {
         p = Math.mulDiv(startPrice, MathLib.exp(-1 * int256(k * elapsed)), D18, Math.Rounding.Ceil);
         if (p < endPrice) {
             p = endPrice;
-        }
-    }
-
-    /// Check that limits are variable and weights are constant
-    function _checkTrackingDTF(
-        IFolio.RebalanceLimits calldata limits,
-        IFolio.WeightRange[] calldata weights
-    ) internal pure {
-        // enforce limits are internally consistent
-        require(
-            limits.low != 0 && limits.low <= limits.spot && limits.spot <= limits.high && limits.high <= MAX_LIMIT,
-            IFolio.Folio__InvalidLimits()
-        );
-
-        // enforce weights are constant
-        uint256 len = weights.length;
-        for (uint256 i; i < len; i++) {
-            require(
-                weights[i].low == weights[i].spot &&
-                    weights[i].spot == weights[i].high &&
-                    weights[i].high <= MAX_WEIGHT,
-                IFolio.Folio__InvalidWeights()
-            );
-        }
-    }
-
-    /// Check that limits are constant and weights are variable
-    function _checkNativeDTF(
-        IFolio.RebalanceLimits calldata limits,
-        IFolio.WeightRange[] calldata weights
-    ) internal pure {
-        // enforce limits are constant
-        require(
-            limits.low != 0 && limits.low == limits.spot && limits.spot == limits.high && limits.high <= MAX_LIMIT,
-            IFolio.Folio__InvalidLimits()
-        );
-
-        // enforce weights are internally consistent
-        uint256 len = weights.length;
-        for (uint256 i; i < len; i++) {
-            require(
-                weights[i].low <= weights[i].spot &&
-                    weights[i].spot <= weights[i].high &&
-                    weights[i].high <= MAX_WEIGHT,
-                IFolio.Folio__InvalidWeights()
-            );
-
-            // all 0, or none are 0
-            require(weights[i].low != 0 || weights[i].high == 0, IFolio.Folio__InvalidWeights());
         }
     }
 }

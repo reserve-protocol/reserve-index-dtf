@@ -32,17 +32,6 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   TRACKING: fixed basket weights; variable basket limits
  *   NATIVE: variable basket weights; fixed basket limits
  *
- * A TRACKING Folio is defined by a fixed basket of assets with constant weights. It rebalances by narrowing its
- * rebalance basket limits (D18{BU/share}) each auction until the delta between .high and .low is 0. In the event
- * the auction goes to the unrestricted phase, the .spot estimate is targeted. It has no use during restricted
- * auctions, though it can be updated by the AUCTION_LAUNCHER on each auction run.
- *
- * A NATIVE Folio is defined by a variable-weight basket of assets against a constant rebalance basket limit. Instead
- * of narrowing basket limits, it rebalances by narrowing the weight ranges assets in the basket until each weight range
- * has a delta of 0. NATIVE Folios are strictly more expressive than TRACKING Folios, and have fewer guarantees. In the
- * event the auction goes to the unrestricted phase, the .spot estimate for the weights is used. It has no use during
- * restricted auctions, though it can be updated by the AUCTION_LAUNCHER on each auction run.
- *
  * There are 3 main roles:
  *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, close auctions/rebalances, and deprecateFolio
  *   2. REBALANCE_MANAGER: can start/end rebalances
@@ -155,13 +144,6 @@ contract Folio is
     // 3.0.0 release was skipped so strict 3.0.0 -> 4.0.0 storage compatibility is not a requirement
 
     /**
-     * Index Type
-     *   TRACKING: fixed basket weights; variable basket limits D18{BU/share}
-     *   NATIVE: variable basket weights; fixed basket limits D27{tok/BU}
-     */
-    IndexType public indexType;
-
-    /**
      * Rebalancing
      *   REBALANCE_MANAGER
      *   - There can only be 1 rebalance live at a time
@@ -214,8 +196,6 @@ contract Folio is
         _setMintFee(_additionalDetails.mintFee);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
-
-        _setIndexType(_folioFlags.indexType);
 
         _setTrustedFillerRegistry(_folioRegistries.trustedFillerRegistry, _folioFlags.trustedFillerEnabled);
         _setDaoFeeRegistry(_folioRegistries.daoFeeRegistry);
@@ -320,11 +300,6 @@ contract Folio is
     ///      correctness and in order to be explicit what registry is being enabled/disabled.
     function setTrustedFillerRegistry(address _newFillerRegistry, bool _enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setTrustedFillerRegistry(_newFillerRegistry, _enabled);
-    }
-
-    /// @param _newIndexType The new index type
-    function setIndexType(IndexType _newIndexType) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setIndexType(_newIndexType);
     }
 
     /// Deprecate the Folio, callable only by the admin
@@ -579,7 +554,6 @@ contract Folio is
 
         // start rebalance
         RebalancingLib.StartRebalanceParams memory params = RebalancingLib.StartRebalanceParams({
-            indexType: indexType,
             priceControl: priceControl,
             auctionLauncherWindow: auctionLauncherWindow,
             ttl: ttl
@@ -1079,11 +1053,6 @@ contract Folio is
         require(_newDaoFeeRegistry != address(0), Folio__InvalidRegistry());
 
         daoFeeRegistry = IFolioDAOFeeRegistry(_newDaoFeeRegistry);
-    }
-
-    function _setIndexType(IndexType _newIndexType) internal {
-        indexType = _newIndexType;
-        emit IndexTypeSet(_newIndexType);
     }
 
     /// Claim all token balances from outstanding trusted fill

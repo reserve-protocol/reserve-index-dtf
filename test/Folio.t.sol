@@ -163,10 +163,7 @@ contract FolioTest is BaseTest {
             trustedFillerRegistry: address(trustedFillerRegistry)
         });
 
-        IFolio.FolioRegistryFlags memory registryFlags = IFolio.FolioRegistryFlags({
-            trustedFillerEnabled: true,
-            indexType: IFolio.IndexType.TRACKING
-        });
+        IFolio.FolioRegistryFlags memory registryFlags = IFolio.FolioRegistryFlags({ trustedFillerEnabled: true });
 
         // Attempt to initialize
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
@@ -651,17 +648,6 @@ contract FolioTest is BaseTest {
             "wrong owner shares"
         );
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
-    }
-
-    function test_setIndexType() public {
-        assertEq(uint256(folio.indexType()), 0, "wrong index type");
-
-        vm.prank(owner);
-        vm.expectEmit(true, true, false, true);
-        emit IFolio.IndexTypeSet(IFolio.IndexType.NATIVE);
-        folio.setIndexType(IFolio.IndexType.NATIVE);
-
-        assertEq(uint256(folio.indexType()), 1, "wrong index type");
     }
 
     function test_setFeeRecipients() public {
