@@ -212,6 +212,7 @@ library RebalancingLib {
                         IFolio.Folio__InvalidPrices()
                     );
                 }
+
                 // FULL: prices can be arbitrarily revised
                 auction.prices[token] = prices[i];
             }
@@ -273,7 +274,7 @@ library RebalancingLib {
         // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
         uint256 sellLimit = Math.mulDiv(
             rebalance.limits.high,
-            rebalance.details[address(sellToken)].weights.high,
+            rebalance.details[address(sellToken)].weights.spot,
             D18,
             Math.Rounding.Ceil
         );
@@ -286,7 +287,7 @@ library RebalancingLib {
         // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
         uint256 buyLimit = Math.mulDiv(
             rebalance.limits.low,
-            rebalance.details[address(buyToken)].weights.low,
+            rebalance.details[address(buyToken)].weights.spot,
             D18,
             Math.Rounding.Floor
         );
