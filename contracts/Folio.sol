@@ -578,12 +578,11 @@ contract Folio is
         // open an auction on the provided limits, weights, and prices
         auctionId = _openAuction(rebalanceNonce, tokens, newWeights, newPrices, newLimits, 0);
 
-        // bump rebalance deadlines if close
-        uint256 delta = auctionLength + RESTRICTED_AUCTION_BUFFER;
-
-        if (block.timestamp < rebalance.restrictedUntil && block.timestamp + delta >= rebalance.restrictedUntil) {
-            rebalance.restrictedUntil += delta;
-        }
+        // bump rebalance deadlines if close to end of restricted period
+        rebalance.restrictedUntil = Math.max(
+            rebalance.availableUntil,
+            block.timestamp + auctionLength + RESTRICTED_AUCTION_BUFFER + 1
+        );
     }
 
     /// Open an auction without caller restrictions, on all tokens in the rebalance on spot values and initial prices
