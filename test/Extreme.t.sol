@@ -11,7 +11,7 @@ import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
     IFolio.WeightRange internal REMOVE = IFolio.WeightRange({ low: 0, spot: 0, high: 0 });
-    IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: 1, spot: MAX_WEIGHT, high: MAX_WEIGHT });
+    IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: MAX_WEIGHT, spot: MAX_WEIGHT, high: MAX_WEIGHT });
 
     function _deployTestFolio(
         address[] memory _tokens,

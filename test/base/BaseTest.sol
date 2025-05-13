@@ -233,7 +233,8 @@ abstract contract BaseTest is Script, Test {
 
     // === Internal ===
 
-    IFolio.FolioRegistryFlags _registryFlags = IFolio.FolioRegistryFlags({ trustedFillerEnabled: true });
+    IFolio.FolioRegistryFlags _registryFlags =
+        IFolio.FolioRegistryFlags({ trustedFillerEnabled: true, indexType: IFolio.IndexType.TRACKING });
 
     function createFolio(
         address[] memory _assets,
@@ -256,7 +257,6 @@ abstract contract BaseTest is Script, Test {
         });
 
         IFolio.FolioAdditionalDetails memory _additionalDetails = IFolio.FolioAdditionalDetails({
-            indexType: IFolio.IndexType.NATIVE,
             auctionLength: _auctionLength,
             feeRecipients: _feeRecipients,
             tvlFee: _tvlFee,

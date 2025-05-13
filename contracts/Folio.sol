@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
-import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
+import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -29,8 +29,19 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
  *
  * A Folio is either TRACKING or NATIVE
- *   TRACKING: fixed basket weights; variable rebalance limits D18{BU/share}
- *   NATIVE: variable basket weights; fixed rebalance limits D27{tok/BU}
+ *   TRACKING: fixed basket weights; variable basket limits
+ *   NATIVE: variable basket weights; fixed basket limits
+ *
+ * A TRACKING Folio is defined by a fixed basket of assets with constant weights. It rebalances by narrowing its
+ * rebalance basket limits (D18{BU/share}) each auction until the delta between .high and .low is 0. In the event
+ * the auction goes to the unrestricted phase, the .spot estimate is targeted. It has no use during restricted
+ * auctions, though it can be updated by the AUCTION_LAUNCHER on each auction run.
+ *
+ * A NATIVE Folio is defined by a variable-weight basket of assets against a constant rebalance basket limit. Instead
+ * of narrowing basket limits, it rebalances by narrowing the weight ranges assets in the basket until each weight range
+ * has a delta of 0. NATIVE Folios are strictly more expressive than TRACKING Folios, and have fewer guarantees. In the
+ * event the auction goes to the unrestricted phase, the .spot estimate for the weights is used. It has no use during
+ * restricted auctions, though it can be updated by the AUCTION_LAUNCHER on each auction run.
  *
  * There are 3 main roles:
  *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, close auctions/rebalances, and deprecateFolio
@@ -45,23 +56,27 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * After a new rebalance is started by the REBALANCE_MANAGER, there is a period of time where only the AUCTION_LAUNCHER
  * can start an auction on a set of tokens. They can specify a few different things:
  *   - The list of tokens to include in the auction; must be a subset of the tokens in the rebalance
- *   - Basket weights: they can pick a weight within the provided initial range
+ *   - Basket weights: they can pick a weight within the provided initial ranges (NATIVE only)
  *   - Price range: depending on their PriceControl level, they may either have to work within the initial range,
  *                  no ability to change prices, or full flexibility to set prices arbitrarily.
- *   - Rebalance limits: they can progressively tighten the limits each auction
+ *   - Rebalance limits: they can progressively tighten the basket limits (TRACKING only)
  *
  * The AUCTION_LAUNCHER can run as many auctions as they need to, and if they are close to the end of their restricted
  * period, the period will be extended on each auction-length. Potentially they can run auctions forever.
  *
- * After the AUCTION_LAUNCHER's restricted period is over, anyone can open auctions until the rebalance expires.
+ * After the AUCTION_LAUNCHER's restricted period is over, anyone can open auctions until the rebalance expires. The
+ * AUCTION_LAUNCHER can always prevent the unrestricted period from starting by closing the auction.
  *
- * An auction for a set of tokens runs in parallel all different pairs simultaneously. The clearing price for each
- * pair is interpolated in the auction curve between their most-optimistic and most-pessimistic price estimates.
+ * An auction for a set of tokens runs in parallel all different pairs simultaneously. The current price for each
+ * pair is interpolated in the auction curve between their most-optimistic and most-pessimistic price estimates, as a
+ * function of how much time in the auction has passed.
  *
- * In order for a pair to be eligible for an auction, the sell token must be in surplus and the buy token in deficit.
+ * In order for a pair to be eligible for an auction, the sell token must be in surplus and the buy token in deficit,
+ * as defined by balances relative to the high (sell) and low (buy) basket limits. In the case of NATIVE Folios,
+ * the individual token weight ranges are instead used to determine surplus/deficit.
  *
- * Targets for the rebalance are defined in terms of basket units: D27{tok/BU}
- * A Basket Unit (BU) can be defined arbitrarily, but the expected usage is to define BUs as 1:1 with shares.
+ * Rebalance limits are defined in terms of basket units: D27{tok/BU}
+ * A Basket Unit (BU) can be defined arbitrarily, but the expected usage is to define BUs 1:1 with shares.
  *
  * Fees:
  *   - TVL fee: fee per unit time. Max 10% annually. Causes supply inflation over time, discretely once a day.
@@ -137,12 +152,12 @@ contract Folio is
     IBaseTrustedFiller private activeTrustedFill;
 
     // === 4.0.0 ===
-    // 3.0.0 release was skipped so backward storage compatibility is not a requirement
+    // 3.0.0 release was skipped so strict 3.0.0 -> 4.0.0 storage compatibility is not a requirement
 
     /**
      * Index Type
-     *   TRACKING: fixed basket weights; variable rebalance limits D18{BU/share}
-     *   NATIVE: variable basket weights; fixed rebalance limits D27{tok/BU}
+     *   TRACKING: fixed basket weights; variable basket limits D18{BU/share}
+     *   NATIVE: variable basket weights; fixed basket limits D27{tok/BU}
      */
     IndexType public indexType;
 
@@ -194,12 +209,13 @@ contract Folio is
         __AccessControl_init();
         __ReentrancyGuard_init();
 
-        _setIndexType(_additionalDetails.indexType);
         _setFeeRecipients(_additionalDetails.feeRecipients);
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
+
+        _setIndexType(_folioFlags.indexType);
 
         _setTrustedFillerRegistry(_folioRegistries.trustedFillerRegistry, _folioFlags.trustedFillerEnabled);
         _setDaoFeeRegistry(_folioRegistries.daoFeeRegistry);
@@ -533,8 +549,10 @@ contract Folio is
     /// @param priceControl How much price control to give to AUCTION_LAUNCHER: [NONE, PARTIAL, FULL]
     /// @param tokens Tokens to rebalance, MUST be unique
     /// @param weights D27{tok/BU} Basket weight ranges for the basket unit definition; cannot be empty [0, 1e54]
+    ///                MUST be constant for TRACKING Folios
     /// @param prices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e54]
     /// @param limits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e36]
+    ///                MUST be constant for NATIVE Folios
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
     /// @param ttl {s} The amount of time the rebalance is valid for, can be extended
     function startRebalance(
@@ -569,12 +587,12 @@ contract Folio is
         RebalancingLib.startRebalance(rebalance, tokens, weights, prices, limits, params);
     }
 
-    /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits, for a given set of tokens
+    /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits and weights, for a given set of tokens
     /// @param rebalanceNonce The nonce of the rebalance being targeted
     /// @param tokens The tokens from the rebalance to include in the auction; must be unique
-    /// @param newWeights D27{tok/BU} New precise basket weights; must always be provided
-    /// @param newPrices D27{UoA/tok} New price ranges; must always be provided in non-PriceControl.NONE case
-    /// @param newLimits D18{BU/share} New BU limits; must always be provided
+    /// @param newWeights D27{tok/BU} New precise basket weights; must always be provided and within range
+    /// @param newPrices D27{UoA/tok} New price ranges; must always be provided and must obey PriceControl setting
+    /// @param newLimits D18{BU/share} New BU limits; must be within range
     /// @return auctionId The newly created auctionId
     function openAuction(
         uint256 rebalanceNonce,
@@ -593,14 +611,14 @@ contract Folio is
         auctionId = _openAuction(rebalanceNonce, tokens, newWeights, newPrices, newLimits, 0);
 
         // bump rebalance deadlines if close
-        uint256 delta = auctionLength + RESTRICTED_AUCTION_BUFFER; // {s}
+        uint256 delta = auctionLength + RESTRICTED_AUCTION_BUFFER;
+
         if (block.timestamp < rebalance.restrictedUntil && block.timestamp + delta >= rebalance.restrictedUntil) {
             rebalance.restrictedUntil += delta;
-            // the AUCTION_LAUNCER can DoS unrestricted auctions, but this is already true because of closeAuction()
         }
     }
 
-    /// Open an auction, without caller restrictions, and for all tokens in the rebalance
+    /// Open an auction without caller restrictions, on all tokens in the rebalance on spot values and initial prices
     /// @dev Callable only after the auction launcher window passes, and when no other auction is ongoing
     /// @return auctionId The newly created auctionId
     function openAuctionUnrestricted(
@@ -617,21 +635,27 @@ contract Folio is
         }
 
         address[] memory tokens = basket.values();
-        // not every token will be in the rebalance, the helper function will filter
-
         uint256 len = tokens.length;
         uint256[] memory weights = new uint256[](len);
         PriceRange[] memory prices = new PriceRange[](len);
 
         // use spot weights and initialPrices
         for (uint256 i; i < len; i++) {
-            weights[i] = rebalance.details[tokens[i]].weights.spot;
-            prices[i] = rebalance.details[tokens[i]].initialPrices;
+            RebalanceDetails storage rebalanceDetails = rebalance.details[tokens[i]];
+
+            weights[i] = rebalanceDetails.weights.spot;
+            prices[i] = rebalanceDetails.initialPrices;
         }
 
+        // use spot limit and collapse range
+        RebalanceLimits memory limits = RebalanceLimits({
+            low: rebalance.limits.spot,
+            spot: rebalance.limits.spot,
+            high: rebalance.limits.spot
+        });
+
         // open an auction on spot limits, spot weights, and initial prices
-        // use same spot limit to determine BOTH surplus and deficits
-        auctionId = _openAuction(rebalanceNonce, tokens, weights, prices, rebalance.limits, RESTRICTED_AUCTION_BUFFER);
+        auctionId = _openAuction(rebalanceNonce, tokens, weights, prices, limits, RESTRICTED_AUCTION_BUFFER);
     }
 
     /// Get auction bid parameters for an ongoing auction at a target timestamp, for some token pair
@@ -740,7 +764,12 @@ contract Folio is
     /// A auction can be closed from anywhere in its lifecycle
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function closeAuction(uint256 auctionId) external nonReentrant {
-        _requireAnyRole(); // undo if contract size is not a barrier anymore
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
+                hasRole(REBALANCE_MANAGER, msg.sender) ||
+                hasRole(AUCTION_LAUNCHER, msg.sender),
+            Folio__Unauthorized()
+        );
 
         // do not revert, to prevent griefing
         auctions[auctionId].endTime = block.timestamp - 1; // inclusive
@@ -751,7 +780,12 @@ contract Folio is
     /// End the current rebalance, including any ongoing auction
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function endRebalance() external nonReentrant {
-        _requireAnyRole(); // undo if contract size is not a barrier anymore
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
+                hasRole(REBALANCE_MANAGER, msg.sender) ||
+                hasRole(AUCTION_LAUNCHER, msg.sender),
+            Folio__Unauthorized()
+        );
 
         emit RebalanceEnded(rebalance.nonce);
 
@@ -1066,14 +1100,5 @@ contract Folio is
         require(to != address(this), Folio__InvalidTransferToSelf());
 
         super._update(from, to, value);
-    }
-
-    function _requireAnyRole() internal view {
-        require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
-                hasRole(REBALANCE_MANAGER, msg.sender) ||
-                hasRole(AUCTION_LAUNCHER, msg.sender),
-            Folio__Unauthorized()
-        );
     }
 }

@@ -120,7 +120,6 @@ interface IFolio {
     }
 
     struct FolioAdditionalDetails {
-        IndexType indexType;
         uint256 auctionLength; // {s}
         FeeRecipient[] feeRecipients;
         uint256 tvlFee; // D18{1/s}
@@ -134,6 +133,7 @@ interface IFolio {
     }
 
     struct FolioRegistryFlags {
+        IndexType indexType;
         bool trustedFillerEnabled;
     }
 

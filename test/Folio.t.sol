@@ -25,9 +25,9 @@ contract FolioTest is BaseTest {
     IFolio.WeightRange internal SELL = IFolio.WeightRange({ low: 0, spot: 0, high: 0 }); // sell as much as possible
     IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: MAX_WEIGHT, spot: MAX_WEIGHT, high: MAX_WEIGHT }); // buy as much as possible
 
-    IFolio.WeightRange internal WEIGHTS_6 = IFolio.WeightRange({ low: 1, spot: 1e15, high: MAX_WEIGHT }); // D27{tok/BU} 1:1 with BUs
-    IFolio.WeightRange internal WEIGHTS_18 = IFolio.WeightRange({ low: 1, spot: 1e27, high: MAX_WEIGHT }); // D27{tok/BU} 1:1 with BUs
-    IFolio.WeightRange internal WEIGHTS_27 = IFolio.WeightRange({ low: 1, spot: 1e36, high: MAX_WEIGHT }); // D27{tok/BU} 1:1 with BUs
+    IFolio.WeightRange internal WEIGHTS_6 = IFolio.WeightRange({ low: 1e15, spot: 1e15, high: 1e15 }); // D27{tok/BU} 1:1 with BUs
+    IFolio.WeightRange internal WEIGHTS_18 = IFolio.WeightRange({ low: 1e27, spot: 1e27, high: 1e27 }); // D27{tok/BU} 1:1 with BUs
+    IFolio.WeightRange internal WEIGHTS_27 = IFolio.WeightRange({ low: 1e36, spot: 1e36, high: 1e36 }); // D27{tok/BU} 1:1 with BUs
 
     IFolio.PriceRange internal FULL_PRICE_RANGE_6 = IFolio.PriceRange({ low: 1e20, high: 1e22 }); // D27{UoA/tok} worth $1 on average
     IFolio.PriceRange internal FULL_PRICE_RANGE_18 = IFolio.PriceRange({ low: 1e8, high: 1e10 }); // D27{UoA/tok} worth $1 on average
@@ -151,7 +151,6 @@ contract FolioTest is BaseTest {
         });
 
         IFolio.FolioAdditionalDetails memory additionalDetails = IFolio.FolioAdditionalDetails({
-            indexType: IFolio.IndexType.TRACKING,
             auctionLength: MAX_AUCTION_LENGTH,
             feeRecipients: recipients,
             tvlFee: MAX_TVL_FEE,
@@ -164,7 +163,10 @@ contract FolioTest is BaseTest {
             trustedFillerRegistry: address(trustedFillerRegistry)
         });
 
-        IFolio.FolioRegistryFlags memory registryFlags = IFolio.FolioRegistryFlags({ trustedFillerEnabled: true });
+        IFolio.FolioRegistryFlags memory registryFlags = IFolio.FolioRegistryFlags({
+            trustedFillerEnabled: true,
+            indexType: IFolio.IndexType.TRACKING
+        });
 
         // Attempt to initialize
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
@@ -652,14 +654,14 @@ contract FolioTest is BaseTest {
     }
 
     function test_setIndexType() public {
-        assertEq(uint256(folio.indexType()), 1, "wrong index type");
+        assertEq(uint256(folio.indexType()), 0, "wrong index type");
 
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
-        emit IFolio.IndexTypeSet(IFolio.IndexType.TRACKING);
-        folio.setIndexType(IFolio.IndexType.TRACKING);
+        emit IFolio.IndexTypeSet(IFolio.IndexType.NATIVE);
+        folio.setIndexType(IFolio.IndexType.NATIVE);
 
-        assertEq(uint256(folio.indexType()), 0, "wrong index type");
+        assertEq(uint256(folio.indexType()), 1, "wrong index type");
     }
 
     function test_setFeeRecipients() public {
