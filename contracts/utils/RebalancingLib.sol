@@ -48,6 +48,9 @@ library RebalancingLib {
         for (uint256 i; i < len; i++) {
             address token = tokens[i];
 
+            // enforce valid token
+            require(token != address(0) && token != address(this), IFolio.Folio__InvalidAsset());
+
             // enforce no duplicates
             require(!rebalance.details[token].inRebalance, IFolio.Folio__DuplicateAsset());
 
@@ -69,7 +72,6 @@ library RebalancingLib {
             rebalance.details[token] = IFolio.RebalanceDetails({
                 inRebalance: true,
                 weights: weights[i],
-                prices: prices[i],
                 initialPrices: prices[i]
             });
         }
@@ -94,49 +96,19 @@ library RebalancingLib {
     }
 
     /// Open a new auction
-    /// @param auctionLength {s} The amount of time the auction is open for
-    /// @param auctionBuffer {s} The amount of time the auction is open for
     function openAuction(
         IFolio.Rebalance storage rebalance,
         mapping(uint256 auctionId => IFolio.Auction) storage auctions,
         uint256 auctionId,
         address[] memory tokens,
         uint256[] memory weights,
+        IFolio.PriceRange[] calldata prices,
         IFolio.RebalanceLimits calldata limits,
         uint256 totalSupply,
-        uint256 auctionLength,
-        uint256 auctionBuffer
+        uint256 auctionLength
     ) external {
         uint256 len = tokens.length;
-        require(len == weights.length, IFolio.Folio__InvalidWeights());
-
-        // enforce rebalance ongoing
-        require(
-            block.timestamp >= rebalance.startedAt + auctionBuffer && block.timestamp < rebalance.availableUntil,
-            IFolio.Folio__NotRebalancing()
-        );
-
-        // enforce auction not ongoing, if unrestricted
-        // AUCTION_LAUNCHER can overwrite an existing auction
-        if (auctionId != 0) {
-            IFolio.Auction storage lastAuction = auctions[auctionId - 1];
-
-            if (auctionBuffer != 0) {
-                // restricted caller case
-
-                require(
-                    lastAuction.endTime + auctionBuffer < block.timestamp ||
-                        lastAuction.rebalanceNonce != rebalance.nonce,
-                    IFolio.Folio__AuctionCannotBeOpenedWithoutRestriction()
-                );
-            } else {
-                // AUCTION_LAUNCHER case
-
-                // close existing auction
-                lastAuction.endTime = block.timestamp - 1;
-                emit IFolio.AuctionClosed(auctionId - 1);
-            }
-        }
+        require(len == weights.length && len == prices.length, IFolio.Folio__InvalidArrayLengths());
 
         // update rebalance limits
         {
@@ -158,34 +130,35 @@ library RebalancingLib {
 
         IFolio.Auction storage auction = auctions[auctionId];
 
-        // update basket weights
+        // update basket weights + auction prices
         for (uint256 i = 0; i < len; i++) {
-            IFolio.RebalanceDetails storage details = rebalance.details[address(tokens[i])];
+            address token = tokens[i];
+
+            // enforce valid token
+            require(token != address(0) && token != address(this), IFolio.Folio__InvalidAsset());
+
+            IFolio.RebalanceDetails storage rebalanceDetails = rebalance.details[token];
 
             // only include tokens from rebalance
-            if (!details.inRebalance) {
+            if (!rebalanceDetails.inRebalance) {
                 tokens[i] = address(0); // imperfect but ok, only impacts event
                 weights[i] = 0;
                 continue;
             }
 
-            // add token to auction
-            require(!auction.inAuction[tokens[i]], IFolio.Folio__DuplicateAsset());
-            auction.inAuction[tokens[i]] = true;
-
             // update spot weight
             require(
-                details.weights.low <= weights[i] && weights[i] <= details.weights.high,
+                rebalanceDetails.weights.low <= weights[i] && weights[i] <= rebalanceDetails.weights.high,
                 IFolio.Folio__InvalidWeights()
             );
-            details.weights.spot = weights[i];
+            rebalanceDetails.weights.spot = weights[i];
 
             // narrow high/low weights
             {
                 // D27{tok/share} = D27 * {tok} / {share}
                 uint256 tokenCurrent = Math.mulDiv(
                     D27,
-                    IERC20(tokens[i]).balanceOf(address(this)),
+                    IERC20(token).balanceOf(address(this)),
                     totalSupply,
                     Math.Rounding.Floor
                 );
@@ -199,11 +172,43 @@ library RebalancingLib {
                 // prevent future double trading
                 if (tokenCurrent > tokenSellLimit) {
                     // surplus scenario: prevent trading in the future towards a higher weight
-                    details.weights.high = weights[i];
+                    rebalanceDetails.weights.high = weights[i];
                 } else if (tokenCurrent < tokenBuyLimit) {
                     // deficit scenario: prevent trading in the future towards a lower weight
-                    details.weights.low = weights[i];
+                    rebalanceDetails.weights.low = weights[i];
                 }
+            }
+
+            // save auction prices
+            {
+                // internal consistency checks
+                require(
+                    prices[i].low != 0 &&
+                        prices[i].low <= prices[i].high &&
+                        prices[i].high <= MAX_TOKEN_PRICE &&
+                        prices[i].high <= MAX_TOKEN_PRICE_RANGE * prices[i].low,
+                    IFolio.Folio__InvalidPrices()
+                );
+
+                // PARTIAL: prices can be revised within the bounds of the initial prices
+                if (rebalance.priceControl != IFolio.PriceControl.FULL) {
+                    require(
+                        prices[i].low >= rebalanceDetails.initialPrices.low &&
+                            prices[i].high <= rebalanceDetails.initialPrices.high,
+                        IFolio.Folio__InvalidPrices()
+                    );
+
+                    // NONE: prices must be exactly the initial prices
+                    if (rebalance.priceControl == IFolio.PriceControl.NONE) {
+                        require(
+                            prices[i].low == rebalanceDetails.initialPrices.low &&
+                                prices[i].high == rebalanceDetails.initialPrices.high,
+                            IFolio.Folio__InvalidPrices()
+                        );
+                    }
+                }
+                // FULL: prices can be arbitrarily revised
+                auction.prices[token] = prices[i];
             }
         }
 
@@ -217,21 +222,11 @@ library RebalancingLib {
             auctionId,
             tokens,
             weights,
+            prices,
             limits,
             block.timestamp,
             block.timestamp + auctionLength
         );
-
-        // bump rebalance deadlines if permissioned caller needs more time
-        if (auctionBuffer == 0) {
-            uint256 delta = auctionLength + RESTRICTED_AUCTION_BUFFER; // {s}
-
-            // give AUCTION_LAUNCHER more time to act if it is within their isolated period and about to spill over
-            if (block.timestamp < rebalance.restrictedUntil && block.timestamp + delta >= rebalance.restrictedUntil) {
-                rebalance.restrictedUntil += delta;
-                // the AUCTION_LAUNCER can DoS unrestricted auctions, but this is already true because of closeAuction()
-            }
-        }
     }
 
     /// @dev stack-too-deep
@@ -364,30 +359,30 @@ library RebalancingLib {
         IERC20 buyToken,
         uint256 timestamp
     ) internal view returns (uint256 p) {
-        IFolio.RebalanceDetails storage sellDetails = rebalance.details[address(sellToken)];
-        IFolio.RebalanceDetails storage buyDetails = rebalance.details[address(buyToken)];
+        IFolio.PriceRange memory sellPrices = auction.prices[address(sellToken)];
+        IFolio.PriceRange memory buyPrices = auction.prices[address(buyToken)];
 
         // ensure auction is ongoing and token pair is in it
         require(
             auction.rebalanceNonce == rebalance.nonce &&
                 sellToken != buyToken &&
-                sellDetails.inRebalance &&
-                buyDetails.inRebalance &&
-                auction.inAuction[address(sellToken)] &&
-                auction.inAuction[address(buyToken)] &&
+                rebalance.details[address(sellToken)].inRebalance &&
+                rebalance.details[address(buyToken)].inRebalance &&
+                sellPrices.low != 0 &&
+                buyPrices.low != 0 &&
                 timestamp >= auction.startTime &&
                 timestamp <= auction.endTime,
             IFolio.Folio__AuctionNotOngoing()
         );
 
         // D27{buyTok/sellTok} = D27{UoA/sellTok} * D27 / D27{UoA/buyTok}
-        uint256 startPrice = Math.mulDiv(sellDetails.prices.high, D27, buyDetails.prices.low, Math.Rounding.Ceil);
+        uint256 startPrice = Math.mulDiv(sellPrices.high, D27, buyPrices.low, Math.Rounding.Ceil);
         if (timestamp == auction.startTime) {
             return startPrice;
         }
 
         // D27{buyTok/sellTok} = D27{UoA/sellTok} * D27 / D27{UoA/buyTok}
-        uint256 endPrice = Math.mulDiv(sellDetails.prices.low, D27, buyDetails.prices.high, Math.Rounding.Ceil);
+        uint256 endPrice = Math.mulDiv(sellPrices.low, D27, buyPrices.high, Math.Rounding.Ceil);
         if (timestamp == auction.endTime) {
             return endPrice;
         }

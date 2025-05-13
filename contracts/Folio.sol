@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
-import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_WEIGHT, MAX_LIMIT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
+import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -481,7 +481,6 @@ contract Folio is
     /// @return nonce The current rebalance nonce
     /// @return tokens The tokens in the basket
     /// @return weights D27{tok/BU} The weights of the tokens in the basket
-    /// @return prices D27{UoA/tok} The current prices of the tokens in the basket
     /// @return initialPrices D27{UoA/tok} The initial prices of the tokens in the basket
     /// @return inRebalance Whether the token is in the rebalance
     /// @return limits D18{BU/share} The current target limits for rebalancing
@@ -496,7 +495,6 @@ contract Folio is
             uint256 nonce,
             address[] memory tokens,
             WeightRange[] memory weights,
-            PriceRange[] memory prices,
             PriceRange[] memory initialPrices,
             bool[] memory inRebalance,
             RebalanceLimits memory limits,
@@ -510,7 +508,6 @@ contract Folio is
         uint256 len = tokens.length;
 
         weights = new WeightRange[](len);
-        prices = new PriceRange[](len);
         initialPrices = new PriceRange[](len);
         inRebalance = new bool[](len);
 
@@ -518,7 +515,6 @@ contract Folio is
             RebalanceDetails storage details = rebalance.details[tokens[i]];
 
             weights[i] = details.weights;
-            prices[i] = details.prices;
             initialPrices[i] = details.initialPrices;
             inRebalance[i] = details.inRebalance;
         }
@@ -587,40 +583,21 @@ contract Folio is
         PriceRange[] calldata newPrices,
         RebalanceLimits calldata newLimits
     ) external onlyRole(AUCTION_LAUNCHER) nonReentrant notDeprecated sync returns (uint256 auctionId) {
-        if (rebalance.priceControl != PriceControl.NONE) {
-            uint256 len = tokens.length;
-            require(len == newPrices.length, Folio__InvalidArrayLengths());
-
-            // update prices
-            for (uint256 i; i < len; i++) {
-                RebalanceDetails storage details = rebalance.details[address(tokens[i])];
-                require(details.inRebalance, Folio__TokenNotInRebalance());
-
-                // internal consistency checks
-                require(
-                    newPrices[i].low != 0 &&
-                        newPrices[i].low <= newPrices[i].high &&
-                        newPrices[i].high <= MAX_TOKEN_PRICE &&
-                        newPrices[i].high <= MAX_TOKEN_PRICE_RANGE * newPrices[i].low,
-                    Folio__InvalidPrices()
-                );
-
-                // PARTIAL: prices can be revised within the bounds of the initial prices
-                if (rebalance.priceControl == PriceControl.PARTIAL) {
-                    require(
-                        newPrices[i].low >= details.initialPrices.low &&
-                            newPrices[i].high <= details.initialPrices.high,
-                        Folio__InvalidPrices()
-                    );
-                }
-
-                // FULL: prices can be arbitrarily revised
-                details.prices = newPrices[i];
-            }
+        // close any ongoing auction
+        if (auctionId != 0 && auctions[auctionId - 1].rebalanceNonce == rebalanceNonce) {
+            auctions[auctionId - 1].endTime = block.timestamp - 1;
+            emit IFolio.AuctionClosed(auctionId - 1);
         }
 
-        // open an auction on the provided limits
-        auctionId = _openAuction(rebalanceNonce, tokens, newWeights, newLimits, 0);
+        // open an auction on the provided limits, weights, and prices
+        auctionId = _openAuction(rebalanceNonce, tokens, newWeights, newPrices, newLimits, 0);
+
+        // bump rebalance deadlines if close
+        uint256 delta = auctionLength + RESTRICTED_AUCTION_BUFFER; // {s}
+        if (block.timestamp < rebalance.restrictedUntil && block.timestamp + delta >= rebalance.restrictedUntil) {
+            rebalance.restrictedUntil += delta;
+            // the AUCTION_LAUNCER can DoS unrestricted auctions, but this is already true because of closeAuction()
+        }
     }
 
     /// Open an auction, without caller restrictions, and for all tokens in the rebalance
@@ -631,18 +608,30 @@ contract Folio is
     ) external nonReentrant notDeprecated sync returns (uint256 auctionId) {
         require(block.timestamp >= rebalance.restrictedUntil, Folio__AuctionCannotBeOpenedWithoutRestriction());
 
+        // enforce no auction ongoing
+        if (auctionId != 0 && auctions[auctionId - 1].rebalanceNonce == rebalance.nonce) {
+            require(
+                auctions[auctionId - 1].endTime + RESTRICTED_AUCTION_BUFFER < block.timestamp,
+                Folio__AuctionCannotBeOpenedWithoutRestriction()
+            );
+        }
+
         address[] memory tokens = basket.values();
         // not every token will be in the rebalance, the helper function will filter
 
         uint256 len = tokens.length;
         uint256[] memory weights = new uint256[](len);
+        PriceRange[] memory prices = new PriceRange[](len);
+
+        // use spot weights and initialPrices
         for (uint256 i; i < len; i++) {
             weights[i] = rebalance.details[tokens[i]].weights.spot;
+            prices[i] = rebalance.details[tokens[i]].initialPrices;
         }
 
-        // open an auction on the spot limits
+        // open an auction on spot limits, spot weights, and initial prices
         // use same spot limit to determine BOTH surplus and deficits
-        auctionId = _openAuction(rebalanceNonce, tokens, weights, rebalance.limits, RESTRICTED_AUCTION_BUFFER);
+        auctionId = _openAuction(rebalanceNonce, tokens, weights, prices, rebalance.limits, RESTRICTED_AUCTION_BUFFER);
     }
 
     /// Get auction bid parameters for an ongoing auction at a target timestamp, for some token pair
@@ -824,10 +813,17 @@ contract Folio is
         uint256 rebalanceNonce,
         address[] memory tokens,
         uint256[] memory weights,
+        PriceRange[] memory prices,
         RebalanceLimits memory limits,
         uint256 auctionBuffer
     ) internal returns (uint256 auctionId) {
-        require(rebalance.nonce == rebalanceNonce, Folio__InvalidRebalanceNonce());
+        // enforce rebalance ongoing
+        require(
+            rebalance.nonce == rebalanceNonce &&
+                block.timestamp >= rebalance.startedAt + auctionBuffer &&
+                block.timestamp < rebalance.availableUntil,
+            IFolio.Folio__NotRebalancing()
+        );
 
         auctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
         nextAuctionId++;
@@ -838,10 +834,10 @@ contract Folio is
             auctionId,
             tokens,
             weights,
+            prices,
             limits,
             totalSupply(),
-            auctionLength,
-            auctionBuffer
+            auctionLength
         );
     }
 

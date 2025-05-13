@@ -1043,6 +1043,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_DELAY
@@ -1127,6 +1128,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_DELAY
@@ -1221,6 +1223,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_DELAY
@@ -1309,6 +1312,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_DELAY
@@ -1405,6 +1409,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_DELAY
@@ -1521,6 +1526,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_DELAY
@@ -1613,6 +1619,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_DELAY
@@ -1701,6 +1708,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_DELAY
@@ -1771,6 +1779,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH
@@ -1848,6 +1857,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH
@@ -1921,6 +1931,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH
@@ -1963,7 +1974,7 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
         folio.openAuction(0, new address[](0), new uint256[](0), new IFolio.PriceRange[](0), NATIVE_LIMITS);
 
-        vm.expectRevert(IFolio.Folio__InvalidRebalanceNonce.selector);
+        vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
         folio.openAuction(1, new address[](0), new uint256[](0), new IFolio.PriceRange[](0), NATIVE_LIMITS);
     }
 
@@ -2009,6 +2020,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH
@@ -2094,6 +2106,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH
@@ -2145,6 +2158,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH
@@ -2198,6 +2212,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH
@@ -2229,7 +2244,7 @@ contract FolioTest is BaseTest {
         folio.openAuctionUnrestricted(1);
 
         // but should be possible after auction launcher window
-        (, , , , , , , , uint256 restrictedUntil, , ) = folio.getRebalance();
+        (, , , , , , , uint256 restrictedUntil, , ) = folio.getRebalance();
         vm.warp(restrictedUntil);
         folio.openAuctionUnrestricted(1);
 
@@ -2245,6 +2260,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH
@@ -2286,6 +2302,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH
@@ -2338,6 +2355,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH
@@ -2429,6 +2447,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH
@@ -2507,6 +2526,7 @@ contract FolioTest is BaseTest {
                 0,
                 assets,
                 auctionWeights,
+                prices,
                 NATIVE_LIMITS,
                 block.timestamp,
                 block.timestamp + MAX_AUCTION_LENGTH
@@ -2674,6 +2694,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH
@@ -2733,6 +2754,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH
@@ -2780,28 +2802,28 @@ contract FolioTest is BaseTest {
         invalidTokens1[0] = address(0); // Invalid sell token
         invalidTokens1[1] = address(USDC);
         // This should fail because address(0) is not part of the rebalance details.
-        vm.expectRevert(IFolio.Folio__TokenNotInRebalance.selector);
+        vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
         folio.openAuction(1, invalidTokens1, validWeights, validPrices, NATIVE_LIMITS);
 
         // --- Case 2: Buy token is zero address ---
         address[] memory invalidTokens2 = new address[](2);
         invalidTokens2[0] = address(USDC);
         invalidTokens2[1] = address(0); // Invalid buy token
-        vm.expectRevert(IFolio.Folio__TokenNotInRebalance.selector);
+        vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
         folio.openAuction(1, invalidTokens2, validWeights, validPrices, NATIVE_LIMITS);
 
         // --- Case 3: Sell token is the Folio address ---
         address[] memory invalidTokens3 = new address[](2);
         invalidTokens3[0] = address(folio); // Invalid sell token
         invalidTokens3[1] = address(USDC);
-        vm.expectRevert(IFolio.Folio__TokenNotInRebalance.selector);
+        vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
         folio.openAuction(1, invalidTokens3, validWeights, validPrices, NATIVE_LIMITS);
 
         // --- Case 4: Buy token is the Folio address ---
         address[] memory invalidTokens4 = new address[](2);
         invalidTokens4[0] = address(USDC);
         invalidTokens4[1] = address(folio); // Invalid buy token
-        vm.expectRevert(IFolio.Folio__TokenNotInRebalance.selector);
+        vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
         folio.openAuction(1, invalidTokens4, validWeights, validPrices, NATIVE_LIMITS);
         vm.stopPrank();
     }
@@ -3054,6 +3076,7 @@ contract FolioTest is BaseTest {
             0,
             assets,
             auctionWeights,
+            prices,
             NATIVE_LIMITS,
             block.timestamp,
             block.timestamp + MAX_AUCTION_LENGTH

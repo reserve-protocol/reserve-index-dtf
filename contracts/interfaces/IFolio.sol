@@ -9,6 +9,7 @@ interface IFolio {
         uint256 indexed auctionId,
         address[] tokens,
         uint256[] weights,
+        PriceRange[] prices,
         RebalanceLimits limits,
         uint256 startTime,
         uint256 endTime
@@ -93,8 +94,6 @@ interface IFolio {
 
     error Folio__InvalidTTL();
     error Folio__NotRebalancing();
-    error Folio__InvalidRebalanceNonce();
-    error Folio__TokenNotInRebalance();
     error Folio__EmptyAuction();
 
     // === Structures ===
@@ -168,7 +167,6 @@ interface IFolio {
     struct RebalanceDetails {
         bool inRebalance;
         WeightRange weights; // D27{tok/BU} [0, 1e54]
-        PriceRange prices; // D27{UoA/tok} (0, 1e54] current latest prices
         PriceRange initialPrices; // D27{UoA/tok} (0, 1e54]
     }
 
@@ -190,7 +188,7 @@ interface IFolio {
     ///   - CLOSED: block.timestamp > endTime
     struct Auction {
         uint256 rebalanceNonce;
-        mapping(address token => bool) inAuction; // if the token is in the auction
+        mapping(address token => PriceRange) prices;
         uint256 startTime; // {s} inclusive
         uint256 endTime; // {s} inclusive
     }
