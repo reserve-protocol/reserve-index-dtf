@@ -575,12 +575,6 @@ contract Folio is
         PriceRange[] calldata newPrices,
         RebalanceLimits calldata newLimits
     ) external onlyRole(AUCTION_LAUNCHER) nonReentrant notDeprecated sync returns (uint256 auctionId) {
-        // close any ongoing auction
-        if (auctionId != 0 && auctions[auctionId - 1].rebalanceNonce == rebalanceNonce) {
-            auctions[auctionId - 1].endTime = block.timestamp - 1;
-            emit IFolio.AuctionClosed(auctionId - 1);
-        }
-
         // open an auction on the provided limits, weights, and prices
         auctionId = _openAuction(rebalanceNonce, tokens, newWeights, newPrices, newLimits, 0);
 
@@ -599,14 +593,6 @@ contract Folio is
         uint256 rebalanceNonce
     ) external nonReentrant notDeprecated sync returns (uint256 auctionId) {
         require(block.timestamp >= rebalance.restrictedUntil, Folio__AuctionCannotBeOpenedWithoutRestriction());
-
-        // enforce no auction ongoing
-        if (auctionId != 0 && auctions[auctionId - 1].rebalanceNonce == rebalance.nonce) {
-            require(
-                auctions[auctionId - 1].endTime + RESTRICTED_AUCTION_BUFFER < block.timestamp,
-                Folio__AuctionCannotBeOpenedWithoutRestriction()
-            );
-        }
 
         address[] memory tokens = basket.values();
         uint256 len = tokens.length;
@@ -815,7 +801,7 @@ contract Folio is
     /// @param rebalanceNonce The nonce of the rebalance being targeted
     /// @param tokens The tokens from the rebalance to include in the auction
     /// @param limits D18{BU/share} The BU limits for the auction
-    /// @param auctionBuffer {s} The amount of time the auction is open for
+    /// @param auctionBuffer {s} The amount of extra buffer time to pad starting and ending rebalances/auctions
     /// @return auctionId The newly created auctionId
     function _openAuction(
         uint256 rebalanceNonce,
@@ -835,6 +821,22 @@ contract Folio is
 
         auctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
         nextAuctionId++;
+
+        // enforce no auction ongoing, unless restricted caller
+        if (auctionId != 0) {
+            require(
+                auctionBuffer == 0 ||
+                    auctions[auctionId - 1].rebalanceNonce != rebalanceNonce ||
+                    auctions[auctionId - 1].endTime + auctionBuffer < block.timestamp,
+                Folio__AuctionCannotBeOpenedWithoutRestriction()
+            );
+
+            // close ongoing auction if restricted caller
+            if (auctions[auctionId - 1].endTime >= block.timestamp) {
+                auctions[auctionId - 1].endTime = block.timestamp - 1;
+                emit IFolio.AuctionClosed(auctionId - 1);
+            }
+        }
 
         RebalancingLib.openAuction(
             rebalance,
