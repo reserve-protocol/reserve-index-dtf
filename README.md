@@ -6,7 +6,7 @@ Reserve Folio is a protocol for creating and managing portfolios of ERC20-compli
 
 To change their composition, Folios support a rebalancing process during which either the `AUCTION_LAUNCHER` (or anyone else, with restriction) can start Dutch Auctions to rebalance the Folio toward the defined basket unit. Each Dutch Auction manifests as an exponential decay between two prices under the assumption that the ideal clearing price (incl slippage) lies in between the price bounds.
 
-The `AUCTION_LAUNCHER` is trusted to be provide additional input to the rebalance process, either by: (i) setting the final BU weights to use; (ii) setting the basket unit targets (limits) to use to size the auction; (iii) what tokens to include in the auction; or (iv) tweaking the asset prices, depending on `IFolio.PriceControl` level. In all cases, the `AUCTION_LAUNCHER` is bound to act within the bounds set by the `REBALANCE_MANAGER`, who is free to use zero-width ranges to remove degrees of freedom from the `AUCTION_LAUNCHER` . If an auction is opened permissionlessly instead of by the `AUCTION_LAUNCHER`, the caller has no sway over any details of the auction, and it is always for all tokens in the rebalance.
+The `AUCTION_LAUNCHER` is trusted to provide additional input to the rebalance process: (i) what tokens to include in the auction; (ii) the basket limits to use to determine surplus/deficit; (iii) individual token weights in the basket; and (iv) prices, depending on the `IFolio.PriceControl` level. In all cases, the `AUCTION_LAUNCHER` is bound to act within the bounds set by the `REBALANCE_MANAGER`, who is free to use zero-width ranges to remove degrees of freedom from the `AUCTION_LAUNCHER`. If an auction is opened permissionlessly instead of by the `AUCTION_LAUNCHER`, the caller has no sway over any details of the auction, and it is always for all tokens in the rebalance based on the spot estimates.
 
 `REBALANCE_MANAGER` is expected to be the timelock of the rebalancing governor associated with the Folio.
 
@@ -88,8 +88,6 @@ Rebalances have a time-to-live (TTL) that controls how long the rebalance can ru
 
 ###### Buy/Sell limits
 
-TODO TRACKING vs NATIVE
-
 The `REBALANCE_MANAGER` configures a large number of rebalance ranges, including spot estimates to be used in the unrestricted case:
 
 ```solidity
@@ -157,7 +155,7 @@ Note: The first block may not have a price of exactly `startPrice` if it does no
 
 ###### Lot Sizing
 
-Auctions are sized by the difference between current balances and what balance the Folio would need at the given `limit`. Surpluses are defined relative to `RebalanceLimits.high`, while deficits are defined relative to `RebalanceLimits.low`. Each auction, the `AUCTION_LAUNCHER` is able to progressively narrow this range, until eventually an auction is run where `RebalanceLimits.high == RebalanceLimits.low` is true.
+Auctions are sized by the difference between current balances and what balance the Folio would need at the given basket `limit * weight`. Surpluses are defined relative to `RebalanceLimits.high`, while deficits are defined relative to `RebalanceLimits.low`. Each auction, the `AUCTION_LAUNCHER` is able to progressively narrow this range, until eventually an auction is run where `RebalanceLimits.high == RebalanceLimits.low` is true. Rebalancing is also informed by the spot weight at the invidiual token level.
 
 The auction `sellAmount` represents the single largest quantity of sell token that can be transacted without violating the `limits` of either tokens in the pair.
 
