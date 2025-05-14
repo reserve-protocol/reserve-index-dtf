@@ -633,7 +633,7 @@ contract Folio is
         // bump rebalance deadlines to ensure an opportunity for the AUCTION_LAUNCHER to act again
         // can potentially send the rebalance from the unrestricted period back into the restricted period
         rebalance.restrictedUntil = Math.max(
-            rebalance.availableUntil,
+            rebalance.restrictedUntil,
             block.timestamp + auctionLength + RESTRICTED_AUCTION_BUFFER + 1
         );
     }
