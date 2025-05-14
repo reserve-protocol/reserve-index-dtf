@@ -78,7 +78,8 @@ library AuctionLib {
             );
             rebalanceDetails.weights.spot = weights[i];
 
-            // collapse one side of the weight range depending on if the token is in surplus or deficit
+            // collapse up to one side of the weight range to prevent double trading
+            // known: donations can create double trading
             {
                 // D27{tok/share} = D27 * {tok} / {share}
                 uint256 tokenCurrent = Math.mulDiv(

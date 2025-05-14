@@ -28,14 +28,10 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * A Folio is backed by a flexible number of ERC20 tokens of any denomination/price (within assumed ranges, see README)
  * All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
  *
- * A Folio is either TRACKING or NATIVE
- *   TRACKING: fixed basket weights; variable basket limits
- *   NATIVE: variable basket weights; fixed basket limits
- *
  * There are 3 main roles:
  *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, close auctions/rebalances, and deprecateFolio
  *   2. REBALANCE_MANAGER: can start/end rebalances
- *   3. AUCTION_LAUNCHER: can open auctions during an ongoing rebalance, and close auctions
+ *   3. AUCTION_LAUNCHER: can open auctions during an ongoing rebalance, and close rebalancens/auctions
  *
  * There is also an additional BRAND_MANAGER role that does not have any permissions. It is used off-chain.
  *
@@ -45,13 +41,13 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * After a new rebalance is started by the REBALANCE_MANAGER, there is a period of time where only the AUCTION_LAUNCHER
  * can start an auction on a set of tokens. They can specify a few different things:
  *   - The list of tokens to include in the auction; must be a subset of the tokens in the rebalance
- *   - Basket weights: they can pick a weight within the provided initial ranges (NATIVE only)
+ *   - Basket weights: they can pick a weight within the provided initial ranges
  *   - Price range: depending on their PriceControl level, they may either have to work within the initial range,
  *                  no ability to change prices, or full flexibility to set prices arbitrarily.
- *   - Rebalance limits: they can progressively tighten the basket limits (TRACKING only)
+ *   - Rebalance limits: they can progressively tighten the basket limits
  *
  * The AUCTION_LAUNCHER can run as many auctions as they need to, and if they are close to the end of their restricted
- * period, the period will be extended on each auction-length. Potentially they can run auctions forever.
+ * period, the period will be extended on each auction-length.
  *
  * After the AUCTION_LAUNCHER's restricted period is over, anyone can open auctions until the rebalance expires. The
  * AUCTION_LAUNCHER can always prevent the unrestricted period from starting by closing the auction.
@@ -61,11 +57,11 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * function of how much time in the auction has passed.
  *
  * In order for a pair to be eligible for an auction, the sell token must be in surplus and the buy token in deficit,
- * as defined by balances relative to the high (sell) and low (buy) basket limits. In the case of NATIVE Folios,
- * the individual token weight ranges are instead used to determine surplus/deficit.
+ * as defined by balances relative to the (i) surplus: spot weight and high basket limit; and (ii) deficit: spot weight and
+ * low basket limit. Individiual token weights can also be used to handle rebalancing, when the ideal ratio of token units
+ * is not known ahead of time.
  *
- * Rebalance limits are defined in terms of basket units: D27{tok/BU}
- * A Basket Unit (BU) can be defined arbitrarily, but the expected usage is to define BUs 1:1 with shares.
+ * A Basket Unit {BU} can be defined within a (0, 1e36] range, but the typical usage defines BUs 1:1 with shares (1e18).
  *
  * Fees:
  *   - TVL fee: fee per unit time. Max 10% annually. Causes supply inflation over time, discretely once a day.
@@ -125,9 +121,9 @@ contract Folio is
     }
 
     DeprecatedStruct[] private auctions_DEPRECATED;
-    mapping(address token => uint256 timepoint) private sellEnds_DEPRECATED; // {s} timestamp of last possible second we could sell the token
-    mapping(address token => uint256 timepoint) private buyEnds_DEPRECATED; // {s} timestamp of last possible second we could buy the token
-    uint256 private auctionDelay_DEPRECATED; // {s} delay in the APPROVED state before an auction can be opened by anyone
+    mapping(address token => uint256 timepoint) private sellEnds_DEPRECATED;
+    mapping(address token => uint256 timepoint) private buyEnds_DEPRECATED;
+    uint256 private auctionDelay_DEPRECATED;
 
     uint256 public auctionLength; // {s} length of an auction
 
@@ -146,11 +142,10 @@ contract Folio is
     /**
      * Rebalancing
      *   REBALANCE_MANAGER
-     *   - There can only be 1 rebalance live at a time
      *   - There can be any number of auctions within a rebalance, but only one live at a time
      *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil, with possible extensions
      *   - Auctions cannot be launched after availableUntil, though their end time may extend past it
-     *   - The first auction the AUCTION_LAUNCHER can set new basket weights, within bounds
+     *   - Each auction the AUCTION_LAUNCHER provides: (i) spot weights; (ii) basket limits; and (iii) prices
      *   - Depending on the PriceControl, the AUCTION_LAUNCHER can set new prices either completely, within bounds, or never
      *   - At anytime the rebalance can be stopped or a new one can be started (closing any ongoing auction)
      */
@@ -160,8 +155,8 @@ contract Folio is
      * Auctions
      *   Openable by AUCTION_LAUNCHER -> Openable by anyone (optional) -> Running -> Closed
      *   - An auction is in parallel on all surplus/deficit token pairs at the same time
-     *   - Bids are of any size, up to a maximum
-     *   - All auctions are dutch auctions with an exponential decay curve, but startPrice can potentiallny equal endPrice
+     *   - Bids are of any size, up to a maximum given by the high/low basket limits and spot weights
+     *   - All auctions are dutch auctions with an exponential decay curve, but startPrice can potentially equal endPrice
      */
     mapping(uint256 id => Auction auction) public auctions;
     uint256 public nextAuctionId;
@@ -524,10 +519,8 @@ contract Folio is
     /// @param priceControl How much price control to give to AUCTION_LAUNCHER: [NONE, PARTIAL, FULL]
     /// @param tokens Tokens to rebalance, MUST be unique
     /// @param weights D27{tok/BU} Basket weight ranges for the basket unit definition; cannot be empty [0, 1e54]
-    ///                MUST be constant for TRACKING Folios
     /// @param prices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e54]
     /// @param limits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e36]
-    ///                MUST be constant for NATIVE Folios
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
     /// @param ttl {s} The amount of time the rebalance is valid for, can be extended
     function startRebalance(
