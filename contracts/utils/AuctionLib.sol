@@ -58,6 +58,9 @@ library AuctionLib {
         for (uint256 i = 0; i < len; i++) {
             address token = tokens[i];
 
+            // enforce unique
+            require(auction.prices[token].high == 0, IFolio.Folio__DuplicateAsset());
+
             // enforce valid token
             require(token != address(0) && token != address(this), IFolio.Folio__InvalidAsset());
 
