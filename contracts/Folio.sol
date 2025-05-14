@@ -621,10 +621,17 @@ contract Folio is
         PriceRange[] calldata newPrices,
         RebalanceLimits calldata newLimits
     ) external onlyRole(AUCTION_LAUNCHER) nonReentrant notDeprecated sync returns (uint256 auctionId) {
+        // require tokens are in the rebalance
+        uint256 len = tokens.length;
+        for (uint256 i; i < len; i++) {
+            require(rebalance.details[tokens[i]].inRebalance, Folio__InvalidAsset());
+        }
+
         // open an auction on the provided limits, weights, and prices
         auctionId = _openAuction(rebalanceNonce, tokens, newWeights, newPrices, newLimits, 0);
 
-        // bump rebalance deadlines if close to end of restricted period
+        // bump rebalance deadlines to ensure an opportunity for the AUCTION_LAUNCHER to act again
+        // can potentially send the rebalance from the unrestricted period back into the restricted period
         rebalance.restrictedUntil = Math.max(
             rebalance.availableUntil,
             block.timestamp + auctionLength + RESTRICTED_AUCTION_BUFFER + 1
