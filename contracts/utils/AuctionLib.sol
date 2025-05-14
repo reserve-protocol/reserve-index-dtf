@@ -34,11 +34,11 @@ library AuctionLib {
         uint256 len = tokens.length;
         require(len == weights.length && len == prices.length, IFolio.Folio__InvalidArrayLengths());
 
-        // update rebalance limits
+        // narrow rebalance limits
         {
             IFolio.RebalanceLimits storage rebalanceLimits = rebalance.limits;
 
-            // enforce valid limits
+            // enforce new limits are valid
             require(
                 rebalanceLimits.low <= limits.low &&
                     limits.low <= limits.spot &&
@@ -47,9 +47,9 @@ library AuctionLib {
                 IFolio.Folio__InvalidLimits()
             );
 
-            rebalanceLimits.low = limits.low; // to buy up to
-            rebalanceLimits.spot = limits.spot; // for future unrestricted auctions
-            rebalanceLimits.high = limits.high; // to sell down to
+            rebalanceLimits.low = limits.low;
+            rebalanceLimits.spot = limits.spot;
+            rebalanceLimits.high = limits.high;
         }
 
         IFolio.Auction storage auction = auctions[auctionId];
@@ -69,6 +69,7 @@ library AuctionLib {
                 delete tokens[i];
                 delete weights[i];
                 continue;
+                // TODO maybe remove and do more work in openAuctionUnrestricted
             }
 
             // update spot weight
@@ -79,7 +80,7 @@ library AuctionLib {
             rebalanceDetails.weights.spot = weights[i];
 
             // collapse up to one side of the weight range to prevent double trading
-            // known: donations can create double trading
+            // known: donations can enable double trading of donated value
             {
                 // D27{tok/share} = D27 * {tok} / {share}
                 uint256 tokenCurrent = Math.mulDiv(
@@ -103,6 +104,7 @@ library AuctionLib {
                     // deficit scenario: prevent trading in the future towards a lower weight
                     rebalanceDetails.weights.low = weights[i];
                 }
+                // TODO should we revert in the else case here?
             }
 
             // save auction prices
@@ -189,7 +191,7 @@ library AuctionLib {
         // D27{buyTok/sellTok}
         price = _price(rebalance, auction, sellToken, buyToken, params.timestamp);
 
-        // sell down to the high BU limit and high weight
+        // sell down to the high BU limit and spot weight
         // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
         uint256 sellLimit = Math.mulDiv(
             rebalance.limits.high,
@@ -202,7 +204,7 @@ library AuctionLib {
         uint256 sellLimitBal = Math.mulDiv(sellLimit, params.totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = params.sellBal > sellLimitBal ? params.sellBal - sellLimitBal : 0;
 
-        // buy up to the low BU limit and low weight
+        // buy up to the low BU limit and spot weight
         // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
         uint256 buyLimit = Math.mulDiv(
             rebalance.limits.low,
@@ -292,11 +294,11 @@ library AuctionLib {
         // ensure auction is ongoing and token pair is in it
         require(
             auction.rebalanceNonce == rebalance.nonce &&
+                sellToken != buyToken &&
                 rebalance.details[address(sellToken)].inRebalance &&
                 rebalance.details[address(buyToken)].inRebalance &&
-                sellToken != buyToken &&
-                sellPrices.low != 0 &&
-                buyPrices.low != 0 &&
+                sellPrices.low != 0 && // in auction check
+                buyPrices.low != 0 && // in auction check
                 timestamp >= auction.startTime &&
                 timestamp <= auction.endTime,
             IFolio.Folio__AuctionNotOngoing()

@@ -652,7 +652,7 @@ contract Folio is
             prices[i] = rebalanceDetails.initialPrices;
         }
 
-        // use spot limit and collapse range
+        // use spot limits, collapse high/low range
         RebalanceLimits memory limits = RebalanceLimits({
             low: rebalance.limits.spot,
             spot: rebalance.limits.spot,
@@ -867,18 +867,18 @@ contract Folio is
         auctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
         nextAuctionId++;
 
-        // enforce no auction ongoing, unless restricted caller
+        // close any previous auction
         if (auctionId != 0) {
-            require(
-                auctionBuffer == 0 ||
-                    auctions[auctionId - 1].rebalanceNonce != rebalanceNonce ||
-                    auctions[auctionId - 1].endTime + auctionBuffer < block.timestamp,
-                Folio__AuctionCannotBeOpenedWithoutRestriction()
-            );
+            Auction storage lastAuction = auctions[auctionId - 1];
 
-            // close ongoing auction if restricted caller
-            if (auctions[auctionId - 1].endTime >= block.timestamp) {
-                auctions[auctionId - 1].endTime = block.timestamp - 1;
+            // if auction collision
+            if (
+                lastAuction.rebalanceNonce == rebalanceNonce && lastAuction.endTime + auctionBuffer >= block.timestamp
+            ) {
+                require(auctionBuffer == 0, Folio__AuctionCannotBeOpenedWithoutRestriction());
+
+                // close ongoing auction
+                lastAuction.endTime = block.timestamp - 1;
                 emit AuctionClosed(auctionId - 1);
             }
         }

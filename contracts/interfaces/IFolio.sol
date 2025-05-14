@@ -137,7 +137,7 @@ interface IFolio {
     /// Basket limits for rebalancing
     struct RebalanceLimits {
         uint256 low; // D18{BU/share} (0, 1e36] to buy assets up to
-        uint256 spot; // D18{BU/share} (0, 1e36] point estimate to be used in the event of unrestricted caller
+        uint256 spot; // D18{BU/share} (0, 1e36] point estimate to be used only in the event of unrestricted caller
         uint256 high; // D18{BU/share} (0, 1e36] to sell assets down to
     }
 
@@ -149,7 +149,7 @@ interface IFolio {
     }
 
     /// Individual token price ranges
-    /// @dev Unit of Account can be anything as long as it's consistent; USD is most common
+    /// @dev Unit of Account (UoA) can be anything as long as it's consistent; USD is most common
     struct PriceRange {
         uint256 low; // D27{UoA/tok} (0, 1e54]
         uint256 high; // D27{UoA/tok} (0, 1e54]
@@ -180,7 +180,7 @@ interface IFolio {
     ///   - CLOSED: block.timestamp > endTime
     struct Auction {
         uint256 rebalanceNonce;
-        mapping(address token => PriceRange) prices;
+        mapping(address token => PriceRange) prices; // D27{UoA/tok} (0, 1e54]
         uint256 startTime; // {s} inclusive
         uint256 endTime; // {s} inclusive
     }
