@@ -42,7 +42,7 @@ interface IFolio {
     event RebalanceControlSet(RebalanceControl newControl);
     event RebalanceStarted(
         uint256 nonce,
-        PriceControl priceControl,
+        bool priceControl,
         address[] tokens,
         WeightRange[] weights,
         PriceRange[] prices,
@@ -96,18 +96,6 @@ interface IFolio {
 
     // === Structures ===
 
-    /// Whether or not AUCTION_LAUNCHER can impact weights
-    enum WeightControl {
-        NONE, // BU-based rebalancing only
-        SOME // weight + BU-based rebalancing
-    }
-
-    /// Whether or not AUCTION_LAUNCHER can impact prices
-    enum PriceControl {
-        NONE, // cannot revise prices at all
-        SOME // can narrow prices within bounds
-    }
-
     struct FolioBasicDetails {
         string name;
         string symbol;
@@ -131,8 +119,8 @@ interface IFolio {
 
     struct FolioRegistryFlags {
         bool trustedFillerEnabled;
-        WeightControl auctionLauncherWeightControl;
-        PriceControl auctionLauncherPriceControl;
+        bool auctionLauncherWeightControl;
+        bool auctionLauncherPriceControl;
     }
 
     struct FeeRecipient {
@@ -140,10 +128,10 @@ interface IFolio {
         uint96 portion; // D18{1}
     }
 
-    /// Permissions the AUCTION_LAUNCHER has on rebalancing
+    /// AUCTION_LAUNCHER control over rebalancing
     struct RebalanceControl {
-        WeightControl weightControl; // if AUCTION_LAUNCHER can move weights
-        PriceControl priceControl; // if AUCTION_LAUNCHER can narrow prices
+        bool weightControl; // if AUCTION_LAUNCHER can move weights
+        bool priceControl; // if AUCTION_LAUNCHER can narrow prices
     }
 
     /// Basket limits for rebalancing
@@ -182,7 +170,7 @@ interface IFolio {
         uint256 startedAt; // {s} timestamp rebalancing started, inclusive
         uint256 restrictedUntil; // {s} timestamp rebalancing is unrestricted to everyone, exclusive
         uint256 availableUntil; // {s} timestamp rebalancing ends overall, exclusive
-        PriceControl priceControl; // degree to which prices can be revised by the AUCTION_LAUNCHER
+        bool priceControl; // degree to which prices can be revised by the AUCTION_LAUNCHER
     }
 
     /// 1 running auction at a time; N per rebalance overall

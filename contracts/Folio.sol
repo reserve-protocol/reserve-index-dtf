@@ -507,7 +507,7 @@ contract Folio is
             uint256 startedAt,
             uint256 restrictedUntil,
             uint256 availableUntil,
-            PriceControl priceControl
+            bool priceControl
         )
     {
         tokens = basket.values();

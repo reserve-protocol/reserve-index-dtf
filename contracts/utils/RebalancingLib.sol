@@ -50,8 +50,8 @@ library RebalancingLib {
             // enforce no duplicates
             require(!rebalance.details[token].inRebalance, IFolio.Folio__DuplicateAsset());
 
-            if (rebalanceControl.weightControl == IFolio.WeightControl.NONE) {
-                // WeightControl.NONE: weights are fixed
+            if (!rebalanceControl.weightControl) {
+                // weights must be fixed
                 require(
                     weights[i].low == weights[i].spot &&
                         weights[i].spot == weights[i].high &&
@@ -59,7 +59,7 @@ library RebalancingLib {
                     IFolio.Folio__InvalidWeights()
                 );
             } else {
-                // WeightControl.SOME: weights can be revised within bounds
+                // weights can be revised within bounds
                 require(
                     weights[i].low <= weights[i].spot &&
                         weights[i].spot <= weights[i].high &&
@@ -198,8 +198,8 @@ library RebalancingLib {
             }
 
             // save auction prices
-            if (rebalance.priceControl == IFolio.PriceControl.NONE) {
-                // PriceControl.NONE: prices must be exactly the initial prices
+            if (!rebalance.priceControl) {
+                // prices must be exactly the initial prices
 
                 require(
                     prices[i].low == rebalanceDetails.initialPrices.low &&
@@ -207,7 +207,7 @@ library RebalancingLib {
                     IFolio.Folio__InvalidPrices()
                 );
             } else {
-                // PriceControl.SOME: prices can be revised within the bounds of the initial prices
+                // prices can be revised within the bounds of the initial prices
 
                 require(
                     prices[i].low >= rebalanceDetails.initialPrices.low &&

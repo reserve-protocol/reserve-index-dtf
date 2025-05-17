@@ -319,8 +319,8 @@ contract FolioDeployerTest is BaseTest {
                 }),
                 IFolio.FolioRegistryFlags({
                     trustedFillerEnabled: true,
-                    auctionLauncherWeightControl: IFolio.WeightControl.NONE,
-                    auctionLauncherPriceControl: IFolio.PriceControl.NONE
+                    auctionLauncherWeightControl: false,
+                    auctionLauncherPriceControl: false
                 }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 0.08e18, 2 days, _guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 0.04e18, 1 days, _guardians1),
@@ -486,8 +486,8 @@ contract FolioDeployerTest is BaseTest {
             }),
             IFolio.FolioRegistryFlags({
                 trustedFillerEnabled: true,
-                auctionLauncherWeightControl: IFolio.WeightControl.NONE,
-                auctionLauncherPriceControl: IFolio.PriceControl.NONE
+                auctionLauncherWeightControl: false,
+                auctionLauncherPriceControl: false
             }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 0.08e18, 2 days, _guardians2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 0.04e18, 1 days, _guardians1),
@@ -599,8 +599,8 @@ contract FolioDeployerTest is BaseTest {
                 }),
                 IFolio.FolioRegistryFlags({
                     trustedFillerEnabled: true,
-                    auctionLauncherWeightControl: IFolio.WeightControl.NONE,
-                    auctionLauncherPriceControl: IFolio.PriceControl.NONE
+                    auctionLauncherWeightControl: false,
+                    auctionLauncherPriceControl: false
                 }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, guardians1),
