@@ -9,6 +9,7 @@ import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 
 import { Folio, IFolio } from "@src/Folio.sol";
 import { FolioProxyAdmin, FolioProxy } from "@folio/FolioProxy.sol";
+import { AUCTION_LAUNCHER, BRAND_MANAGER, REBALANCE_MANAGER } from "@utils/Constants.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 /**
@@ -88,13 +89,13 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         folio.grantRole(folio.DEFAULT_ADMIN_ROLE(), owner);
 
         for (uint256 i; i < basketManagers.length; i++) {
-            folio.grantRole(folio.REBALANCE_MANAGER(), basketManagers[i]);
+            folio.grantRole(REBALANCE_MANAGER, basketManagers[i]);
         }
         for (uint256 i; i < auctionLaunchers.length; i++) {
-            folio.grantRole(folio.AUCTION_LAUNCHER(), auctionLaunchers[i]);
+            folio.grantRole(AUCTION_LAUNCHER, auctionLaunchers[i]);
         }
         for (uint256 i; i < brandManagers.length; i++) {
-            folio.grantRole(folio.BRAND_MANAGER(), brandManagers[i]);
+            folio.grantRole(BRAND_MANAGER, brandManagers[i]);
         }
 
         // Renounce Ownership

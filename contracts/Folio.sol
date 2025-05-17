@@ -13,6 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { AuctionLib } from "@utils/AuctionLib.sol";
+import { REBALANCE_MANAGER, AUCTION_LAUNCHER } from "@utils/Constants.sol";
 import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_LIMIT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL, MAX_WEIGHT, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
@@ -81,14 +82,15 @@ contract Folio is
 {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    IFolioDAOFeeRegistry public daoFeeRegistry;
-
     /**
      * Roles
+     *
+     * bytes32 constant REBALANCE_MANAGER = keccak256("REBALANCE_MANAGER"); // expected to be trading governance's timelock
+     * bytes32 constant AUCTION_LAUNCHER = keccak256("AUCTION_LAUNCHER"); // optional: EOA or multisig
+     * bytes32 constant BRAND_MANAGER = keccak256("BRAND_MANAGER"); // optional: no permissions
      */
-    bytes32 public constant REBALANCE_MANAGER = keccak256("REBALANCE_MANAGER"); // expected to be trading governance's timelock
-    bytes32 public constant AUCTION_LAUNCHER = keccak256("AUCTION_LAUNCHER"); // optional: EOA or multisig
-    bytes32 public constant BRAND_MANAGER = keccak256("BRAND_MANAGER"); // optional: no permissions
+
+    IFolioDAOFeeRegistry public daoFeeRegistry;
 
     /**
      * Mandate

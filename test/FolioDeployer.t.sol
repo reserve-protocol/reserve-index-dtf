@@ -8,6 +8,7 @@ import { FolioDeployer, IFolioDeployer } from "@deployer/FolioDeployer.sol";
 import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
+import { AUCTION_LAUNCHER, BRAND_MANAGER, REBALANCE_MANAGER } from "@utils/Constants.sol";
 import "./base/BaseTest.sol";
 
 contract FolioDeployerTest is BaseTest {
@@ -71,11 +72,11 @@ contract FolioDeployerTest is BaseTest {
 
         assertTrue(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), owner), "wrong admin role");
 
-        assertTrue(folio.hasRole(folio.REBALANCE_MANAGER(), dao), "wrong basket manager role");
+        assertTrue(folio.hasRole(REBALANCE_MANAGER, dao), "wrong basket manager role");
 
-        assertTrue(folio.hasRole(folio.AUCTION_LAUNCHER(), auctionLauncher), "wrong auction launcher role");
+        assertTrue(folio.hasRole(AUCTION_LAUNCHER, auctionLauncher), "wrong auction launcher role");
 
-        assertTrue(folio.hasRole(folio.BRAND_MANAGER(), owner), "wrong brand manager role");
+        assertTrue(folio.hasRole(BRAND_MANAGER, owner), "wrong brand manager role");
     }
 
     function test_cannotCreateFolioWithLengthMismatch() public {
@@ -421,7 +422,7 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(tradingTimelock.hasRole(tradingTimelock.CANCELLER_ROLE(), user1), "wrong canceler role");
 
         // Check rebalance manager is properly set
-        assertTrue(folio.hasRole(folio.REBALANCE_MANAGER(), address(tradingTimelock)), "wrong basket manager role");
+        assertTrue(folio.hasRole(REBALANCE_MANAGER, address(tradingTimelock)), "wrong basket manager role");
     }
 
     function test_createGovernedFolio_withExistingRebalanceManager() public {
@@ -537,7 +538,7 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(ownerTimelock.hasRole(ownerTimelock.CANCELLER_ROLE(), user2), "wrong canceler role");
 
         // Check rebalance manager is properly set
-        assertTrue(folio.hasRole(folio.REBALANCE_MANAGER(), dao), "wrong basket manager role");
+        assertTrue(folio.hasRole(REBALANCE_MANAGER, dao), "wrong basket manager role");
     }
 
     function test_canMineVanityAddress() public {
