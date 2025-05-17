@@ -112,10 +112,9 @@ library RebalancingLib {
         mapping(uint256 auctionId => IFolio.Auction) storage auctions,
         uint256 auctionId,
         address[] memory tokens,
-        uint256[] memory weights,
+        IFolio.WeightRange[] memory weights,
         IFolio.PriceRange[] calldata prices,
         IFolio.RebalanceLimits calldata limits,
-        uint256 totalSupply,
         uint256 auctionLength
     ) external {
         uint256 len = tokens.length;
@@ -162,62 +161,41 @@ library RebalancingLib {
                 // TODO maybe remove and do more work in openAuctionUnrestricted
             }
 
-            // update spot weight
-            require(
-                rebalanceDetails.weights.low <= weights[i] && weights[i] <= rebalanceDetails.weights.high,
-                IFolio.Folio__InvalidWeights()
-            );
-            rebalanceDetails.weights.spot = weights[i];
-
-            // collapse up to one side of the weight range to prevent double trading
-            // known: donations can enable double trading of donated value
+            // update weights
             {
-                // D27{tok/share} = D27 * {tok} / {share}
-                uint256 tokenCurrent = Math.mulDiv(
-                    D27,
-                    IERC20(token).balanceOf(address(this)),
-                    totalSupply,
-                    Math.Rounding.Floor
+                require(
+                    rebalanceDetails.weights.low <= weights[i].low &&
+                        weights[i].low <= weights[i].spot &&
+                        weights[i].spot <= weights[i].high &&
+                        weights[i].high <= rebalanceDetails.weights.high,
+                    IFolio.Folio__InvalidWeights()
                 );
-
-                // D27{tok/share} = D27{tok/BU} * D18{BU/share} / D18
-                uint256 tokenSellLimit = Math.mulDiv(weights[i], limits.high, D18, Math.Rounding.Floor);
-
-                // D27{tok/share} = D27{tok/BU} * D18{BU/share} / D18
-                uint256 tokenBuyLimit = Math.mulDiv(weights[i], limits.low, D18, Math.Rounding.Ceil);
-
-                // prevent future double trading
-                if (tokenCurrent > tokenSellLimit) {
-                    // surplus scenario: prevent trading in the future towards a higher weight
-                    rebalanceDetails.weights.high = weights[i];
-                } else if (tokenCurrent < tokenBuyLimit) {
-                    // deficit scenario: prevent trading in the future towards a lower weight
-                    rebalanceDetails.weights.low = weights[i];
-                }
-                // TODO should we revert in the else case here?
+                rebalanceDetails.weights = weights[i];
             }
 
             // save auction prices
-            if (!rebalance.priceControl) {
-                // prices must be exactly the initial prices
+            {
+                if (!rebalance.priceControl) {
+                    // prices must be exactly the initial prices
 
-                require(
-                    prices[i].low == rebalanceDetails.initialPrices.low &&
-                        prices[i].high == rebalanceDetails.initialPrices.high,
-                    IFolio.Folio__InvalidPrices()
-                );
-            } else {
-                // prices can be revised within the bounds of the initial prices
+                    require(
+                        prices[i].low == rebalanceDetails.initialPrices.low &&
+                            prices[i].high == rebalanceDetails.initialPrices.high,
+                        IFolio.Folio__InvalidPrices()
+                    );
+                } else {
+                    // prices can be revised within the bounds of the initial prices
 
-                require(
-                    prices[i].low >= rebalanceDetails.initialPrices.low &&
-                        prices[i].high <= rebalanceDetails.initialPrices.high &&
-                        prices[i].high >= prices[i].low,
-                    IFolio.Folio__InvalidPrices()
-                );
+                    require(
+                        prices[i].low >= rebalanceDetails.initialPrices.low &&
+                            prices[i].high <= rebalanceDetails.initialPrices.high &&
+                            prices[i].high >= prices[i].low,
+                        IFolio.Folio__InvalidPrices()
+                    );
+                }
+
+                auction.prices[token] = prices[i];
             }
-
-            auction.prices[token] = prices[i];
         }
 
         // save auction
@@ -272,11 +250,11 @@ library RebalancingLib {
         // D27{buyTok/sellTok}
         price = _price(rebalance, auction, sellToken, buyToken, params.timestamp);
 
-        // sell down to the high BU limit and spot weight
+        // sell down to the high BU limit and high weight
         // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
         uint256 sellLimit = Math.mulDiv(
             rebalance.limits.high,
-            rebalance.details[address(sellToken)].weights.spot,
+            rebalance.details[address(sellToken)].weights.high,
             D18,
             Math.Rounding.Ceil
         );
@@ -285,11 +263,11 @@ library RebalancingLib {
         uint256 sellLimitBal = Math.mulDiv(sellLimit, params.totalSupply, D27, Math.Rounding.Ceil);
         uint256 sellAvailable = params.sellBal > sellLimitBal ? params.sellBal - sellLimitBal : 0;
 
-        // buy up to the low BU limit and spot weight
+        // buy up to the low BU limit and low weight
         // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
         uint256 buyLimit = Math.mulDiv(
             rebalance.limits.low,
-            rebalance.details[address(buyToken)].weights.spot,
+            rebalance.details[address(buyToken)].weights.low,
             D18,
             Math.Rounding.Floor
         );

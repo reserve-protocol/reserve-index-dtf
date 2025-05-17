@@ -579,14 +579,14 @@ contract Folio is
     /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits and weights, for a given set of tokens
     /// @param rebalanceNonce The nonce of the rebalance being targeted
     /// @param tokens The tokens from the rebalance to include in the auction; must be unique
-    /// @param newWeights D27{tok/BU} New precise basket weights; must always be provided and within range
+    /// @param newWeights D27{tok/BU} New basket weight ranges for BU definition; must always be provided and within range
     /// @param newPrices D27{UoA/tok} New price ranges; must always be provided and must obey PriceControl setting
     /// @param newLimits D18{BU/share} New BU limits; must be within range
     /// @return auctionId The newly created auctionId
     function openAuction(
         uint256 rebalanceNonce,
         address[] calldata tokens,
-        uint256[] calldata newWeights,
+        WeightRange[] calldata newWeights,
         PriceRange[] calldata newPrices,
         RebalanceLimits calldata newLimits
     ) external onlyRole(AUCTION_LAUNCHER) nonReentrant notDeprecated sync returns (uint256 auctionId) {
@@ -617,14 +617,18 @@ contract Folio is
 
         address[] memory tokens = basket.values();
         uint256 len = tokens.length;
-        uint256[] memory weights = new uint256[](len);
+        WeightRange[] memory weights = new WeightRange[](len);
         PriceRange[] memory prices = new PriceRange[](len);
 
-        // use spot weights and initialPrices
+        // use spot weights and initialPrices, collapsing high/low weight range
         for (uint256 i; i < len; i++) {
             RebalanceDetails storage rebalanceDetails = rebalance.details[tokens[i]];
 
-            weights[i] = rebalanceDetails.weights.spot;
+            weights[i] = WeightRange({
+                low: rebalanceDetails.weights.spot,
+                spot: rebalanceDetails.weights.spot,
+                high: rebalanceDetails.weights.spot
+            });
             prices[i] = rebalanceDetails.initialPrices;
         }
 
@@ -827,7 +831,7 @@ contract Folio is
     function _openAuction(
         uint256 rebalanceNonce,
         address[] memory tokens,
-        uint256[] memory weights,
+        WeightRange[] memory weights,
         PriceRange[] memory prices,
         RebalanceLimits memory limits,
         uint256 auctionBuffer
@@ -859,17 +863,7 @@ contract Folio is
             }
         }
 
-        RebalancingLib.openAuction(
-            rebalance,
-            auctions,
-            auctionId,
-            tokens,
-            weights,
-            prices,
-            limits,
-            totalSupply(),
-            auctionLength
-        );
+        RebalancingLib.openAuction(rebalance, auctions, auctionId, tokens, weights, prices, limits, auctionLength);
     }
 
     /// Get auction bid parameters for a token pair at a target timestamp, up to a maximum sell amount

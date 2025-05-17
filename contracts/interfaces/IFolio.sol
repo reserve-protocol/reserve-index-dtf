@@ -8,7 +8,7 @@ interface IFolio {
         uint256 indexed rebalanceNonce,
         uint256 indexed auctionId,
         address[] tokens,
-        uint256[] weights,
+        WeightRange[] weights,
         PriceRange[] prices,
         RebalanceLimits limits,
         uint256 startTime,
@@ -143,9 +143,9 @@ interface IFolio {
 
     /// Range of basket weights for BU definition
     struct WeightRange {
-        uint256 low; // D27{tok/BU} [0, 1e54] lowest possible weight in the basket
+        uint256 low; // D27{tok/BU} [0, 1e54] to buy assets up to
         uint256 spot; // D27{tok/BU} [0, 1e54] point estimate to be used in the event of unrestricted caller
-        uint256 high; // D27{tok/BU} [0, 1e54] highest possible weight in the basket
+        uint256 high; // D27{tok/BU} [0, 1e54] to sell assets down to
     }
 
     /// Individual token price ranges
