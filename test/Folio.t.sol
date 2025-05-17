@@ -166,8 +166,8 @@ contract FolioTest is BaseTest {
 
         IFolio.FolioRegistryFlags memory registryFlags = IFolio.FolioRegistryFlags({
             trustedFillerEnabled: true,
-            auctionLauncherWeightControl: IFolio.WeightControl.NONE,
-            auctionLauncherPriceControl: IFolio.PriceControl.NONE
+            auctionLauncherWeightControl: IFolio.WeightControl.SOME,
+            auctionLauncherPriceControl: IFolio.PriceControl.SOME
         });
 
         // Attempt to initialize
@@ -1007,7 +1007,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -1084,7 +1084,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -1171,7 +1171,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -1252,7 +1252,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -1340,7 +1340,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -1450,7 +1450,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -1535,7 +1535,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -1624,7 +1624,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -1687,7 +1687,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -1757,7 +1757,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -1823,7 +1823,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -1902,7 +1902,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -2256,7 +2256,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -2331,13 +2331,23 @@ contract FolioTest is BaseTest {
         weights.push(BUY);
         prices.push(FULL_PRICE_RANGE_6);
 
-        vm.prank(dao);
-        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        uint256 rebalanceNonce = 1;
 
         for (uint256 i = MAX_TOKEN_PRICE; i > 0; i /= 10) {
             uint256 index = folio.nextAuctionId();
 
-            prices[3] = IFolio.PriceRange({ low: (i + MAX_TOKEN_PRICE_RANGE - 1) / MAX_TOKEN_PRICE_RANGE, high: i });
+            IFolio.PriceRange memory priceRange = IFolio.PriceRange({
+                low: (i + MAX_TOKEN_PRICE_RANGE - 1) / MAX_TOKEN_PRICE_RANGE,
+                high: i
+            });
+
+            prices[0] = priceRange;
+            prices[1] = priceRange;
+            prices[2] = priceRange;
+            prices[3] = priceRange;
+
+            vm.prank(dao);
+            folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
             // should not revert at top or bottom end
             vm.prank(auctionLauncher);
@@ -2347,7 +2357,7 @@ contract FolioTest is BaseTest {
             }
             vm.expectEmit(true, false, false, false);
             emit IFolio.AuctionOpened(
-                1,
+                rebalanceNonce,
                 0,
                 assets,
                 auctionWeights,
@@ -2357,12 +2367,14 @@ contract FolioTest is BaseTest {
                 block.timestamp + MAX_AUCTION_LENGTH
             );
 
-            folio.openAuction(1, assets, auctionWeights, prices, NATIVE_LIMITS);
+            folio.openAuction(rebalanceNonce, assets, auctionWeights, prices, NATIVE_LIMITS);
             (, uint256 start, uint256 end) = folio.auctions(index);
 
             // should not revert
             folio.getBid(index, USDC, IERC20(address(USDT)), start, type(uint256).max);
             folio.getBid(index, USDC, IERC20(address(USDT)), end, type(uint256).max);
+
+            rebalanceNonce++;
         }
     }
 
@@ -2489,7 +2501,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -2541,7 +2553,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,
@@ -2721,7 +2733,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.SOME,
             assets,
             weights,
             prices,

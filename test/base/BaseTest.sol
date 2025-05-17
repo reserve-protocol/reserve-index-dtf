@@ -235,8 +235,8 @@ abstract contract BaseTest is Script, Test {
     IFolio.FolioRegistryFlags _registryFlags =
         IFolio.FolioRegistryFlags({
             trustedFillerEnabled: true,
-            auctionLauncherWeightControl: IFolio.WeightControl.NONE,
-            auctionLauncherPriceControl: IFolio.PriceControl.NONE
+            auctionLauncherWeightControl: IFolio.WeightControl.SOME,
+            auctionLauncherPriceControl: IFolio.PriceControl.SOME
         });
 
     function createFolio(

@@ -8,17 +8,104 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
-import { D18, D27, MAX_TOKEN_BALANCE, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE } from "@utils/Constants.sol";
+import { D18, D27, MAX_TOKEN_BALANCE, MAX_LIMIT, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 
 /**
- * @title AuctionLib
+ * @title RebalancingLib
  * @notice Library for auction operations
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  *
- * openAuction() -> getBid() -> bid()
+ * startRebalance() -> openAuction() -> getBid() -> bid()
  */
-library AuctionLib {
+library RebalancingLib {
+    function startRebalance(
+        IFolio.RebalancingPermissions storage rebalancingPermissions,
+        IFolio.Rebalance storage rebalance,
+        address[] calldata tokens,
+        IFolio.WeightRange[] calldata weights,
+        IFolio.PriceRange[] calldata prices,
+        IFolio.RebalanceLimits calldata limits,
+        uint256 auctionLauncherWindow,
+        uint256 ttl
+    ) external {
+        require(ttl >= auctionLauncherWindow && ttl <= MAX_TTL, IFolio.Folio__InvalidTTL());
+
+        // enforce limits are internally consistent
+        require(
+            limits.low != 0 && limits.low <= limits.spot && limits.spot <= limits.high && limits.high <= MAX_LIMIT,
+            IFolio.Folio__InvalidLimits()
+        );
+
+        uint256 len = tokens.length;
+        require(len != 0 && len == weights.length && len == prices.length, IFolio.Folio__InvalidArrayLengths());
+
+        // set new rebalance details and prices
+        for (uint256 i; i < len; i++) {
+            address token = tokens[i];
+
+            // enforce valid token
+            require(token != address(0) && token != address(this), IFolio.Folio__InvalidAsset());
+
+            // enforce no duplicates
+            require(!rebalance.details[token].inRebalance, IFolio.Folio__DuplicateAsset());
+
+            if (rebalancingPermissions.weightControl == IFolio.WeightControl.NONE) {
+                // WeightControl.NONE: weights are fixed
+                require(
+                    weights[i].low == weights[i].spot &&
+                        weights[i].spot == weights[i].high &&
+                        weights[i].high <= MAX_WEIGHT,
+                    IFolio.Folio__InvalidWeights()
+                );
+            } else {
+                // WeightControl.SOME: weights can be revised within bounds
+                require(
+                    weights[i].low <= weights[i].spot &&
+                        weights[i].spot <= weights[i].high &&
+                        weights[i].high <= MAX_WEIGHT,
+                    IFolio.Folio__InvalidWeights()
+                );
+
+                // weights are all 0, or none are 0
+                require(weights[i].low != 0 || weights[i].high == 0, IFolio.Folio__InvalidWeights());
+            }
+
+            // enforce prices are internally consistent
+            require(
+                prices[i].low != 0 &&
+                    prices[i].low <= prices[i].high &&
+                    prices[i].high <= MAX_TOKEN_PRICE &&
+                    prices[i].high <= MAX_TOKEN_PRICE_RANGE * prices[i].low,
+                IFolio.Folio__InvalidPrices()
+            );
+
+            rebalance.details[token] = IFolio.RebalanceDetails({
+                inRebalance: true,
+                weights: weights[i],
+                initialPrices: prices[i]
+            });
+        }
+
+        rebalance.nonce++;
+        rebalance.limits = limits;
+        rebalance.startedAt = block.timestamp;
+        rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
+        rebalance.availableUntil = block.timestamp + ttl;
+        rebalance.priceControl = rebalancingPermissions.priceControl;
+
+        emit IFolio.RebalanceStarted(
+            rebalance.nonce,
+            rebalance.priceControl,
+            tokens,
+            weights,
+            prices,
+            limits,
+            block.timestamp + auctionLauncherWindow,
+            block.timestamp + ttl
+        );
+    }
+
     /// Open a new auction
     function openAuction(
         IFolio.Rebalance storage rebalance,
