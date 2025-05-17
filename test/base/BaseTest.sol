@@ -11,7 +11,6 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
-import { MockBidder } from "utils/MockBidder.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";
@@ -233,7 +232,12 @@ abstract contract BaseTest is Script, Test {
 
     // === Internal ===
 
-    IFolio.FolioRegistryFlags _registryFlags = IFolio.FolioRegistryFlags({ trustedFillerEnabled: true });
+    IFolio.FolioRegistryFlags _registryFlags =
+        IFolio.FolioRegistryFlags({
+            trustedFillerEnabled: true,
+            auctionLauncherWeightControl: IFolio.WeightControl.NONE,
+            auctionLauncherPriceControl: IFolio.PriceControl.NONE
+        });
 
     function createFolio(
         address[] memory _assets,

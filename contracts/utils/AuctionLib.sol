@@ -111,35 +111,26 @@ library AuctionLib {
             }
 
             // save auction prices
-            {
-                // internal consistency checks
+            if (rebalance.priceControl == IFolio.PriceControl.NONE) {
+                // PriceControl.NONE: prices must be exactly the initial prices
+
                 require(
-                    prices[i].low != 0 &&
-                        prices[i].low <= prices[i].high &&
-                        prices[i].high <= MAX_TOKEN_PRICE &&
-                        prices[i].high <= MAX_TOKEN_PRICE_RANGE * prices[i].low,
+                    prices[i].low == rebalanceDetails.initialPrices.low &&
+                        prices[i].high == rebalanceDetails.initialPrices.high,
                     IFolio.Folio__InvalidPrices()
                 );
+            } else {
+                // PriceControl.SOME: prices can be revised within the bounds of the initial prices
 
-                if (rebalance.priceControl == IFolio.PriceControl.PARTIAL) {
-                    // PARTIAL: prices can be revised within the bounds of the initial prices
-                    require(
-                        prices[i].low >= rebalanceDetails.initialPrices.low &&
-                            prices[i].high <= rebalanceDetails.initialPrices.high,
-                        IFolio.Folio__InvalidPrices()
-                    );
-                } else if (rebalance.priceControl == IFolio.PriceControl.NONE) {
-                    // NONE: prices must be exactly the initial prices
-                    require(
-                        prices[i].low == rebalanceDetails.initialPrices.low &&
-                            prices[i].high == rebalanceDetails.initialPrices.high,
-                        IFolio.Folio__InvalidPrices()
-                    );
-                }
-
-                // FULL: prices can be arbitrarily revised
-                auction.prices[token] = prices[i];
+                require(
+                    prices[i].low >= rebalanceDetails.initialPrices.low &&
+                        prices[i].high <= rebalanceDetails.initialPrices.high &&
+                        prices[i].high >= prices[i].low,
+                    IFolio.Folio__InvalidPrices()
+                );
             }
+
+            auction.prices[token] = prices[i];
         }
 
         // save auction

@@ -249,7 +249,7 @@ contract ExtremeTest is BaseExtremeTest {
             prices[1] = IFolio.PriceRange(p.buyTokenPrice, p.buyTokenPrice);
 
             vm.prank(dao);
-            folio.startRebalance(IFolio.PriceControl.FULL, assets, weights, prices, limits, 0, MAX_TTL);
+            folio.startRebalance(assets, weights, prices, limits, 0, MAX_TTL);
         }
 
         // openAuctionUnrestricted

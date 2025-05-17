@@ -39,6 +39,7 @@ interface IFolio {
     event TrustedFillerRegistrySet(address trustedFillerRegistry, bool isEnabled);
     event FolioDeprecated();
 
+    event RebalancingPermissionsSet(RebalancingPermissions newPermissions);
     event RebalanceStarted(
         uint256 nonce,
         PriceControl priceControl,
@@ -50,7 +51,6 @@ interface IFolio {
         uint256 availableUntil
     );
     event RebalanceEnded(uint256 nonce);
-
     // === Errors ===
 
     error Folio__FolioDeprecated();
@@ -90,18 +90,28 @@ interface IFolio {
     error Folio__InvalidRegistry();
     error Folio__TrustedFillerRegistryNotEnabled();
     error Folio__TrustedFillerRegistryAlreadySet();
-
     error Folio__InvalidTTL();
     error Folio__NotRebalancing();
     error Folio__EmptyAuction();
 
     // === Structures ===
 
-    /// AUCTION_LAUNCHER trust level for prices
+    /// Permissions the AUCTION_LAUNCHER has on rebalancing
+    struct RebalancingPermissions {
+        WeightControl weightControl; // if AUCTION_LAUNCHER can move weights
+        PriceControl priceControl; // if AUCTION_LAUNCHER can narrow prices
+    }
+
+    /// Whether or not AUCTION_LAUNCHER can impact weights
+    enum WeightControl {
+        NONE, // BU-based rebalancing only
+        SOME // weight + BU-based rebalancing
+    }
+
+    /// Whether or not AUCTION_LAUNCHER can impact prices
     enum PriceControl {
         NONE, // cannot revise prices at all
-        PARTIAL, // can revise prices, within bounds
-        FULL // can revise prices arbitrarily
+        SOME // can narrow prices within bounds
     }
 
     struct FolioBasicDetails {
@@ -127,6 +137,8 @@ interface IFolio {
 
     struct FolioRegistryFlags {
         bool trustedFillerEnabled;
+        WeightControl auctionLauncherWeightControl;
+        PriceControl auctionLauncherPriceControl;
     }
 
     struct FeeRecipient {

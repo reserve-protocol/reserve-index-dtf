@@ -139,6 +139,8 @@ contract Folio is
     // === 4.0.0 ===
     // 3.0.0 release was skipped so strict 3.0.0 -> 4.0.0 storage compatibility is not a requirement
 
+    RebalancingPermissions public rebalancingPermissions; // AUCTION_LAUNCHER permissions on rebalancing
+
     /**
      * Rebalancing
      *   REBALANCE_MANAGER
@@ -191,6 +193,13 @@ contract Folio is
         _setMintFee(_additionalDetails.mintFee);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
+
+        _setRebalancingPermissions(
+            RebalancingPermissions({
+                weightControl: _folioFlags.auctionLauncherWeightControl,
+                priceControl: _folioFlags.auctionLauncherPriceControl
+            })
+        );
 
         _setTrustedFillerRegistry(_folioRegistries.trustedFillerRegistry, _folioFlags.trustedFillerEnabled);
         _setDaoFeeRegistry(_folioRegistries.daoFeeRegistry);
@@ -295,6 +304,15 @@ contract Folio is
     ///      correctness and in order to be explicit what registry is being enabled/disabled.
     function setTrustedFillerRegistry(address _newFillerRegistry, bool _enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setTrustedFillerRegistry(_newFillerRegistry, _enabled);
+    }
+
+    /// @dev Cannot impact ongoing rebalances
+    /// @param _newPermissions.weightControl If AUCTION_LAUNCHER can move weights
+    /// @param _newPermissions.priceControl If AUCTION_LAUNCHER can narrow prices
+    function setRebalancingPermissions(
+        RebalancingPermissions calldata _newPermissions
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setRebalancingPermissions(_newPermissions);
     }
 
     /// Deprecate the Folio, callable only by the admin
@@ -516,7 +534,6 @@ contract Folio is
     /// Start a new rebalance, ending the currently running auction
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
-    /// @param priceControl How much price control to give to AUCTION_LAUNCHER: [NONE, PARTIAL, FULL]
     /// @param tokens Tokens to rebalance, MUST be unique
     /// @param weights D27{tok/BU} Basket weight ranges for the basket unit definition; cannot be empty [0, 1e54]
     /// @param prices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e54]
@@ -524,7 +541,6 @@ contract Folio is
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
     /// @param ttl {s} The amount of time the rebalance is valid for, can be extended
     function startRebalance(
-        PriceControl priceControl,
         address[] calldata tokens,
         WeightRange[] calldata weights,
         PriceRange[] calldata prices,
@@ -560,16 +576,26 @@ contract Folio is
             // enforce no duplicates
             require(!rebalance.details[token].inRebalance, Folio__DuplicateAsset());
 
-            // enforce weights are internally consistent
-            require(
-                weights[i].low <= weights[i].spot &&
-                    weights[i].spot <= weights[i].high &&
-                    weights[i].high <= MAX_WEIGHT,
-                Folio__InvalidWeights()
-            );
+            if (rebalancingPermissions.weightControl == WeightControl.NONE) {
+                // WeightControl.NONE: weights are fixed
+                require(
+                    weights[i].low == weights[i].spot &&
+                        weights[i].spot == weights[i].high &&
+                        weights[i].high <= MAX_WEIGHT,
+                    Folio__InvalidWeights()
+                );
+            } else {
+                // WeightControl.SOME: weights can be revised within bounds
+                require(
+                    weights[i].low <= weights[i].spot &&
+                        weights[i].spot <= weights[i].high &&
+                        weights[i].high <= MAX_WEIGHT,
+                    Folio__InvalidWeights()
+                );
 
-            // weights are all 0, or none are 0
-            require(weights[i].low != 0 || weights[i].high == 0, Folio__InvalidWeights());
+                // weights are all 0, or none are 0
+                require(weights[i].low != 0 || weights[i].high == 0, Folio__InvalidWeights());
+            }
 
             // enforce prices are internally consistent
             require(
@@ -593,11 +619,11 @@ contract Folio is
         rebalance.startedAt = block.timestamp;
         rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
         rebalance.availableUntil = block.timestamp + ttl;
-        rebalance.priceControl = priceControl;
+        rebalance.priceControl = rebalancingPermissions.priceControl;
 
         emit RebalanceStarted(
             rebalance.nonce,
-            priceControl,
+            rebalance.priceControl,
             tokens,
             weights,
             prices,
@@ -1101,6 +1127,11 @@ contract Folio is
         }
 
         emit TrustedFillerRegistrySet(address(trustedFillerRegistry), trustedFillerEnabled);
+    }
+
+    function _setRebalancingPermissions(RebalancingPermissions memory _newPermissions) internal {
+        rebalancingPermissions = _newPermissions;
+        emit RebalancingPermissionsSet(_newPermissions);
     }
 
     function _setDaoFeeRegistry(address _newDaoFeeRegistry) internal {

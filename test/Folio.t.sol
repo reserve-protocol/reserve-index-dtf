@@ -15,6 +15,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { FolioDeployerV2 } from "test/utils/upgrades/FolioDeployerV2.sol";
 import { MockEIP712 } from "test/utils/MockEIP712.sol";
+import { MockBidder } from "utils/MockBidder.sol";
 import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
@@ -163,7 +164,11 @@ contract FolioTest is BaseTest {
             trustedFillerRegistry: address(trustedFillerRegistry)
         });
 
-        IFolio.FolioRegistryFlags memory registryFlags = IFolio.FolioRegistryFlags({ trustedFillerEnabled: true });
+        IFolio.FolioRegistryFlags memory registryFlags = IFolio.FolioRegistryFlags({
+            trustedFillerEnabled: true,
+            auctionLauncherWeightControl: IFolio.WeightControl.NONE,
+            auctionLauncherPriceControl: IFolio.PriceControl.NONE
+        });
 
         // Attempt to initialize
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
@@ -1002,7 +1007,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1010,15 +1015,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](weights.length);
@@ -1087,7 +1084,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1095,15 +1092,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](weights.length);
@@ -1182,7 +1171,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1190,15 +1179,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](weights.length);
@@ -1271,7 +1252,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1279,15 +1260,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](weights.length);
@@ -1367,7 +1340,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1376,15 +1349,7 @@ contract FolioTest is BaseTest {
             block.timestamp + MAX_TTL
         );
 
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](weights.length);
@@ -1485,7 +1450,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1493,15 +1458,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](weights.length);
@@ -1578,7 +1535,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1586,15 +1543,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](weights.length);
@@ -1675,7 +1624,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1683,7 +1632,7 @@ contract FolioTest is BaseTest {
             block.timestamp + MAX_AUCTION_DELAY,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(IFolio.PriceControl.FULL, assets, weights, prices, limits, MAX_AUCTION_DELAY, MAX_TTL);
+        folio.startRebalance(assets, weights, prices, limits, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](assets.length);
@@ -1738,7 +1687,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1746,15 +1695,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](assets.length);
@@ -1816,7 +1757,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1824,15 +1765,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](assets.length);
@@ -1890,7 +1823,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1898,15 +1831,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](assets.length);
@@ -1952,7 +1877,7 @@ contract FolioTest is BaseTest {
     function test_rebalanceAboveMaxTTL() public {
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidTTL.selector);
-        folio.startRebalance(IFolio.PriceControl.FULL, assets, weights, prices, limits, MAX_AUCTION_DELAY, MAX_TTL + 1);
+        folio.startRebalance(assets, weights, prices, limits, MAX_AUCTION_DELAY, MAX_TTL + 1);
     }
 
     function test_auctionNotOpenableOutsideRebalance() public {
@@ -1977,7 +1902,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1985,15 +1910,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         uint256[] memory auctionWeights = new uint256[](assets.length);
         for (uint256 i = 0; i < assets.length; i++) {
@@ -2024,15 +1941,7 @@ contract FolioTest is BaseTest {
     function test_auctionNotLaunchableAfterTimeout() public {
         vm.prank(dao);
         // Start rebalance
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         // Warp time to just after the rebalance expires
         vm.warp(block.timestamp + MAX_TTL + 1);
@@ -2052,15 +1961,7 @@ contract FolioTest is BaseTest {
     function test_auctionNotAvailableBeforeOpen() public {
         uint256 amt = D6_TOKEN_1;
         vm.prank(dao);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         // auction should not be biddable before openAuction
 
@@ -2073,15 +1974,7 @@ contract FolioTest is BaseTest {
         vm.prank(dao);
         weights[0] = SELL;
         weights[1] = BUY;
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](assets.length);
@@ -2124,15 +2017,7 @@ contract FolioTest is BaseTest {
 
         // Start rebalance
         vm.prank(dao);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         // Open auction
         vm.prank(auctionLauncher);
@@ -2179,15 +2064,7 @@ contract FolioTest is BaseTest {
     function test_auctionBidZeroAmount() public {
         vm.prank(dao);
         weights[1] = BUY;
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](assets.length);
@@ -2216,15 +2093,7 @@ contract FolioTest is BaseTest {
 
     function test_auctionOnlyAuctionLauncherCanBypassDelay() public {
         vm.prank(dao);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         // cannot permissionlessly open auction during restricted perieod
 
@@ -2269,15 +2138,7 @@ contract FolioTest is BaseTest {
         prices[1] = PRICE_POINT_18;
 
         vm.prank(dao);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](assets.length);
@@ -2322,15 +2183,7 @@ contract FolioTest is BaseTest {
         uint256 amt1 = USDC.balanceOf(address(folio));
         uint256 amt2 = DAI.balanceOf(address(folio));
         vm.prank(dao);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](assets.length);
@@ -2403,7 +2256,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -2411,15 +2264,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         uint256 amt1 = USDC.balanceOf(address(folio));
 
@@ -2487,15 +2332,7 @@ contract FolioTest is BaseTest {
         prices.push(FULL_PRICE_RANGE_6);
 
         vm.prank(dao);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         for (uint256 i = MAX_TOKEN_PRICE; i > 0; i /= 10) {
             uint256 index = folio.nextAuctionId();
@@ -2652,7 +2489,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -2660,15 +2497,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         // Open auction
         vm.prank(auctionLauncher);
@@ -2712,7 +2541,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -2720,15 +2549,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         // Open auction for USDC -> USDT
         vm.prank(auctionLauncher);
@@ -2764,15 +2585,7 @@ contract FolioTest is BaseTest {
     function test_auctionCannotOpenAuctionWithInvalidTokens() public {
         // Start rebalance first (nonce 1)
         vm.prank(dao);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.startPrank(auctionLauncher);
 
@@ -2821,15 +2634,7 @@ contract FolioTest is BaseTest {
 
         vm.startPrank(dao);
         vm.expectRevert(IFolio.Folio__DuplicateAsset.selector);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
     }
 
     function test_auctionCannotStartRebalanceWithInvalidSellLimit() public {
@@ -2843,15 +2648,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            invalidLimits1,
-            MAX_AUCTION_DELAY,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, invalidLimits1, MAX_AUCTION_DELAY, MAX_TTL);
 
         // --- Case 2: limits.low > limits.spot ---
         IFolio.RebalanceLimits memory invalidLimits2 = IFolio.RebalanceLimits({
@@ -2860,15 +2657,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            invalidLimits2,
-            MAX_AUCTION_DELAY,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, invalidLimits2, MAX_AUCTION_DELAY, MAX_TTL);
 
         // --- Case 3: limits.spot > limits.high ---
         IFolio.RebalanceLimits memory invalidLimits3 = IFolio.RebalanceLimits({
@@ -2877,15 +2666,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT - 1 // Invalid: high < spot
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            invalidLimits3,
-            MAX_AUCTION_DELAY,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, invalidLimits3, MAX_AUCTION_DELAY, MAX_TTL);
 
         // --- Case 4: limits.high > MAX_LIMIT ---
         IFolio.RebalanceLimits memory invalidLimits4 = IFolio.RebalanceLimits({
@@ -2894,15 +2675,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT + 1 // Invalid: high > MAX_LIMIT
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            invalidLimits4,
-            MAX_AUCTION_DELAY,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, invalidLimits4, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.stopPrank();
     }
@@ -2919,15 +2692,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT - 1 // High is lower than low
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            invalidLimits1,
-            MAX_AUCTION_DELAY,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, invalidLimits1, MAX_AUCTION_DELAY, MAX_TTL);
 
         // --- Case 2: limits.high > MAX_LIMIT (Redundant, but kept for clarity) ---
         IFolio.RebalanceLimits memory invalidLimits2 = IFolio.RebalanceLimits({
@@ -2936,15 +2701,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT + 1 // High exceeds maximum
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            invalidLimits2,
-            MAX_AUCTION_DELAY,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, invalidLimits2, MAX_AUCTION_DELAY, MAX_TTL);
 
         // --- Case 3: limits.spot < limits.low (Redundant, but kept for clarity) ---
         IFolio.RebalanceLimits memory invalidLimits3 = IFolio.RebalanceLimits({
@@ -2953,15 +2710,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            invalidLimits3,
-            MAX_AUCTION_DELAY,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, invalidLimits3, MAX_AUCTION_DELAY, MAX_TTL);
 
         vm.stopPrank();
     }
@@ -2972,7 +2721,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            IFolio.PriceControl.FULL,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -2980,15 +2729,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LAUNCHER_WINDOW,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.startPrank(auctionLauncher);
 
@@ -3043,15 +2784,7 @@ contract FolioTest is BaseTest {
     function test_auctionCannotBidIfFolioDeprecated() public {
         vm.prank(dao);
         weights[1] = BUY;
-        folio.startRebalance(
-            IFolio.PriceControl.FULL,
-            assets,
-            weights,
-            prices,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL
-        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         vm.prank(auctionLauncher);
         uint256[] memory auctionWeights = new uint256[](assets.length);
