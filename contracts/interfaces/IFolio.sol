@@ -39,7 +39,7 @@ interface IFolio {
     event TrustedFillerRegistrySet(address trustedFillerRegistry, bool isEnabled);
     event FolioDeprecated();
 
-    event RebalancingPermissionsSet(RebalancingPermissions newPermissions);
+    event RebalanceControlSet(RebalanceControl newControl);
     event RebalanceStarted(
         uint256 nonce,
         PriceControl priceControl,
@@ -96,12 +96,6 @@ interface IFolio {
 
     // === Structures ===
 
-    /// Permissions the AUCTION_LAUNCHER has on rebalancing
-    struct RebalancingPermissions {
-        WeightControl weightControl; // if AUCTION_LAUNCHER can move weights
-        PriceControl priceControl; // if AUCTION_LAUNCHER can narrow prices
-    }
-
     /// Whether or not AUCTION_LAUNCHER can impact weights
     enum WeightControl {
         NONE, // BU-based rebalancing only
@@ -144,6 +138,12 @@ interface IFolio {
     struct FeeRecipient {
         address recipient;
         uint96 portion; // D18{1}
+    }
+
+    /// Permissions the AUCTION_LAUNCHER has on rebalancing
+    struct RebalanceControl {
+        WeightControl weightControl; // if AUCTION_LAUNCHER can move weights
+        PriceControl priceControl; // if AUCTION_LAUNCHER can narrow prices
     }
 
     /// Basket limits for rebalancing

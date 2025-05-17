@@ -141,7 +141,7 @@ contract Folio is
     // === 4.0.0 ===
     // 3.0.0 release was skipped so strict 3.0.0 -> 4.0.0 storage compatibility is not a requirement
 
-    RebalancingPermissions public rebalancingPermissions; // AUCTION_LAUNCHER permissions on rebalancing
+    RebalanceControl public rebalanceControl; // AUCTION_LAUNCHER control over rebalancing
 
     /**
      * Rebalancing
@@ -197,7 +197,7 @@ contract Folio is
         _setMandate(_additionalDetails.mandate);
 
         _setRebalancingPermissions(
-            RebalancingPermissions({
+            RebalanceControl({
                 weightControl: _folioFlags.auctionLauncherWeightControl,
                 priceControl: _folioFlags.auctionLauncherPriceControl
             })
@@ -312,7 +312,7 @@ contract Folio is
     /// @param _newPermissions.weightControl If AUCTION_LAUNCHER can move weights
     /// @param _newPermissions.priceControl If AUCTION_LAUNCHER can narrow prices
     function setRebalancingPermissions(
-        RebalancingPermissions calldata _newPermissions
+        RebalanceControl calldata _newPermissions
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setRebalancingPermissions(_newPermissions);
     }
@@ -559,7 +559,7 @@ contract Folio is
 
         // start rebalance
         RebalancingLib.startRebalance(
-            rebalancingPermissions,
+            rebalanceControl,
             rebalance,
             tokens,
             weights,
@@ -1072,9 +1072,9 @@ contract Folio is
         emit TrustedFillerRegistrySet(address(trustedFillerRegistry), trustedFillerEnabled);
     }
 
-    function _setRebalancingPermissions(RebalancingPermissions memory _newPermissions) internal {
-        rebalancingPermissions = _newPermissions;
-        emit RebalancingPermissionsSet(_newPermissions);
+    function _setRebalancingPermissions(RebalanceControl memory _newPermissions) internal {
+        rebalanceControl = _newPermissions;
+        emit RebalanceControlSet(_newPermissions);
     }
 
     function _setDaoFeeRegistry(address _newDaoFeeRegistry) internal {

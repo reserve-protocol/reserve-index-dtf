@@ -20,7 +20,7 @@ import { MathLib } from "@utils/MathLib.sol";
  */
 library RebalancingLib {
     function startRebalance(
-        IFolio.RebalancingPermissions storage rebalancingPermissions,
+        IFolio.RebalanceControl storage rebalanceControl,
         IFolio.Rebalance storage rebalance,
         address[] calldata tokens,
         IFolio.WeightRange[] calldata weights,
@@ -50,7 +50,7 @@ library RebalancingLib {
             // enforce no duplicates
             require(!rebalance.details[token].inRebalance, IFolio.Folio__DuplicateAsset());
 
-            if (rebalancingPermissions.weightControl == IFolio.WeightControl.NONE) {
+            if (rebalanceControl.weightControl == IFolio.WeightControl.NONE) {
                 // WeightControl.NONE: weights are fixed
                 require(
                     weights[i].low == weights[i].spot &&
@@ -92,7 +92,7 @@ library RebalancingLib {
         rebalance.startedAt = block.timestamp;
         rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
         rebalance.availableUntil = block.timestamp + ttl;
-        rebalance.priceControl = rebalancingPermissions.priceControl;
+        rebalance.priceControl = rebalanceControl.priceControl;
 
         emit IFolio.RebalanceStarted(
             rebalance.nonce,
