@@ -8,7 +8,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
-import { AUCTION_DELAY, D18, D27, MAX_TOKEN_BALANCE, MAX_LIMIT, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, D18, D27, MAX_TOKEN_BALANCE, MAX_LIMIT, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 
 /**
@@ -74,7 +74,7 @@ library RebalancingLib {
             // enforce prices are internally consistent
             require(
                 prices[i].low != 0 &&
-                    prices[i].low <= prices[i].high &&
+                    prices[i].low < prices[i].high &&
                     prices[i].high <= MAX_TOKEN_PRICE &&
                     prices[i].high <= MAX_TOKEN_PRICE_RANGE * prices[i].low,
                 IFolio.Folio__InvalidPrices()
@@ -189,7 +189,7 @@ library RebalancingLib {
                     require(
                         prices[i].low >= rebalanceDetails.initialPrices.low &&
                             prices[i].high <= rebalanceDetails.initialPrices.high &&
-                            prices[i].high >= prices[i].low,
+                            prices[i].high > prices[i].low,
                         IFolio.Folio__InvalidPrices()
                     );
                 }
@@ -200,8 +200,8 @@ library RebalancingLib {
 
         // save auction
         auction.rebalanceNonce = rebalance.nonce;
-        auction.startTime = block.timestamp + AUCTION_DELAY;
-        auction.endTime = block.timestamp + AUCTION_DELAY + auctionLength;
+        auction.startTime = block.timestamp + AUCTION_WARMUP;
+        auction.endTime = block.timestamp + AUCTION_WARMUP + auctionLength;
 
         emit IFolio.AuctionOpened(
             rebalance.nonce,
@@ -210,8 +210,8 @@ library RebalancingLib {
             weights,
             prices,
             limits,
-            block.timestamp + AUCTION_DELAY,
-            block.timestamp + AUCTION_DELAY + auctionLength
+            block.timestamp + AUCTION_WARMUP,
+            block.timestamp + AUCTION_WARMUP + auctionLength
         );
     }
 

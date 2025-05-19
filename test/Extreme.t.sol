@@ -5,7 +5,7 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 import { Folio } from "@src/Folio.sol";
-import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_TTL, MAX_WEIGHT, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
+import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_TTL, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import "./base/BaseExtremeTest.sol";
 
@@ -245,8 +245,28 @@ contract ExtremeTest is BaseExtremeTest {
             assets[1] = address(buy);
             weights[0] = REMOVE;
             weights[1] = BUY;
-            prices[0] = IFolio.PriceRange(p.sellTokenPrice, p.sellTokenPrice);
-            prices[1] = IFolio.PriceRange(p.buyTokenPrice, p.buyTokenPrice);
+
+            {
+                uint256 highSellPrice = p.sellTokenPrice * MAX_TOKEN_PRICE_RANGE;
+                uint256 lowSellPrice = p.sellTokenPrice;
+                if (highSellPrice > MAX_TOKEN_PRICE) {
+                    highSellPrice = MAX_TOKEN_PRICE;
+                    lowSellPrice = highSellPrice / MAX_TOKEN_PRICE_RANGE;
+                }
+
+                prices[0] = IFolio.PriceRange(lowSellPrice, highSellPrice);
+            }
+
+            {
+                uint256 highBuyPrice = p.buyTokenPrice * MAX_TOKEN_PRICE_RANGE;
+                uint256 lowBuyPrice = p.buyTokenPrice;
+                if (highBuyPrice > MAX_TOKEN_PRICE) {
+                    highBuyPrice = MAX_TOKEN_PRICE;
+                    lowBuyPrice = highBuyPrice / MAX_TOKEN_PRICE_RANGE;
+                }
+
+                prices[1] = IFolio.PriceRange(lowBuyPrice, highBuyPrice);
+            }
 
             vm.prank(dao);
             folio.startRebalance(assets, weights, prices, limits, 0, MAX_TTL);

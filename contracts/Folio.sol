@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
-import { AUCTION_DELAY, AUCTION_LAUNCHER, D18, D27, REBALANCE_MANAGER, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, REBALANCE_MANAGER, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -37,10 +37,11 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * There is also an additional BRAND_MANAGER role that does not have any permissions. It is for off-chain use.
  *
  * AUCTION_LAUNCHER assumptions:
- *   - SHOULD NOT make auctions unavailable unless a rebalance has been crafted incorrectly
- *   - SHOULD craft auctions progressively against BU limits to responsibly DCA into the new basket
- *   - if weightControl=true: SHOULD progressively narrow weight ranges to mintain original rebalance intent
- *   - if priceControl=true: SHOULD provide narrowed price ranges that include current clearing price
+ *   - SHOULD NOT close auctions/rebalances to deny the rebalance dishonestly
+ *   - SHOULD craft auctions against progressively narrowed BU limits to responsibly DCA into the new basket
+ *   - SHOULD end the ongoing rebalance when prices have moved outside the initially-provided price ranges
+ *   - if weightControl=true: SHOULD progressively narrow weight ranges to mintain the original rebalance intent
+ *   - if priceControl=true: SHOULD provide narrowed price ranges that still include the current clearing price
  *
  * Rebalance lifecycle:
  *   startRebalance() -> openAuction()/openAuctionUnrestricted() -> bid()/createTrustedFill() -> [optional] closeAuction()
@@ -162,17 +163,18 @@ contract Folio is
      *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil, with possible extensions
      *   - Auctions cannot be launched after availableUntil, though their start/end times may extend past it
      *   - Each auction the AUCTION_LAUNCHER provides: (i) basket limits; (i) weight ranges; and (iii) prices
-     *   - Depending on the PriceControl, the AUCTION_LAUNCHER can set new prices either completely, within bounds, or never
+     *   - Depending on the WeightControl, the AUCTION_LAUNCHER may be able to narrow weight ranges within the initial range
+     *   - Depending on the PriceControl, the AUCTION_LAUNCHER may be able to narrow prices within the initial range
      *   - At anytime the rebalance can be stopped or a new one can be started (closing any ongoing auction)
      */
     Rebalance private rebalance;
 
     /**
      * Auctions
-     *   Openable by AUCTION_LAUNCHER -> Openable by anyone (optional) -> Running -> Closed
+     *   Openable by AUCTION_LAUNCHER -> Openable by anyone (optional) -> Warmup (30s) -> Running -> Closed
      *   - An auction is in parallel on all surplus/deficit token pairs at the same time
-     *   - Bids are of any size, up to a maximum given by the high/low basket limits and spot weights
-     *   - All auctions are dutch auctions with an exponential decay curve, but startPrice can potentially equal endPrice
+     *   - Bids are of any size, up to a maximum given by the high/low basket limits and high/low token weights
+     *   - All auctions are dutch auctions with an exponential decay curve between two points
      */
     mapping(uint256 id => Auction auction) public auctions;
     uint256 public nextAuctionId;
@@ -608,7 +610,7 @@ contract Folio is
         // can potentially send the rebalance from the unrestricted period back into the restricted period
         rebalance.restrictedUntil = Math.max(
             rebalance.restrictedUntil,
-            block.timestamp + auctionLength + AUCTION_DELAY + RESTRICTED_AUCTION_BUFFER + 1
+            block.timestamp + auctionLength + AUCTION_WARMUP + RESTRICTED_AUCTION_BUFFER + 1
         );
     }
 
