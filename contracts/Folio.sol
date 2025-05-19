@@ -196,7 +196,7 @@ contract Folio is
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
 
-        _setRebalancingPermissions(
+        _setRebalanceControl(
             RebalanceControl({
                 weightControl: _folioFlags.auctionLauncherWeightControl,
                 priceControl: _folioFlags.auctionLauncherPriceControl
@@ -308,13 +308,11 @@ contract Folio is
         _setTrustedFillerRegistry(_newFillerRegistry, _enabled);
     }
 
-    /// @dev Cannot impact ongoing rebalances
-    /// @param _newPermissions.weightControl If AUCTION_LAUNCHER can move weights
-    /// @param _newPermissions.priceControl If AUCTION_LAUNCHER can narrow prices
-    function setRebalancingPermissions(
-        RebalanceControl calldata _newPermissions
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setRebalancingPermissions(_newPermissions);
+    /// @dev Does not impact ongoing rebalances
+    /// @param _rebalanceControl.weightControl If AUCTION_LAUNCHER can move weights
+    /// @param _rebalanceControl.priceControl If AUCTION_LAUNCHER can narrow prices
+    function setRebalanceControl(RebalanceControl calldata _rebalanceControl) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setRebalanceControl(_rebalanceControl);
     }
 
     /// Deprecate the Folio, callable only by the admin
@@ -1066,9 +1064,9 @@ contract Folio is
         emit TrustedFillerRegistrySet(address(trustedFillerRegistry), trustedFillerEnabled);
     }
 
-    function _setRebalancingPermissions(RebalanceControl memory _newPermissions) internal {
-        rebalanceControl = _newPermissions;
-        emit RebalanceControlSet(_newPermissions);
+    function _setRebalanceControl(RebalanceControl memory _rebalanceControl) internal {
+        rebalanceControl = _rebalanceControl;
+        emit RebalanceControlSet(_rebalanceControl);
     }
 
     function _setDaoFeeRegistry(address _newDaoFeeRegistry) internal {
