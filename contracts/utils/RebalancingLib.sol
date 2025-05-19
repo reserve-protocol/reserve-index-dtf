@@ -8,7 +8,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
-import { D18, D27, MAX_TOKEN_BALANCE, MAX_LIMIT, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL } from "@utils/Constants.sol";
+import { AUCTION_DELAY, D18, D27, MAX_TOKEN_BALANCE, MAX_LIMIT, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 
 /**
@@ -200,8 +200,8 @@ library RebalancingLib {
 
         // save auction
         auction.rebalanceNonce = rebalance.nonce;
-        auction.startTime = block.timestamp;
-        auction.endTime = block.timestamp + auctionLength;
+        auction.startTime = block.timestamp + AUCTION_DELAY;
+        auction.endTime = block.timestamp + AUCTION_DELAY + auctionLength;
 
         emit IFolio.AuctionOpened(
             rebalance.nonce,
@@ -210,8 +210,8 @@ library RebalancingLib {
             weights,
             prices,
             limits,
-            block.timestamp,
-            block.timestamp + auctionLength
+            block.timestamp + AUCTION_DELAY,
+            block.timestamp + AUCTION_DELAY + auctionLength
         );
     }
 

@@ -175,6 +175,7 @@ interface IFolio {
     /// 1 running auction at a time; N per rebalance overall
     /// Auction states:
     ///   - APPROVED: startTime == 0 && endTime == 0
+    ///   - PENDING: block.timestamp < startTime
     ///   - OPEN: block.timestamp >= startTime && block.timestamp <= endTime
     ///   - CLOSED: block.timestamp > endTime
     struct Auction {

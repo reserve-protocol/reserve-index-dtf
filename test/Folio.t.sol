@@ -6,7 +6,7 @@ import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/contracts/filler
 import { GPV2_SETTLEMENT } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/Constants.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
-import { D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_AUCTION_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT } from "@utils/Constants.sol";
+import { AUCTION_DELAY, D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_AUCTION_DELAY, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT } from "@utils/Constants.sol";
 import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
@@ -1030,6 +1030,7 @@ contract FolioTest is BaseTest {
         );
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         // bid once at start time
 
@@ -1103,6 +1104,7 @@ contract FolioTest is BaseTest {
         );
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         // bid once at start time
 
@@ -1186,6 +1188,7 @@ contract FolioTest is BaseTest {
         );
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         // bid once at start time
 
@@ -1263,6 +1266,7 @@ contract FolioTest is BaseTest {
         );
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         // bid once at start time (10x)
 
@@ -1348,6 +1352,7 @@ contract FolioTest is BaseTest {
         );
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         // check prices
         (, uint256 start, uint256 end) = folio.auctions(0);
@@ -1454,7 +1459,8 @@ contract FolioTest is BaseTest {
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
 
-        (, , uint256 end) = folio.auctions(0);
+        (, uint256 start, uint256 end) = folio.auctions(0);
+        vm.warp(start);
 
         // isValidSignature should return true for the correct bid
 
@@ -1534,6 +1540,7 @@ contract FolioTest is BaseTest {
         );
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         // now createTrustedFill should work
 
@@ -1623,6 +1630,7 @@ contract FolioTest is BaseTest {
         // should have right bid at start, middle, and end of auction
 
         (, uint256 start, uint256 end) = folio.auctions(0);
+        vm.warp(start);
 
         (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(
             0,
@@ -1683,9 +1691,14 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__Unauthorized.selector);
         folio.closeAuction(1);
 
-        (, , uint256 end) = folio.auctions(0);
+        (, uint256 start, uint256 end) = folio.auctions(0);
 
         vm.startPrank(dao);
+        vm.expectRevert(IFolio.Folio__AuctionNotOngoing.selector);
+        folio.bid(0, USDC, IERC20(address(USDT)), amt, amt, false, bytes(""));
+
+        vm.warp(start);
+
         vm.expectEmit(true, false, false, true);
         emit IFolio.AuctionClosed(1);
         folio.closeAuction(1);
@@ -1749,9 +1762,14 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__Unauthorized.selector);
         folio.closeAuction(1);
 
-        (, , uint256 end) = folio.auctions(0);
+        (, uint256 start, uint256 end) = folio.auctions(0);
 
         vm.startPrank(auctionLauncher);
+        vm.expectRevert(IFolio.Folio__AuctionNotOngoing.selector);
+        folio.bid(0, USDC, DAI, amt, amt, false, bytes(""));
+
+        vm.warp(start);
+
         vm.expectEmit(true, false, false, true);
         emit IFolio.AuctionClosed(1);
         folio.closeAuction(1);
@@ -1807,9 +1825,14 @@ contract FolioTest is BaseTest {
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
 
-        (, , uint256 end) = folio.auctions(0);
+        (, uint256 start, uint256 end) = folio.auctions(0);
 
         vm.startPrank(owner);
+        vm.expectRevert(IFolio.Folio__AuctionNotOngoing.selector);
+        folio.bid(0, USDC, IERC20(address(USDT)), amt, amt, false, bytes(""));
+
+        vm.warp(start);
+
         vm.expectEmit(true, false, false, true);
         emit IFolio.AuctionClosed(1);
         folio.closeAuction(1);
@@ -1976,6 +1999,7 @@ contract FolioTest is BaseTest {
         );
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         // Bid for most of the USDC, but not all
         vm.startPrank(user1);
@@ -2018,6 +2042,7 @@ contract FolioTest is BaseTest {
         );
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         vm.startPrank(user1);
         USDT.approve(address(folio), 0);
@@ -2038,6 +2063,7 @@ contract FolioTest is BaseTest {
         (, , , , , , , uint256 restrictedUntil, , ) = folio.getRebalance();
         vm.warp(restrictedUntil);
         folio.openAuctionUnrestricted(1);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         // and AUCTION_LAUNCHER can clobber
         vm.prank(auctionLauncher);
@@ -2084,6 +2110,7 @@ contract FolioTest is BaseTest {
         );
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         // dishonest callback that returns fewer tokens than expected
 
@@ -2125,6 +2152,7 @@ contract FolioTest is BaseTest {
         );
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         // bid in first pair auction for half volume at start
 
@@ -2205,6 +2233,7 @@ contract FolioTest is BaseTest {
         );
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         // bid for half of sell volume for DAI at starth
 
@@ -2440,6 +2469,7 @@ contract FolioTest is BaseTest {
         );
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         // Attempt bid with extremely low maxBuyAmount, causing slippage revert
         vm.startPrank(user1);
@@ -2488,6 +2518,7 @@ contract FolioTest is BaseTest {
         );
 
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         // Attempt to bid for more USDC than is available in the folio.
         vm.startPrank(user1);
@@ -2717,6 +2748,8 @@ contract FolioTest is BaseTest {
 
         vm.prank(owner);
         folio.deprecateFolio();
+
+        vm.warp(block.timestamp + AUCTION_DELAY);
 
         vm.expectRevert(IFolio.Folio__FolioDeprecated.selector);
         folio.bid(0, USDC, IERC20(address(USDT)), 1e27, 1e27, false, bytes(""));

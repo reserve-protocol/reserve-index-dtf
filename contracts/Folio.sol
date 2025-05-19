@@ -13,8 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
-import { REBALANCE_MANAGER, AUCTION_LAUNCHER } from "@utils/Constants.sol";
-import { D18, D27, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, MAX_LIMIT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL, MAX_WEIGHT, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
+import { AUCTION_DELAY, AUCTION_LAUNCHER, D18, D27, REBALANCE_MANAGER, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -52,6 +51,8 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *
  * After the AUCTION_LAUNCHER's restricted period is over, anyone can open auctions until the rebalance expires. The
  * AUCTION_LAUNCHER can always prevent the unrestricted period from starting by closing the auction.
+ *
+ * Auctions have a 30s delay at-start before bidding begins.
  *
  * An auction for a set of tokens runs in parallel all different pairs simultaneously. The current price for each
  * pair is interpolated in the auction curve between their most-optimistic and most-pessimistic price estimates, as a
@@ -148,8 +149,8 @@ contract Folio is
      *   REBALANCE_MANAGER
      *   - There can be any number of auctions within a rebalance, but only one live at a time
      *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil, with possible extensions
-     *   - Auctions cannot be launched after availableUntil, though their end time may extend past it
-     *   - Each auction the AUCTION_LAUNCHER provides: (i) spot weights; (ii) basket limits; and (iii) prices
+     *   - Auctions cannot be launched after availableUntil, though their start/end times may extend past it
+     *   - Each auction the AUCTION_LAUNCHER provides: (i) basket limits; (i) weight ranges; and (iii) prices
      *   - Depending on the PriceControl, the AUCTION_LAUNCHER can set new prices either completely, within bounds, or never
      *   - At anytime the rebalance can be stopped or a new one can be started (closing any ongoing auction)
      */
@@ -596,7 +597,7 @@ contract Folio is
         // can potentially send the rebalance from the unrestricted period back into the restricted period
         rebalance.restrictedUntil = Math.max(
             rebalance.restrictedUntil,
-            block.timestamp + auctionLength + RESTRICTED_AUCTION_BUFFER + 1
+            block.timestamp + auctionLength + AUCTION_DELAY + RESTRICTED_AUCTION_BUFFER + 1
         );
     }
 
