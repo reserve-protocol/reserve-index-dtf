@@ -182,7 +182,7 @@ contract Folio is
         FolioBasicDetails calldata _basicDetails,
         FolioAdditionalDetails calldata _additionalDetails,
         FolioRegistryIndex calldata _folioRegistries,
-        FolioRegistryFlags calldata _folioFlags,
+        FolioFlags calldata _folioFlags,
         address _creator
     ) external initializer {
         __ERC20_init(_basicDetails.name, _basicDetails.symbol);
@@ -196,12 +196,7 @@ contract Folio is
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
 
-        _setRebalanceControl(
-            RebalanceControl({
-                weightControl: _folioFlags.auctionLauncherWeightControl,
-                priceControl: _folioFlags.auctionLauncherPriceControl
-            })
-        );
+        _setRebalanceControl(_folioFlags.rebalanceControl);
 
         _setTrustedFillerRegistry(_folioRegistries.trustedFillerRegistry, _folioFlags.trustedFillerEnabled);
         _setDaoFeeRegistry(_folioRegistries.daoFeeRegistry);

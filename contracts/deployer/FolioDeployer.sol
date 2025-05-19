@@ -45,7 +45,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
     function deployFolio(
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
-        IFolio.FolioRegistryFlags calldata registryFlags,
+        IFolio.FolioFlags calldata folioFlags,
         address owner,
         address[] memory basketManagers,
         address[] memory auctionLaunchers,
@@ -81,7 +81,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             basicDetails,
             additionalDetails,
             IFolio.FolioRegistryIndex({ daoFeeRegistry: daoFeeRegistry, trustedFillerRegistry: trustedFillerRegistry }),
-            registryFlags,
+            folioFlags,
             msg.sender
         );
 
@@ -117,7 +117,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IVotes stToken,
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
-        IFolio.FolioRegistryFlags calldata registryFlags,
+        IFolio.FolioFlags calldata folioFlags,
         IGovernanceDeployer.GovParams calldata ownerGovParams,
         IGovernanceDeployer.GovParams calldata tradingGovParams,
         IGovernanceDeployer.GovRoles calldata govRoles,
@@ -155,7 +155,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         (folio, proxyAdmin) = deployFolio(
             basicDetails,
             additionalDetails,
-            registryFlags,
+            folioFlags,
             govPairs[0].timelock,
             basketManagers,
             govRoles.auctionLaunchers,

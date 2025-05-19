@@ -164,15 +164,14 @@ contract FolioTest is BaseTest {
             trustedFillerRegistry: address(trustedFillerRegistry)
         });
 
-        IFolio.FolioRegistryFlags memory registryFlags = IFolio.FolioRegistryFlags({
+        IFolio.FolioFlags memory folioFlags = IFolio.FolioFlags({
             trustedFillerEnabled: true,
-            auctionLauncherWeightControl: true,
-            auctionLauncherPriceControl: true
+            rebalanceControl: IFolio.RebalanceControl({ weightControl: true, priceControl: true })
         });
 
         // Attempt to initialize
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
-        newFolio.initialize(basicDetails, additionalDetails, registryIndex, registryFlags, address(this));
+        newFolio.initialize(basicDetails, additionalDetails, registryIndex, folioFlags, address(this));
     }
 
     function test_cannotCreateWithZeroInitialShares() public {

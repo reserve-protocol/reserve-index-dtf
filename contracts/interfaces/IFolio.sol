@@ -117,10 +117,9 @@ interface IFolio {
         address trustedFillerRegistry;
     }
 
-    struct FolioRegistryFlags {
+    struct FolioFlags {
         bool trustedFillerEnabled;
-        bool auctionLauncherWeightControl;
-        bool auctionLauncherPriceControl;
+        RebalanceControl rebalanceControl;
     }
 
     struct FeeRecipient {

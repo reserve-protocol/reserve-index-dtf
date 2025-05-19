@@ -232,11 +232,10 @@ abstract contract BaseTest is Script, Test {
 
     // === Internal ===
 
-    IFolio.FolioRegistryFlags _registryFlags =
-        IFolio.FolioRegistryFlags({
+    IFolio.FolioFlags _folioFlags =
+        IFolio.FolioFlags({
             trustedFillerEnabled: true,
-            auctionLauncherWeightControl: true,
-            auctionLauncherPriceControl: true
+            rebalanceControl: IFolio.RebalanceControl({ weightControl: true, priceControl: true })
         });
 
     function createFolio(
@@ -278,7 +277,7 @@ abstract contract BaseTest is Script, Test {
         (_folio, _proxyAdmin2) = folioDeployer.deployFolio(
             _basicDetails,
             _additionalDetails,
-            _registryFlags,
+            _folioFlags,
             _owner,
             _basketManagers,
             _auctionLaunchers,
