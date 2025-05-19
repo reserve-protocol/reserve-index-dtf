@@ -23,45 +23,56 @@ import { IFolio } from "@interfaces/IFolio.sol";
 /**
  * @title Folio
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
- * @notice Folio is a backed ERC20 token with permissionless minting/redemption and a rebalancing mechanism.
+ * @notice Folio is a backed ERC20 token with permissionless minting/redemption and a semi-permissioned rebalancing
+ *   mechanism intended for entities that act under timelock delay.
  *
  * A Folio is backed by a flexible number of ERC20 tokens of any denomination/price (within assumed ranges, see README)
- * All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
+ *   All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
  *
  * There are 3 main roles:
  *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, close auctions/rebalances, and deprecateFolio
- *   2. REBALANCE_MANAGER: can start/end rebalances
- *   3. AUCTION_LAUNCHER: can open auctions during an ongoing rebalance, and close rebalancens/auctions
+ *   2. REBALANCE_MANAGER: can start/end rebalances, and end individual auctions
+ *   3. AUCTION_LAUNCHER: can open auctions and end rebalances/auctions
  *
- * There is also an additional BRAND_MANAGER role that does not have any permissions. It is used off-chain.
+ * There is also an additional BRAND_MANAGER role that does not have any permissions. It is for off-chain use.
+ *
+ * AUCTION_LAUNCHER assumptions:
+ *   - SHOULD NOT make auctions unavailable unless a rebalance has been crafted incorrectly
+ *   - SHOULD craft auctions progressively against BU limits to responsibly DCA into the new basket
+ *   - if weightControl=true: SHOULD progressively narrow weight ranges to mintain original rebalance intent
+ *   - if priceControl=true: SHOULD provide narrowed price ranges that include current clearing price
  *
  * Rebalance lifecycle:
  *   startRebalance() -> openAuction()/openAuctionUnrestricted() -> bid()/createTrustedFill() -> [optional] closeAuction()
  *
  * After a new rebalance is started by the REBALANCE_MANAGER, there is a period of time where only the AUCTION_LAUNCHER
- * can start an auction on a set of tokens. They can specify a few different things:
+ * can run auctions. They can specify a few different things:
  *   - The list of tokens to include in the auction; must be a subset of the tokens in the rebalance
- *   - Basket weights: they can pick a weight within the provided initial ranges
- *   - Price range: depending on their PriceControl level, they may either have to work within the initial range,
- *                  no ability to change prices, or full flexibility to set prices arbitrarily.
- *   - Rebalance limits: they can progressively tighten the basket limits
+ *   - Basket weight ranges: they can progressively tighten the basket weight ranges, without backtracking
+ *   - Individual token price ranges: must be a subset of the initially-provided range, if priceControl=true
+ *   - Rebalance limits: they can progressively tighten the BU limits, without backtracking
  *
- * The AUCTION_LAUNCHER can run as many auctions as they need to, and if they are close to the end of their restricted
- * period, the period will be extended on each auction-length.
+ * The AUCTION_LAUNCHER can run as many auctions as they need to. If they are close to the end of their restricted
+ *   period the period will be extended automatically until a period of non-use occurs. However, they cannot
+ *   extend the period indefinitely past the rebalance's end time.
  *
  * After the AUCTION_LAUNCHER's restricted period is over, anyone can open auctions until the rebalance expires. The
- * AUCTION_LAUNCHER can always prevent the unrestricted period from starting by closing the auction.
+ *   AUCTION_LAUNCHER can always deny the unrestricted period by closing the auction when they are done rebalancing.
  *
- * Auctions have a 30s delay at-start before bidding begins.
+ * The unrestricted period exists primarily to avoid strong reliance on the AUCTION_LAUNCHER; the auctionLength should be
+ *   long enough to support the price ranges provided by REBALANCE_MANAGER without excessive loss due to block precision
+ *   in the case the AUCTION_LAUNCHER is not active.
  *
- * An auction for a set of tokens runs in parallel all different pairs simultaneously. The current price for each
- * pair is interpolated in the auction curve between their most-optimistic and most-pessimistic price estimates, as a
- * function of how much time in the auction has passed.
+ * Auctions have a 30s delay at-start before bidding begins in order to ensure competition from the first block.
+ *
+ * An auction for a set of tokens runs in parallel all possible pairs simultaneously. The current price for each
+ *   pair is interpolated along an exponential decay curve between their most-optimistic and most-pessimistic price
+ *   estimates as a function of how much time in the auction has passed.
  *
  * In order for a pair to be eligible for an auction, the sell token must be in surplus and the buy token in deficit,
- * as defined by balances relative to the (i) surplus: spot weight and high basket limit; and (ii) deficit: spot weight and
- * low basket limit. Individiual token weights can also be used to handle rebalancing, when the ideal ratio of token units
- * is not known ahead of time.
+ *   as defined by balances relative to the (i) surplus: high weight * high BU limit; and (ii) deficit: low weight *
+ *   low basket limit. Individual token weights can also be used to handle rebalancing independent of BU limits
+ *   when the ideal relative ratios of token units is not known ahead of time.
  *
  * A Basket Unit {BU} can be defined within a (0, 1e36] range, but the typical usage defines BUs 1:1 with shares (1e18).
  *
@@ -70,8 +81,8 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   - Mint fee: fee on mint. Max 5%. Does not cause supply inflation.
  *
  * After fees have been applied, the DAO takes a cut based on the configuration of the FolioDAOFeeRegistry including
- * a minimum fee floor of 15bps. The remaining portion above 15bps is distributed to the Folio's fee recipients.
- * Note that this means it is possible for the fee recipients to receive nothing despite configuring a nonzero fee.
+ *   a minimum fee floor of 15bps. The remaining portion above 15bps is distributed to the Folio's fee recipients.
+ *   Note that this means it is possible for the fee recipients to receive nothing despite configuring a nonzero fee.
  */
 contract Folio is
     IFolio,

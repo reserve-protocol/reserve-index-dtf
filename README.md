@@ -4,15 +4,15 @@
 
 Reserve Folio is a protocol for creating and managing portfolios of ERC20-compliant assets entirely onchain. Folios are designed to be used as a single-source of truth for asset allocations, enabling composability of complex, multi-asset portfolios.
 
-To change their composition, Folios support a rebalancing process during which either the `AUCTION_LAUNCHER` (or anyone else, with restriction) can start Dutch Auctions to rebalance the Folio toward the defined basket unit. Each Dutch Auction manifests as an exponential decay between two prices under the assumption that the ideal clearing price (incl slippage) lies in between the price bounds.
+To change their composition, Folios support a rebalancing process during which either the `AUCTION_LAUNCHER` (or anyone else, after a delay) can run dutch auctions to rebalance the Folio. Each dutch auction manifests as an exponential decay between two price extremes under the assumption that the ideal clearing price (incl slippage) lies in between the price bounds. The size of each auction is defined by surpluses and deficits relative to progressively narrowing token-to-share ratios (monotonically increasing in the deficit case; monotonically decreasing in the surplus case).
 
-The `AUCTION_LAUNCHER` is trusted to provide additional input to the rebalance process: (i) what tokens to include in the auction; (ii) the basket limits to use to determine surplus/deficit; (iii) individual token weights in the basket; and (iv) prices, depending on the `IFolio.PriceControl` level. In all cases, the `AUCTION_LAUNCHER` is bound to act within the bounds set by the `REBALANCE_MANAGER`, who is free to use zero-width ranges to remove degrees of freedom from the `AUCTION_LAUNCHER`. If an auction is opened permissionlessly instead of by the `AUCTION_LAUNCHER`, the caller has no sway over any details of the auction, and it is always for all tokens in the rebalance based on the spot estimates.
+The `AUCTION_LAUNCHER` is trusted to provide additional input to the rebalance process: (i) what tokens to include in the auction; (ii) adjustments to the basket limits that are used to determine surplus/deficit; (iii) adjustments to the individual token weights in the basket unit, if `PriceControl.weightControl` is set; and (iv) prices, if `PriceControl.priceControl` is set. In all cases, the `AUCTION_LAUNCHER` is bound to act within the bounds set by the `REBALANCE_MANAGER`. If an auction is opened permissionlessly instead of by the `AUCTION_LAUNCHER`, the caller has no sway over any details of the auction, and it is always for all tokens in the rebalance based on the latest spot estimates.
 
-`REBALANCE_MANAGER` is expected to be the timelock of the rebalancing governor associated with the Folio.
+`REBALANCE_MANAGER` is expected to be the timelock of the rebalancing governor associated with the Folio. A major design goal of a Folio is to be able to achieve high fidelity asset management and rebalancing even when acting under a timelock delay.
 
-`AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig; They can open auctions within the bounds set by governance, hopefully adding basket definition and pricing precision. If they are offline the auction can be opened through the permissonless route instead. If the `AUCTION_LAUNCHER` is not just offline but actively evil, at-best they can maximally deviate rebalancing within the governance-granted range, or prevent a Folio from rebalancing entirely by repeatedly closing-out auctions.
+`AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig. They can open auctions within the bounds set by governance, hopefully adding basket and pricing precision. If they are offline the auction can be opened through the permissonless route instead. If the `AUCTION_LAUNCHER` is not just offline but actively evil, at-best they can maximally deviate the final portfolio within the governance-granted range, or prevent a Folio from rebalancing entirely. In the case that `RebalanceControl.priceControl` is set, they can additionally cause value leakage but cannot guarantee they themselves are the beneficiary.
 
-There is no limit to how many auctions can be opened during a rebalance. If the `AUCTION_LAUNCHER` is calling `openAuction` near any boundary that would expire their period, the period is extended so that a period of nonuse occurs before transition to the next phase.
+There is no limit to how many auctions can be opened during a rebalance except for the rebalance's TTL. The `AUCTION_LAUNCHER` always has opportunity to open another auction or close the rebalance before the permissionless (unrestricted) period begins.
 
 ### Architecture
 
@@ -51,10 +51,10 @@ A Folio has 3 roles:
    - Primary owner of the Folio
 2. `REBALANCE_MANAGER`
    - Expected: Timelock of Fast Folio Governor
-   - Can start rebalances
+   - Can start rebalances, end rebalances/auctions
 3. `AUCTION_LAUNCHER`
    - Expected: EOA or multisig
-   - Can open and close auctions, optionally altering parameters of the auction within the approved ranges
+   - Can start and end auctions, optionally setting parameters of the auction within the approved ranges
 
 ##### StakingVault
 
@@ -67,28 +67,28 @@ The staking vault has ONLY a single owner:
 
 ##### Rebalance Lifecycle
 
-1. A rebalance is started by the `REBALANCE_MANAGER`, specifying ranges for all variables
-2. An auction is opened within a subset of the provided ranges
-   a. ...either by the auction launcher (optionally tweaking basket ratios / prices)
-   b. ...or permissionlessly (after the restricted period passes)
+1. A rebalance is started by the `REBALANCE_MANAGER`, specifying ranges for all variables (tokens, rebalance limits, token weights, and prices)
+2. An auction is opened within a subset of the initially-provided ranges
+   a. ...either by the auction launcher (optionally tweaking rebalance limits, weights, or prices)
+   b. ...or permissionlessly (after the restricted period passes, and without any changes from the original configuration)
 3. Bids occur on any token pairs included in the auction at nonzero size
 4. Auction expires
 
-A rebalance can only have 1 auction run at a time. The `AUCTION_LAUNCHER` can always overwrite the existing auction while an unpermissioned caller must wait for the auction to close before opening a new one. At anytime the current auction can be closed or a new rebalance can be started, which also closes the running auction.
+A rebalance can only have 1 auction run at a time. The `AUCTION_LAUNCHER` can always overwrite the existing auction, but an unpermissioned caller must wait for an ongoing auction to close before opening a new one. At anytime the current auction can be closed or a new rebalance can be started, which also closes the running auction.
 
 ##### Rebalance Usage
 
 ###### Auction Launcher Window
 
-Rebalances first pass through a restricted period where only the `AUCTION_LAUNCHER` can open auctions. This is to ensure that the `AUCTION_LAUNCHER` always has time to act first. Their time gets bumped if they are using it near the end. Additionally, there is always >= 120s buffer before an auction can be opened permissionlessly.
+Rebalances first pass through a restricted period where only the `AUCTION_LAUNCHER` can open auctions. This is to ensure that the `AUCTION_LAUNCHER` always has time to act first. Their time gets bumped if they are using it actively. Additionally, there is always >= 120s buffer before an auction can be opened permissionlessly.
 
 ###### TTL
 
 Rebalances have a time-to-live (TTL) that controls how long the rebalance can run. Any number of auctions can be opened during this time, and it can be extended by the `AUCTION_LAUNCHER` if they are near the end. Note: an auction can be opened at `ttl - 1` and run beyond the rebalance's TTL.
 
-###### Buy/Sell limits
+##### Rebalance Targeting
 
-The `REBALANCE_MANAGER` configures a large number of rebalance ranges, including spot estimates to be used in the unrestricted case:
+The `REBALANCE_MANAGER` configures a large number of rebalance ranges including spot estimates to be used in fallback to the unrestricted case. A "completed" rebalance is one where all range deltas have reached 0 for all variables in the rebalance, e.g `low == spot == high`.
 
 ```solidity
 /// Target limits for rebalancing
@@ -111,41 +111,27 @@ struct PriceRange {
   uint256 low; // D27{UoA/tok} (0, 1e54]
   uint256 high; // D27{UoA/tok} (0, 1e54]
 }
-
-/// AUCTION_LAUNCHER trust level for prices
-enum PriceControl {
-  NONE, // cannot revise prices at all
-  PARTIAL, // can revise prices, within bounds
-  FULL // can revise prices arbitrarily
-}
 ```
 
-During `openAuction` the `AUCTION_LAUNCHER` can revise any of the variables within the provided ranges. If the auction is opened permissionlessly, the pre-approved spot estimates will be used instead.
+###### Rebalance Limits
+
+On start rebalance, the `REBALANCE_MANAGER` provides a range of basket limits to target that define the path of the overall rebalance. The `low` point represents how many basket units to buy, and the `high` point represents how many basket units to sell. The `spot` point is a constantly-revised point estimate used in the event of an unrestricted caller. It must always lie between the `low` and `high` points.
+
+###### Basket Weights
+
+For each token supplied to the rebalance the `REBALANCE_MANAGER` provides `low`, `spot`, and `high` weight estimates. Similar to the rebalance limits, the `low` point represents the point to buy up to and the `high` the point to sell down to. The `spot` is a constantly-revised point estimate applied in the event of an unrestricted caller. It must always lie between the `low` and `high` points.
+
+If `RebalanceControl.weightControl` is set, the `AUCTION_LAUNCHER` can help define the basket unit as the auctions progress. This is best suited for Folios targeting a particular % breakdown of assets at all times, as opposed to Folios that have single monthly or quarterly targets that can be handled purely by rebalance limits.
 
 ###### Price
 
-For each token supplied to the rebalance, the `REBALANCE_MANAGER` provides a `low` and `high` price estimate. These should be set such that in the vast majority (99.9%+) of scenarios, the asset's price on secondary markets lies within the provided range, and the slippage from imprecision is not too large. The maximum allowable price range for a token is 1e2: `high / low` must be <= 1e2.
+For each token supplied to the rebalance the `REBALANCE_MANAGER` must provide a `low` and `high` price estimate. These should be set such that in the vast vast majority of scenarios, the asset's price later on secondary markets will lie within the provided range even after any timelock delays. The slippage from block-to-block price imprecision must also not be too large. The maximum allowable price range for a token is `1e2`, so the largest an auction can be is over 4 magnitudes. This is an extreme case and not the typical usage for a non-degen Folio that wishes to maintain optimal execution.
 
-If the price of an asset rises above its `high` price, this can result in a loss of value for Folio holders due to the auction price curve on a token pair starting at too-low-a-price. In this case it would be the job of the `AUCTION_LAUNCHER` to end the rebalance.
+Note: if the price of an asset goes outside its approved range, this can result in loss of value for Folio holders with value going to MEV searchers. In this case it is the job of the `AUCTION_LAUNCHER` to end the rebalance before loss can occur.
 
 When an auction is started, the `low` and `high` prices for both assets are used to calculate a `startPrice` and `endPrice` for the auction, with the `startPrice` representing the most-optimistic price and `endPrice` representing the most-pessimistic price.
 
-There are 3 ways the `AUCTION_LAUNCHER` can control the price of an asset, depending configuration:
-
-1. **PriceControl.NONE**
-
-- The `REBALANCE_MANAGER` provides a list of NONZERO prices for each token.
-- The `AUCTION_LAUNCHER` cannot edit or narrow prices.
-
-2. **PriceControl.PARTIAL**
-
-- The `REBALANCE_MANAGER` provides a list of NONZERO prices for each token
-- The `AUCTION_LAUNCHER` can narrow the `low`/`high` range for any token before each auction
-
-3. **PriceControl.FULL**
-
-- The `REBALANCE_MANAGER` provides a list of NONZERO prices for each token
-- The `AUCTION_LAUNCHER` can fully edit prices before each auction
+If `RebalanceControl.priceControl` is set, the `AUCTION_LAUNCHER` can select a subset price range of the overall `low-high` range to use for each auction. This grants an additional responsibility to the `AUCTION_LAUNCHER` that allows them to achieve better execution but also grants them the ability to begin auctions at dishonest prices that clear immediately to MEV searchers.
 
 ###### Price Curve
 
@@ -266,11 +252,12 @@ Note: While the Folio itself is not susceptible to reentrancy, read-only reentra
 
 ### Chain Assumptions
 
-The chain is assumed to have block times under 60s. The `AUCTION_LAUNCHER` has 120s reserved to act first before anyone else can open an auction.
+The chain is assumed to have block times equal to or under 30s.
 
 ### Governance Guidelines
 
 - If governors plan to remove a token from the basket via `Folio.removeFromBasket()`, users will only have a limited amount of time to redeem before the token becomes inaccessible. Removal should only be used if the reward token has become malicious or otherwise compromised.
+- If a rebalance becomes dangerous due to excessive price movement in excess of what trading governors expected, it is the duty of the `AUCTION_LAUNCHER` to end the rebalance before loss can occur.
 
 ### Releases
 
