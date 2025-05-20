@@ -34,6 +34,10 @@ contract FolioTest is BaseTest {
     IFolio.PriceRange internal FULL_PRICE_RANGE_18 = IFolio.PriceRange({ low: 1e8, high: 1e10 }); // D27{UoA/tok} [$0.1, $10] $1 token
     IFolio.PriceRange internal FULL_PRICE_RANGE_27 = IFolio.PriceRange({ low: 1, high: 100 }); // D27{UoA/tok} [$1, $100] $10 token
 
+    IFolio.PriceRange internal PRICE_POINT_6 = IFolio.PriceRange({ low: 1e21, high: 1e21 }); // D27{UoA/tok} $1
+    IFolio.PriceRange internal PRICE_POINT_18 = IFolio.PriceRange({ low: 1e9, high: 1e9 }); // D27{UoA/tok} $1
+    IFolio.PriceRange internal PRICE_POINT_27 = IFolio.PriceRange({ low: 10, high: 10 }); // D27{UoA/tok} $10
+
     uint256 internal constant ONE_BU = 1e18;
     IFolio.RebalanceLimits internal TRACKING_LIMITS = IFolio.RebalanceLimits({ low: 1, spot: ONE_BU, high: MAX_LIMIT });
     IFolio.RebalanceLimits internal NATIVE_LIMITS = IFolio.RebalanceLimits({ low: ONE_BU, spot: ONE_BU, high: ONE_BU });
@@ -978,6 +982,153 @@ contract FolioTest is BaseTest {
             initialFeeReceiverShares + (remainingShares * 0.1e18) / 1e18,
             "wrong fee receiver shares, 2nd change"
         );
+    }
+
+    function test_atomicBidWithoutCallback() public {
+        // bid in two chunks, one at start time and one at end time
+
+        // make atomic swappable
+        vm.prank(owner);
+        folio.setRebalanceControl(
+            IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.ATOMIC_SWAP })
+        );
+
+        uint256 amt = D6_TOKEN_10K;
+
+        // Sell USDC
+        weights[0] = SELL;
+
+        // Add USDT to buy
+        assets.push(address(USDT));
+        weights.push(BUY);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.RebalanceStarted(
+            1,
+            IFolio.PriceControl.ATOMIC_SWAP,
+            assets,
+            weights,
+            prices,
+            limits,
+            block.timestamp + AUCTION_LAUNCHER_WINDOW,
+            block.timestamp + MAX_TTL
+        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // use atomic swap prices
+        prices[0] = PRICE_POINT_6;
+        prices[1] = PRICE_POINT_18;
+        prices[2] = PRICE_POINT_27;
+        prices[3] = PRICE_POINT_6;
+
+        vm.prank(auctionLauncher);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.AuctionOpened(1, 0, assets, weights, prices, NATIVE_LIMITS, block.timestamp, block.timestamp);
+
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+
+        // bid for half volume, leaving rest unused
+
+        vm.startPrank(user1);
+        USDT.approve(address(folio), amt);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.AuctionBid(0, address(USDC), address(USDT), amt / 2, amt / 2);
+        folio.bid(0, USDC, IERC20(address(USDT)), amt / 2, amt / 2, false, bytes(""));
+
+        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), block.timestamp, amt);
+        assertEq(sellAmount, amt / 2, "wrong start sell amount");
+        assertEq(buyAmount, amt / 2, "wrong start buy amount");
+
+        USDT.approve(address(folio), amt);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.AuctionBid(0, address(USDC), address(USDT), amt / 2, amt / 2);
+        folio.bid(0, USDC, IERC20(address(USDT)), amt / 2, amt / 2, false, bytes(""));
+        assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
+        vm.stopPrank();
+
+        // 2nd half of volume should not be fillable at next timestamp because auction over
+
+        vm.expectRevert(IFolio.Folio__AuctionNotOngoing.selector);
+        folio.getBid(0, USDC, IERC20(address(USDT)), block.timestamp + 1, amt);
+    }
+
+    function test_atomicBidWithCallback() public {
+        // bid in two chunks, one at start time and one at end time
+
+        // make atomic swappable
+        vm.prank(owner);
+        folio.setRebalanceControl(
+            IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.ATOMIC_SWAP })
+        );
+
+        uint256 amt = D6_TOKEN_10K;
+
+        // Sell USDC
+        weights[0] = SELL;
+
+        // Add USDT to buy
+        assets.push(address(USDT));
+        weights.push(BUY);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.RebalanceStarted(
+            1,
+            IFolio.PriceControl.ATOMIC_SWAP,
+            assets,
+            weights,
+            prices,
+            limits,
+            block.timestamp + AUCTION_LAUNCHER_WINDOW,
+            block.timestamp + MAX_TTL
+        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // use atomic swap prices
+        prices[0] = PRICE_POINT_6;
+        prices[1] = PRICE_POINT_18;
+        prices[2] = PRICE_POINT_27;
+        prices[3] = PRICE_POINT_6;
+
+        vm.prank(auctionLauncher);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.AuctionOpened(1, 0, assets, weights, prices, NATIVE_LIMITS, block.timestamp, block.timestamp);
+
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+
+        // bid for half volume, leaving rest unused
+
+        MockBidder mockBidder = new MockBidder(true);
+        vm.prank(user1);
+        USDT.transfer(address(mockBidder), amt / 2);
+        vm.prank(address(mockBidder));
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.AuctionBid(0, address(USDC), address(USDT), amt / 2, amt / 2);
+        folio.bid(0, USDC, IERC20(address(USDT)), amt / 2, amt / 2, true, bytes(""));
+        assertEq(USDT.balanceOf(address(mockBidder)), 0, "wrong mock bidder balance");
+
+        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), block.timestamp, amt);
+        assertEq(sellAmount, amt / 2, "wrong start sell amount");
+        assertEq(buyAmount, amt / 2, "wrong start buy amount");
+
+        MockBidder mockBidder2 = new MockBidder(true);
+        vm.prank(user1);
+        USDT.transfer(address(mockBidder2), amt / 2);
+        vm.prank(address(mockBidder2));
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.AuctionBid(0, address(USDC), address(USDT), amt / 2, amt / 2);
+        folio.bid(0, USDC, IERC20(address(USDT)), amt / 2, amt / 2, true, bytes(""));
+        assertEq(USDT.balanceOf(address(mockBidder2)), 0, "wrong mock bidder2 balance");
+        assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
+        vm.stopPrank();
+
+        // 2nd half of volume should not be fillable at next timestamp because auction over
+
+        vm.expectRevert(IFolio.Folio__AuctionNotOngoing.selector);
+        folio.getBid(0, USDC, IERC20(address(USDT)), block.timestamp + 1, amt);
     }
 
     function test_auctionBidWithoutCallback() public {
