@@ -235,7 +235,7 @@ abstract contract BaseTest is Script, Test {
     IFolio.FolioFlags _folioFlags =
         IFolio.FolioFlags({
             trustedFillerEnabled: true,
-            rebalanceControl: IFolio.RebalanceControl({ weightControl: true, priceControl: true })
+            rebalanceControl: IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.NONE })
         });
 
     function createFolio(

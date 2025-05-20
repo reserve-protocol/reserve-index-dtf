@@ -42,7 +42,7 @@ interface IFolio {
     event RebalanceControlSet(RebalanceControl newControl);
     event RebalanceStarted(
         uint256 nonce,
-        bool priceControl,
+        PriceControl priceControl,
         address[] tokens,
         WeightRange[] weights,
         PriceRange[] prices,
@@ -93,8 +93,16 @@ interface IFolio {
     error Folio__InvalidTTL();
     error Folio__NotRebalancing();
     error Folio__EmptyAuction();
+    error Folio__MixedAtomicSwaps();
 
     // === Structures ===
+
+    /// Price control AUCTION_LAUNCHER has on rebalancing
+    enum PriceControl {
+        NONE, // cannot change prices
+        PARTIAL, // can set auction prices within bounds of initial prices
+        ATOMIC_SWAP // PARTIAL + atomic swaps
+    }
 
     struct FolioBasicDetails {
         string name;
@@ -130,7 +138,7 @@ interface IFolio {
     /// AUCTION_LAUNCHER control over rebalancing
     struct RebalanceControl {
         bool weightControl; // if AUCTION_LAUNCHER can move weights
-        bool priceControl; // if AUCTION_LAUNCHER can narrow prices
+        PriceControl priceControl; // if AUCTION_LAUNCHER can narrow prices
     }
 
     /// Basket limits for rebalancing
@@ -169,7 +177,7 @@ interface IFolio {
         uint256 startedAt; // {s} timestamp rebalancing started, inclusive
         uint256 restrictedUntil; // {s} timestamp rebalancing is unrestricted to everyone, exclusive
         uint256 availableUntil; // {s} timestamp rebalancing ends overall, exclusive
-        bool priceControl; // degree to which prices can be revised by the AUCTION_LAUNCHER
+        PriceControl priceControl; // AUCTION_LAUNCHER control over auction pricing
     }
 
     /// 1 running auction at a time; N per rebalance overall

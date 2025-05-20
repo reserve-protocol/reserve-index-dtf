@@ -158,7 +158,7 @@ contract FolioTest is BaseTest {
 
         IFolio.FolioFlags memory folioFlags = IFolio.FolioFlags({
             trustedFillerEnabled: true,
-            rebalanceControl: IFolio.RebalanceControl({ weightControl: true, priceControl: true })
+            rebalanceControl: IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.NONE })
         });
 
         // Attempt to initialize
@@ -997,7 +997,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1074,7 +1074,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1158,7 +1158,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1264,7 +1264,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1345,7 +1345,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1431,7 +1431,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1491,7 +1491,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1562,7 +1562,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1629,7 +1629,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -1709,7 +1709,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -2031,7 +2031,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -2271,7 +2271,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -2320,7 +2320,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,
@@ -2497,7 +2497,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, true, true, false);
         emit IFolio.RebalanceStarted(
             1,
-            true,
+            IFolio.PriceControl.NONE,
             assets,
             weights,
             prices,

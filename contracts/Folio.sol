@@ -319,7 +319,7 @@ contract Folio is
 
     /// @dev Does not impact ongoing rebalances
     /// @param _rebalanceControl.weightControl If AUCTION_LAUNCHER can move weights
-    /// @param _rebalanceControl.priceControl If AUCTION_LAUNCHER can narrow prices
+    /// @param _rebalanceControl.priceControl How the AUCTION_LAUNCHER can manipulate prices, if at all
     function setRebalanceControl(RebalanceControl calldata _rebalanceControl) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setRebalanceControl(_rebalanceControl);
     }
@@ -514,7 +514,7 @@ contract Folio is
             uint256 startedAt,
             uint256 restrictedUntil,
             uint256 availableUntil,
-            bool priceControl
+            PriceControl priceControl
         )
     {
         tokens = basket.values();

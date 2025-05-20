@@ -118,7 +118,7 @@ library RebalancingLib {
         uint256 auctionLength
     ) external {
         uint256 len = tokens.length;
-        require(len == weights.length && len == prices.length, IFolio.Folio__InvalidArrayLengths());
+        require(len != 0 && len == weights.length && len == prices.length, IFolio.Folio__InvalidArrayLengths());
 
         // narrow rebalance limits
         {
@@ -139,6 +139,13 @@ library RebalancingLib {
         }
 
         IFolio.Auction storage auction = auctions[auctionId];
+
+        // all tokens must have constant prices or none can
+        bool allAtomicSwaps = prices[0].low == prices[0].high;
+        require(
+            !allAtomicSwaps || rebalance.priceControl == IFolio.PriceControl.ATOMIC_SWAP,
+            IFolio.Folio__InvalidPrices()
+        );
 
         // update basket weights + auction prices
         for (uint256 i = 0; i < len; i++) {
@@ -175,7 +182,7 @@ library RebalancingLib {
 
             // save auction prices
             {
-                if (!rebalance.priceControl) {
+                if (rebalance.priceControl == IFolio.PriceControl.NONE) {
                     // prices must be exactly the initial prices
 
                     require(
@@ -189,9 +196,12 @@ library RebalancingLib {
                     require(
                         prices[i].low >= rebalanceDetails.initialPrices.low &&
                             prices[i].high <= rebalanceDetails.initialPrices.high &&
-                            prices[i].high > prices[i].low,
+                            prices[i].high >= prices[i].low,
                         IFolio.Folio__InvalidPrices()
                     );
+
+                    // everything must be an atomic swap or nothing can be
+                    require(allAtomicSwaps == (prices[i].low == prices[i].high), IFolio.Folio__MixedAtomicSwaps());
                 }
 
                 auction.prices[token] = prices[i];
@@ -200,8 +210,16 @@ library RebalancingLib {
 
         // save auction
         auction.rebalanceNonce = rebalance.nonce;
-        auction.startTime = block.timestamp + AUCTION_WARMUP;
-        auction.endTime = block.timestamp + AUCTION_WARMUP + auctionLength;
+
+        if (allAtomicSwaps) {
+            // atomic swaps start and end at same timestamp
+            auction.startTime = block.timestamp;
+            auction.endTime = block.timestamp;
+        } else {
+            // auctions begin after a 30s warmup period
+            auction.startTime = block.timestamp + AUCTION_WARMUP;
+            auction.endTime = block.timestamp + AUCTION_WARMUP + auctionLength;
+        }
 
         emit IFolio.AuctionOpened(
             rebalance.nonce,
@@ -210,8 +228,8 @@ library RebalancingLib {
             weights,
             prices,
             limits,
-            block.timestamp + AUCTION_WARMUP,
-            block.timestamp + AUCTION_WARMUP + auctionLength
+            auction.startTime,
+            auction.endTime
         );
     }
 
