@@ -55,14 +55,14 @@ contract DeployMocks is Script {
             address(fillerRegistry),
             governanceDeployer
         );
+        vm.stopBroadcast();
 
         console2.log("Mock Role Registry: %s", address(roleRegistry));
         console2.log("Fee Registry: %s", address(feeRegistry));
         console2.log("Version Registry: %s", address(versionRegistry));
+        console2.log("CowSwap Filler: %s", address(cowSwapFiller));
         console2.log("Mock Filler Registry: %s", address(fillerRegistry));
         console2.log("Governance Deployer: %s", address(governanceDeployer));
         console2.log("Folio Deployer: %s", address(folioDeployer));
-
-        vm.stopBroadcast();
     }
 }
