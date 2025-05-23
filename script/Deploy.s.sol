@@ -104,6 +104,10 @@ contract DeployScript is Script {
             );
         }
 
+        if (deployParams.trustedFillerRegistry == address(0)) {
+            deployParams.trustedFillerRegistry = address(new TrustedFillerRegistry(deployParams.roleRegistry));
+        }
+
         vm.stopBroadcast();
 
         console2.log("Folio Fee Registry: %s", address(deployParams.folioFeeRegistry));

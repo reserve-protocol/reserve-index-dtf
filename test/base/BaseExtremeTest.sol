@@ -41,7 +41,7 @@ abstract contract BaseExtremeTest is BaseTest {
     uint256[] internal testNumTokens = [1, 10, 50, 100, 500];
     uint256[] internal testStakingNumTokens = [1, 10];
     uint256[] internal testAmounts = [1, 1e6, 1e18, 1e36];
-    uint256[] internal testPrices = [1, 1e6, 1e18, 1e36];
+    uint256[] internal testPrices = [1, 1e6, 1e18, 1e45];
     uint256[] internal testTVLFees = [0, MAX_TVL_FEE / 4, MAX_TVL_FEE / 2, MAX_TVL_FEE];
     uint256[] internal testDaoFees = [0, 0.01e18, 0.1e18, 0.15e18];
     uint256[] internal testTimeLapse = [1, 12, 1 days, 30 days, 120 days, YEAR_IN_SECONDS];
