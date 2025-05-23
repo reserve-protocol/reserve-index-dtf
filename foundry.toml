@@ -4,7 +4,8 @@ script = "script"
 src = "contracts"
 test = "test"
 
-# Gas/Memory
+# Testing
+dynamic_test_linking = true 
 gas_limit = '18446744073709551615' 
 memory_limit = 1073741824 # 1 GB
 
