@@ -30,6 +30,7 @@
     "coverage:summary": "forge coverage --report summary --no-match-coverage '(script|test)'",
     "deploy": "forge script script/Deploy.s.sol:DeployScript --broadcast --slow",
     "deploy:spell": "forge script script/DeploySpell.s.sol:DeploySpell --broadcast --slow",
+    "deploy:mocks": "forge script script/DeployMocks.s.sol:DeployMocks --broadcast --slow",
     "playground": "forge script script/Playground.s.sol:PlaygroundScript --slow",
     "anvil": "anvil --fork-url https://ethereum-rpc.publicnode.com --chain-id 31337 --prune-history"
   },
