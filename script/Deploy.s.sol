@@ -18,23 +18,23 @@ import { StakingVault } from "@staking/StakingVault.sol";
 
 string constant junkSeedPhrase = "test test test test test test test test test test test junk";
 
+struct DeploymentParams {
+    address rsrToken;
+    // Role Registry Stuff
+    address roleRegistry;
+    // Fee Registry Stuff
+    address folioFeeRegistry;
+    address feeRecipient;
+    // Version Registry Stuff
+    address folioVersionRegistry;
+    // Trusted Filler Stuff
+    address trustedFillerRegistry;
+}
+
 contract DeployScript is Script {
     string seedPhrase = block.chainid != 31337 ? vm.readFile(".seed") : junkSeedPhrase;
     uint256 privateKey = vm.deriveKey(seedPhrase, 0);
     address walletAddress = vm.rememberKey(privateKey);
-
-    struct DeploymentParams {
-        address rsrToken;
-        // Role Registry Stuff
-        address roleRegistry;
-        // Fee Registry Stuff
-        address folioFeeRegistry;
-        address feeRecipient;
-        // Version Registry Stuff
-        address folioVersionRegistry;
-        // Trusted Filler Stuff
-        address trustedFillerRegistry;
-    }
 
     mapping(uint256 chainId => DeploymentParams) public deploymentParams;
 
