@@ -9,6 +9,7 @@ import { Versioned } from "@utils/Versioned.sol";
 import { IFolio } from "@src/interfaces/IFolio.sol";
 import { Folio } from "@src/Folio.sol";
 import { D18, D27 } from "@utils/Constants.sol";
+
 /**
  * @title FolioLens
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
@@ -34,51 +35,45 @@ contract FolioLens is Versioned {
         }
     }
 
+    struct SingleBid {
+        address sellToken;
+        address buyToken;
+        uint256 sellAmount; // {sellTok}
+        uint256 bidAmount; // {bidTok}
+        uint256 price; // D27{buyTok/sellTok}
+    }
+
     /// Get bids for all pairs at once
     /// Many entries will be 0 to indicate an invalid token pair
-    /// @return sellTokens Sell token in quote
-    /// @return buyTokens Buy token in quote
-    /// @return sellAmounts {sellTok}
-    /// @return bidAmounts {bidTok}
-    /// @return prices D27{buyTok/sellTok}
     function getAllBids(
         Folio folio,
         uint256 auctionId,
         uint256 timestamp
-    )
-        external
-        view
-        returns (
-            address[] memory sellTokens,
-            address[] memory buyTokens,
-            uint256[] memory sellAmounts,
-            uint256[] memory bidAmounts,
-            uint256[] memory prices
-        )
-    {
+    ) external view returns (SingleBid[] memory bids) {
         (, address[] memory tokens, , , , , , , , ) = folio.getRebalance();
 
-        sellTokens = new address[](tokens.length * tokens.length);
-        buyTokens = new address[](tokens.length * tokens.length);
-        sellAmounts = new uint256[](tokens.length * tokens.length);
-        bidAmounts = new uint256[](tokens.length * tokens.length);
-        prices = new uint256[](tokens.length * tokens.length);
-
         uint256 len = tokens.length;
+
+        bids = new SingleBid[](len * len);
 
         for (uint256 i = 0; i < len; i++) {
             for (uint256 j = 0; j < len; j++) {
                 uint256 index = i * len + j;
 
-                sellTokens[index] = tokens[i];
-                buyTokens[index] = tokens[j];
+                bids[index] = SingleBid({
+                    sellToken: tokens[i],
+                    buyToken: tokens[j],
+                    sellAmount: 0,
+                    bidAmount: 0,
+                    price: 0
+                });
 
                 try
                     folio.getBid(auctionId, IERC20(tokens[i]), IERC20(tokens[j]), timestamp, type(uint256).max)
                 returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
-                    sellAmounts[index] = sellAmount;
-                    bidAmounts[index] = bidAmount;
-                    prices[index] = price;
+                    bids[index].sellAmount = sellAmount;
+                    bids[index].bidAmount = bidAmount;
+                    bids[index].price = price;
                 } catch {
                     continue;
                 }
