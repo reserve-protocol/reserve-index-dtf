@@ -52,37 +52,40 @@ contract FolioLens is Versioned {
     ) external view returns (SingleBid[] memory bids) {
         (uint256 nonce, address[] memory tokens, , , , , , , , ) = folio.getRebalance();
 
-        (uint256 rebalanceNonce, uint256 startTime, uint256 endTime) = folio.auctions(auctionId);
+        {
+            (uint256 rebalanceNonce, uint256 startTime, uint256 endTime) = folio.auctions(auctionId);
 
-        if (nonce != rebalanceNonce || timestamp < startTime || timestamp > endTime) {
-            return bids;
+            if (nonce != rebalanceNonce || timestamp < startTime || timestamp > endTime) {
+                return bids;
+            }
         }
 
         uint256 len = tokens.length;
-        bids = new SingleBid[](len * len);
+        SingleBid[] memory allBids = new SingleBid[](len * len);
 
+        uint256 count = 0;
         for (uint256 i = 0; i < len; i++) {
             for (uint256 j = 0; j < len; j++) {
-                uint256 index = i * len + j;
-
-                bids[index] = SingleBid({
-                    sellToken: tokens[i],
-                    buyToken: tokens[j],
-                    sellAmount: 0,
-                    bidAmount: 0,
-                    price: 0
-                });
-
                 try
                     folio.getBid(auctionId, IERC20(tokens[i]), IERC20(tokens[j]), timestamp, type(uint256).max)
                 returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
-                    bids[index].sellAmount = sellAmount;
-                    bids[index].bidAmount = bidAmount;
-                    bids[index].price = price;
+                    bids[count] = SingleBid({
+                        sellToken: tokens[i],
+                        buyToken: tokens[j],
+                        sellAmount: sellAmount,
+                        bidAmount: bidAmount,
+                        price: price
+                    });
+                    count++;
                 } catch {
                     continue;
                 }
             }
+        }
+
+        bids = new SingleBid[](count);
+        for (uint256 i = 0; i < count; i++) {
+            bids[i] = allBids[i];
         }
     }
 
