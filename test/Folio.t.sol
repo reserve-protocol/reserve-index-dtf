@@ -773,6 +773,45 @@ contract FolioTest is BaseTest {
         folio.setMandate(newMandate);
     }
 
+    function test_setTrustedFillerRegistry() public {
+        vm.startPrank(owner);
+
+        // First attempt to set new registry should fail since one is already set
+        address newRegistry = address(0x1234);
+        bool enabled = true;
+        vm.expectRevert(IFolio.Folio__TrustedFillerRegistryAlreadySet.selector);
+        folio.setTrustedFillerRegistry(newRegistry, enabled);
+
+        // Get current registry
+        address currentRegistry = address(folio.trustedFillerRegistry());
+
+        // Should be able to disable the current registry
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.TrustedFillerRegistrySet(currentRegistry, false);
+        folio.setTrustedFillerRegistry(currentRegistry, false);
+        assertEq(address(folio.trustedFillerRegistry()), currentRegistry, "wrong trusted filler registry");
+
+        // Should be able to re-enable the current registry
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.TrustedFillerRegistrySet(currentRegistry, true);
+        folio.setTrustedFillerRegistry(currentRegistry, true);
+        assertEq(address(folio.trustedFillerRegistry()), currentRegistry, "wrong trusted filler registry");
+
+        vm.stopPrank();
+
+        // Try to set registry with unauthorized account (user1)
+        vm.startPrank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.setTrustedFillerRegistry(currentRegistry, false);
+        vm.stopPrank();
+    }
+
     function test_setMintFee() public {
         vm.startPrank(owner);
         assertEq(folio.mintFee(), 0, "wrong mint fee");
@@ -1268,7 +1307,6 @@ contract FolioTest is BaseTest {
         (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), start, amt);
         assertEq(sellAmount, amt / 2, "wrong start sell amount");
         assertEq(buyAmount, amt * 50, "wrong start buy amount"); // 100x
-
         (sellAmount, buyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), (start + end) / 2, amt);
         assertEq(sellAmount, amt / 2, "wrong mid sell amount");
         assertEq(buyAmount, amt / 2 + 1, "wrong mid buy amount"); // ~1x
@@ -2813,5 +2851,76 @@ contract FolioTest is BaseTest {
         vm.startSnapshotGas("repeat poke()");
         folio.poke(); // collect shares
         vm.stopSnapshotGas("repeat poke()");
+    }
+
+    function test_cannotMixAtomicSwaps() public {
+        // make atomic swappable
+        vm.prank(owner);
+        folio.setRebalanceControl(
+            IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.ATOMIC_SWAP })
+        );
+
+        // Sell USDC
+        weights[0] = SELL;
+
+        // Add USDT to buy
+        assets.push(address(USDT));
+        weights.push(BUY);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        vm.prank(dao);
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // Try to open auction with mixed prices - all valid price points but mixing atomic and non-atomic
+        prices[0] = PRICE_POINT_6; // Atomic swap price point
+        prices[1] = PRICE_POINT_18; // Atomic swap price point
+        prices[2] = PRICE_POINT_27; // Atomic swap price point
+        prices[3] = FULL_PRICE_RANGE_6; // Regular price range - this should cause the revert
+
+        vm.prank(auctionLauncher);
+        vm.expectRevert(IFolio.Folio__MixedAtomicSwaps.selector);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+    }
+
+    function test_endRebalance() public {
+        // Setup initial rebalance
+        weights[0] = SELL;
+
+        // Add USDT to buy
+        assets.push(address(USDT));
+        weights.push(BUY);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        vm.prank(dao);
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // Open an auction
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
+
+        // Attempt to end rebalance with unauthorized role (user1)
+        vm.prank(user1);
+        vm.expectRevert(IFolio.Folio__Unauthorized.selector);
+        folio.endRebalance();
+
+        // End the rebalance with authorized role (dao)
+        vm.prank(dao);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.RebalanceEnded(1);
+        folio.endRebalance();
+
+        // Verify we can still bid on the existing auction
+        vm.startPrank(user1);
+        USDT.approve(address(folio), (D6_TOKEN_10K / 2) * 100);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.AuctionBid(0, address(USDC), address(USDT), D6_TOKEN_10K / 2, (D6_TOKEN_10K / 2) * 100);
+        folio.bid(0, USDC, IERC20(address(USDT)), D6_TOKEN_10K / 2, (D6_TOKEN_10K / 2) * 100, false, bytes(""));
+        vm.stopPrank();
+
+        // Verify we cannot open a new auction
+        vm.prank(auctionLauncher);
+        vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
     }
 }
