@@ -50,10 +50,15 @@ contract FolioLens is Versioned {
         uint256 auctionId,
         uint256 timestamp
     ) external view returns (SingleBid[] memory bids) {
-        (, address[] memory tokens, , , , , , , , ) = folio.getRebalance();
+        (uint256 nonce, address[] memory tokens, , , , , , , , ) = folio.getRebalance();
+
+        (uint256 rebalanceNonce, uint256 startTime, uint256 endTime) = folio.auctions(auctionId);
+
+        if (nonce != rebalanceNonce || timestamp < startTime || timestamp > endTime) {
+            return bids;
+        }
 
         uint256 len = tokens.length;
-
         bids = new SingleBid[](len * len);
 
         for (uint256 i = 0; i < len; i++) {
@@ -103,7 +108,7 @@ contract FolioLens is Versioned {
             // surpluses
             {
                 // D27{tok/share} = D18{BU/share} * D27{tok/BU} / D18
-                uint256 tokenSellLimit = Math.mulDiv(sellLimit, weights[i].spot, D18, Math.Rounding.Ceil);
+                uint256 tokenSellLimit = Math.mulDiv(sellLimit, weights[i].high, D18, Math.Rounding.Ceil);
 
                 // {tok} = D27{tok/share} * {share} / D27
                 uint256 sellLimitBal = Math.mulDiv(tokenSellLimit, totalSupply, D27, Math.Rounding.Ceil);
@@ -116,7 +121,7 @@ contract FolioLens is Versioned {
             // only possible if there wasn't a surplus
             if (surpluses[i] == 0) {
                 // D27{tok/share} = D18{BU/share} * D27{tok/BU} / D18
-                uint256 tokenBuyLimit = Math.mulDiv(buyLimit, weights[i].spot, D18, Math.Rounding.Floor);
+                uint256 tokenBuyLimit = Math.mulDiv(buyLimit, weights[i].low, D18, Math.Rounding.Floor);
 
                 // {tok} = D27{tok/share} * {share} / D27
                 uint256 buyLimitBal = Math.mulDiv(tokenBuyLimit, totalSupply, D27, Math.Rounding.Floor);
