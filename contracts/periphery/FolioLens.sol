@@ -50,6 +50,8 @@ contract FolioLens is Versioned {
         uint256 auctionId,
         uint256 timestamp
     ) external view returns (SingleBid[] memory bids) {
+        timestamp = timestamp == 0 ? block.timestamp : timestamp;
+
         (uint256 nonce, address[] memory tokens, , , , , , , , ) = folio.getRebalance();
 
         {
