@@ -69,14 +69,16 @@ contract FolioLens is Versioned {
                 try
                     folio.getBid(auctionId, IERC20(tokens[i]), IERC20(tokens[j]), timestamp, type(uint256).max)
                 returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
-                    bids[count] = SingleBid({
-                        sellToken: tokens[i],
-                        buyToken: tokens[j],
-                        sellAmount: sellAmount,
-                        bidAmount: bidAmount,
-                        price: price
-                    });
-                    count++;
+                    if (sellAmount != 0 && bidAmount != 0) {
+                        bids[count] = SingleBid({
+                            sellToken: tokens[i],
+                            buyToken: tokens[j],
+                            sellAmount: sellAmount,
+                            bidAmount: bidAmount,
+                            price: price
+                        });
+                        count++;
+                    }
                 } catch {
                     continue;
                 }
