@@ -1,14 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "./GenericUpgradeSpell_3_0_0.t.sol";
+import "./GenericUpgradeSpell_4_0_0.t.sol";
 
-contract UpgradeSpellEthereum_3_0_0_Test is GenericUpgradeSpell_3_0_0_Test {
+contract UpgradeSpellEthereum_4_0_0_Test is GenericUpgradeSpell_4_0_0_Test {
+    struct Config {
+        Folio folio;
+        FolioProxyAdmin proxyAdmin;
+    }
+
+    Config[] public CONFIGS;
+
     constructor() {
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,
             forkTarget: ForkNetwork.ETHEREUM,
-            forkBlock: 22247770 // TODO update block after 3.0.0 is registered
+            forkBlock: 22574172 // TODO update block after 4.0.0 is registered
         });
 
         // BED
@@ -58,5 +65,11 @@ contract UpgradeSpellEthereum_3_0_0_Test is GenericUpgradeSpell_3_0_0_Test {
                 proxyAdmin: FolioProxyAdmin(0x019318674560C233893aA31Bc0A380dc71dc2dDf)
             })
         );
+    }
+
+    function test_upgradeSpell_400_fork_ethereum() public {
+        for (uint256 i; i < CONFIGS.length; i++) {
+            run_upgradeSpell_400_fork(CONFIGS[i].folio, CONFIGS[i].proxyAdmin);
+        }
     }
 }
