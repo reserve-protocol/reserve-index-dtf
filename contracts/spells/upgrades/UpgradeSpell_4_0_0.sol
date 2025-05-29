@@ -32,17 +32,13 @@ bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
  */
 contract UpgradeSpell_4_0_0 is Versioned {
     mapping(address => bool) public isTrackingDTF;
-    // this mapping is used chain agnostic, but by-hand this has been checked to be safe
+    // this mapping is used chain agnostically; by-hand this has been checked to be safe
 
     constructor() {
         isTrackingDTF[0x23418De10d422AD71C9D5713a2B8991a9c586443] = true; // BGCI (base)
-        // no corresponding mainnet address
         isTrackingDTF[0xe8b46b116D3BdFA787CE9CF3f5aCC78dc7cA380E] = true; // MVTT10F (base)
-        // no corresponding mainnet address
         isTrackingDTF[0xD600e748C17Ca237Fcb5967Fa13d688AFf17Be78] = true; // MVDA25 (base)
-        // EOA corresponding mainnet address, but that is ok
         isTrackingDTF[0x188D12Eb13a5Eadd0867074ce8354B1AD6f4790b] = true; // DFX (mainnet)
-        // no corresponding base address
     }
 
     /// Cast spell to upgrade from 1.0.0 or 2.0.0 -> 4.0.0
