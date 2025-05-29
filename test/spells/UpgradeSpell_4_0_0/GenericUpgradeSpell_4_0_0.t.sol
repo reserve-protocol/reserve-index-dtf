@@ -79,9 +79,10 @@ abstract contract GenericUpgradeSpell_4_0_0_Test is BaseTest {
         len = folio.getRoleMemberCount(AUCTION_APPROVER);
         assertEq(len, 0);
 
-        // verify that rebalance control is set
-        (, IFolio.PriceControl priceControl) = folio.rebalanceControl();
+        // verify that rebalance control is set correctly
+        (bool weightControl, IFolio.PriceControl priceControl) = folio.rebalanceControl();
         assertEq(uint256(priceControl), uint256(IFolio.PriceControl.PARTIAL));
+        assertEq(weightControl, !spell.isTrackingDTF(address(folio)));
 
         // verify that only timelock is admin
 

@@ -15,22 +15,34 @@ bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
  * @title UpgradeSpell_4_0_0
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  *
- * This spell a Folio to upgrade to 4.0.0.
+ * This spell upgrades a Folio to 4.0.0. Only Folios listed on the Register as of 2025-05-29 are supported.
  *
- * All Folios are assumed to be PriceControl.PARTIAL.
+ * All Folios must be on 1.0.0 or 2.0.0 before they upgrade. On 4.0.0 they will receive PriceControl.PARTIAL.
  *
- * Folios' weightControl is set as a function of whether the DTF is TRACKING or NATIVE.
+ * A Folio's weightControl is set as a function of whether the DTF is TRACKING or NATIVE, a previously offchain
+ * concept that has been encoded in the isTrackingDTF mapping.
  *
- * It does not upgrade the staking vault.
+ * The spell does not upgrade the staking vault.
  *
- * In order to use the spell, transferOwnership of the proxy admin to this contract just before calling the spell.
+ * In order to use the spell:
+ *   1. transferOwnership of the proxy admin to this contract
+ *   2. grant DEFAULT_ADMIN_ROLE on the Folio to this contract
+ *   3. call the spell from the owner timelock, making sure to execute all 3 steps back-to-back
  *
  */
 contract UpgradeSpell_4_0_0 is Versioned {
-    mapping(address => bool) public isNativeDTF;
+    mapping(address => bool) public isTrackingDTF;
+    // this mapping is used chain agnostic, but by-hand this has been checked to be safe
 
     constructor() {
-        // TODO add native DTFs
+        isTrackingDTF[0x23418De10d422AD71C9D5713a2B8991a9c586443] = true; // BGCI (base)
+        // no corresponding mainnet address
+        isTrackingDTF[0xe8b46b116D3BdFA787CE9CF3f5aCC78dc7cA380E] = true; // MVTT10F (base)
+        // no corresponding mainnet address
+        isTrackingDTF[0xD600e748C17Ca237Fcb5967Fa13d688AFf17Be78] = true; // MVDA25 (base)
+        // EOA corresponding mainnet address, but that is ok
+        isTrackingDTF[0x188D12Eb13a5Eadd0867074ce8354B1AD6f4790b] = true; // DFX (mainnet)
+        // no corresponding base address
     }
 
     /// Cast spell to upgrade from 1.0.0 or 2.0.0 -> 4.0.0
@@ -83,7 +95,7 @@ contract UpgradeSpell_4_0_0 is Versioned {
 
         folio.setRebalanceControl(
             IFolio.RebalanceControl({
-                weightControl: isNativeDTF[address(folio)],
+                weightControl: !isTrackingDTF[address(folio)],
                 priceControl: IFolio.PriceControl.PARTIAL
             })
         );
