@@ -66,7 +66,7 @@ contract FolioTest is BaseTest {
         prices.push(FULL_PRICE_RANGE_6);
         prices.push(FULL_PRICE_RANGE_18);
         prices.push(FULL_PRICE_RANGE_27);
-        limits = NATIVE_LIMITS;
+        limits = TRACKING_LIMITS;
 
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);

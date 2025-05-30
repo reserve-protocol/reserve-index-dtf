@@ -607,7 +607,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts-upgradeable@npm:^5.1.0":
+"@openzeppelin/contracts-upgradeable@npm:5.1.0, @openzeppelin/contracts-upgradeable@npm:^5.1.0":
   version: 5.1.0
   resolution: "@openzeppelin/contracts-upgradeable@npm:5.1.0"
   peerDependencies:
@@ -616,7 +616,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts@npm:^5.1.0":
+"@openzeppelin/contracts@npm:5.1.0, @openzeppelin/contracts@npm:^5.1.0":
   version: 5.1.0
   resolution: "@openzeppelin/contracts@npm:5.1.0"
   checksum: 10c0/dd6cf97fbc07910e57efefec1ca5b49cbe70ad7f53ff66fa7d1ecb4ec0c47a8609220e46496665dbebed9dba95a4524679adf0cf36fdd58c59a98787fd019678
@@ -660,7 +660,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@prb/math@npm:^4.1.0":
+"@prb/math@npm:4.1.0, @prb/math@npm:^4.1.0":
   version: 4.1.0
   resolution: "@prb/math@npm:4.1.0"
   checksum: 10c0/c5d57c25553345e5ba3745b6793e25097b7b6ffc43c2881d46451c4773a4dc043526fed391031221ce92109ec54ee2cea921d2490fa289bbc5f323df33677861
@@ -1505,9 +1505,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "folio@workspace:."
   dependencies:
-    "@openzeppelin/contracts": "npm:^5.1.0"
-    "@openzeppelin/contracts-upgradeable": "npm:^5.1.0"
-    "@prb/math": "npm:^4.1.0"
+    "@openzeppelin/contracts": "npm:5.1.0"
+    "@openzeppelin/contracts-upgradeable": "npm:5.1.0"
+    "@prb/math": "npm:4.1.0"
     "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#2e3eae8fd3d352240aa48a2e2b3c0168e8229e71"
     forge-std: "github:foundry-rs/forge-std#v1.9.4"
     prettier: "npm:^3.4.2"

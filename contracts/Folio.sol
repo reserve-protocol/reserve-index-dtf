@@ -852,7 +852,7 @@ contract Folio is
         );
 
         auctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
-        nextAuctionId++;
+        nextAuctionId = auctionId + 1;
 
         // close any previous auction
         if (auctionId != 0) {
