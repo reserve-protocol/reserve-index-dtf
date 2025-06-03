@@ -3169,4 +3169,385 @@ contract FolioTest is BaseTest {
         );
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
     }
+
+    function test_weightControlAuctionBidWithoutCallback() public {
+        // bid in two chunks, one at mid time and one at end time
+
+        // Set Rebalance weightControl = true
+        vm.prank(owner);
+        folio.setRebalanceControl(
+            IFolio.RebalanceControl({ weightControl: true, priceControl: IFolio.PriceControl.NONE })
+        );
+
+        // Change weights range for all tokens, keep a range of 10% on each side
+        for (uint256 i = 0; i < weights.length; i++) {
+            weights[i] = IFolio.WeightRange({
+                low: (weights[i].spot * 90) / 100,
+                spot: weights[i].spot,
+                high: (weights[i].spot * 110) / 100
+            });
+        }
+
+        uint256 amt = D6_TOKEN_10K;
+
+        // Sell USDC
+        weights[0] = SELL;
+
+        // Add USDT to buy
+        IFolio.WeightRange memory WEIGHTS_BUY_6 = IFolio.WeightRange({ low: 9e14, spot: 1e15, high: 11e14 }); // D27{tok/BU}
+
+        assets.push(address(USDT));
+        weights.push(WEIGHTS_BUY_6);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.RebalanceStarted(
+            1,
+            IFolio.PriceControl.NONE,
+            assets,
+            weights,
+            prices,
+            NATIVE_LIMITS,
+            block.timestamp + AUCTION_LAUNCHER_WINDOW,
+            block.timestamp + MAX_TTL
+        );
+        folio.startRebalance(assets, weights, prices, NATIVE_LIMITS, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // Reduce weight range for all tokens, keep a range of 5% on each side
+        for (uint256 i = 0; i < weights.length; i++) {
+            weights[i] = IFolio.WeightRange({
+                low: (weights[i].spot * 95) / 100,
+                spot: weights[i].spot,
+                high: (weights[i].spot * 105) / 100
+            });
+        }
+
+        vm.prank(auctionLauncher);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.AuctionOpened(
+            1,
+            0,
+            assets,
+            weights,
+            prices,
+            NATIVE_LIMITS,
+            block.timestamp,
+            block.timestamp + MAX_AUCTION_WARMUP
+        );
+
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
+
+        // check prices
+        (, uint256 start, uint256 end) = folio.auctions(0);
+        vm.startSnapshotGas("getBid()");
+        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), start, amt);
+        vm.stopSnapshotGas();
+        assertEq(sellAmount, (amt * 95) / 10000, "wrong start sell amount"); // can sell less than 1% at start
+        assertEq(buyAmount, (amt * 95) / 100, "wrong start buy amount");
+
+        uint256 midBidSellAmount = ((amt * 95) / 100); // 95% of the total volume
+        (sellAmount, buyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), (start + end) / 2, amt);
+        assertApproxEqAbs(sellAmount, midBidSellAmount, 1, "wrong mid sell amount");
+        assertApproxEqAbs(buyAmount, midBidSellAmount, 1, "wrong mid buy amount");
+
+        (sellAmount, buyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), end, amt);
+        assertEq(sellAmount, amt, "wrong end sell amount");
+        assertEq(buyAmount, amt / 100, "wrong end buy amount");
+
+        // bid at halfway point, can bid 95% of the volume
+        vm.warp((start + end) / 2);
+
+        vm.startPrank(user1);
+        USDT.approve(address(folio), midBidSellAmount + 1);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.AuctionBid(0, address(USDC), address(USDT), midBidSellAmount, midBidSellAmount + 1);
+        folio.bid(0, USDC, IERC20(address(USDT)), midBidSellAmount, midBidSellAmount + 1, false, bytes(""));
+
+        // bid a 2nd time for the rest of the volume, at end time
+        vm.warp(end);
+        uint256 endBidSellAmount = (amt - midBidSellAmount);
+        USDT.approve(address(folio), (amt - midBidSellAmount) / 100);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.AuctionBid(0, address(USDC), address(USDT), endBidSellAmount, endBidSellAmount / 100);
+        folio.bid(0, USDC, IERC20(address(USDT)), endBidSellAmount, endBidSellAmount / 100, false, bytes(""));
+        assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
+        vm.stopPrank();
+    }
+
+    function test_weightControlAuctionBidWithCallback() public {
+        // bid in two chunks, one at mid time and one at end time
+
+        // Set Rebalance weightControl = true
+        vm.prank(owner);
+        folio.setRebalanceControl(
+            IFolio.RebalanceControl({ weightControl: true, priceControl: IFolio.PriceControl.NONE })
+        );
+
+        // Change weights range for all tokens, keep a range of 10% on each side
+        for (uint256 i = 0; i < weights.length; i++) {
+            weights[i] = IFolio.WeightRange({
+                low: (weights[i].spot * 90) / 100,
+                spot: weights[i].spot,
+                high: (weights[i].spot * 110) / 100
+            });
+        }
+
+        uint256 amt = D6_TOKEN_10K;
+
+        // Sell USDC
+        weights[0] = SELL;
+
+        // Add USDT to buy
+        IFolio.WeightRange memory WEIGHTS_BUY_6 = IFolio.WeightRange({ low: 9e14, spot: 1e15, high: 11e14 }); // D27{tok/BU}
+
+        assets.push(address(USDT));
+        weights.push(WEIGHTS_BUY_6);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.RebalanceStarted(
+            1,
+            IFolio.PriceControl.NONE,
+            assets,
+            weights,
+            prices,
+            NATIVE_LIMITS,
+            block.timestamp + AUCTION_LAUNCHER_WINDOW,
+            block.timestamp + MAX_TTL
+        );
+        folio.startRebalance(assets, weights, prices, NATIVE_LIMITS, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // Reduce weight range for all tokens, keep a range of 5% on each side
+        for (uint256 i = 0; i < weights.length; i++) {
+            weights[i] = IFolio.WeightRange({
+                low: (weights[i].spot * 95) / 100,
+                spot: weights[i].spot,
+                high: (weights[i].spot * 105) / 100
+            });
+        }
+
+        vm.prank(auctionLauncher);
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.AuctionOpened(
+            1,
+            0,
+            assets,
+            weights,
+            prices,
+            NATIVE_LIMITS,
+            block.timestamp,
+            block.timestamp + MAX_AUCTION_WARMUP
+        );
+
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
+
+        // bid at halfway point, can bid 95% of the volume
+        (, uint256 start, uint256 end) = folio.auctions(0);
+        vm.warp((start + end) / 2);
+
+        uint256 midBidSellAmount = ((amt * 95) / 100); // 95% of the total volume
+
+        MockBidder mockBidder = new MockBidder(true);
+        vm.prank(user1);
+        USDT.transfer(address(mockBidder), midBidSellAmount + 1);
+        vm.prank(address(mockBidder));
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.AuctionBid(0, address(USDC), address(USDT), midBidSellAmount, midBidSellAmount + 1);
+        folio.bid(0, USDC, IERC20(address(USDT)), midBidSellAmount, midBidSellAmount + 1, true, bytes(""));
+        assertEq(USDT.balanceOf(address(mockBidder)), 0, "wrong mock bidder balance");
+
+        // bid a 2nd time for the rest of the volume, at end time
+        vm.warp(end);
+        MockBidder mockBidder2 = new MockBidder(true);
+        vm.prank(user1);
+        uint256 endBidSellAmount = (amt - midBidSellAmount);
+        USDT.transfer(address(mockBidder2), endBidSellAmount / 100);
+        vm.prank(address(mockBidder2));
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.AuctionBid(0, address(USDC), address(USDT), endBidSellAmount, endBidSellAmount / 100);
+        folio.bid(0, USDC, IERC20(address(USDT)), endBidSellAmount, endBidSellAmount / 100, true, bytes(""));
+        assertEq(USDT.balanceOf(address(mockBidder2)), 0, "wrong mock bidder2 balance");
+        assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
+        vm.stopPrank();
+    }
+
+    function test_weightControlValidations() public {
+        // Set Rebalance weightControl = true
+        vm.prank(owner);
+        folio.setRebalanceControl(
+            IFolio.RebalanceControl({ weightControl: true, priceControl: IFolio.PriceControl.NONE })
+        );
+
+        // Change weights range for all tokens, keep a range of 10% on each side
+        for (uint256 i = 0; i < weights.length; i++) {
+            weights[i] = IFolio.WeightRange({
+                low: (weights[i].spot * 90) / 100,
+                spot: weights[i].spot,
+                high: (weights[i].spot * 110) / 100
+            });
+        }
+
+        // Add USDT to buy
+        IFolio.WeightRange memory WEIGHTS_BUY_6 = IFolio.WeightRange({ low: 9e14, spot: 1e15, high: 11e14 }); // D27{tok/BU}
+
+        // Setup basic auction parameters
+        weights[0] = SELL;
+        assets.push(address(USDT));
+        weights.push(WEIGHTS_BUY_6);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        // Start rebalance
+        vm.prank(dao);
+        folio.startRebalance(assets, weights, prices, NATIVE_LIMITS, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // Test cases for price validations
+        vm.startPrank(auctionLauncher);
+
+        // Reduce price range for all tokens
+        uint256 origWeightLow = weights[3].low;
+        uint256 origWeightHigh = weights[3].high;
+
+        // 1. Test: weightSpot > weightHigh
+        weights[3].high = weights[3].low;
+        vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        weights[3].high = origWeightHigh;
+
+        // 2. Test: weightSpot < weightLow
+        weights[3].low = weights[3].high;
+        vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        weights[3].low = origWeightLow;
+
+        // 3. Test: weightLow outside range
+        weights[3].low = origWeightLow - 1; // Too low
+        vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        weights[3].low = origWeightLow;
+
+        // 4. Test: weightHigh outside range
+        weights[3].high = origWeightHigh + 1; // Too high
+        vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        weights[3].high = origWeightHigh;
+
+        // 5. Test: Valid case should work
+        // Reduce weight range for all tokens, keep a range of 5% on each side
+        for (uint256 i = 0; i < weights.length; i++) {
+            weights[i] = IFolio.WeightRange({
+                low: (weights[i].spot * 95) / 100,
+                spot: weights[i].spot,
+                high: (weights[i].spot * 105) / 100
+            });
+        }
+
+        vm.expectEmit(true, false, false, false);
+        emit IFolio.AuctionOpened(
+            1,
+            0,
+            assets,
+            weights,
+            prices,
+            NATIVE_LIMITS,
+            block.timestamp,
+            block.timestamp + MAX_AUCTION_LENGTH
+        );
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+    }
+
+    function test_cannotStartRebalanceInvalidArrays() public {
+        // Sell USDC
+        weights[0] = SELL;
+
+        // Add USDT to buy, do not add weights or prices
+        assets.push(address(USDT));
+
+        // Invalid arrays
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidArrayLengths.selector);
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // Add weights and retry, same error
+        weights.push(BUY);
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidArrayLengths.selector);
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // Add prices, now should work
+        prices.push(FULL_PRICE_RANGE_6);
+        vm.prank(dao);
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.RebalanceStarted(
+            1,
+            IFolio.PriceControl.NONE,
+            assets,
+            weights,
+            prices,
+            limits,
+            block.timestamp + AUCTION_LAUNCHER_WINDOW,
+            block.timestamp + MAX_TTL
+        );
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+    }
+
+    function test_cannotStartRebalanceWithInvalidAsset() public {
+        // Sell USDC
+        weights[0] = SELL;
+
+        // Add invalid token
+        assets.push(address(0));
+        weights.push(BUY);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+    }
+
+    function test_cannotStartRebalanceWithInvalidWeights() public {
+        // Sell USDC
+        weights[0] = SELL;
+
+        // Add invalid token
+        assets.push(address(USDT));
+        weights.push(BUY);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        // Change weights range for all tokens, keep a range of 10% on each side
+        for (uint256 i = 0; i < weights.length; i++) {
+            weights[i] = IFolio.WeightRange({
+                low: (weights[i].spot * 90) / 100,
+                spot: weights[i].spot,
+                high: (weights[i].spot * 110) / 100
+            });
+        }
+
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // Set weightControl = true
+        vm.prank(owner);
+        folio.setRebalanceControl(
+            IFolio.RebalanceControl({ weightControl: true, priceControl: IFolio.PriceControl.NONE })
+        );
+
+        // Setup invalid weights
+        uint256 origWeightHigh = weights[3].high;
+        weights[3].high = weights[3].low;
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        weights[3].high = origWeightHigh;
+
+        // Setup zero weight
+        weights[3].low = 0;
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+    }
 }
