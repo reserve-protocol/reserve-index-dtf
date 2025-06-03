@@ -2594,6 +2594,49 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
+    function test_auctionCannotOpenAuctionWithInvalidArrays() public {
+        // Start rebalance first (nonce 1)
+        weights[0] = SELL;
+        assets.push(address(USDT));
+        weights.push(BUY);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        vm.prank(dao);
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        vm.startPrank(auctionLauncher);
+
+        // Invalid arrays
+        IFolio.WeightRange[] memory smallerWeights = new IFolio.WeightRange[](3);
+        smallerWeights[0] = weights[0];
+        smallerWeights[1] = weights[1];
+        smallerWeights[2] = weights[2];
+        IFolio.PriceRange[] memory smallerPrices = new IFolio.PriceRange[](3);
+        smallerPrices[0] = prices[0];
+        smallerPrices[1] = prices[1];
+        smallerPrices[2] = prices[2];
+        vm.expectRevert(IFolio.Folio__InvalidArrayLengths.selector);
+        folio.openAuction(1, assets, smallerWeights, smallerPrices, NATIVE_LIMITS);
+
+        // Add weights and retry, same error
+        vm.expectRevert(IFolio.Folio__InvalidArrayLengths.selector);
+        folio.openAuction(1, assets, weights, smallerPrices, NATIVE_LIMITS);
+
+        // Add prices, now should work
+        vm.expectEmit(true, true, true, false);
+        emit IFolio.AuctionOpened(
+            1,
+            0,
+            assets,
+            weights,
+            prices,
+            NATIVE_LIMITS,
+            block.timestamp,
+            block.timestamp + MAX_AUCTION_LENGTH
+        );
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+    }
+
     function test_auctionCannotStartRebalanceOnDuplicateTokens() public {
         assets[1] = assets[0];
 
