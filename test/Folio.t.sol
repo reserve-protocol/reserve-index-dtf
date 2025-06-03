@@ -2098,6 +2098,42 @@ contract FolioTest is BaseTest {
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
     }
 
+    function test_auctionOnlyConsiderTokensInRebalance() public {
+        uint256 amt = D6_TOKEN_10K;
+
+        // Sell USDC and buy DAI (only use those tokens for rebalance)
+        address[] memory smallerAssets = new address[](2);
+        smallerAssets[0] = assets[0];
+        smallerAssets[1] = assets[1];
+        IFolio.WeightRange[] memory smallerWeights = new IFolio.WeightRange[](2);
+        smallerWeights[0] = SELL;
+        smallerWeights[1] = BUY;
+        IFolio.PriceRange[] memory smallerPrices = new IFolio.PriceRange[](2);
+        smallerPrices[0] = prices[0];
+        smallerPrices[1] = prices[1];
+
+        vm.prank(dao);
+        folio.startRebalance(
+            smallerAssets,
+            smallerWeights,
+            smallerPrices,
+            NATIVE_LIMITS,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL
+        );
+
+        // Open auction unrestricted
+        (, , , , , , , uint256 restrictedUntil, , ) = folio.getRebalance();
+        vm.warp(restrictedUntil);
+        folio.openAuctionUnrestricted(1);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
+
+        // Bid all the USDC
+        vm.startPrank(user1);
+        DAI.approve(address(folio), amt * 1e14);
+        folio.bid(0, USDC, DAI, amt, amt * 1e14, false, bytes(""));
+    }
+
     function test_auctionDishonestCallback() public {
         uint256 amt = D6_TOKEN_1;
 
