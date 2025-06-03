@@ -3538,6 +3538,7 @@ contract FolioTest is BaseTest {
 
         // Setup invalid weights
         uint256 origWeightHigh = weights[3].high;
+        uint256 origWeightLow = weights[3].low;
         weights[3].high = weights[3].low;
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
@@ -3549,5 +3550,48 @@ contract FolioTest is BaseTest {
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
         folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        weights[3].low = origWeightLow;
+    }
+
+    function test_cannotStartRebalanceWithInvalidPrices() public {
+        // Sell USDC
+        weights[0] = SELL;
+
+        // Add invalid token
+        assets.push(address(USDT));
+        weights.push(BUY);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        IFolio.PriceRange[] memory invalidPrices = new IFolio.PriceRange[](4);
+        invalidPrices[0] = prices[0];
+        invalidPrices[1] = prices[1];
+        invalidPrices[2] = prices[3];
+        invalidPrices[3] = prices[3];
+
+        // --- Case 1: Low price is zero ---
+        invalidPrices[0] = IFolio.PriceRange({ low: 0, high: 1e16 }); // Invalid low = 0
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
+        folio.startRebalance(assets, weights, invalidPrices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // --- Case 2: Low price greater than high price ---
+        invalidPrices[0] = IFolio.PriceRange({ low: 1e16, high: 1e15 }); // Invalid low > high
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
+        folio.startRebalance(assets, weights, invalidPrices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // --- Case 3: High price exceeds MAX_TOKEN_PRICE ---
+        invalidPrices[0] = IFolio.PriceRange({ low: 1e16, high: MAX_TOKEN_PRICE + 1 }); // Invalid high > max
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
+        folio.startRebalance(assets, weights, invalidPrices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // --- Case 4: High price exceeds range limit relative to low price ---
+        uint256 lowPrice = 1e15;
+        invalidPrices[0] = IFolio.PriceRange({ low: lowPrice, high: MAX_TOKEN_PRICE_RANGE * lowPrice + 1 }); // Invalid high > range * low
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
+        folio.startRebalance(assets, weights, invalidPrices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        vm.stopPrank();
     }
 }
