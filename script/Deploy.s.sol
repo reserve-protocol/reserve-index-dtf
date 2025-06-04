@@ -190,7 +190,7 @@ contract DeployScript is Script {
 
         CowSwapFiller cowSwapFiller = new CowSwapFiller();
 
-        if (deploymentMode == DeploymentMode.Testing) {
+        if (deploymentMode == DeploymentMode.Testing && block.chainid != 31337) {
             // For testing, we can set the filler in the registry directly
             TrustedFillerRegistry(deployParams.trustedFillerRegistry).addTrustedFiller(cowSwapFiller);
         }
