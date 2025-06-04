@@ -8,12 +8,12 @@
     "@openzeppelin/contracts-upgradeable": "5.1.0",
     "@prb/math": "4.1.0",
     "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#2e3eae8fd3d352240aa48a2e2b3c0168e8229e71",
-    "forge-std": "github:foundry-rs/forge-std#v1.9.4"
+    "forge-std": "github:foundry-rs/forge-std#v1.9.7"
   },
   "devDependencies": {
-    "prettier": "^3.4.2",
-    "prettier-plugin-solidity": "^1.4.2",
-    "solhint": "^5.0.4",
+    "prettier": "^3.5.3",
+    "prettier-plugin-solidity": "^1.4.3",
+    "solhint": "^5.1.0",
     "solhint-plugin-prettier": "^0.1.0",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"
