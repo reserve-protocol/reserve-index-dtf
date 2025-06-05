@@ -16,6 +16,7 @@ import { GovernanceDeployer, IGovernanceDeployer } from "@deployer/GovernanceDep
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
+import { FolioLens } from "@periphery/FolioLens.sol";
 
 string constant junkSeedPhrase = "test test test test test test test test test test test junk";
 
@@ -190,6 +191,8 @@ contract DeployScript is Script {
 
         CowSwapFiller cowSwapFiller = new CowSwapFiller();
 
+        FolioLens folioLens = new FolioLens();
+
         if (deploymentMode == DeploymentMode.Testing && block.chainid != 31337) {
             // For testing, we can set the filler in the registry directly
             TrustedFillerRegistry(deployParams.trustedFillerRegistry).addTrustedFiller(cowSwapFiller);
@@ -200,6 +203,7 @@ contract DeployScript is Script {
         console2.log("Governance Deployer: %s", address(governanceDeployer));
         console2.log("Folio Deployer: %s", address(folioDeployer));
         console2.log("CowSwap Filler: %s", address(cowSwapFiller));
+        console2.log("Folio Lens: %s", address(folioLens));
 
         require(folioDeployer.daoFeeRegistry() == deployParams.folioFeeRegistry, "wrong dao fee registry");
         require(folioDeployer.versionRegistry() == deployParams.folioVersionRegistry, "wrong version registry");

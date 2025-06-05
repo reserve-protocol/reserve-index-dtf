@@ -14,3 +14,4 @@ utils/=test/utils/
 @staking/=contracts/staking/
 @deployer/=contracts/deployer/
 @spells/=contracts/spells/
+@periphery/=contracts/periphery/
