@@ -11,7 +11,6 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
-import { MockBidder } from "utils/MockBidder.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";
@@ -24,7 +23,7 @@ import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contrac
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
 
 abstract contract BaseTest is Script, Test {
-    string public constant VERSION = "3.0.0";
+    string public constant VERSION = "4.0.0";
     // === Auth roles ===
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
@@ -233,7 +232,11 @@ abstract contract BaseTest is Script, Test {
 
     // === Internal ===
 
-    IFolio.FolioRegistryFlags _registryFlags = IFolio.FolioRegistryFlags({ trustedFillerEnabled: true });
+    IFolio.FolioFlags _folioFlags =
+        IFolio.FolioFlags({
+            trustedFillerEnabled: true,
+            rebalanceControl: IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.NONE })
+        });
 
     function createFolio(
         address[] memory _assets,
@@ -274,7 +277,7 @@ abstract contract BaseTest is Script, Test {
         (_folio, _proxyAdmin2) = folioDeployer.deployFolio(
             _basicDetails,
             _additionalDetails,
-            _registryFlags,
+            _folioFlags,
             _owner,
             _basketManagers,
             _auctionLaunchers,

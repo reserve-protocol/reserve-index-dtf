@@ -2,13 +2,13 @@
 pragma solidity 0.8.28;
 
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
-import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_MINT_FEE } from "contracts/Folio.sol";
 import { FolioDeployer, IFolioDeployer } from "@deployer/FolioDeployer.sol";
 import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
+import { AUCTION_LAUNCHER, BRAND_MANAGER, REBALANCE_MANAGER } from "@utils/Constants.sol";
 import "./base/BaseTest.sol";
 
 contract FolioDeployerTest is BaseTest {
@@ -72,11 +72,11 @@ contract FolioDeployerTest is BaseTest {
 
         assertTrue(folio.hasRole(folio.DEFAULT_ADMIN_ROLE(), owner), "wrong admin role");
 
-        assertTrue(folio.hasRole(folio.REBALANCE_MANAGER(), dao), "wrong basket manager role");
+        assertTrue(folio.hasRole(REBALANCE_MANAGER, dao), "wrong basket manager role");
 
-        assertTrue(folio.hasRole(folio.AUCTION_LAUNCHER(), auctionLauncher), "wrong auction launcher role");
+        assertTrue(folio.hasRole(AUCTION_LAUNCHER, auctionLauncher), "wrong auction launcher role");
 
-        assertTrue(folio.hasRole(folio.BRAND_MANAGER(), owner), "wrong brand manager role");
+        assertTrue(folio.hasRole(BRAND_MANAGER, owner), "wrong brand manager role");
     }
 
     function test_cannotCreateFolioWithLengthMismatch() public {
@@ -317,7 +317,13 @@ contract FolioDeployerTest is BaseTest {
                     mintFee: MAX_MINT_FEE,
                     mandate: "mandate"
                 }),
-                IFolio.FolioRegistryFlags({ trustedFillerEnabled: true }),
+                IFolio.FolioFlags({
+                    trustedFillerEnabled: true,
+                    rebalanceControl: IFolio.RebalanceControl({
+                        weightControl: false,
+                        priceControl: IFolio.PriceControl.NONE
+                    })
+                }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 0.08e18, 2 days, _guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 0.04e18, 1 days, _guardians1),
                 IGovernanceDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
@@ -418,7 +424,7 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(tradingTimelock.hasRole(tradingTimelock.CANCELLER_ROLE(), user1), "wrong canceler role");
 
         // Check rebalance manager is properly set
-        assertTrue(folio.hasRole(folio.REBALANCE_MANAGER(), address(tradingTimelock)), "wrong basket manager role");
+        assertTrue(folio.hasRole(REBALANCE_MANAGER, address(tradingTimelock)), "wrong basket manager role");
     }
 
     function test_createGovernedFolio_withExistingRebalanceManager() public {
@@ -480,7 +486,13 @@ contract FolioDeployerTest is BaseTest {
                 mintFee: MAX_MINT_FEE,
                 mandate: "mandate"
             }),
-            IFolio.FolioRegistryFlags({ trustedFillerEnabled: true }),
+            IFolio.FolioFlags({
+                trustedFillerEnabled: true,
+                rebalanceControl: IFolio.RebalanceControl({
+                    weightControl: false,
+                    priceControl: IFolio.PriceControl.NONE
+                })
+            }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 0.08e18, 2 days, _guardians2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 0.04e18, 1 days, _guardians1),
             IGovernanceDeployer.GovRoles(rebalanceManagers, auctionLaunchers, new address[](0)),
@@ -530,7 +542,7 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(ownerTimelock.hasRole(ownerTimelock.CANCELLER_ROLE(), user2), "wrong canceler role");
 
         // Check rebalance manager is properly set
-        assertTrue(folio.hasRole(folio.REBALANCE_MANAGER(), dao), "wrong basket manager role");
+        assertTrue(folio.hasRole(REBALANCE_MANAGER, dao), "wrong basket manager role");
     }
 
     function test_canMineVanityAddress() public {
@@ -589,7 +601,13 @@ contract FolioDeployerTest is BaseTest {
                     mintFee: MAX_MINT_FEE,
                     mandate: "mandate"
                 }),
-                IFolio.FolioRegistryFlags({ trustedFillerEnabled: true }),
+                IFolio.FolioFlags({
+                    trustedFillerEnabled: true,
+                    rebalanceControl: IFolio.RebalanceControl({
+                        weightControl: false,
+                        priceControl: IFolio.PriceControl.NONE
+                    })
+                }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, guardians1),
                 IGovernanceDeployer.GovRoles(new address[](0), new address[](0), new address[](0)),
