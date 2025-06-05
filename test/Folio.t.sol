@@ -1481,7 +1481,7 @@ contract FolioTest is BaseTest {
         (, uint256 start, uint256 end) = folio.auctions(0);
         vm.warp(start);
 
-        // isValidSignature should return true for the correct bid
+        // isValidSignature should succeed for the correct bid
 
         uint256 amt = D6_TOKEN_10K;
         IBaseTrustedFiller fill = folio.createTrustedFill(0, USDC, IERC20(address(USDT)), cowswapFiller, bytes32(0));
