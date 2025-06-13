@@ -341,12 +341,14 @@ contract Folio is
         return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
+    /// @dev Result may be unreliable mid-swap during trusted fill execution
     /// @return _assets
     /// @return _amounts {tok}
     function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
         return _totalAssets();
     }
 
+    /// @dev Result may be unreliable mid-swap during trusted fill execution
     /// @param shares {share}
     /// @return _assets
     /// @return _amounts {tok}
@@ -651,6 +653,7 @@ contract Folio is
     }
 
     /// Get auction bid parameters for an ongoing auction in the current block, for some token pair
+    /// @dev Result may be unreliable mid-swap during trusted fill execution
     /// @param sellToken The token to sell
     /// @param buyToken The token to buy
     /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder can offer the protocol
