@@ -8,7 +8,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
-import { AUCTION_WARMUP, D18, D27, MAX_TOKEN_BALANCE, MAX_LIMIT, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, D18, D27, MAX_TOKEN_BUY_AMOUNT, MAX_LIMIT, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 
 /**
@@ -294,8 +294,8 @@ library RebalancingLib {
         uint256 buyLimitBal = Math.mulDiv(buyLimit, params.totalSupply, D27, Math.Rounding.Floor);
         uint256 buyAvailable = params.buyBal < buyLimitBal ? buyLimitBal - params.buyBal : 0;
 
-        // maximum valid token balance is 1e36; do not try to buy more than this
-        buyAvailable = Math.min(buyAvailable, MAX_TOKEN_BALANCE);
+        // maximum valid token purchase is 1e36; do not try to buy more than this
+        buyAvailable = Math.min(buyAvailable, MAX_TOKEN_BUY_AMOUNT);
 
         // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
         uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
