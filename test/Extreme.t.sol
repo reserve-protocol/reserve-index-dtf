@@ -5,16 +5,13 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 import { Folio } from "@src/Folio.sol";
-import { D18, D27, MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_TTL, MAX_LIMIT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, RESTRICTED_AUCTION_BUFFER, MAX_TOKEN_BALANCE } from "@utils/Constants.sol";
+import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_TTL, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
-import { MathLib } from "@utils/MathLib.sol";
 import "./base/BaseExtremeTest.sol";
 
 contract ExtremeTest is BaseExtremeTest {
-    IFolio.BasketRange internal FULL_SELL = IFolio.BasketRange(0, 0, 0);
-    IFolio.BasketRange internal FULL_BUY = IFolio.BasketRange(MAX_LIMIT, MAX_LIMIT, MAX_LIMIT);
-
-    IFolio.Prices internal ZERO_PRICE = IFolio.Prices(0, 0);
+    IFolio.WeightRange internal REMOVE = IFolio.WeightRange({ low: 0, spot: 0, high: 0 });
+    IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: MAX_WEIGHT, spot: MAX_WEIGHT, high: MAX_WEIGHT });
 
     function _deployTestFolio(
         address[] memory _tokens,
@@ -163,6 +160,7 @@ contract ExtremeTest is BaseExtremeTest {
         // check balances
         assertEq(folio.balanceOf(user1), mintAmount - (mintAmount * 3) / 2000, "wrong user1 balance");
         for (uint256 j = 0; j < tokens.length; j++) {
+            {}
             IERC20 _token = IERC20(tokens[j]);
 
             uint256 tolerance = (p.decimals > 18) ? 10 ** (p.decimals - 18) : 1;
@@ -240,65 +238,59 @@ contract ExtremeTest is BaseExtremeTest {
         // startRebalance
         {
             address[] memory assets = new address[](2);
-            IFolio.BasketRange[] memory limits = new IFolio.BasketRange[](2);
-            IFolio.Prices[] memory prices = new IFolio.Prices[](2);
+            IFolio.WeightRange[] memory weights = new IFolio.WeightRange[](2);
+            IFolio.PriceRange[] memory prices = new IFolio.PriceRange[](2);
+            IFolio.RebalanceLimits memory limits = IFolio.RebalanceLimits({ low: 1e18, spot: 1e18, high: 1e18 });
             assets[0] = address(sell);
             assets[1] = address(buy);
-            limits[0] = FULL_SELL;
-            limits[1] = FULL_BUY;
-            prices[0] = IFolio.Prices(
-                (p.sellTokenPrice + MAX_TOKEN_PRICE_RANGE - 1) / MAX_TOKEN_PRICE_RANGE,
-                p.sellTokenPrice
-            );
-            prices[1] = IFolio.Prices(
-                (p.buyTokenPrice + MAX_TOKEN_PRICE_RANGE - 1) / MAX_TOKEN_PRICE_RANGE,
-                p.buyTokenPrice
-            );
+            weights[0] = REMOVE;
+            weights[1] = BUY;
+
+            {
+                uint256 highSellPrice = p.sellTokenPrice * MAX_TOKEN_PRICE_RANGE;
+                uint256 lowSellPrice = p.sellTokenPrice;
+                if (highSellPrice > MAX_TOKEN_PRICE) {
+                    highSellPrice = MAX_TOKEN_PRICE;
+                    lowSellPrice = highSellPrice / MAX_TOKEN_PRICE_RANGE;
+                }
+
+                prices[0] = IFolio.PriceRange(lowSellPrice, highSellPrice);
+            }
+
+            {
+                uint256 highBuyPrice = p.buyTokenPrice * MAX_TOKEN_PRICE_RANGE;
+                uint256 lowBuyPrice = p.buyTokenPrice;
+                if (highBuyPrice > MAX_TOKEN_PRICE) {
+                    highBuyPrice = MAX_TOKEN_PRICE;
+                    lowBuyPrice = highBuyPrice / MAX_TOKEN_PRICE_RANGE;
+                }
+
+                prices[1] = IFolio.PriceRange(lowBuyPrice, highBuyPrice);
+            }
 
             vm.prank(dao);
-            folio.startRebalance(assets, limits, prices, 0, MAX_TTL);
+            folio.startRebalance(assets, weights, prices, limits, 0, MAX_TTL);
         }
 
         // openAuctionUnrestricted
         vm.warp(block.timestamp + RESTRICTED_AUCTION_BUFFER);
-        folio.openAuctionUnrestricted(sell, buy);
+        folio.openAuctionUnrestricted(1);
 
-        (, , , , , uint256 startPrice, uint256 endPrice, uint256 start, uint256 end) = folio.auctions(0);
+        (, uint256 start, uint256 end) = folio.auctions(0);
 
-        uint256 totalSupply = folio.totalSupply();
+        // should quote at both ends
 
-        // check that start >= start + 1
-        uint256 startBidAmount = _getBidAmount(sell, buy, totalSupply, startPrice, endPrice, start, end, start);
-        uint256 endBidAmount = _getBidAmount(sell, buy, totalSupply, startPrice, endPrice, start, end, start + 1);
+        vm.warp(start);
+        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, sell, buy, type(uint256).max);
+        vm.warp(end);
+        (sellAmount, buyAmount, ) = folio.getBid(0, sell, buy, type(uint256).max);
 
-        if (startBidAmount > 0 && endBidAmount > 0) {
-            // should not revert
-            (, , uint256 actualStartPrice) = folio.getBid(0, start, type(uint256).max);
-
-            // getBid should work at start and start + 1, and they should be relatively ordered
-            (, , uint256 actualEndPrice) = folio.getBid(0, start + 1, type(uint256).max);
-            assertLe(actualEndPrice, actualStartPrice, "price should be non-increasing");
-        }
-
-        // check that end - 1 > end as well
-        startBidAmount = _getBidAmount(sell, buy, totalSupply, startPrice, endPrice, start, end, end - 1);
-        endBidAmount = _getBidAmount(sell, buy, totalSupply, startPrice, endPrice, start, end, end);
-
-        if (startBidAmount > 0 && endBidAmount > 0) {
-            // should not revert
-            (, , uint256 actualStartPrice) = folio.getBid(0, end - 1, type(uint256).max);
-
-            // getBid should work at end - 1 and end, and they should be relatively ordered
-            (uint256 sellAmount2, uint256 buyAmount2, uint256 actualEndPrice) = folio.getBid(0, end, type(uint256).max);
-            assertLe(actualEndPrice, actualStartPrice, "price should be non-increasing");
-
+        if (buyAmount != 0) {
             // mint buy tokens to user1 and bid
-            vm.warp(end);
-            deal(address(buy), address(user1), buyAmount2, true);
+            deal(address(buy), address(user1), buyAmount, true);
             vm.startPrank(user1);
-            buy.approve(address(folio), buyAmount2);
-            folio.bid(0, sellAmount2, buyAmount2, false, bytes(""));
-            vm.stopPrank();
+            buy.approve(address(folio), buyAmount);
+            folio.bid(0, sell, buy, sellAmount, buyAmount, false, bytes(""));
         }
     }
 
@@ -431,78 +423,6 @@ contract ExtremeTest is BaseExtremeTest {
         for (uint256 j = 0; j < p.numTokens; j++) {
             MockERC20 reward = MockERC20(rewardTokens[j]);
             assertApproxEqRel(reward.balanceOf(user1), expectedRewards, 1e14);
-        }
-    }
-
-    /// ==== Internal ====
-
-    /// Returns 0 where the actual getBid() function would revert
-    /// @return bidAmount {buyTok}
-    function _getBidAmount(
-        IERC20 sell,
-        IERC20 buy,
-        uint256 totalSupply,
-        uint256 startPrice,
-        uint256 endPrice,
-        uint256 startTime,
-        uint256 endTime,
-        uint256 timestamp
-    ) internal view returns (uint256 bidAmount) {
-        // D27{buyTok/sellTok}
-        uint256 price = _price(startPrice, endPrice, startTime, endTime, timestamp);
-
-        // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 sellLimitBal = Math.mulDiv(0, totalSupply, D27, Math.Rounding.Ceil);
-        uint256 sellAvailable = sell.balanceOf(address(folio)) > sellLimitBal
-            ? sell.balanceOf(address(folio)) - sellLimitBal
-            : 0;
-
-        // {buyTok} = D27{buyTok/share} * {share} / D27
-        uint256 buyLimitBal = Math.mulDiv(MAX_LIMIT, totalSupply, D27, Math.Rounding.Floor);
-        uint256 buyAvailable = buy.balanceOf(address(folio)) < buyLimitBal
-            ? buyLimitBal - buy.balanceOf(address(folio))
-            : 0;
-
-        buyAvailable = Math.min(buyAvailable, MAX_TOKEN_BALANCE);
-
-        // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
-        uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
-        sellAvailable = Math.min(sellAvailable, sellAvailableFromBuy);
-
-        // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
-        bidAmount = Math.mulDiv(sellAvailable, price, D27, Math.Rounding.Ceil);
-    }
-
-    /// @return p D27{buyTok/sellTok}
-    function _price(
-        uint256 startPrice,
-        uint256 endPrice,
-        uint256 startTime,
-        uint256 endTime,
-        uint256 timestamp
-    ) internal pure returns (uint256 p) {
-        // ensure auction is ongoing
-        require(timestamp >= startTime && timestamp <= endTime, IFolio.Folio__AuctionNotOngoing());
-
-        if (timestamp == startTime) {
-            return startPrice;
-        }
-        if (timestamp == endTime) {
-            return endPrice;
-        }
-
-        uint256 elapsed = timestamp - startTime;
-        uint256 auctionLength = endTime - startTime;
-
-        // D18{1}
-        // k = ln(P_0 / P_t) / t
-        uint256 k = MathLib.ln(Math.mulDiv(startPrice, D18, endPrice)) / auctionLength;
-
-        // P_t = P_0 * e ^ -kt
-        // D27{buyTok/sellTok} = D27{buyTok/sellTok} * D18{1} / D18
-        p = Math.mulDiv(startPrice, MathLib.exp(-1 * int256(k * elapsed)), D18);
-        if (p < endPrice) {
-            p = endPrice;
         }
     }
 }

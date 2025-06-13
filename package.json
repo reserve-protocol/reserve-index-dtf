@@ -4,17 +4,19 @@
   "description": "Reserve Folio Protocol",
   "license": "MIT",
   "dependencies": {
-    "@openzeppelin/contracts": "^5.1.0",
-    "@openzeppelin/contracts-upgradeable": "^5.1.0",
-    "@prb/math": "^4.1.0",
+    "@openzeppelin/contracts": "5.1.0",
+    "@openzeppelin/contracts-upgradeable": "5.1.0",
+    "@prb/math": "4.1.0",
     "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#2e3eae8fd3d352240aa48a2e2b3c0168e8229e71",
-    "forge-std": "github:foundry-rs/forge-std#v1.9.4"
+    "forge-std": "github:foundry-rs/forge-std#v1.9.7"
   },
   "devDependencies": {
-    "prettier": "^3.4.2",
-    "prettier-plugin-solidity": "^1.4.2",
-    "solhint": "^5.0.4",
-    "solhint-plugin-prettier": "^0.1.0"
+    "prettier": "^3.5.3",
+    "prettier-plugin-solidity": "^1.4.3",
+    "solhint": "^5.1.0",
+    "solhint-plugin-prettier": "^0.1.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
   },
   "scripts": {
     "format": "prettier --write \"./**/*.{js,ts,json,md,sol,yaml,yml}\"",
@@ -28,10 +30,11 @@
     "size": "forge compile --sizes",
     "coverage": "forge coverage --report lcov --no-match-coverage '(script|test)'",
     "coverage:summary": "forge coverage --report summary --no-match-coverage '(script|test)'",
-    "deploy": "forge script script/Deploy.s.sol:DeployScript --broadcast --slow",
-    "deploy:spell": "forge script script/DeploySpell.s.sol:DeploySpell --broadcast --slow",
+    "deploy": "forge script script/Deploy.s.sol:DeployScript --slow",
+    "deploy:spell": "forge script script/DeploySpell.s.sol:DeploySpell --slow",
+    "deploy:mocks": "forge script script/DeployMocks.s.sol:DeployMocks --slow",
     "playground": "forge script script/Playground.s.sol:PlaygroundScript --slow",
     "anvil": "anvil --fork-url https://ethereum-rpc.publicnode.com --chain-id 31337 --prune-history"
   },
-  "packageManager": "yarn@4.6.0"
+  "packageManager": "yarn@4.9.1"
 }

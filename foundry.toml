@@ -4,9 +4,9 @@ script = "script"
 src = "contracts"
 test = "test"
 
-# Testing
+# Gas/Memory
+gas_limit = "18446744073709551615" # 2^64 - 1
 dynamic_test_linking = true 
-gas_limit = '18446744073709551615' 
 memory_limit = 1073741824 # 1 GB
 
 # Compiler Options
@@ -21,9 +21,11 @@ via_ir = false
 fs_permissions = [{access = "read-write", path = "./"}]
 
 [rpc_endpoints]
-base = "https://base-mainnet.infura.io/v3/b6bf7d3508c941499b10025c0776eaf8"
-mainnet = "https://mainnet.infura.io/v3/b6bf7d3508c941499b10025c0776eaf8"
+base = "https://base-rpc.publicnode.com"
+bsc = "https://bsc-rpc.publicnode.com"
+mainnet = "https://ethereum-rpc.publicnode.com"
 
 [etherscan]
-base = {url = "https://api.basescan.org/api", key = "${ETHERSCAN_API_KEY_8453}"}
-mainnet = {url = "https://api.etherscan.io/api", key = "${ETHERSCAN_API_KEY_1}"}
+base = {key = "${ETHERSCAN_KEY}"}
+bsc = {key = "${ETHERSCAN_KEY}"}
+mainnet = {key = "${ETHERSCAN_KEY}"}
