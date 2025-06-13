@@ -140,8 +140,16 @@ library RebalancingLib {
 
         IFolio.Auction storage auction = auctions[auctionId];
 
+        // use first token in rebalance as anchor for atomic swap check
+        bool allAtomicSwaps;
+        for (uint256 i = 0; i < len; i++) {
+            if (rebalance.details[tokens[i]].inRebalance) {
+                allAtomicSwaps = prices[i].low == prices[i].high;
+                break;
+            }
+        }
+
         // all tokens must have constant prices or none can
-        bool allAtomicSwaps = prices[0].low == prices[0].high;
         require(
             !allAtomicSwaps || rebalance.priceControl == IFolio.PriceControl.ATOMIC_SWAP,
             IFolio.Folio__InvalidPrices()
