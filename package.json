@@ -7,7 +7,7 @@
     "@openzeppelin/contracts": "5.1.0",
     "@openzeppelin/contracts-upgradeable": "5.1.0",
     "@prb/math": "4.1.0",
-    "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#2e3eae8fd3d352240aa48a2e2b3c0168e8229e71",
+    "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#2bc2e40955d27e786e97e93aeeb4f68d96870c83",
     "forge-std": "github:foundry-rs/forge-std#v1.9.7"
   },
   "devDependencies": {
@@ -15,7 +15,7 @@
     "prettier-plugin-solidity": "^1.4.3",
     "solhint": "^5.1.0",
     "solhint-plugin-prettier": "^0.1.0",
-    "tsx": "^4.19.4",
+    "tsx": "^4.20.3",
     "typescript": "^5.8.3"
   },
   "scripts": {
@@ -36,5 +36,5 @@
     "playground": "forge script script/Playground.s.sol:PlaygroundScript --slow",
     "anvil": "anvil --fork-url https://ethereum-rpc.publicnode.com --chain-id 31337 --prune-history"
   },
-  "packageManager": "yarn@4.9.1"
+  "packageManager": "yarn@4.9.2"
 }

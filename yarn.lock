@@ -976,9 +976,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@reserve-protocol/trusted-fillers@github:reserve-protocol/trusted-fillers#2e3eae8fd3d352240aa48a2e2b3c0168e8229e71":
+"@reserve-protocol/trusted-fillers@github:reserve-protocol/trusted-fillers#2bc2e40955d27e786e97e93aeeb4f68d96870c83":
   version: 0.1.0
-  resolution: "@reserve-protocol/trusted-fillers@https://github.com/reserve-protocol/trusted-fillers.git#commit=2e3eae8fd3d352240aa48a2e2b3c0168e8229e71"
+  resolution: "@reserve-protocol/trusted-fillers@https://github.com/reserve-protocol/trusted-fillers.git#commit=2bc2e40955d27e786e97e93aeeb4f68d96870c83"
   dependencies:
     "@cowprotocol/app-data": "npm:^2.5.1"
     "@cowprotocol/cow-sdk": "npm:^5.10.1"
@@ -988,7 +988,7 @@ __metadata:
     ethers: "npm:^5.7.2"
     forge-std: "github:foundry-rs/forge-std#v1.9.4"
     viem: "npm:^2.23.11"
-  checksum: 10c0/62a955d228822202e2c02088016729584acf4075f60f5b8aa1847719f1c6d5907a1504b071dca0734f22403672eb49b29e11257a98b44cfca3a9b3b3ad681619
+  checksum: 10c0/3a0f9d0cc543cb2341590470e105ec882de77069063b24b76256b21b40350b6b38dfc32f2c65107412bdb1c0bb0ab3066918f3faa500e6a399ed7a91cee633a1
   languageName: node
   linkType: hard
 
@@ -1936,13 +1936,13 @@ __metadata:
     "@openzeppelin/contracts": "npm:5.1.0"
     "@openzeppelin/contracts-upgradeable": "npm:5.1.0"
     "@prb/math": "npm:4.1.0"
-    "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#2e3eae8fd3d352240aa48a2e2b3c0168e8229e71"
+    "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#2bc2e40955d27e786e97e93aeeb4f68d96870c83"
     forge-std: "github:foundry-rs/forge-std#v1.9.7"
     prettier: "npm:^3.5.3"
     prettier-plugin-solidity: "npm:^1.4.3"
     solhint: "npm:^5.1.0"
     solhint-plugin-prettier: "npm:^0.1.0"
-    tsx: "npm:^4.19.4"
+    tsx: "npm:^4.20.3"
     typescript: "npm:^5.8.3"
   languageName: unknown
   linkType: soft
@@ -3890,9 +3890,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tsx@npm:^4.19.4":
-  version: 4.19.4
-  resolution: "tsx@npm:4.19.4"
+"tsx@npm:^4.20.3":
+  version: 4.20.3
+  resolution: "tsx@npm:4.20.3"
   dependencies:
     esbuild: "npm:~0.25.0"
     fsevents: "npm:~2.3.3"
@@ -3902,7 +3902,7 @@ __metadata:
       optional: true
   bin:
     tsx: dist/cli.mjs
-  checksum: 10c0/f7b8d44362343fbde1f2ecc9832d243a450e1168dd09702a545ebe5f699aa6912e45b431a54b885466db414cceda48e5067b36d182027c43b2c02a4f99d8721e
+  checksum: 10c0/6ff0d91ed046ec743fac7ed60a07f3c025e5b71a5aaf58f3d2a6b45e4db114c83e59ebbb078c8e079e48d3730b944a02bc0de87695088aef4ec8bbc705dc791b
   languageName: node
   linkType: hard
 
