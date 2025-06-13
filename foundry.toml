@@ -6,6 +6,7 @@ test = "test"
 
 # Gas/Memory
 gas_limit = "18446744073709551615" # 2^64 - 1
+dynamic_test_linking = true 
 memory_limit = 1073741824 # 1 GB
 
 # Compiler Options
