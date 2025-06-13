@@ -43,21 +43,15 @@ contract FolioLens is Versioned {
         uint256 price; // D27{buyTok/sellTok}
     }
 
-    /// Get bids for all pairs at once
+    /// Get bids for all pairs at once for the current block
     /// Many entries will be 0 to indicate an invalid token pair
-    function getAllBids(
-        Folio folio,
-        uint256 auctionId,
-        uint256 timestamp
-    ) external view returns (SingleBid[] memory bids) {
-        timestamp = timestamp == 0 ? block.timestamp : timestamp;
-
+    function getAllBids(Folio folio, uint256 auctionId) external view returns (SingleBid[] memory bids) {
         (uint256 nonce, address[] memory tokens, , , , , , , , ) = folio.getRebalance();
 
         {
-            (uint256 rebalanceNonce, uint256 startTime, uint256 endTime) = folio.auctions(auctionId);
+            (uint256 rebalanceNonce, , ) = folio.auctions(auctionId);
 
-            if (nonce != rebalanceNonce || timestamp < startTime || timestamp > endTime) {
+            if (nonce != rebalanceNonce) {
                 return bids;
             }
         }
@@ -68,9 +62,11 @@ contract FolioLens is Versioned {
         uint256 count = 0;
         for (uint256 i = 0; i < len; i++) {
             for (uint256 j = 0; j < len; j++) {
-                try
-                    folio.getBid(auctionId, IERC20(tokens[i]), IERC20(tokens[j]), timestamp, type(uint256).max)
-                returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
+                try folio.getBid(auctionId, IERC20(tokens[i]), IERC20(tokens[j]), type(uint256).max) returns (
+                    uint256 sellAmount,
+                    uint256 bidAmount,
+                    uint256 price
+                ) {
                     if (sellAmount != 0 && bidAmount != 0) {
                         allBids[count] = SingleBid({
                             sellToken: tokens[i],

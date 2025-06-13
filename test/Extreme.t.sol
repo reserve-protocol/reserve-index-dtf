@@ -280,13 +280,12 @@ contract ExtremeTest is BaseExtremeTest {
 
         // should quote at both ends
 
-        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, sell, buy, start, type(uint256).max);
-        (sellAmount, buyAmount, ) = folio.getBid(0, sell, buy, end, type(uint256).max);
+        vm.warp(start);
+        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, sell, buy, type(uint256).max);
+        vm.warp(end);
+        (sellAmount, buyAmount, ) = folio.getBid(0, sell, buy, type(uint256).max);
 
         if (buyAmount != 0) {
-            // warp to end
-            vm.warp(end);
-
             // mint buy tokens to user1 and bid
             deal(address(buy), address(user1), buyAmount, true);
             vm.startPrank(user1);

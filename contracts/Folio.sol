@@ -650,10 +650,9 @@ contract Folio is
         auctionId = _openAuction(rebalanceNonce, tokens, weights, prices, limits, RESTRICTED_AUCTION_BUFFER);
     }
 
-    /// Get auction bid parameters for an ongoing auction at a target timestamp, for some token pair
+    /// Get auction bid parameters for an ongoing auction in the current block, for some token pair
     /// @param sellToken The token to sell
     /// @param buyToken The token to buy
-    /// @param timestamp {s} The timestamp to get the bid parameters for, or 0 to use the current timestamp
     /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder can offer the protocol
     /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
     /// @return bidAmount {buyTok} The amount of buy tokens required to bid for the full sell amount
@@ -662,20 +661,9 @@ contract Folio is
         uint256 auctionId,
         IERC20 sellToken,
         IERC20 buyToken,
-        uint256 timestamp,
         uint256 maxSellAmount
     ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
-        return
-            _getBid(
-                auctions[auctionId],
-                sellToken,
-                buyToken,
-                totalSupply(),
-                timestamp != 0 ? timestamp : block.timestamp,
-                0,
-                maxSellAmount,
-                type(uint256).max
-            );
+        return _getBid(auctions[auctionId], sellToken, buyToken, totalSupply(), 0, maxSellAmount, type(uint256).max);
     }
 
     /// Bid in an ongoing auction
@@ -699,16 +687,7 @@ contract Folio is
         Auction storage auction = auctions[auctionId];
 
         // checks auction is ongoing and that boughtAmt is below maxBuyAmount
-        (, boughtAmt, ) = _getBid(
-            auction,
-            sellToken,
-            buyToken,
-            totalSupply(),
-            block.timestamp,
-            sellAmount,
-            sellAmount,
-            maxBuyAmount
-        );
+        (, boughtAmt, ) = _getBid(auction, sellToken, buyToken, totalSupply(), sellAmount, sellAmount, maxBuyAmount);
 
         // bid via approval or callback
         if (RebalancingLib.bid(auctionId, sellToken, buyToken, sellAmount, boughtAmt, withCallback, data)) {
@@ -735,7 +714,6 @@ contract Folio is
             sellToken,
             buyToken,
             totalSupply(),
-            block.timestamp,
             0,
             type(uint256).max,
             type(uint256).max
@@ -873,11 +851,9 @@ contract Folio is
         RebalancingLib.openAuction(rebalance, auctions, auctionId, tokens, weights, prices, limits, auctionLength);
     }
 
-    /// Get auction bid parameters for a token pair at a target timestamp, up to a maximum sell amount
-    /// @dev Slightly misleading quotes just before the daily supply fee inflation event
+    /// Get auction bid parameters for a token pair at the current timestamp, up to a maximum sell amount
     /// @param sellToken The token to sell
     /// @param buyToken The token to buy
-    /// @param timestamp {s} The timestamp to get the bid parameters for
     /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder can offer the protocol
     /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at the given timestamp
     /// @return bidAmount {buyTok} The amount of buy tokens required to bid for the full sell amount
@@ -887,14 +863,12 @@ contract Folio is
         IERC20 sellToken,
         IERC20 buyToken,
         uint256 _totalSupply,
-        uint256 timestamp,
         uint256 minSellAmount,
         uint256 maxSellAmount,
         uint256 maxBuyAmount
     ) internal view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
         RebalancingLib.GetBidParams memory params = RebalancingLib.GetBidParams({
             totalSupply: _totalSupply,
-            timestamp: timestamp,
             sellBal: _balanceOfToken(sellToken),
             buyBal: _balanceOfToken(buyToken),
             minSellAmount: minSellAmount,

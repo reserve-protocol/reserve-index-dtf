@@ -235,7 +235,6 @@ library RebalancingLib {
 
     /// @dev stack-too-deep
     /// @param totalSupply {share} Current total supply of the Folio
-    /// @param timestamp {s} Timestamp to fetch bid for
     /// @param sellBal {sellTok} Folio's available balance of sell token, including any active fills
     /// @param buyBal {buyTok} Folio's available balance of buy token, including any active fills
     /// @param minSellAmount {sellTok} The minimum sell amount the bidder should receive
@@ -243,7 +242,6 @@ library RebalancingLib {
     /// @param maxBuyAmount {buyTok} The maximum buy amount the bidder is willing to offer
     struct GetBidParams {
         uint256 totalSupply;
-        uint256 timestamp;
         uint256 sellBal;
         uint256 buyBal;
         uint256 minSellAmount;
@@ -251,7 +249,7 @@ library RebalancingLib {
         uint256 maxBuyAmount;
     }
 
-    /// Get bid parameters for an ongoing auction
+    /// Get bid parameters for an ongoing auction at the current timestamp
     /// @return sellAmount {sellTok} The actual sell amount in the bid
     /// @return bidAmount {buyTok} The corresponding buy amount
     /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
@@ -266,7 +264,7 @@ library RebalancingLib {
 
         // checks auction is ongoing and part of rebalance
         // D27{buyTok/sellTok}
-        price = _price(rebalance, auction, sellToken, buyToken, params.timestamp);
+        price = _price(rebalance, auction, sellToken, buyToken);
 
         // sell down to the high BU limit and high weight
         // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
@@ -357,13 +355,13 @@ library RebalancingLib {
 
     // ==== Internal ====
 
+    /// Get the price of a token pair within an auction at the current timestamp
     /// @return p D27{buyTok/sellTok}
     function _price(
         IFolio.Rebalance storage rebalance,
         IFolio.Auction storage auction,
         IERC20 sellToken,
-        IERC20 buyToken,
-        uint256 timestamp
+        IERC20 buyToken
     ) internal view returns (uint256 p) {
         IFolio.PriceRange memory sellPrices = auction.prices[address(sellToken)];
         IFolio.PriceRange memory buyPrices = auction.prices[address(buyToken)];
@@ -376,25 +374,25 @@ library RebalancingLib {
                 rebalance.details[address(buyToken)].inRebalance &&
                 sellPrices.low != 0 && // in auction check
                 buyPrices.low != 0 && // in auction check
-                timestamp >= auction.startTime &&
-                timestamp <= auction.endTime,
+                block.timestamp >= auction.startTime &&
+                block.timestamp <= auction.endTime,
             IFolio.Folio__AuctionNotOngoing()
         );
 
         // D27{buyTok/sellTok} = D27{UoA/sellTok} * D27 / D27{UoA/buyTok}
         uint256 startPrice = Math.mulDiv(sellPrices.high, D27, buyPrices.low, Math.Rounding.Ceil);
-        if (timestamp == auction.startTime) {
+        if (block.timestamp == auction.startTime) {
             return startPrice;
         }
 
         // D27{buyTok/sellTok} = D27{UoA/sellTok} * D27 / D27{UoA/buyTok}
         uint256 endPrice = Math.mulDiv(sellPrices.low, D27, buyPrices.high, Math.Rounding.Ceil);
-        if (timestamp == auction.endTime) {
+        if (block.timestamp == auction.endTime) {
             return endPrice;
         }
 
         // {s}
-        uint256 elapsed = timestamp - auction.startTime;
+        uint256 elapsed = block.timestamp - auction.startTime;
         uint256 auctionLength = auction.endTime - auction.startTime;
 
         // D18{1}
