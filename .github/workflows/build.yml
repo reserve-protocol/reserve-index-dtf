@@ -38,6 +38,17 @@ jobs:
         run: |
           forge compile
 
+      - name: Generate Artifacts
+        run: |
+          yarn export
+
+      - name: Save Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: typescript-artifacts
+          path: |
+            artifacts/
+
   size:
     runs-on: ubuntu-latest
     steps:

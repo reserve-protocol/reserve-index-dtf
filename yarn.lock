@@ -827,7 +827,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts-upgradeable@npm:5.1.0, @openzeppelin/contracts-upgradeable@npm:^5.1.0":
+"@openzeppelin/contracts-upgradeable@npm:5.1.0":
   version: 5.1.0
   resolution: "@openzeppelin/contracts-upgradeable@npm:5.1.0"
   peerDependencies:
@@ -836,7 +836,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts@npm:5.1.0, @openzeppelin/contracts@npm:^5.1.0":
+"@openzeppelin/contracts@npm:5.1.0":
   version: 5.1.0
   resolution: "@openzeppelin/contracts@npm:5.1.0"
   checksum: 10c0/dd6cf97fbc07910e57efefec1ca5b49cbe70ad7f53ff66fa7d1ecb4ec0c47a8609220e46496665dbebed9dba95a4524679adf0cf36fdd58c59a98787fd019678
@@ -887,7 +887,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@prb/math@npm:4.1.0, @prb/math@npm:^4.1.0":
+"@prb/math@npm:4.1.0":
   version: 4.1.0
   resolution: "@prb/math@npm:4.1.0"
   checksum: 10c0/c5d57c25553345e5ba3745b6793e25097b7b6ffc43c2881d46451c4773a4dc043526fed391031221ce92109ec54ee2cea921d2490fa289bbc5f323df33677861
@@ -976,19 +976,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@reserve-protocol/trusted-fillers@github:reserve-protocol/trusted-fillers#2bc2e40955d27e786e97e93aeeb4f68d96870c83":
+"@reserve-protocol/trusted-fillers@github:reserve-protocol/trusted-fillers#f32364b2de65148f4b204b9aa10f7fbec865a651":
   version: 0.1.0
-  resolution: "@reserve-protocol/trusted-fillers@https://github.com/reserve-protocol/trusted-fillers.git#commit=2bc2e40955d27e786e97e93aeeb4f68d96870c83"
+  resolution: "@reserve-protocol/trusted-fillers@https://github.com/reserve-protocol/trusted-fillers.git#commit=f32364b2de65148f4b204b9aa10f7fbec865a651"
   dependencies:
     "@cowprotocol/app-data": "npm:^2.5.1"
     "@cowprotocol/cow-sdk": "npm:^5.10.1"
-    "@openzeppelin/contracts": "npm:^5.1.0"
-    "@openzeppelin/contracts-upgradeable": "npm:^5.1.0"
-    "@prb/math": "npm:^4.1.0"
+    "@openzeppelin/contracts": "npm:5.1.0"
+    "@openzeppelin/contracts-upgradeable": "npm:5.1.0"
+    "@prb/math": "npm:4.1.0"
     ethers: "npm:^5.7.2"
-    forge-std: "github:foundry-rs/forge-std#v1.9.4"
+    forge-std: "github:foundry-rs/forge-std#v1.9.7"
     viem: "npm:^2.23.11"
-  checksum: 10c0/3a0f9d0cc543cb2341590470e105ec882de77069063b24b76256b21b40350b6b38dfc32f2c65107412bdb1c0bb0ab3066918f3faa500e6a399ed7a91cee633a1
+  checksum: 10c0/d486f0e8c16124c6f8bfb3ae51b978a81f1941ac7d6a5b35c4e695dcb3450d3a97a19741833961ab44561a80621cce4266068077b015da7aa91b0ef31b40fe4a
   languageName: node
   linkType: hard
 
@@ -1936,7 +1936,7 @@ __metadata:
     "@openzeppelin/contracts": "npm:5.1.0"
     "@openzeppelin/contracts-upgradeable": "npm:5.1.0"
     "@prb/math": "npm:4.1.0"
-    "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#2bc2e40955d27e786e97e93aeeb4f68d96870c83"
+    "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#f32364b2de65148f4b204b9aa10f7fbec865a651"
     forge-std: "github:foundry-rs/forge-std#v1.9.7"
     prettier: "npm:^3.5.3"
     prettier-plugin-solidity: "npm:^1.4.3"
@@ -1954,13 +1954,6 @@ __metadata:
     cross-spawn: "npm:^7.0.6"
     signal-exit: "npm:^4.0.1"
   checksum: 10c0/8986e4af2430896e65bc2788d6679067294d6aee9545daefc84923a0a4b399ad9c7a3ea7bd8c0b2b80fdf4a92de4c69df3f628233ff3224260e9c1541a9e9ed3
-  languageName: node
-  linkType: hard
-
-"forge-std@github:foundry-rs/forge-std#v1.9.4":
-  version: 1.9.4
-  resolution: "forge-std@https://github.com/foundry-rs/forge-std.git#commit=1eea5bae12ae557d589f9f0f0edae2faa47cb262"
-  checksum: 10c0/dfd1917b83fe53c09df889df71d75b149454e09067ea1a1723ec7fdd67f319d99066d3fc3efbb8f9b712d42607f697b44a77f4321bf356d6a08de852106b2c19
   languageName: node
   linkType: hard
 
