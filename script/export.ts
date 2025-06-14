@@ -20,6 +20,7 @@ const artifactDirectory = "artifacts";
 
 async function main() {
   await fs.rm(artifactDirectory, { recursive: true }).catch(() => {});
+  await fs.mkdir(artifactDirectory, { recursive: true });
 
   for (const artifact of artifactsList) {
     const artifactPath = path.join("../out", artifact);
