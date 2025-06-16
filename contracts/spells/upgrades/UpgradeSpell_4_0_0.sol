@@ -15,12 +15,13 @@ bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
  * @title UpgradeSpell_4_0_0
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  *
- * This spell upgrades a Folio to 4.0.0. Only Folios listed on the Register as of 2025-05-29 are supported.
- *
- * All Folios must be on 1.0.0 or 2.0.0 before they upgrade. On 4.0.0 they will receive PriceControl.PARTIAL.
+ * This spell upgrades a Folio to 4.0.0. For TRACKING DTFs, only Folios created as of 2025-06-16 are supported.
+ * Previously created Folios will be assumed to be NATIVE.
  *
  * A Folio's weightControl is set as a function of whether the DTF is TRACKING or NATIVE, a previously offchain
  * concept that has been encoded in the isTrackingDTF mapping.
+ *
+ * All Folios must be on 1.0.0 or 2.0.0 before they upgrade. On 4.0.0 they will receive PriceControl.PARTIAL.
  *
  * The spell does not upgrade the staking vault.
  *
@@ -32,7 +33,7 @@ bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
  */
 contract UpgradeSpell_4_0_0 is Versioned {
     mapping(address => bool) public isTrackingDTF;
-    // this mapping is used chain agnostically; by-hand this has been checked to be safe
+    // this mapping is used chain agnostically; by-hand this has been checked to be safe as of 2025-06-16
 
     constructor() {
         isTrackingDTF[0x23418De10d422AD71C9D5713a2B8991a9c586443] = true; // BGCI (base)
