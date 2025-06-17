@@ -1435,7 +1435,7 @@ contract FolioTest is BaseTest {
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
 
         // anyone should be able to close, even though it's ideal this happens in the cowswap post-hook
-        swap2.closeFiller();
+        folio.poke();
         assertEq(USDC.balanceOf(address(swap2)), 0, "wrong usdc balance");
         assertEq(USDT.balanceOf(address(swap2)), 0, "wrong usdt balance");
 
@@ -2535,6 +2535,7 @@ contract FolioTest is BaseTest {
         folio.bid(0, USDC, IERC20(address(USDT)), amt, 1, false, bytes(""));
         vm.stopPrank();
     }
+
     function test_auctionCannotBidForMoreThanAvailable() public {
         // Test bid reverts if sellAmount exceeds Folio's token balance.
 
