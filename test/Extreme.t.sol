@@ -240,7 +240,11 @@ contract ExtremeTest is BaseExtremeTest {
             address[] memory assets = new address[](2);
             IFolio.WeightRange[] memory weights = new IFolio.WeightRange[](2);
             IFolio.PriceRange[] memory prices = new IFolio.PriceRange[](2);
-            IFolio.RebalanceLimits memory limits = IFolio.RebalanceLimits({ low: 1e18, spot: 1e18, high: 1e18 });
+            IFolio.RebalanceLimits memory limits = IFolio.RebalanceLimits({
+                low: p.testLimits,
+                spot: p.testLimits,
+                high: p.testLimits
+            });
             assets[0] = address(sell);
             assets[1] = address(buy);
             weights[0] = REMOVE;
