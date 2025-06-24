@@ -107,6 +107,7 @@ library RebalancingLib {
     }
 
     /// Open a new auction
+    /// @dev Assumes all tokens provided are in rebalance
     function openAuction(
         IFolio.Rebalance storage rebalance,
         mapping(uint256 auctionId => IFolio.Auction) storage auctions,
@@ -140,14 +141,8 @@ library RebalancingLib {
 
         IFolio.Auction storage auction = auctions[auctionId];
 
-        // use first token in rebalance as anchor for atomic swap check
-        bool allAtomicSwaps;
-        for (uint256 i = 0; i < len; i++) {
-            if (rebalance.details[tokens[i]].inRebalance) {
-                allAtomicSwaps = prices[i].low == prices[i].high;
-                break;
-            }
-        }
+        // use first tokens as anchor for atomic swap check
+        bool allAtomicSwaps = prices[0].low == prices[0].high;
 
         // all tokens must have constant prices or none can
         require(
@@ -162,19 +157,13 @@ library RebalancingLib {
             // enforce unique
             require(auction.prices[token].high == 0, IFolio.Folio__DuplicateAsset());
 
-            // enforce valid token
-            require(token != address(0) && token != address(this), IFolio.Folio__InvalidAsset());
-
             IFolio.RebalanceDetails storage rebalanceDetails = rebalance.details[token];
 
-            // only include tokens from rebalance
-            if (!rebalanceDetails.inRebalance) {
-                // imperfect but ok, events can have zero values in them
-                delete tokens[i];
-                delete weights[i];
-                continue;
-                // TODO maybe remove and do more work in openAuctionUnrestricted
-            }
+            // enforce valid token
+            require(
+                token != address(0) && token != address(this) && rebalanceDetails.inRebalance,
+                IFolio.Folio__InvalidAsset()
+            );
 
             // update weights
             {

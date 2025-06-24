@@ -624,21 +624,36 @@ contract Folio is
     ) external nonReentrant notDeprecated sync returns (uint256 auctionId) {
         require(block.timestamp >= rebalance.restrictedUntil, Folio__AuctionCannotBeOpenedWithoutRestriction());
 
-        address[] memory tokens = basket.values();
-        uint256 len = tokens.length;
-        WeightRange[] memory weights = new WeightRange[](len);
-        PriceRange[] memory prices = new PriceRange[](len);
+        address[] memory basketTokens = basket.values();
+        uint256 len = basketTokens.length;
+
+        // count tokens in rebalance
+        uint256 count;
+        for (uint256 i; i < len; i++) {
+            if (rebalance.details[basketTokens[i]].inRebalance) {
+                count++;
+            }
+        }
+
+        address[] memory tokens = new address[](count);
+        WeightRange[] memory weights = new WeightRange[](count);
+        PriceRange[] memory prices = new PriceRange[](count);
 
         // use spot weights and initialPrices, collapsing high/low weight range
+        count = 0;
         for (uint256 i; i < len; i++) {
-            RebalanceDetails storage rebalanceDetails = rebalance.details[tokens[i]];
+            RebalanceDetails storage rebalanceDetails = rebalance.details[basketTokens[i]];
 
-            weights[i] = WeightRange({
-                low: rebalanceDetails.weights.spot,
-                spot: rebalanceDetails.weights.spot,
-                high: rebalanceDetails.weights.spot
-            });
-            prices[i] = rebalanceDetails.initialPrices;
+            if (rebalanceDetails.inRebalance) {
+                tokens[count] = basketTokens[i];
+                weights[count] = WeightRange({
+                    low: rebalanceDetails.weights.spot,
+                    spot: rebalanceDetails.weights.spot,
+                    high: rebalanceDetails.weights.spot
+                });
+                prices[count] = rebalanceDetails.initialPrices;
+                count++;
+            }
         }
 
         // use spot limits, collapse high/low range
