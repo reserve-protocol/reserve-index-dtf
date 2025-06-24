@@ -32,7 +32,6 @@ interface IFolio {
     event TVLFeeSet(uint256 newFee, uint256 feeAnnually);
     event MintFeeSet(uint256 newFee);
     event FeeRecipientsSet(FeeRecipient[] recipients);
-    event AuctionDelaySet(uint256 newAuctionDelay);
     event AuctionLengthSet(uint256 newAuctionLength);
     event MandateSet(string newMandate);
     event TrustedFillerRegistrySet(address trustedFillerRegistry, bool isEnabled);
@@ -91,7 +90,6 @@ interface IFolio {
     error Folio__TrustedFillerRegistryAlreadySet();
     error Folio__InvalidTTL();
     error Folio__NotRebalancing();
-    error Folio__EmptyAuction();
     error Folio__MixedAtomicSwaps();
 
     // === Structures ===
@@ -181,7 +179,7 @@ interface IFolio {
 
     /// 1 running auction at a time; N per rebalance overall
     /// Auction states:
-    ///   - APPROVED: startTime == 0 && endTime == 0
+    ///   - UNINITIALIZED: startTime == 0 && endTime == 0
     ///   - PENDING: block.timestamp < startTime
     ///   - OPEN: block.timestamp >= startTime && block.timestamp <= endTime
     ///   - CLOSED: block.timestamp > endTime

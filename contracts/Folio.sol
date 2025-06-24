@@ -40,8 +40,8 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   - SHOULD NOT close auctions/rebalances to deny the rebalance dishonestly
  *   - SHOULD craft auctions against progressively narrowed BU limits to responsibly DCA into the new basket
  *   - SHOULD end the ongoing rebalance when prices have moved outside the initially-provided price ranges
- *   - if weightControl=true: SHOULD progressively narrow weight ranges to mintain the original rebalance intent
- *   - if priceControl=true: SHOULD provide narrowed price ranges that still include the current clearing price
+ *   - if weightControl=true: SHOULD progressively narrow weight ranges to maintain the original rebalance intent
+ *   - if priceControl=PARTIAL: SHOULD provide narrowed price ranges that still include the current clearing price
  *
  * Rebalance lifecycle:
  *   startRebalance() -> openAuction()/openAuctionUnrestricted() -> bid()/createTrustedFill() -> [optional] closeAuction()
@@ -58,7 +58,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   extend the period indefinitely past the rebalance's end time.
  *
  * After the AUCTION_LAUNCHER's restricted period is over, anyone can open auctions until the rebalance expires. The
- *   AUCTION_LAUNCHER can always deny the unrestricted period by closing the auction when they are done rebalancing.
+ *   AUCTION_LAUNCHER can always deny the unrestricted period by ending the rebalance when they are done.
  *
  * The unrestricted period exists primarily to avoid strong reliance on the AUCTION_LAUNCHER; the auctionLength should be
  *   long enough to support the price ranges provided by REBALANCE_MANAGER without excessive loss due to block precision
@@ -550,7 +550,7 @@ contract Folio is
     /// @param prices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e54]
     /// @param limits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e36]
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
-    /// @param ttl {s} The amount of time the rebalance is valid for, can be extended
+    /// @param ttl {s} The amount of time the rebalance is valid for
     function startRebalance(
         address[] calldata tokens,
         WeightRange[] calldata weights,
@@ -681,7 +681,7 @@ contract Folio is
         IERC20 buyToken,
         uint256 maxSellAmount
     ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
-        return _getBid(auctions[auctionId], sellToken, buyToken, totalSupply(), 0, maxSellAmount, type(uint256).max);
+        return _getBid(auctions[auctionId], sellToken, buyToken, 0, maxSellAmount, type(uint256).max);
     }
 
     /// Bid in an ongoing auction
@@ -705,7 +705,7 @@ contract Folio is
         Auction storage auction = auctions[auctionId];
 
         // checks auction is ongoing and that boughtAmt is below maxBuyAmount
-        (, boughtAmt, ) = _getBid(auction, sellToken, buyToken, totalSupply(), sellAmount, sellAmount, maxBuyAmount);
+        (, boughtAmt, ) = _getBid(auction, sellToken, buyToken, sellAmount, sellAmount, maxBuyAmount);
 
         // bid via approval or callback
         if (RebalancingLib.bid(auctionId, sellToken, buyToken, sellAmount, boughtAmt, withCallback, data)) {
@@ -731,7 +731,6 @@ contract Folio is
             auctions[auctionId],
             sellToken,
             buyToken,
-            totalSupply(),
             0,
             type(uint256).max,
             type(uint256).max
@@ -880,13 +879,12 @@ contract Folio is
         Auction storage auction,
         IERC20 sellToken,
         IERC20 buyToken,
-        uint256 _totalSupply,
         uint256 minSellAmount,
         uint256 maxSellAmount,
         uint256 maxBuyAmount
     ) internal view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
         RebalancingLib.GetBidParams memory params = RebalancingLib.GetBidParams({
-            totalSupply: _totalSupply,
+            totalSupply: totalSupply(),
             sellBal: _balanceOfToken(sellToken),
             buyBal: _balanceOfToken(buyToken),
             minSellAmount: minSellAmount,
