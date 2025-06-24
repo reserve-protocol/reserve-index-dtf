@@ -107,7 +107,6 @@ library RebalancingLib {
     }
 
     /// Open a new auction
-    /// @dev Assumes all tokens provided are in rebalance
     function openAuction(
         IFolio.Rebalance storage rebalance,
         mapping(uint256 auctionId => IFolio.Auction) storage auctions,
