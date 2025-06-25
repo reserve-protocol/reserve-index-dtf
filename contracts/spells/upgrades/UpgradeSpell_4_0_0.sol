@@ -23,6 +23,8 @@ bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
  *
  * All Folios must be on 1.0.0 or 2.0.0 before they upgrade. On 4.0.0 they will receive PriceControl.PARTIAL.
  *
+ * Any Folio balances held by the Folio will become locked.
+ *
  * The spell does not upgrade the staking vault.
  *
  * In order to use the spell:
