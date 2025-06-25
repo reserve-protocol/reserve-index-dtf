@@ -93,9 +93,9 @@ The `REBALANCE_MANAGER` configures a large number of rebalance ranges including 
 ```solidity
 /// Target limits for rebalancing
 struct RebalanceLimits {
-  uint256 low; // D18{BU/share} (0, 1e36] to buy assets up to
-  uint256 spot; // D18{BU/share} (0, 1e36] point estimate to be used in the event of unrestricted caller
-  uint256 high; // D18{BU/share} (0, 1e36] to sell assets down to
+  uint256 low; // D18{BU/share} (0, 1e27] to buy assets up to
+  uint256 spot; // D18{BU/share} (0, 1e27] point estimate to be used in the event of unrestricted caller
+  uint256 high; // D18{BU/share} (0, 1e27] to sell assets down to
 }
 
 /// Range of basket weights for BU definition

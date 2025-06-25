@@ -140,9 +140,9 @@ interface IFolio {
 
     /// Basket limits for rebalancing
     struct RebalanceLimits {
-        uint256 low; // D18{BU/share} (0, 1e36] to buy assets up to
-        uint256 spot; // D18{BU/share} (0, 1e36] point estimate to be used only in the event of unrestricted caller
-        uint256 high; // D18{BU/share} (0, 1e36] to sell assets down to
+        uint256 low; // D18{BU/share} (0, 1e27] to buy assets up to
+        uint256 spot; // D18{BU/share} (0, 1e27] point estimate to be used only in the event of unrestricted caller
+        uint256 high; // D18{BU/share} (0, 1e27] to sell assets down to
     }
 
     /// Range of basket weights for BU definition
@@ -170,7 +170,7 @@ interface IFolio {
     struct Rebalance {
         uint256 nonce;
         mapping(address token => RebalanceDetails) details;
-        RebalanceLimits limits; // D18{BU/share} (0, 1e36]
+        RebalanceLimits limits; // D18{BU/share} (0, 1e27]
         uint256 startedAt; // {s} timestamp rebalancing started, inclusive
         uint256 restrictedUntil; // {s} timestamp rebalancing is unrestricted to everyone, exclusive
         uint256 availableUntil; // {s} timestamp rebalancing ends overall, exclusive
