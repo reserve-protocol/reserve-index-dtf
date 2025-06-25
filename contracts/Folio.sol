@@ -75,7 +75,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   low basket limit. Individual token weights can also be used to handle rebalancing independent of BU limits
  *   when the ideal relative ratios of token units is not known ahead of time.
  *
- * A Basket Unit {BU} can be defined within a (0, 1e36] range, but the typical usage defines BUs 1:1 with shares (1e18).
+ * A Basket Unit {BU} can be defined within a (0, 1e27] range, but the typical usage defines BUs 1:1 with shares (1e18).
  *
  * Fees:
  *   - TVL fee: fee per unit time. Max 10% annually. Causes supply inflation over time, discretely once a day.
@@ -548,7 +548,7 @@ contract Folio is
     /// @param tokens Tokens to rebalance, MUST be unique
     /// @param weights D27{tok/BU} Basket weight ranges for the basket unit definition; cannot be empty [0, 1e54]
     /// @param prices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e54]
-    /// @param limits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e36]
+    /// @param limits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e27]
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
     /// @param ttl {s} The amount of time the rebalance is valid for, can be extended
     function startRebalance(

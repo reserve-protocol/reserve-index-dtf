@@ -17,6 +17,7 @@ abstract contract BaseExtremeTest is BaseTest {
         uint256 sellAmount; // {sellTok}
         uint256 sellTokenPrice; // D27{UoA/sellTok}
         uint256 buyTokenPrice; // D27{UoA/sellTok}
+        uint256 testLimits; // D18{BU/share}
     }
 
     struct FeeTestParams {
@@ -40,6 +41,7 @@ abstract contract BaseExtremeTest is BaseTest {
     uint8[] internal testStakingDecimals = [6, 8, 18, 21];
     uint256[] internal testNumTokens = [1, 10, 50, 100, 500];
     uint256[] internal testStakingNumTokens = [1, 10];
+    uint256[] internal testLimits = [1, 1e18, 1e27];
     uint256[] internal testAmounts = [1, 1e6, 1e18, 1e36];
     uint256[] internal testPrices = [1, 1e6, 1e18, 1e45];
     uint256[] internal testTVLFees = [0, MAX_TVL_FEE / 4, MAX_TVL_FEE / 2, MAX_TVL_FEE];
@@ -131,15 +133,18 @@ abstract contract BaseExtremeTest is BaseTest {
                 for (uint256 k; k < testAmounts.length; k++) {
                     for (uint256 l; l < testPrices.length; l++) {
                         for (uint256 m; m < testPrices.length; m++) {
-                            tradingTestParams.push(
-                                RebalancingTestParams({
-                                    sellDecimals: testDecimals[i],
-                                    buyDecimals: testDecimals[j],
-                                    sellAmount: testAmounts[k],
-                                    sellTokenPrice: testPrices[l],
-                                    buyTokenPrice: testPrices[m]
-                                })
-                            );
+                            for (uint256 n; n < testLimits.length; n++) {
+                                tradingTestParams.push(
+                                    RebalancingTestParams({
+                                        sellDecimals: testDecimals[i],
+                                        buyDecimals: testDecimals[j],
+                                        sellAmount: testAmounts[k],
+                                        sellTokenPrice: testPrices[l],
+                                        buyTokenPrice: testPrices[m],
+                                        testLimits: testLimits[n]
+                                    })
+                                );
+                            }
                             index++;
                         }
                     }
