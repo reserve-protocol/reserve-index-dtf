@@ -120,7 +120,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         IFolio.FolioFlags calldata folioFlags,
         IGovernanceDeployer.GovParams calldata ownerGovParams,
         IGovernanceDeployer.GovParams calldata tradingGovParams,
-        IGovernanceDeployer.GovRoles calldata govRoles,
+        GovRoles calldata govRoles,
         bytes32 deploymentNonce
     ) external returns (Folio folio, address proxyAdmin) {
         bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
