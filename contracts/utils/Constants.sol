@@ -7,7 +7,6 @@ uint256 constant MAX_MINT_FEE = 0.05e18; // D18{1} 5%
 uint256 constant MIN_MINT_FEE = 0.0003e18; // D18{1} 0.03%
 uint256 constant MIN_AUCTION_LENGTH = 60; // {s} 1 min
 uint256 constant MAX_AUCTION_LENGTH = 604800; // {s} 1 week
-uint256 constant MAX_AUCTION_WARMUP = 604800; // {s} 1 week
 uint256 constant MAX_FEE_RECIPIENTS = 64;
 uint256 constant MAX_TTL = 604800 * 4; // {s} 4 weeks
 uint256 constant MAX_LIMIT = 1e27; // D18{BU/share}

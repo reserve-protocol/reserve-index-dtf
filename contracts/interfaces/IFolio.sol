@@ -98,7 +98,7 @@ interface IFolio {
     enum PriceControl {
         NONE, // cannot change prices
         PARTIAL, // can set auction prices within bounds of initial prices
-        ATOMIC_SWAP // PARTIAL + atomic swaps
+        ATOMIC_SWAP // PARTIAL + ability to set startPrice equal to endPrice
     }
 
     struct FolioBasicDetails {
@@ -135,13 +135,13 @@ interface IFolio {
     /// AUCTION_LAUNCHER control over rebalancing
     struct RebalanceControl {
         bool weightControl; // if AUCTION_LAUNCHER can move weights
-        PriceControl priceControl; // if AUCTION_LAUNCHER can narrow prices
+        PriceControl priceControl; // if/how AUCTION_LAUNCHER can narrow prices
     }
 
     /// Basket limits for rebalancing
     struct RebalanceLimits {
         uint256 low; // D18{BU/share} (0, 1e27] to buy assets up to
-        uint256 spot; // D18{BU/share} (0, 1e27] point estimate to be used only in the event of unrestricted caller
+        uint256 spot; // D18{BU/share} (0, 1e27] point estimate to be used in the event of unrestricted caller
         uint256 high; // D18{BU/share} (0, 1e27] to sell assets down to
     }
 
@@ -155,15 +155,15 @@ interface IFolio {
     /// Individual token price ranges
     /// @dev Unit of Account (UoA) can be anything as long as it's consistent; USD is most common
     struct PriceRange {
-        uint256 low; // D27{UoA/tok} (0, 1e54]
-        uint256 high; // D27{UoA/tok} (0, 1e54]
+        uint256 low; // D27{UoA/tok} (0, 1e45]
+        uint256 high; // D27{UoA/tok} (0, 1e45]
     }
 
     /// Rebalance details for a token
     struct RebalanceDetails {
         bool inRebalance;
         WeightRange weights; // D27{tok/BU} [0, 1e54]
-        PriceRange initialPrices; // D27{UoA/tok} (0, 1e54]
+        PriceRange initialPrices; // D27{UoA/tok} (0, 1e45]
     }
 
     /// Singleton rebalance state
@@ -172,7 +172,7 @@ interface IFolio {
         mapping(address token => RebalanceDetails) details;
         RebalanceLimits limits; // D18{BU/share} (0, 1e27]
         uint256 startedAt; // {s} timestamp rebalancing started, inclusive
-        uint256 restrictedUntil; // {s} timestamp rebalancing is unrestricted to everyone, exclusive
+        uint256 restrictedUntil; // {s} timestamp rebalancing becomes unrestricted, exclusive
         uint256 availableUntil; // {s} timestamp rebalancing ends overall, exclusive
         PriceControl priceControl; // AUCTION_LAUNCHER control over auction pricing
     }
@@ -185,7 +185,7 @@ interface IFolio {
     ///   - CLOSED: block.timestamp > endTime
     struct Auction {
         uint256 rebalanceNonce;
-        mapping(address token => PriceRange) prices; // D27{UoA/tok} (0, 1e54]
+        mapping(address token => PriceRange) prices; // D27{UoA/tok} (0, 1e45]
         uint256 startTime; // {s} inclusive
         uint256 endTime; // {s} inclusive
     }
