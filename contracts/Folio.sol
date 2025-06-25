@@ -24,7 +24,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * @title Folio
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  * @notice Folio is a backed ERC20 token with permissionless minting/redemption and a semi-permissioned rebalancing
- *   mechanism intended for entities that act under timelock delay.
+ *   mechanism intended for rebalancing under timelock delay.
  *
  * A Folio is backed by a flexible number of ERC20 tokens of any denomination/price (within assumed ranges, see README)
  *   All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
@@ -40,8 +40,9 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   - SHOULD NOT close auctions/rebalances to deny the rebalance dishonestly
  *   - SHOULD craft auctions against progressively narrowed BU limits to responsibly DCA into the new basket
  *   - SHOULD end the ongoing rebalance when prices have moved outside the initially-provided price ranges
- *   - if weightControl=true: SHOULD progressively narrow weight ranges to mintain the original rebalance intent
- *   - if priceControl=true: SHOULD provide narrowed price ranges that still include the current clearing price
+ *   - if weightControl=true: SHOULD progressively narrow weight ranges to maintain the original rebalance intent
+ *   - if priceControl=PARTIAL: SHOULD provide narrowed price ranges that still include the current clearing price
+ *        priceControl=ATOMIC_SWAP: SHOULD fill auction atomically directly after opening, when atomic swap is used
  *
  * Rebalance lifecycle:
  *   startRebalance() -> openAuction()/openAuctionUnrestricted() -> bid()/createTrustedFill() -> [optional] closeAuction()
@@ -49,24 +50,25 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * After a new rebalance is started by the REBALANCE_MANAGER, there is a period of time where only the AUCTION_LAUNCHER
  * can run auctions. They can specify a few different things:
  *   - The list of tokens to include in the auction; must be a subset of the tokens in the rebalance
- *   - Basket weight ranges: they can progressively tighten the basket weight ranges, without backtracking
- *   - Individual token price ranges: must be a subset of the initially-provided range, if priceControl=true
- *   - Rebalance limits: they can progressively tighten the BU limits, without backtracking
+ *   - Basket weight ranges: can progressively tighten the basket weight ranges, without backtracking
+ *   - Individual token price ranges: can be a subset of the initially-provided range, if priceControl!=NONE
+ *   - Rebalance limits: can progressively tighten the BU limits, without backtracking
  *
  * The AUCTION_LAUNCHER can run as many auctions as they need to. If they are close to the end of their restricted
- *   period the period will be extended automatically until a period of non-use occurs. However, they cannot
- *   extend the period indefinitely past the rebalance's end time.
+ *   period the period will be extended automatically until a period of non-use occurs. However, they cannot extend the
+ *   period indefinitely past the rebalance's end time. The final auction may extend past the rebalance's endTime, however.
  *
  * After the AUCTION_LAUNCHER's restricted period is over, anyone can open auctions until the rebalance expires. The
- *   AUCTION_LAUNCHER can always deny the unrestricted period by closing the auction when they are done rebalancing.
+ *   AUCTION_LAUNCHER can always deny the unrestricted period by ending the rebalance when they are done.
  *
- * The unrestricted period exists primarily to avoid strong reliance on the AUCTION_LAUNCHER; the auctionLength should be
+ * The unrestricted period exists primarily to avoid strong reliance on the AUCTION_LAUNCHER. The auctionLength should be
  *   long enough to support the price ranges provided by REBALANCE_MANAGER without excessive loss due to block precision
  *   in the case the AUCTION_LAUNCHER is not active.
  *
- * Auctions have a 30s delay at-start before bidding begins in order to ensure competition from the first block.
+ * Auctions have a 30s delay at-start before bidding begins in order to ensure competition from the first block. This delay
+ *   is bypassed in the priceControl=ATOMIC_SWAP case when startPrices are equal to endPrices.
  *
- * An auction for a set of tokens runs in parallel all possible pairs simultaneously. The current price for each
+ * An auction for a set of tokens runs in parallel on all possible pairs simultaneously. The current price for each
  *   pair is interpolated along an exponential decay curve between their most-optimistic and most-pessimistic price
  *   estimates as a function of how much time in the auction has passed.
  *
@@ -165,7 +167,8 @@ contract Folio is
      *   - Each auction the AUCTION_LAUNCHER provides: (i) basket limits; (i) weight ranges; and (iii) prices
      *   - Depending on the WeightControl, the AUCTION_LAUNCHER may be able to narrow weight ranges within the initial range
      *   - Depending on the PriceControl, the AUCTION_LAUNCHER may be able to narrow prices within the initial range
-     *   - At anytime the rebalance can be stopped or a new one can be started (closing any ongoing auction)
+     *   - At anytime the rebalance can be stopped or a new one can be started. In the stopping case, any ongoing auction
+     *     is able to continue completion, but in the restart case the ongoing auction is closed.
      */
     Rebalance private rebalance;
 
@@ -175,6 +178,7 @@ contract Folio is
      *   - An auction is in parallel on all surplus/deficit token pairs at the same time
      *   - Bids are of any size, up to a maximum given by the high/low basket limits and high/low token weights
      *   - All auctions are dutch auctions with an exponential decay curve between two points
+     *   - The warmup period is bypassed in the priceControl=ATOMIC_SWAP case when startPrices are equal to endPrices
      */
     mapping(uint256 id => Auction auction) public auctions;
     uint256 public nextAuctionId;
@@ -243,7 +247,7 @@ contract Folio is
     /// Check if the Folio state can be relied upon to be complete
     /// @dev Safety check for consuming protocols to check for synchronous and asynchronous state changes
     /// @dev Consuming protocols SHOULD call this function and ensure it returns (false, false) before
-    ///      strongly relying on the Folio state.
+    ///      strongly relying on the Folio state. The asyncStateChangeActive check can be DoS'd for the current block.
     function stateChangeActive() external view returns (bool syncStateChangeActive, bool asyncStateChangeActive) {
         syncStateChangeActive = _reentrancyGuardEntered();
         asyncStateChangeActive = address(activeTrustedFill) != address(0) && activeTrustedFill.swapActive();
@@ -253,7 +257,8 @@ contract Folio is
 
     /// Escape hatch function to be used when tokens get acquired not through an auction but
     /// through any other means and should become part of the Folio without being sold.
-    /// @dev Does not require a token balance
+    /// @dev Does not require a token balance, hence can be backrun with removeFromBasket. Token
+    ///      balance is highly recommended.
     /// @param token The token to add to the basket
     function addToBasket(IERC20 token) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_addToBasket(address(token)), Folio__BasketModificationFailed());
@@ -341,14 +346,14 @@ contract Folio is
         return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
-    /// @dev Result may be unreliable mid-swap during trusted fill execution
+    /// @dev Result may be unreliable mid-swap during trusted fill execution, check stateChangeActive()
     /// @return _assets
     /// @return _amounts {tok}
     function totalAssets() external view returns (address[] memory _assets, uint256[] memory _amounts) {
         return _totalAssets();
     }
 
-    /// @dev Result may be unreliable mid-swap during trusted fill execution
+    /// @dev Result may be unreliable mid-swap during trusted fill execution, check stateChangeActive()
     /// @param shares {share}
     /// @return _assets
     /// @return _amounts {tok}
@@ -502,7 +507,7 @@ contract Folio is
     /// @return startedAt {s} The timestamp rebalancing started, inclusive
     /// @return restrictedUntil {s} The timestamp rebalancing is unrestricted to everyone, exclusive
     /// @return availableUntil {s} The timestamp rebalancing ends overall, exclusive
-    /// @return priceControl How much price control to give to AUCTION_LAUNCHER: [NONE, PARTIAL, FULL]
+    /// @return priceControl How much price control to give to AUCTION_LAUNCHER: [NONE, PARTIAL, ATOMIC_SWAP]
     function getRebalance()
         external
         view
@@ -547,10 +552,10 @@ contract Folio is
     /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
     /// @param tokens Tokens to rebalance, MUST be unique
     /// @param weights D27{tok/BU} Basket weight ranges for the basket unit definition; cannot be empty [0, 1e54]
-    /// @param prices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e54]
+    /// @param prices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e45]
     /// @param limits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e27]
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
-    /// @param ttl {s} The amount of time the rebalance is valid for, can be extended
+    /// @param ttl {s} The amount of time the rebalance is valid for
     function startRebalance(
         address[] calldata tokens,
         WeightRange[] calldata weights,
@@ -588,8 +593,8 @@ contract Folio is
     /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits and weights, for a given set of tokens
     /// @param rebalanceNonce The nonce of the rebalance being targeted
     /// @param tokens The tokens from the rebalance to include in the auction; must be unique
-    /// @param newWeights D27{tok/BU} New basket weight ranges for BU definition; must always be provided and within range
-    /// @param newPrices D27{UoA/tok} New price ranges; must always be provided and must obey PriceControl setting
+    /// @param newWeights D27{tok/BU} New basket weight ranges for BU definition; must always be provided
+    /// @param newPrices D27{UoA/tok} New price ranges; must always be provided and obey PriceControl setting
     /// @param newLimits D18{BU/share} New BU limits; must be within range
     /// @return auctionId The newly created auctionId
     function openAuction(
@@ -668,10 +673,10 @@ contract Folio is
     }
 
     /// Get auction bid parameters for an ongoing auction in the current block, for some token pair
-    /// @dev Result may be unreliable mid-swap during trusted fill execution
+    /// @dev Result may be unreliable mid-swap during trusted fill execution, check stateChangeActive()
     /// @param sellToken The token to sell
     /// @param buyToken The token to buy
-    /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder can offer the protocol
+    /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder is willing to buy
     /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
     /// @return bidAmount {buyTok} The amount of buy tokens required to bid for the full sell amount
     /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
@@ -681,7 +686,7 @@ contract Folio is
         IERC20 buyToken,
         uint256 maxSellAmount
     ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
-        return _getBid(auctions[auctionId], sellToken, buyToken, totalSupply(), 0, maxSellAmount, type(uint256).max);
+        return _getBid(auctions[auctionId], sellToken, buyToken, 0, maxSellAmount, type(uint256).max);
     }
 
     /// Bid in an ongoing auction
@@ -692,7 +697,7 @@ contract Folio is
     /// @param maxBuyAmount {buyTok} Max buy token, the token the bidder provides
     /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
     /// @param data Arbitrary data to pass to the callback
-    /// @return boughtAmt {buyTok} The amount bidder receives
+    /// @return boughtAmt {buyTok} The amount the bidder pays
     function bid(
         uint256 auctionId,
         IERC20 sellToken,
@@ -705,7 +710,7 @@ contract Folio is
         Auction storage auction = auctions[auctionId];
 
         // checks auction is ongoing and that boughtAmt is below maxBuyAmount
-        (, boughtAmt, ) = _getBid(auction, sellToken, buyToken, totalSupply(), sellAmount, sellAmount, maxBuyAmount);
+        (, boughtAmt, ) = _getBid(auction, sellToken, buyToken, sellAmount, sellAmount, maxBuyAmount);
 
         // bid via approval or callback
         if (RebalancingLib.bid(auctionId, sellToken, buyToken, sellAmount, boughtAmt, withCallback, data)) {
@@ -731,7 +736,6 @@ contract Folio is
             auctions[auctionId],
             sellToken,
             buyToken,
-            totalSupply(),
             0,
             type(uint256).max,
             type(uint256).max
@@ -765,7 +769,7 @@ contract Folio is
         emit AuctionClosed(auctionId);
     }
 
-    /// End the current rebalance, including any ongoing auction
+    /// End the current rebalance, WITHOUT impacting any ongoing auction
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function endRebalance() external nonReentrant {
         require(
@@ -872,7 +876,7 @@ contract Folio is
     /// Get auction bid parameters for a token pair at the current timestamp, up to a maximum sell amount
     /// @param sellToken The token to sell
     /// @param buyToken The token to buy
-    /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder can offer the protocol
+    /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder is willing to buy
     /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at the given timestamp
     /// @return bidAmount {buyTok} The amount of buy tokens required to bid for the full sell amount
     /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
@@ -880,13 +884,12 @@ contract Folio is
         Auction storage auction,
         IERC20 sellToken,
         IERC20 buyToken,
-        uint256 _totalSupply,
         uint256 minSellAmount,
         uint256 maxSellAmount,
         uint256 maxBuyAmount
     ) internal view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
         RebalancingLib.GetBidParams memory params = RebalancingLib.GetBidParams({
-            totalSupply: _totalSupply,
+            totalSupply: totalSupply(),
             sellBal: _balanceOfToken(sellToken),
             buyBal: _balanceOfToken(buyToken),
             minSellAmount: minSellAmount,
@@ -1046,7 +1049,6 @@ contract Folio is
         emit BasketTokenRemoved(token);
 
         delete rebalance.details[token];
-        // auction.inAuction is not updated but it's ok
 
         return basket.remove(token);
     }
@@ -1088,6 +1090,7 @@ contract Folio is
     function _update(address from, address to, uint256 value) internal override {
         // prevent accidental donations
         require(to != address(this), Folio__InvalidTransferToSelf());
+        // balances acquired prior to 4.0.0 may still reside at the contract
 
         super._update(from, to, value);
     }

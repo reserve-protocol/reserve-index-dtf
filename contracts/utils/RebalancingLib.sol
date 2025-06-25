@@ -13,7 +13,7 @@ import { MathLib } from "@utils/MathLib.sol";
 
 /**
  * @title RebalancingLib
- * @notice Library for auction operations
+ * @notice Library for rebalancing/auction operations
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  *
  * startRebalance() -> openAuction() -> getBid() -> bid()

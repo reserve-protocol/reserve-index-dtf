@@ -326,7 +326,7 @@ contract FolioDeployerTest is BaseTest {
                 }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 0.08e18, 2 days, _guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 0.04e18, 1 days, _guardians1),
-                IGovernanceDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
+                IFolioDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
                 bytes32(0)
             );
             Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -495,7 +495,7 @@ contract FolioDeployerTest is BaseTest {
             }),
             IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 0.08e18, 2 days, _guardians2),
             IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 0.04e18, 1 days, _guardians1),
-            IGovernanceDeployer.GovRoles(rebalanceManagers, auctionLaunchers, new address[](0)),
+            IFolioDeployer.GovRoles(rebalanceManagers, auctionLaunchers, new address[](0)),
             bytes32(0)
         );
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -610,7 +610,7 @@ contract FolioDeployerTest is BaseTest {
                 }),
                 IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, guardians2),
                 IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, guardians1),
-                IGovernanceDeployer.GovRoles(new address[](0), new address[](0), new address[](0)),
+                IFolioDeployer.GovRoles(new address[](0), new address[](0), new address[](0)),
                 bytes32(i)
             );
 

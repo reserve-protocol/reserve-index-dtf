@@ -6,7 +6,7 @@ import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/contracts/filler
 import { GPV2_SETTLEMENT } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/Constants.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
-import { AUCTION_WARMUP, D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_AUCTION_WARMUP, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT } from "@utils/Constants.sol";
 import { MAX_DAO_FEE } from "contracts/folio/FolioDAOFeeRegistry.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
@@ -1637,7 +1637,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_LENGTH,
             block.timestamp + MAX_TTL
         );
-        folio.startRebalance(assets, weights, prices, limits, MAX_AUCTION_WARMUP, MAX_TTL);
+        folio.startRebalance(assets, weights, prices, limits, MAX_AUCTION_LENGTH, MAX_TTL);
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
@@ -1878,7 +1878,7 @@ contract FolioTest is BaseTest {
     function test_rebalanceAboveMaxTTL() public {
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidTTL.selector);
-        folio.startRebalance(assets, weights, prices, limits, MAX_AUCTION_WARMUP, MAX_TTL + 1);
+        folio.startRebalance(assets, weights, prices, limits, MAX_AUCTION_LENGTH, MAX_TTL + 1);
     }
 
     function test_auctionNotOpenableOutsideRebalance() public {
@@ -2698,7 +2698,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(assets, weights, prices, invalidLimits1, MAX_AUCTION_WARMUP, MAX_TTL);
+        folio.startRebalance(assets, weights, prices, invalidLimits1, MAX_AUCTION_LENGTH, MAX_TTL);
 
         // --- Case 2: limits.low > limits.spot ---
         IFolio.RebalanceLimits memory invalidLimits2 = IFolio.RebalanceLimits({
@@ -2707,7 +2707,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(assets, weights, prices, invalidLimits2, MAX_AUCTION_WARMUP, MAX_TTL);
+        folio.startRebalance(assets, weights, prices, invalidLimits2, MAX_AUCTION_LENGTH, MAX_TTL);
 
         // --- Case 3: limits.spot > limits.high ---
         IFolio.RebalanceLimits memory invalidLimits3 = IFolio.RebalanceLimits({
@@ -2716,7 +2716,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT - 1 // Invalid: high < spot
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(assets, weights, prices, invalidLimits3, MAX_AUCTION_WARMUP, MAX_TTL);
+        folio.startRebalance(assets, weights, prices, invalidLimits3, MAX_AUCTION_LENGTH, MAX_TTL);
 
         // --- Case 4: limits.high > MAX_LIMIT ---
         IFolio.RebalanceLimits memory invalidLimits4 = IFolio.RebalanceLimits({
@@ -2725,7 +2725,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT + 1 // Invalid: high > MAX_LIMIT
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(assets, weights, prices, invalidLimits4, MAX_AUCTION_WARMUP, MAX_TTL);
+        folio.startRebalance(assets, weights, prices, invalidLimits4, MAX_AUCTION_LENGTH, MAX_TTL);
 
         vm.stopPrank();
     }
@@ -2742,7 +2742,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT - 1 // High is lower than low
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(assets, weights, prices, invalidLimits1, MAX_AUCTION_WARMUP, MAX_TTL);
+        folio.startRebalance(assets, weights, prices, invalidLimits1, MAX_AUCTION_LENGTH, MAX_TTL);
 
         // --- Case 2: limits.high > MAX_LIMIT (Redundant, but kept for clarity) ---
         IFolio.RebalanceLimits memory invalidLimits2 = IFolio.RebalanceLimits({
@@ -2751,7 +2751,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT + 1 // High exceeds maximum
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(assets, weights, prices, invalidLimits2, MAX_AUCTION_WARMUP, MAX_TTL);
+        folio.startRebalance(assets, weights, prices, invalidLimits2, MAX_AUCTION_LENGTH, MAX_TTL);
 
         // --- Case 3: limits.spot < limits.low (Redundant, but kept for clarity) ---
         IFolio.RebalanceLimits memory invalidLimits3 = IFolio.RebalanceLimits({
@@ -2760,7 +2760,7 @@ contract FolioTest is BaseTest {
             high: MAX_LIMIT
         });
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(assets, weights, prices, invalidLimits3, MAX_AUCTION_WARMUP, MAX_TTL);
+        folio.startRebalance(assets, weights, prices, invalidLimits3, MAX_AUCTION_LENGTH, MAX_TTL);
 
         vm.stopPrank();
     }

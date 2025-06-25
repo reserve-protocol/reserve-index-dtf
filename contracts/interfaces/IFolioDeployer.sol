@@ -14,5 +14,11 @@ interface IFolioDeployer {
         address tradingTimelock
     );
 
+    struct GovRoles {
+        address[] existingBasketManagers;
+        address[] auctionLaunchers;
+        address[] brandManagers;
+    }
+
     function folioImplementation() external view returns (address);
 }

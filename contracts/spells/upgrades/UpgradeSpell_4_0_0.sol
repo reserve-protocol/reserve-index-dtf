@@ -23,6 +23,8 @@ bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
  *
  * All Folios must be on 1.0.0 or 2.0.0 before they upgrade. On 4.0.0 they will receive PriceControl.PARTIAL.
  *
+ * Any Folio balances held by the Folio will become locked.
+ *
  * The spell does not upgrade the staking vault.
  *
  * In order to use the spell:
@@ -32,14 +34,20 @@ bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
  *
  */
 contract UpgradeSpell_4_0_0 is Versioned {
+    // this mapping is chain agnostic; by-hand this has been checked to be safe as of 2025-06-16
     mapping(address => bool) public isTrackingDTF;
-    // this mapping is used chain agnostically; by-hand this has been checked to be safe as of 2025-06-16
+    mapping(uint256 => address) public fillerRegistryMapping;
 
     constructor() {
         isTrackingDTF[0x23418De10d422AD71C9D5713a2B8991a9c586443] = true; // BGCI (base)
         isTrackingDTF[0xe8b46b116D3BdFA787CE9CF3f5aCC78dc7cA380E] = true; // MVTT10F (base)
         isTrackingDTF[0xD600e748C17Ca237Fcb5967Fa13d688AFf17Be78] = true; // MVDA25 (base)
         isTrackingDTF[0x188D12Eb13a5Eadd0867074ce8354B1AD6f4790b] = true; // DFX (mainnet)
+
+        // TODO: Add these addresses
+        fillerRegistryMapping[1] = address(1); // mainnet
+        fillerRegistryMapping[56] = address(1); // bsc
+        fillerRegistryMapping[8453] = address(1); // base
     }
 
     /// Cast spell to upgrade from 1.0.0 or 2.0.0 -> 4.0.0
@@ -79,9 +87,8 @@ contract UpgradeSpell_4_0_0 is Versioned {
         }
 
         // revoke AUCTION_APPROVERs
-
-        for (uint256 i; i < numApprovers; i++) {
-            address approver = folio.getRoleMember(AUCTION_APPROVER, i);
+        for (int256 i = int256(numApprovers) - 1; i >= 0; i--) {
+            address approver = folio.getRoleMember(AUCTION_APPROVER, uint256(i));
 
             require(approver != address(0), "US4: approver 0");
 
@@ -97,7 +104,10 @@ contract UpgradeSpell_4_0_0 is Versioned {
             })
         );
 
-        // renounce temporary adminship
+        // set trusted filler registry
+        folio.setTrustedFillerRegistry(fillerRegistryMapping[block.chainid], false); // TODO: Enable by default? probably not
+
+        // renounce temporary admin role
 
         folio.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
 
