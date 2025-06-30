@@ -42,7 +42,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   - SHOULD end the ongoing rebalance when prices have moved outside the initially-provided price ranges
  *   - if weightControl=true: SHOULD progressively narrow weight ranges to maintain the original rebalance intent
  *   - if priceControl=PARTIAL: SHOULD provide narrowed price ranges that still include the current clearing price
- *        priceControl=ATOMIC_SWAP: SHOULD fill auction atomically directly after opening, when atomic swap is used
+ *        priceControl=ATOMIC_SWAP: SHOULD fill auction atomically directly after opening AND end rebalance after
  *
  * Rebalance lifecycle:
  *   startRebalance() -> openAuction()/openAuctionUnrestricted() -> bid()/createTrustedFill() -> [optional] closeAuction()
