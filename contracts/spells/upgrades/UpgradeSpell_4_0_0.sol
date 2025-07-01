@@ -44,10 +44,9 @@ contract UpgradeSpell_4_0_0 is Versioned {
         isTrackingDTF[0xD600e748C17Ca237Fcb5967Fa13d688AFf17Be78] = true; // MVDA25 (base)
         isTrackingDTF[0x188D12Eb13a5Eadd0867074ce8354B1AD6f4790b] = true; // DFX (mainnet)
 
-        // TODO: Add these addresses
-        fillerRegistryMapping[1] = address(1); // mainnet
-        fillerRegistryMapping[56] = address(1); // bsc
-        fillerRegistryMapping[8453] = address(1); // base
+        fillerRegistryMapping[1] = 0x279ccF56441fC74f1aAC39E7faC165Dec5A88B3A; // mainnet
+        fillerRegistryMapping[56] = 0x08424d7C52bf9edd4070701591Ea3FE6dca6449B; // bsc
+        fillerRegistryMapping[8453] = 0x72DB5f49D0599C314E2f2FEDf6Fe33E1bA6C7A18; // base
     }
 
     /// Cast spell to upgrade from 1.0.0 or 2.0.0 -> 4.0.0

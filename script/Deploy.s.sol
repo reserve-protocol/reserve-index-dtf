@@ -46,11 +46,12 @@ contract DeployScript is Script {
 
     // Deployment Mode: Production or Testing
     // Change this before deployment!
-    DeploymentMode public deploymentMode = DeploymentMode.Testing;
+    DeploymentMode public deploymentMode = DeploymentMode.Production;
 
     function setUp() external {
+        console2.log("----- INFO -----");
+        console2.log("Deployer:", walletAddress);
         console2.log("Chain:", block.chainid);
-        console2.log("Wallet:", walletAddress);
 
         if (block.chainid == 31337) {
             deploymentParams[31337] = DeploymentParams({
@@ -62,11 +63,7 @@ contract DeployScript is Script {
             });
         }
 
-        if (deploymentMode == DeploymentMode.Production) {
-            console2.log("Deployment Mode: Production");
-        } else {
-            console2.log("Deployment Mode: Testing");
-        }
+        console2.log("Mode:", deploymentMode == DeploymentMode.Production ? "Production" : "Testing");
 
         if (deploymentMode == DeploymentMode.Production) {
             // Base Mainnet - Canonical Parameters
@@ -75,7 +72,7 @@ contract DeployScript is Script {
                 folioFeeRegistry: 0x0262E3e15cCFD2221b35D05909222f1f5FCdcd80,
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
-                trustedFillerRegistry: address(0) // TODO
+                trustedFillerRegistry: 0x72DB5f49D0599C314E2f2FEDf6Fe33E1bA6C7A18
             });
 
             // Ethereum Mainnet - Canonical Parameters
@@ -84,7 +81,7 @@ contract DeployScript is Script {
                 folioFeeRegistry: 0x0262E3e15cCFD2221b35D05909222f1f5FCdcd80,
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
-                trustedFillerRegistry: address(0) // TODO
+                trustedFillerRegistry: 0x279ccF56441fC74f1aAC39E7faC165Dec5A88B3A
             });
 
             // BNB Smart Chain Mainnet - Canonical Parameters
@@ -93,7 +90,7 @@ contract DeployScript is Script {
                 folioFeeRegistry: 0xF5733751C0b6fFa63ddb2e3EBe98FBBB691c399E,
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0x79A4E963378AE34fC6c796a24c764322fC6c9390,
-                trustedFillerRegistry: address(0) // TODO
+                trustedFillerRegistry: 0x08424d7C52bf9edd4070701591Ea3FE6dca6449B
             });
         } else {
             // Base Mainnet - Testing Parameters
@@ -123,9 +120,12 @@ contract DeployScript is Script {
         require(address(params.feeRecipient) != address(0), "Deployer: Fee Recipient Required");
 
         runGenesisDeployment(params);
+        console2.log("----- DONE -----");
     }
 
     function runGenesisDeployment(DeploymentParams memory deployParams) public {
+        console2.log("----- GENESIS -----");
+
         console2.log("Running Genesis Deployment...");
         vm.startBroadcast(privateKey);
 
@@ -170,6 +170,8 @@ contract DeployScript is Script {
     }
 
     function runFollowupDeployment(DeploymentParams memory deployParams) public {
+        console2.log("----- PROTOCOL -----");
+
         console2.log("Running Followup Deployment...");
 
         require(deployParams.folioFeeRegistry != address(0), "undefined dao fee registry");
