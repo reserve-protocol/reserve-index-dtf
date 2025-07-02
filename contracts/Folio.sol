@@ -496,6 +496,12 @@ contract Folio is
 
     // ==== Auctions ====
 
+    /// Get the price of a token in an auction
+    function getAuctionPrice(uint256 auctionId, address token) external view returns (PriceRange memory range) {
+        range = auctions[auctionId].prices[token];
+        require(range.low != 0, Folio__InvalidAsset());
+    }
+
     /// Get the currently ongoing rebalance
     /// @dev Nonzero return values do not imply a rebalance is ongoing; check `rebalance.availableUntil`
     /// @return nonce The current rebalance nonce
