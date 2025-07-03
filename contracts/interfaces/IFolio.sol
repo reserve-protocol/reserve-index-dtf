@@ -153,7 +153,7 @@ interface IFolio {
     }
 
     /// Individual token price ranges
-    /// @dev Unit of Account (UoA) can be anything as long as it's consistent; USD is most common
+    /// @dev Unit of Account (UoA) can be anything as long as it's consistent; nanoUSD is most common
     struct PriceRange {
         uint256 low; // D27{UoA/tok} (0, 1e45]
         uint256 high; // D27{UoA/tok} (0, 1e45]

@@ -106,7 +106,7 @@ struct WeightRange {
 }
 
 /// Individual token price ranges
-/// @dev Unit of Account can be anything as long as it's consistent; USD is most common
+/// @dev Unit of Account can be anything as long as it's consistent; nanoUSD is most common
 struct PriceRange {
   uint256 low; // D27{UoA/tok} (0, 1e45]
   uint256 high; // D27{UoA/tok} (0, 1e45]
@@ -204,7 +204,7 @@ Units:
 - `D18`: 1e18
 - `D18{1}`: a percentage value with 18 decimals of added precision
 - `D27{tok/share}`: a ratio of token quanta to Folio share quanta, with 27 decimals of precision
-- `D27{UoA/tok}`: a price in USD per token quanta, with 27 decimals of precision
+- `D27{UoA/tok}`: a price in nanoUSD per token quanta, with 27 decimals of precision
 - `D27{tok1/tok2}`: a ratio of two token balances, with 27 decimals of precision
 - `{s}`: seconds
 
@@ -231,7 +231,7 @@ Exchange rates for rebalance limits are permitted to be up to 1e36, and are 18 d
 
 Basket weights for each token are permitted to be up to 1e54, and are 27 decimal fixed point numbers.
 
-UoA (USD) Prices for individual tokens are permitted to be up to 1e45, and are 27 decimal fixed point numbers.
+UoA (nanoUSD) Prices for individual tokens are permitted to be up to 1e45, and are 27 decimal fixed point numbers.
 
 ### Weird ERC20s
 
