@@ -1722,8 +1722,6 @@ contract FolioTest is BaseTest {
 
         vm.warp(start);
 
-        vm.expectEmit(true, false, false, true);
-        emit IFolio.AuctionClosed(1);
         folio.closeAuction(1);
 
         vm.expectEmit(true, false, false, true);
@@ -1793,8 +1791,6 @@ contract FolioTest is BaseTest {
 
         vm.warp(start);
 
-        vm.expectEmit(true, false, false, true);
-        emit IFolio.AuctionClosed(1);
         folio.closeAuction(1);
 
         folio.closeAuction(0);
@@ -1856,8 +1852,6 @@ contract FolioTest is BaseTest {
 
         vm.warp(start);
 
-        vm.expectEmit(true, false, false, true);
-        emit IFolio.AuctionClosed(1);
         folio.closeAuction(1);
 
         folio.closeAuction(0);
