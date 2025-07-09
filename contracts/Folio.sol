@@ -760,6 +760,7 @@ contract Folio is
 
     /// Close an auction
     /// A auction can be closed from anywhere in its lifecycle
+    /// If you close an auction before startTime, it would break the invariant that endTime > startTime.
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function closeAuction(uint256 auctionId) external nonReentrant {
         require(
@@ -768,6 +769,10 @@ contract Folio is
                 hasRole(AUCTION_LAUNCHER, msg.sender),
             Folio__Unauthorized()
         );
+
+        if (auctions[auctionId].endTime < block.timestamp) {
+            return;
+        }
 
         // do not revert, to prevent griefing
         auctions[auctionId].endTime = block.timestamp - 1; // inclusive
