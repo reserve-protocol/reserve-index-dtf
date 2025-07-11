@@ -104,7 +104,7 @@ contract UpgradeSpell_4_0_0 is Versioned {
         );
 
         // set trusted filler registry
-        folio.setTrustedFillerRegistry(fillerRegistryMapping[block.chainid], false); // TODO: Enable by default? probably not
+        folio.setTrustedFillerRegistry(fillerRegistryMapping[block.chainid], false);
 
         // renounce temporary admin role
 

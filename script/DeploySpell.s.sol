@@ -9,6 +9,7 @@ import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 
 import { GovernanceSpell_31_03_2025 } from "@spells/31-03-2025/GovernanceSpell_31_03_2025.sol";
+import { UpgradeSpell_4_0_0 } from "@spells/upgrades/UpgradeSpell_4_0_0.sol";
 
 string constant junkSeedPhrase = "test test test test test test test test test test test junk";
 
@@ -25,15 +26,10 @@ contract DeploySpell is Script {
     function run() external {
         vm.startBroadcast(privateKey);
 
-        address governorImplementation = address(new FolioGovernor());
-        address timelockImplementation = address(new TimelockControllerUpgradeable());
-
-        GovernanceDeployer governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
-        GovernanceSpell_31_03_2025 governanceSpell = new GovernanceSpell_31_03_2025(governanceDeployer);
+        UpgradeSpell_4_0_0 spell = new UpgradeSpell_4_0_0();
 
         vm.stopBroadcast();
 
-        console2.log("Governance Deployer: %s", address(governanceDeployer));
-        console2.log("Governance Spell: %s", address(governanceSpell));
+        console2.log("Spell: %s", address(spell));
     }
 }
