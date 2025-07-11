@@ -352,6 +352,7 @@ library RebalancingLib {
     // ==== Internal ====
 
     /// Get the price of a token pair within an auction at the current timestamp
+    /// If startTime == endTime, startPrice is used.
     /// @return p D27{buyTok/sellTok}
     function _price(
         IFolio.Rebalance storage rebalance,
