@@ -287,6 +287,7 @@ The chain is assumed to have block times equal to or under 30s.
    - Basic Tests: `yarn test`
    - Extreme Tests: `yarn test:extreme`
    - All Tests: `yarn test:all`
+   - Coverage: `forge coverage`
 5. Deployment:
    - Deployment: `yarn deploy --rpc-url <RPC_URL> --verify --verifier etherscan`
      Set ETHERSCAN_API_KEY env var to the API key for whichever network you're targeting (basescan, etherscan, arbiscan, etc)
