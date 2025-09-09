@@ -183,6 +183,9 @@ contract Folio is
     mapping(uint256 id => Auction auction) public auctions;
     uint256 public nextAuctionId;
 
+    // === 4.0.2 ===
+    bool public bidsDisabled; // if true: trusted fills only
+
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
         _poke();
@@ -327,6 +330,11 @@ contract Folio is
     /// @param _rebalanceControl.priceControl How the AUCTION_LAUNCHER can manipulate prices, if at all
     function setRebalanceControl(RebalanceControl calldata _rebalanceControl) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setRebalanceControl(_rebalanceControl);
+    }
+
+    /// @param _bidsDisabled if true: trusted fills only
+    function setBidsDisabled(bool _bidsDisabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setBidsDisabled(_bidsDisabled);
     }
 
     /// Deprecate the Folio, callable only by the admin
@@ -713,6 +721,7 @@ contract Folio is
         bool withCallback,
         bytes calldata data
     ) external nonReentrant notDeprecated sync returns (uint256 boughtAmt) {
+        require(!bidsDisabled, Folio__PermissionlessBidsDisabled());
         Auction storage auction = auctions[auctionId];
 
         // checks auction is ongoing and that boughtAmt is below maxBuyAmount
@@ -1081,6 +1090,11 @@ contract Folio is
     function _setRebalanceControl(RebalanceControl memory _rebalanceControl) internal {
         rebalanceControl = _rebalanceControl;
         emit RebalanceControlSet(_rebalanceControl);
+    }
+
+    function _setBidsDisabled(bool _bidsDisabled) internal {
+        bidsDisabled = _bidsDisabled;
+        emit BidsDisabledSet(_bidsDisabled);
     }
 
     function _setDaoFeeRegistry(address _newDaoFeeRegistry) internal {

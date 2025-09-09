@@ -162,7 +162,8 @@ contract FolioTest is BaseTest {
 
         IFolio.FolioFlags memory folioFlags = IFolio.FolioFlags({
             trustedFillerEnabled: true,
-            rebalanceControl: IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.NONE })
+            rebalanceControl: IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.NONE }),
+            bidsDisabled: false
         });
 
         // Attempt to initialize
@@ -1346,6 +1347,14 @@ contract FolioTest is BaseTest {
         assertEq(USDT.balanceOf(address(mockBidder2)), 0, "wrong mock bidder2 balance");
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
         vm.stopPrank();
+    }
+
+    function test_auctionBidsDisabled() public {
+        vm.prank(owner);
+        folio.setBidsDisabled(true);
+
+        vm.expectRevert(IFolio.Folio__PermissionlessBidsDisabled.selector);
+        folio.bid(0, USDC, IERC20(address(USDT)), D6_TOKEN_10K, D6_TOKEN_10K, false, bytes(""));
     }
 
     function test_auctionByMockFiller() public {

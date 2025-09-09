@@ -23,7 +23,7 @@ import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contrac
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
 
 abstract contract BaseTest is Script, Test {
-    string public constant VERSION = "4.0.1";
+    string public constant VERSION = "4.0.2";
     // === Constants per-chain ===
 
     uint256 internal constant MAX_DAO_FEE = 0.5e18;
@@ -240,7 +240,8 @@ abstract contract BaseTest is Script, Test {
     IFolio.FolioFlags _folioFlags =
         IFolio.FolioFlags({
             trustedFillerEnabled: true,
-            rebalanceControl: IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.NONE })
+            rebalanceControl: IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.NONE }),
+            bidsDisabled: false
         });
 
     function createFolio(

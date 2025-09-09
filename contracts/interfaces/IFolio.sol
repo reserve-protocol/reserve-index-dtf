@@ -49,6 +49,7 @@ interface IFolio {
         uint256 availableUntil
     );
     event RebalanceEnded(uint256 nonce);
+    event BidsDisabledSet(bool bidsDisabled);
     // === Errors ===
 
     error Folio__FolioDeprecated();
@@ -91,6 +92,7 @@ interface IFolio {
     error Folio__InvalidTTL();
     error Folio__NotRebalancing();
     error Folio__MixedAtomicSwaps();
+    error Folio__PermissionlessBidsDisabled();
 
     // === Structures ===
 
@@ -125,6 +127,7 @@ interface IFolio {
     struct FolioFlags {
         bool trustedFillerEnabled;
         RebalanceControl rebalanceControl;
+        bool bidsDisabled;
     }
 
     struct FeeRecipient {
