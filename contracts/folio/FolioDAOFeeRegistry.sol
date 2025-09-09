@@ -48,9 +48,6 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
         feeRecipient = _feeRecipient;
 
         (MAX_DAO_FEE, MAX_FEE_FLOOR) = _maxFees();
-        assert(MAX_DAO_FEE != 0);
-        assert(MAX_FEE_FLOOR != 0);
-
         defaultFeeNumerator = MAX_DAO_FEE;
         defaultFeeFloor = MAX_FEE_FLOOR;
     }
