@@ -1350,11 +1350,25 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionBidsDisabled() public {
+        // negative auth case
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                address(this),
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.setBidsDisabled(true);
+
+        // positive auth
         vm.prank(owner);
         folio.setBidsDisabled(true);
 
+        // bid reverts
         vm.expectRevert(IFolio.Folio__PermissionlessBidsDisabled.selector);
         folio.bid(0, USDC, IERC20(address(USDT)), D6_TOKEN_10K, D6_TOKEN_10K, false, bytes(""));
+
+        // other tests confirm that bids work when the bool is false
     }
 
     function test_auctionByMockFiller() public {
