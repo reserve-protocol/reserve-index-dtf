@@ -4,9 +4,7 @@ pragma solidity 0.8.28;
 import { IFolio } from "@interfaces/IFolio.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
-
-uint256 constant MAX_DAO_FEE = 0.5e18; // D18{1} 50%
-uint256 constant MAX_FEE_FLOOR = 0.0015e18; // D18{1} 15 bps
+import { ConstantsLib } from "@utils/Constants.sol";
 
 /**
  * @title Folio
@@ -23,15 +21,18 @@ uint256 constant MAX_FEE_FLOOR = 0.0015e18; // D18{1} 15 bps
 contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     uint256 public constant FEE_DENOMINATOR = 1e18;
 
+    uint256 private immutable MAX_DAO_FEE;
+    uint256 private immutable MAX_FEE_FLOOR;
+
     IRoleRegistry public immutable roleRegistry;
 
     address private feeRecipient;
-    uint256 private defaultFeeNumerator = MAX_DAO_FEE; // D18{1} fee starts at max
+    uint256 private defaultFeeNumerator; // D18{1} starts at max, set in constructor
 
     mapping(address => uint256) private fTokenFeeNumerator; // D18{1}
     mapping(address => bool) private fTokenFeeSet;
 
-    uint256 public defaultFeeFloor = MAX_FEE_FLOOR; // D18{1} 15 bps
+    uint256 public defaultFeeFloor; // D18{1} starts at max, set in constructor
     mapping(address => uint256) private fTokenFeeFloor; // D18{1}
     mapping(address => bool) private fTokenFeeFloorSet;
 
@@ -46,6 +47,15 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
 
         roleRegistry = _roleRegistry;
         feeRecipient = _feeRecipient;
+
+        MAX_DAO_FEE = ConstantsLib.maxDAOFee();
+        MAX_FEE_FLOOR = ConstantsLib.maxFeeFloor();
+
+        assert(MAX_DAO_FEE != 0);
+        assert(MAX_FEE_FLOOR != 0);
+
+        defaultFeeNumerator = MAX_DAO_FEE;
+        defaultFeeFloor = MAX_FEE_FLOOR;
     }
 
     // === External ===

@@ -15,7 +15,7 @@ contract UpgradeSpellBase_4_0_0_Test is GenericUpgradeSpell_4_0_0_Test {
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,
             forkTarget: ForkNetwork.BASE,
-            forkBlock: 30831054 // TODO update block after 4.0.0 is registered
+            forkBlock: 32743840
         });
 
         // BGCI
@@ -81,6 +81,11 @@ contract UpgradeSpellBase_4_0_0_Test is GenericUpgradeSpell_4_0_0_Test {
                 proxyAdmin: FolioProxyAdmin(0xb467947f35697FadB46D10f36546E99A02088305)
             })
         );
+    }
+
+    function _setUp() public virtual override {
+        super._setUp();
+        spell = UpgradeSpell_4_0_0(0x4720dbCAEEF5834AEf590781F93d70fD1e3AcADB);
     }
 
     function test_upgradeSpell_400_fork_base() public {

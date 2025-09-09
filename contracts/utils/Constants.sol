@@ -28,3 +28,27 @@ bytes32 constant AUCTION_APPROVER = keccak256("AUCTION_APPROVER"); // 0x2be23b02
 bytes32 constant REBALANCE_MANAGER = keccak256("REBALANCE_MANAGER"); // 0x4ff6ae4d6a29e79ca45c6441bdc89b93878ac6118485b33c8baa3749fc3cb130
 bytes32 constant AUCTION_LAUNCHER = keccak256("AUCTION_LAUNCHER"); // 0x13ff1b2625181b311f257c723b5e6d366eb318b212d9dd694c48fcf227659df5
 bytes32 constant BRAND_MANAGER = keccak256("BRAND_MANAGER"); // 0x2d8e650da9bd8c373ab2450d770f2ed39549bfc28d3630025cecc51511bcd374
+
+library ConstantsLib {
+    /// @return D18{1} Maximum DAO fee (platform fee)
+    function maxDAOFee() internal view returns (uint256) {
+        // bsc: 33%
+        if (block.chainid == 56) {
+            return D18 / 3;
+        }
+
+        // mainnet/base: 50%
+        return 0.5e18;
+    }
+
+    /// @return D18{1} Maximum fee floor
+    function maxFeeFloor() internal view returns (uint256) {
+        // bsc: 10 bps
+        if (block.chainid == 56) {
+            return 0.001e18;
+        }
+
+        // mainnet/base: 15 bps
+        return 0.0015e18;
+    }
+}

@@ -21,9 +21,15 @@ import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
+import { ConstantsLib } from "contracts/utils/Constants.sol";
 
 abstract contract BaseTest is Script, Test {
-    string public constant VERSION = "4.0.0";
+    string public constant VERSION = "4.0.1";
+    // === Constants per-chain ===
+
+    uint256 internal immutable MAX_DAO_FEE = ConstantsLib.maxDAOFee();
+    uint256 internal immutable MAX_FEE_FLOOR = ConstantsLib.maxFeeFloor();
+
     // === Auth roles ===
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
