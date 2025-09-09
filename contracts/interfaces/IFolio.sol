@@ -178,6 +178,7 @@ interface IFolio {
         uint256 restrictedUntil; // {s} timestamp rebalancing becomes unrestricted, exclusive
         uint256 availableUntil; // {s} timestamp rebalancing ends overall, exclusive
         PriceControl priceControl; // AUCTION_LAUNCHER control over auction pricing
+        bool bidsDisabled; // if permissionless bids are disabled
     }
 
     /// 1 running auction at a time; N per rebalance overall

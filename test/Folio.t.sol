@@ -1350,7 +1350,7 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionBidsDisabled() public {
-        // negative auth case
+        // check protected
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector,
@@ -1360,15 +1360,41 @@ contract FolioTest is BaseTest {
         );
         folio.setBidsDisabled(true);
 
-        // positive auth
+        // Sell USDC
+        weights[0] = SELL;
+
+        // Add USDT to buy
+        assets.push(address(USDT));
+        weights.push(BUY);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        // start rebalance while !bidsDisabled
+        vm.prank(dao);
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // disable bids after starting rebalance
         vm.prank(owner);
         folio.setBidsDisabled(true);
 
-        // bid reverts
-        vm.expectRevert(IFolio.Folio__PermissionlessBidsDisabled.selector);
-        folio.bid(0, USDC, IERC20(address(USDT)), D6_TOKEN_10K, D6_TOKEN_10K, false, bytes(""));
+        // open auction
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
 
-        // other tests confirm that bids work when the bool is false
+        // bid should work
+        USDT.approve(address(folio), D6_TOKEN_10K * 200);
+        folio.bid(0, USDC, IERC20(address(USDT)), D6_TOKEN_10K, D6_TOKEN_10K * 100, false, bytes(""));
+
+        // start another rebalance and auction
+        vm.prank(dao);
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        vm.prank(auctionLauncher);
+        folio.openAuction(2, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
+
+        // bid should revert now
+        vm.expectRevert(IFolio.Folio__PermissionlessBidsDisabled.selector);
+        folio.bid(1, USDC, IERC20(address(USDT)), D6_TOKEN_10K, D6_TOKEN_10K * 100, false, bytes(""));
     }
 
     function test_auctionByMockFiller() public {

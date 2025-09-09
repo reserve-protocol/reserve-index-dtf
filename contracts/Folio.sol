@@ -594,7 +594,8 @@ contract Folio is
             prices,
             limits,
             auctionLauncherWindow,
-            ttl
+            ttl,
+            bidsDisabled
         );
 
         // add new tokens to basket
@@ -721,7 +722,7 @@ contract Folio is
         bool withCallback,
         bytes calldata data
     ) external nonReentrant notDeprecated sync returns (uint256 boughtAmt) {
-        require(!bidsDisabled, Folio__PermissionlessBidsDisabled());
+        require(!rebalance.bidsDisabled, Folio__PermissionlessBidsDisabled());
         Auction storage auction = auctions[auctionId];
 
         // checks auction is ongoing and that boughtAmt is below maxBuyAmount
