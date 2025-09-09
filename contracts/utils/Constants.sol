@@ -32,23 +32,43 @@ bytes32 constant BRAND_MANAGER = keccak256("BRAND_MANAGER"); // 0x2d8e650da9bd8c
 library ConstantsLib {
     /// @return D18{1} Maximum DAO fee (platform fee)
     function maxDAOFee() internal view returns (uint256) {
+        // mainnet: 50%
+        if (block.chainid == 1) {
+            return 0.5e18;
+        }
+
+        // base: 50%
+        if (block.chainid == 8453) {
+            return 0.5e18;
+        }
+
         // bsc: 33%
         if (block.chainid == 56) {
             return D18 / 3;
         }
 
-        // mainnet/base: 50%
+        // default: 50%
         return 0.5e18;
     }
 
     /// @return D18{1} Maximum fee floor
     function maxFeeFloor() internal view returns (uint256) {
+        // mainnet: 15 bps
+        if (block.chainid == 1) {
+            return 0.0015e18;
+        }
+
+        // base: 15 bps
+        if (block.chainid == 8453) {
+            return 0.0015e18;
+        }
+
         // bsc: 10 bps
         if (block.chainid == 56) {
             return 0.001e18;
         }
 
-        // mainnet/base: 15 bps
+        // default: 15 bps
         return 0.0015e18;
     }
 }
