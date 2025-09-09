@@ -14,7 +14,7 @@ import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
  *         the Folio has set its own top-level fees too low.
  *
  *         For example, if the DAO fee is 50%, and the fee floor is 0.15%, then any tvl fee
- *         that is less than 0.30% will result in the DAO receiving 0.15% and the folo beneficiaries receiving
+ *         that is less than 0.30% will result in the DAO receiving 0.15% and the folio beneficiaries receiving
  *         the tvl fee minus 0.15%. At <=0.15% tvl fee, the DAO receives 0.15% and folio beneficiaries receive 0%
  */
 contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
@@ -47,9 +47,7 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
         roleRegistry = _roleRegistry;
         feeRecipient = _feeRecipient;
 
-        (MAX_DAO_FEE, MAX_FEE_FLOOR) = _maxFees();
-        assert(MAX_DAO_FEE != 0);
-        assert(MAX_FEE_FLOOR != 0);
+        (MAX_DAO_FEE, MAX_FEE_FLOOR) = _getMaxFee();
 
         defaultFeeNumerator = MAX_DAO_FEE;
         defaultFeeFloor = MAX_FEE_FLOOR;
@@ -133,22 +131,22 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     }
 
     /// Chain-specific maximum fees
-    /// @return D18{1} Maximum DAO fee (platform fee)
-    /// @return D18{1} Maximum fee floor
-    function _maxFees() internal view returns (uint256, uint256) {
-        // mainnet: 50%, 15 bps
+    /// @return daoFee D18{1} Maximum DAO fee (platform fee)
+    /// @return feeFloor D18{1} Maximum fee floor
+    function _getMaxFee() internal view returns (uint256 daoFee, uint256 feeFloor) {
+        // Mainnet: 50%, 15 bps
         if (block.chainid == 1) {
             return (0.5e18, 0.0015e18);
         }
 
-        // base: 50%, 15 bps
+        // Base: 50%, 15 bps
         if (block.chainid == 8453) {
             return (0.5e18, 0.0015e18);
         }
 
-        // bsc: 33.33%, 10 bps
+        // BNB Smart Chain: 33.33%, 10 bps
         if (block.chainid == 56) {
-            return (uint256(1e18) / 3, 0.001e18);
+            return (1e18 / uint256(3), 0.001e18);
         }
 
         // default: 50%, 15 bps
