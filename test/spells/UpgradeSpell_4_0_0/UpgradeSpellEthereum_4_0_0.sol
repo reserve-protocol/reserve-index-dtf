@@ -15,7 +15,7 @@ contract UpgradeSpellEthereum_4_0_0_Test is GenericUpgradeSpell_4_0_0_Test {
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,
             forkTarget: ForkNetwork.ETHEREUM,
-            forkBlock: 22574172 // TODO update block after 4.0.0 is registered
+            forkBlock: 22899249
         });
 
         // BED
@@ -65,6 +65,11 @@ contract UpgradeSpellEthereum_4_0_0_Test is GenericUpgradeSpell_4_0_0_Test {
                 proxyAdmin: FolioProxyAdmin(0x019318674560C233893aA31Bc0A380dc71dc2dDf)
             })
         );
+    }
+
+    function _setUp() public virtual override {
+        super._setUp();
+        spell = UpgradeSpell_4_0_0(0x7498c6aB0669A09DE7B9185ba72A98fa3Ca39cC9);
     }
 
     function test_upgradeSpell_400_fork_ethereum() public {

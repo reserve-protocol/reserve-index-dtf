@@ -23,7 +23,12 @@ import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contrac
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
 
 abstract contract BaseTest is Script, Test {
-    string public constant VERSION = "4.0.0";
+    string public constant VERSION = "4.0.1";
+    // === Constants per-chain ===
+
+    uint256 internal constant MAX_DAO_FEE = 0.5e18;
+    uint256 internal constant MAX_FEE_FLOOR = 0.0015e18;
+
     // === Auth roles ===
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
