@@ -23,7 +23,7 @@ import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contrac
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
 
 abstract contract BaseTest is Script, Test {
-    string public constant VERSION = "4.0.2";
+    string public constant VERSION = "5.0.0";
     // === Constants per-chain ===
 
     uint256 internal constant MAX_DAO_FEE = 0.5e18;
