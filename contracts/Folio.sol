@@ -184,7 +184,7 @@ contract Folio is
     uint256 public nextAuctionId;
 
     // === 4.0.2 ===
-    bool public bidsEnabled; // if true: trusted fills only
+    bool public bidsEnabled;
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -333,7 +333,7 @@ contract Folio is
         _setRebalanceControl(_rebalanceControl);
     }
 
-    /// @param _bidsEnabled if true: trusted fills only
+    /// @param _bidsEnabled If true, permissionless bids are enabled
     function setBidsEnabled(bool _bidsEnabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setBidsEnabled(_bidsEnabled);
     }
@@ -523,7 +523,7 @@ contract Folio is
     /// @return restrictedUntil {s} The timestamp rebalancing is unrestricted to everyone, exclusive
     /// @return availableUntil {s} The timestamp rebalancing ends overall, exclusive
     /// @return priceControl How much price control to give to AUCTION_LAUNCHER: [NONE, PARTIAL, ATOMIC_SWAP]
-    /// @return bidsEnabled If true, only trusted fillers can participate in auctions
+    /// @return bidsEnabled_ If true, only trusted fillers can participate in auctions
     function getRebalance()
         external
         view
@@ -538,7 +538,7 @@ contract Folio is
             uint256 restrictedUntil,
             uint256 availableUntil,
             PriceControl priceControl,
-            bool bidsEnabled
+            bool bidsEnabled_
         )
     {
         tokens = basket.values();
@@ -562,7 +562,7 @@ contract Folio is
         restrictedUntil = rebalance.restrictedUntil;
         availableUntil = rebalance.availableUntil;
         priceControl = rebalance.priceControl;
-        bidsEnabled = rebalance.bidsEnabled;
+        bidsEnabled_ = rebalance.bidsEnabled;
     }
 
     /// Start a new rebalance, ending the currently running auction
