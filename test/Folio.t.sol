@@ -163,7 +163,7 @@ contract FolioTest is BaseTest {
         IFolio.FolioFlags memory folioFlags = IFolio.FolioFlags({
             trustedFillerEnabled: true,
             rebalanceControl: IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.NONE }),
-            bidsDisabled: false
+            bidsEnabled: true
         });
 
         // Attempt to initialize
@@ -1350,9 +1350,6 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionBidsDisabled() public {
-        (, , , , , , , , , , bool bidsDisabled) = folio.getRebalance();
-        assertEq(bidsDisabled, false, "bids disabled should be false");
-
         // check protected
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -1361,7 +1358,7 @@ contract FolioTest is BaseTest {
                 folio.DEFAULT_ADMIN_ROLE()
             )
         );
-        folio.setBidsDisabled(true);
+        folio.setBidsEnabled(false);
 
         // Sell USDC
         weights[0] = SELL;
@@ -1371,16 +1368,18 @@ contract FolioTest is BaseTest {
         weights.push(BUY);
         prices.push(FULL_PRICE_RANGE_6);
 
-        // start rebalance while !bidsDisabled
+        // start rebalance while bidsEnabled
         vm.prank(dao);
         folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         // disable bids after starting rebalance
         vm.prank(owner);
-        folio.setBidsDisabled(true);
+        folio.setBidsEnabled(false);
 
-        (, , , , , , , , , , bidsDisabled) = folio.getRebalance();
-        assertEq(bidsDisabled, false, "bids disabled should still be false");
+        bool bidsEnabledView = folio.bidsEnabled();
+        assertEq(bidsEnabledView, false, "direct view should be false");
+        (, , , , , , , , , , bool bidsEnabled) = folio.getRebalance();
+        assertEq(bidsEnabled, true, "bids enabled should still be true");
 
         // open auction
         vm.prank(auctionLauncher);
@@ -1396,8 +1395,8 @@ contract FolioTest is BaseTest {
         folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
         // now bids should be disabled
-        (, , , , , , , , , , bidsDisabled) = folio.getRebalance();
-        assertEq(bidsDisabled, true, "bids disabled should still be false");
+        (, , , , , , , , , , bidsEnabled) = folio.getRebalance();
+        assertEq(bidsEnabled, false, "bids enabled should be false");
 
         vm.prank(auctionLauncher);
         folio.openAuction(2, assets, weights, prices, NATIVE_LIMITS);

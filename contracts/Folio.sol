@@ -184,7 +184,7 @@ contract Folio is
     uint256 public nextAuctionId;
 
     // === 4.0.2 ===
-    bool public bidsDisabled; // if true: trusted fills only
+    bool public bidsEnabled; // if true: trusted fills only
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -218,6 +218,7 @@ contract Folio is
         _setMandate(_additionalDetails.mandate);
 
         _setRebalanceControl(_folioFlags.rebalanceControl);
+        _setBidsEnabled(_folioFlags.bidsEnabled);
 
         _setTrustedFillerRegistry(_folioRegistries.trustedFillerRegistry, _folioFlags.trustedFillerEnabled);
         _setDaoFeeRegistry(_folioRegistries.daoFeeRegistry);
@@ -332,9 +333,9 @@ contract Folio is
         _setRebalanceControl(_rebalanceControl);
     }
 
-    /// @param _bidsDisabled if true: trusted fills only
-    function setBidsDisabled(bool _bidsDisabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setBidsDisabled(_bidsDisabled);
+    /// @param _bidsEnabled if true: trusted fills only
+    function setBidsEnabled(bool _bidsEnabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setBidsEnabled(_bidsEnabled);
     }
 
     /// Deprecate the Folio, callable only by the admin
@@ -522,7 +523,7 @@ contract Folio is
     /// @return restrictedUntil {s} The timestamp rebalancing is unrestricted to everyone, exclusive
     /// @return availableUntil {s} The timestamp rebalancing ends overall, exclusive
     /// @return priceControl How much price control to give to AUCTION_LAUNCHER: [NONE, PARTIAL, ATOMIC_SWAP]
-    /// @return bidsDisabled If true, only trusted fillers can participate in auctions
+    /// @return bidsEnabled If true, only trusted fillers can participate in auctions
     function getRebalance()
         external
         view
@@ -537,7 +538,7 @@ contract Folio is
             uint256 restrictedUntil,
             uint256 availableUntil,
             PriceControl priceControl,
-            bool bidsDisabled
+            bool bidsEnabled
         )
     {
         tokens = basket.values();
@@ -561,7 +562,7 @@ contract Folio is
         restrictedUntil = rebalance.restrictedUntil;
         availableUntil = rebalance.availableUntil;
         priceControl = rebalance.priceControl;
-        bidsDisabled = rebalance.bidsDisabled;
+        bidsEnabled = rebalance.bidsEnabled;
     }
 
     /// Start a new rebalance, ending the currently running auction
@@ -598,7 +599,7 @@ contract Folio is
             limits,
             auctionLauncherWindow,
             ttl,
-            bidsDisabled
+            bidsEnabled
         );
 
         // add new tokens to basket
@@ -725,7 +726,7 @@ contract Folio is
         bool withCallback,
         bytes calldata data
     ) external nonReentrant notDeprecated sync returns (uint256 boughtAmt) {
-        require(!rebalance.bidsDisabled, Folio__PermissionlessBidsDisabled());
+        require(rebalance.bidsEnabled, Folio__PermissionlessBidsDisabled());
         Auction storage auction = auctions[auctionId];
 
         // checks auction is ongoing and that boughtAmt is below maxBuyAmount
@@ -1096,9 +1097,9 @@ contract Folio is
         emit RebalanceControlSet(_rebalanceControl);
     }
 
-    function _setBidsDisabled(bool _bidsDisabled) internal {
-        bidsDisabled = _bidsDisabled;
-        emit BidsDisabledSet(_bidsDisabled);
+    function _setBidsEnabled(bool _bidsEnabled) internal {
+        bidsEnabled = _bidsEnabled;
+        emit BidsEnabledSet(_bidsEnabled);
     }
 
     function _setDaoFeeRegistry(address _newDaoFeeRegistry) internal {
