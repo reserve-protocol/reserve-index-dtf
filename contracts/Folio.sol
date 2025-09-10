@@ -523,7 +523,7 @@ contract Folio is
     /// @return restrictedUntil {s} The timestamp rebalancing is unrestricted to everyone, exclusive
     /// @return availableUntil {s} The timestamp rebalancing ends overall, exclusive
     /// @return priceControl How much price control to give to AUCTION_LAUNCHER: [NONE, PARTIAL, ATOMIC_SWAP]
-    /// @return bidsEnabled_ If true, only trusted fillers can participate in auctions
+    /// @return bidsEnabled_ If true, permissionless bids are enabled for this rebalance
     function getRebalance()
         external
         view
