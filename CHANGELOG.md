@@ -1,3 +1,11 @@
+## Release 5.0.0
+
+- Add ability to disable permissionless bids and restrict all trading to trusted fillers
+
+## Release 4.0.0
+
+TODO
+
 ## Release 3.0.0
 
 This release adds the following features:

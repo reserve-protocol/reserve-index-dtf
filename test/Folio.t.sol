@@ -1350,6 +1350,9 @@ contract FolioTest is BaseTest {
     }
 
     function test_auctionBidsDisabled() public {
+        (, , , , , , , , , , bool bidsDisabled) = folio.getRebalance();
+        assertEq(bidsDisabled, false, "bids disabled should be false");
+
         // check protected
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -1376,6 +1379,9 @@ contract FolioTest is BaseTest {
         vm.prank(owner);
         folio.setBidsDisabled(true);
 
+        (, , , , , , , , , , bidsDisabled) = folio.getRebalance();
+        assertEq(bidsDisabled, false, "bids disabled should still be false");
+
         // open auction
         vm.prank(auctionLauncher);
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
@@ -1388,6 +1394,11 @@ contract FolioTest is BaseTest {
         // start another rebalance and auction
         vm.prank(dao);
         folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // now bids should be disabled
+        (, , , , , , , , , , bidsDisabled) = folio.getRebalance();
+        assertEq(bidsDisabled, true, "bids disabled should still be false");
+
         vm.prank(auctionLauncher);
         folio.openAuction(2, assets, weights, prices, NATIVE_LIMITS);
         vm.warp(block.timestamp + AUCTION_WARMUP);
@@ -2123,7 +2134,7 @@ contract FolioTest is BaseTest {
         folio.openAuctionUnrestricted(1);
 
         // but should be possible after auction launcher window
-        (, , , , , , , uint256 restrictedUntil, , ) = folio.getRebalance();
+        (, , , , , , , uint256 restrictedUntil, , , ) = folio.getRebalance();
         vm.warp(restrictedUntil);
         folio.openAuctionUnrestricted(1);
         vm.warp(block.timestamp + AUCTION_WARMUP);
@@ -2170,7 +2181,7 @@ contract FolioTest is BaseTest {
         );
 
         // Open auction unrestricted
-        (, , , , , , , uint256 restrictedUntil, , ) = folio.getRebalance();
+        (, , , , , , , uint256 restrictedUntil, , , ) = folio.getRebalance();
         vm.warp(restrictedUntil);
         folio.openAuctionUnrestricted(1);
         vm.warp(block.timestamp + AUCTION_WARMUP);

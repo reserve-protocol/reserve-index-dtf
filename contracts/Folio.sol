@@ -522,6 +522,7 @@ contract Folio is
     /// @return restrictedUntil {s} The timestamp rebalancing is unrestricted to everyone, exclusive
     /// @return availableUntil {s} The timestamp rebalancing ends overall, exclusive
     /// @return priceControl How much price control to give to AUCTION_LAUNCHER: [NONE, PARTIAL, ATOMIC_SWAP]
+    /// @return bidsDisabled If true, only trusted fillers can participate in auctions
     function getRebalance()
         external
         view
@@ -535,7 +536,8 @@ contract Folio is
             uint256 startedAt,
             uint256 restrictedUntil,
             uint256 availableUntil,
-            PriceControl priceControl
+            PriceControl priceControl,
+            bool bidsDisabled
         )
     {
         tokens = basket.values();
@@ -559,6 +561,7 @@ contract Folio is
         restrictedUntil = rebalance.restrictedUntil;
         availableUntil = rebalance.availableUntil;
         priceControl = rebalance.priceControl;
+        bidsDisabled = rebalance.bidsDisabled;
     }
 
     /// Start a new rebalance, ending the currently running auction
