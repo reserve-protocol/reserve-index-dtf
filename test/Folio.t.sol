@@ -14,6 +14,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { FolioDeployerV2 } from "test/utils/upgrades/FolioDeployerV2.sol";
 import { MockEIP712 } from "test/utils/MockEIP712.sol";
+import { MockDonatingBidder } from "test/utils/MockDonatingBidder.sol";
 import { MockBidder } from "utils/MockBidder.sol";
 import "./base/BaseTest.sol";
 
@@ -1166,16 +1167,32 @@ contract FolioTest is BaseTest {
         assertEq(sellAmount, amt / 2, "wrong start sell amount");
         assertEq(buyAmount, amt / 2, "wrong start buy amount");
 
-        MockBidder mockBidder2 = new MockBidder(true);
+        // donating bidder donates SELL token back afterwards
+        uint256 refund = amt / 2 / 2;
+        MockDonatingBidder donatingBidder = new MockDonatingBidder(true, USDC, refund);
+        USDC.transfer(address(donatingBidder), refund);
+
         vm.prank(user1);
-        USDT.transfer(address(mockBidder2), amt / 2);
-        vm.prank(address(mockBidder2));
+        USDT.transfer(address(donatingBidder), amt / 2);
+
+        vm.prank(address(donatingBidder));
         vm.expectEmit(true, false, false, true);
-        emit IFolio.AuctionBid(0, address(USDC), address(USDT), amt / 2, amt / 2);
+        emit IFolio.AuctionBid(0, address(USDC), address(USDT), amt / 2 - refund, amt / 2);
         folio.bid(0, USDC, IERC20(address(USDT)), amt / 2, amt / 2, true, bytes(""));
-        assertEq(USDT.balanceOf(address(mockBidder2)), 0, "wrong mock bidder2 balance");
-        assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
+        assertEq(USDT.balanceOf(address(donatingBidder)), 0, "wrong mock bidder2 balance");
+        assertEq(USDC.balanceOf(address(folio)), refund, "wrong usdc balance");
         vm.stopPrank();
+
+        // make sure USDC is still in basket
+        (address[] memory tokens, ) = folio.totalAssets();
+        bool found = false;
+        for (uint256 i; i < tokens.length; i++) {
+            if (tokens[i] == address(USDC)) {
+                found = true;
+                break;
+            }
+        }
+        assertEq(found, true, "removed sell token accidentally");
 
         // 2nd half of volume should not be fillable at next timestamp because auction over
 
