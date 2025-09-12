@@ -764,15 +764,20 @@ contract FolioTest is BaseTest {
         folio.setAuctionLength(MAX_AUCTION_LENGTH + 1);
     }
 
-    function test_setMandate() public {
-        vm.startPrank(owner);
-        assertEq(folio.mandate(), "mandate", "wrong mandate");
+    function test_updateMetadata() public {
+        string memory newName = "Test Folio 2";
+        string memory newSymbol = "TFOLIO2";
         string memory newMandate = "new mandate";
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.MetadataSet(newName, newSymbol);
         vm.expectEmit(true, true, false, true);
         emit IFolio.MandateSet(newMandate);
-        folio.setMandate(newMandate);
-        assertEq(folio.mandate(), newMandate);
-        vm.stopPrank();
+        folio.setMetadata(newName, newSymbol, newMandate);
+        assertEq(folio.name(), newName, "wrong name");
+        assertEq(folio.symbol(), newSymbol, "wrong symbol");
+        assertEq(folio.mandate(), newMandate, "wrong mandate");
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -782,7 +787,7 @@ contract FolioTest is BaseTest {
             )
         );
         vm.prank(dao);
-        folio.setMandate(newMandate);
+        folio.setMetadata(newName, newSymbol, newMandate);
     }
 
     function test_setTrustedFillerRegistry() public {

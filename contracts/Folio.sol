@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
-import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, REBALANCE_MANAGER, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -183,11 +183,8 @@ contract Folio is
     mapping(uint256 id => Auction auction) public auctions;
     uint256 public nextAuctionId;
 
-    // === 4.0.2 ===
+    // === 5.0.0 ===
     bool public bidsEnabled;
-
-    string private _name;
-    string private _symbol;
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -214,9 +211,7 @@ contract Folio is
         __AccessControl_init();
         __ReentrancyGuard_init();
 
-        _setName(_basicDetails.name);
-        _setSymbol(_basicDetails.symbol);
-        _setMandate(_additionalDetails.mandate);
+        _setMetadata(_basicDetails.name, _basicDetails.symbol, _additionalDetails.mandate);
 
         _setFeeRecipients(_additionalDetails.feeRecipients);
         _setTVLFee(_additionalDetails.tvlFee);
@@ -261,16 +256,6 @@ contract Folio is
     function stateChangeActive() external view returns (bool syncStateChangeActive, bool asyncStateChangeActive) {
         syncStateChangeActive = _reentrancyGuardEntered();
         asyncStateChangeActive = address(activeTrustedFill) != address(0) && activeTrustedFill.swapActive();
-    }
-
-    // === ERC20 ===
-
-    function name() public view override returns (string memory) {
-        return _name;
-    }
-
-    function symbol() public view override returns (string memory) {
-        return _symbol;
     }
 
     // ==== Governance ====
@@ -320,7 +305,7 @@ contract Folio is
     /// @dev Non-reentrant via distributeFees()
     /// @dev Fee recipients must be unique and sorted by address, and sum to 1e18
     /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
-    function setFeeRecipients(FeeRecipient[] memory _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFeeRecipients(FeeRecipient[] calldata _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
         _setFeeRecipients(_newRecipients);
@@ -332,18 +317,13 @@ contract Folio is
     }
 
     /// @param _newName New token name
-    function setName(string calldata _newName) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setName(_newName);
-    }
-
     /// @param _newSymbol New token symbol
-    function setSymbol(string calldata _newSymbol) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setSymbol(_newSymbol);
-    }
-
-    /// @param _newMandate New mandate, a schelling point to guide governance
-    function setMandate(string calldata _newMandate) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setMandate(_newMandate);
+    function setMetadata(
+        string calldata _newName,
+        string calldata _newSymbol,
+        string calldata _newMandate
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setMetadata(_newName, _newSymbol, _newMandate);
     }
 
     /// @dev _newFillerRegistry must be the already set registry if already set. This is to ensure
@@ -1025,7 +1005,7 @@ contract Folio is
     }
 
     /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
-    function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
+    function _setFeeRecipients(FeeRecipient[] calldata _feeRecipients) internal {
         emit FeeRecipientsSet(_feeRecipients);
 
         // Clear existing fee table
@@ -1067,17 +1047,19 @@ contract Folio is
         emit AuctionLengthSet(auctionLength);
     }
 
-    function _setName(string memory _newName) internal {
-        _name = _newName;
-        emit NameSet(_newName);
-    }
+    /// @param _newName New token name
+    /// @param _newSymbol New token symbol
+    /// @param _newMandate New mandate, a schelling point to guide governance
+    function _setMetadata(string calldata _newName, string calldata _newSymbol, string calldata _newMandate) internal {
+        ERC20Storage storage $;
+        assembly {
+            $.slot := ERC20_STORAGE_LOCATION
+        }
 
-    function _setSymbol(string memory _newSymbol) internal {
-        _symbol = _newSymbol;
-        emit SymbolSet(_newSymbol);
-    }
+        $._name = _newName;
+        $._symbol = _newSymbol;
+        emit MetadataSet(_newName, _newSymbol);
 
-    function _setMandate(string memory _newMandate) internal {
         mandate = _newMandate;
         emit MandateSet(_newMandate);
     }
@@ -1128,7 +1110,7 @@ contract Folio is
         emit TrustedFillerRegistrySet(address(trustedFillerRegistry), trustedFillerEnabled);
     }
 
-    function _setRebalanceControl(RebalanceControl memory _rebalanceControl) internal {
+    function _setRebalanceControl(RebalanceControl calldata _rebalanceControl) internal {
         rebalanceControl = _rebalanceControl;
         emit RebalanceControlSet(_rebalanceControl);
     }
