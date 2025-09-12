@@ -172,7 +172,6 @@ library RebalancingLib {
                         weights[i].high <= rebalanceDetails.weights.high,
                     IFolio.Folio__InvalidWeights()
                 );
-
                 rebalanceDetails.weights = weights[i];
             }
 
