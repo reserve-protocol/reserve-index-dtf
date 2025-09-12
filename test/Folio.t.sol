@@ -25,7 +25,7 @@ contract FolioTest is BaseTest {
 
     IFolio.WeightRange internal SELL = IFolio.WeightRange({ low: 0, spot: 0, high: 0 }); // sell as much as possible
     IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: MAX_WEIGHT, spot: MAX_WEIGHT, high: MAX_WEIGHT }); // buy as much as possible
-    IFolio.WeightRange internal BUY_FULL_RANGE = IFolio.WeightRange({ low: 0, spot: MAX_WEIGHT, high: MAX_WEIGHT }); // can be added to basket
+    IFolio.WeightRange internal BUY_FULL_RANGE = IFolio.WeightRange({ low: 0, spot: MAX_WEIGHT, high: MAX_WEIGHT }); // default BUY, but can remove
 
     IFolio.WeightRange internal WEIGHTS_6 = IFolio.WeightRange({ low: 1e15, spot: 1e15, high: 1e15 }); // D27{tok/BU} 1:1 with BUs
     IFolio.WeightRange internal WEIGHTS_18 = IFolio.WeightRange({ low: 1e27, spot: 1e27, high: 1e27 }); // D27{tok/BU} 1:1 with BUs
