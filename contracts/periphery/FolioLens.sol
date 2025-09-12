@@ -24,7 +24,7 @@ contract FolioLens is Versioned {
     /// @return tokens The tokens in the basket
     /// @return weights D27{tok/share} The weights of the tokens per share given by the current balances
     function getSpotWeights(Folio folio) external view returns (address[] memory tokens, uint256[] memory weights) {
-        (, tokens, , , , , , , , ) = folio.getRebalance();
+        (, tokens, , , , , , , , , ) = folio.getRebalance();
         weights = new uint256[](tokens.length);
 
         uint256 totalSupply = folio.totalSupply();
@@ -46,7 +46,7 @@ contract FolioLens is Versioned {
     /// Get bids for all pairs at once for the current block
     /// Many entries will be 0 to indicate an invalid token pair
     function getAllBids(Folio folio, uint256 auctionId) external view returns (SingleBid[] memory bids) {
-        (uint256 nonce, address[] memory tokens, , , , , , , , ) = folio.getRebalance();
+        (uint256 nonce, address[] memory tokens, , , , , , , , , ) = folio.getRebalance();
 
         {
             (uint256 rebalanceNonce, , ) = folio.auctions(auctionId);
@@ -102,7 +102,7 @@ contract FolioLens is Versioned {
         uint256 totalSupply = folio.totalSupply();
 
         IFolio.WeightRange[] memory weights;
-        (, tokens, weights, , , , , , , ) = folio.getRebalance();
+        (, tokens, weights, , , , , , , , ) = folio.getRebalance();
 
         for (uint256 i = 0; i < tokens.length; i++) {
             // {tok}

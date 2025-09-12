@@ -162,7 +162,8 @@ contract FolioTest is BaseTest {
 
         IFolio.FolioFlags memory folioFlags = IFolio.FolioFlags({
             trustedFillerEnabled: true,
-            rebalanceControl: IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.NONE })
+            rebalanceControl: IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.NONE }),
+            bidsEnabled: true
         });
 
         // Attempt to initialize
@@ -1348,6 +1349,64 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
+    function test_auctionBidsDisabled() public {
+        // check protected
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                address(this),
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        folio.setBidsEnabled(false);
+
+        // Sell USDC
+        weights[0] = SELL;
+
+        // Add USDT to buy
+        assets.push(address(USDT));
+        weights.push(BUY);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        // start rebalance while bidsEnabled
+        vm.prank(dao);
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // disable bids after starting rebalance
+        vm.prank(owner);
+        folio.setBidsEnabled(false);
+
+        bool bidsEnabledView = folio.bidsEnabled();
+        assertEq(bidsEnabledView, false, "direct view should be false");
+        (, , , , , , , , , , bool bidsEnabled) = folio.getRebalance();
+        assertEq(bidsEnabled, true, "bids enabled should still be true");
+
+        // open auction
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
+
+        // bid should work
+        USDT.approve(address(folio), D6_TOKEN_10K * 200);
+        folio.bid(0, USDC, IERC20(address(USDT)), D6_TOKEN_10K, D6_TOKEN_10K * 100, false, bytes(""));
+
+        // start another rebalance and auction
+        vm.prank(dao);
+        folio.startRebalance(assets, weights, prices, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // now bids should be disabled
+        (, , , , , , , , , , bidsEnabled) = folio.getRebalance();
+        assertEq(bidsEnabled, false, "bids enabled should be false");
+
+        vm.prank(auctionLauncher);
+        folio.openAuction(2, assets, weights, prices, NATIVE_LIMITS);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
+
+        // bid should revert now
+        vm.expectRevert(IFolio.Folio__PermissionlessBidsDisabled.selector);
+        folio.bid(1, USDC, IERC20(address(USDT)), D6_TOKEN_10K, D6_TOKEN_10K * 100, false, bytes(""));
+    }
+
     function test_auctionByMockFiller() public {
         // bid in two chunks, one at start time and one at end time
 
@@ -2074,7 +2133,7 @@ contract FolioTest is BaseTest {
         folio.openAuctionUnrestricted(1);
 
         // but should be possible after auction launcher window
-        (, , , , , , , uint256 restrictedUntil, , ) = folio.getRebalance();
+        (, , , , , , , uint256 restrictedUntil, , , ) = folio.getRebalance();
         vm.warp(restrictedUntil);
         folio.openAuctionUnrestricted(1);
         vm.warp(block.timestamp + AUCTION_WARMUP);
@@ -2121,7 +2180,7 @@ contract FolioTest is BaseTest {
         );
 
         // Open auction unrestricted
-        (, , , , , , , uint256 restrictedUntil, , ) = folio.getRebalance();
+        (, , , , , , , uint256 restrictedUntil, , , ) = folio.getRebalance();
         vm.warp(restrictedUntil);
         folio.openAuctionUnrestricted(1);
         vm.warp(block.timestamp + AUCTION_WARMUP);

@@ -27,7 +27,8 @@ library RebalancingLib {
         IFolio.PriceRange[] calldata prices,
         IFolio.RebalanceLimits calldata limits,
         uint256 auctionLauncherWindow,
-        uint256 ttl
+        uint256 ttl,
+        bool bidsEnabled
     ) external {
         require(ttl >= auctionLauncherWindow && ttl <= MAX_TTL, IFolio.Folio__InvalidTTL());
 
@@ -93,6 +94,7 @@ library RebalancingLib {
         rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
         rebalance.availableUntil = block.timestamp + ttl;
         rebalance.priceControl = rebalanceControl.priceControl;
+        rebalance.bidsEnabled = bidsEnabled;
 
         emit IFolio.RebalanceStarted(
             rebalance.nonce,

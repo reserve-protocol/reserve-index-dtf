@@ -49,6 +49,7 @@ interface IFolio {
         uint256 availableUntil
     );
     event RebalanceEnded(uint256 nonce);
+    event BidsEnabledSet(bool bidsEnabled);
     // === Errors ===
 
     error Folio__FolioDeprecated();
@@ -91,6 +92,7 @@ interface IFolio {
     error Folio__InvalidTTL();
     error Folio__NotRebalancing();
     error Folio__MixedAtomicSwaps();
+    error Folio__PermissionlessBidsDisabled();
 
     // === Structures ===
 
@@ -125,6 +127,7 @@ interface IFolio {
     struct FolioFlags {
         bool trustedFillerEnabled;
         RebalanceControl rebalanceControl;
+        bool bidsEnabled;
     }
 
     struct FeeRecipient {
@@ -175,6 +178,7 @@ interface IFolio {
         uint256 restrictedUntil; // {s} timestamp rebalancing becomes unrestricted, exclusive
         uint256 availableUntil; // {s} timestamp rebalancing ends overall, exclusive
         PriceControl priceControl; // AUCTION_LAUNCHER control over auction pricing
+        bool bidsEnabled; // If true, permissionless bids are enabled
     }
 
     /// 1 running auction at a time; N per rebalance overall
