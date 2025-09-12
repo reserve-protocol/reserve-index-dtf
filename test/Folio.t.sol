@@ -771,7 +771,9 @@ contract FolioTest is BaseTest {
 
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
-        emit IFolio.MetadataSet(newName, newSymbol);
+        emit IFolio.NameSet(newName);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.SymbolSet(newSymbol);
         vm.expectEmit(true, true, false, true);
         emit IFolio.MandateSet(newMandate);
         folio.setMetadata(newName, newSymbol, newMandate);

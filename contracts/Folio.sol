@@ -1058,7 +1058,8 @@ contract Folio is
 
         $._name = _newName;
         $._symbol = _newSymbol;
-        emit MetadataSet(_newName, _newSymbol);
+        emit NameSet(_newName);
+        emit SymbolSet(_newSymbol);
 
         mandate = _newMandate;
         emit MandateSet(_newMandate);
