@@ -1057,10 +1057,9 @@ contract Folio is
         }
 
         $._name = _newName;
-        $._symbol = _newSymbol;
         emit NameSet(_newName);
+        $._symbol = _newSymbol;
         emit SymbolSet(_newSymbol);
-
         mandate = _newMandate;
         emit MandateSet(_newMandate);
     }
