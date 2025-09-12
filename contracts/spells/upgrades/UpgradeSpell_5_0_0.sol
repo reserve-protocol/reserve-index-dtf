@@ -44,21 +44,11 @@ contract UpgradeSpell_5_0_0 is Versioned {
         require(folio.hasRole(DEFAULT_ADMIN_ROLE, address(this)), "US4: not admin");
         require(folio.hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "US4: caller not admin");
 
-        // save name and symbol
-
-        string memory name = folio.name();
-        string memory symbol = folio.symbol();
-
         // upgrade to 5.0.0
 
         proxyAdmin.upgradeToVersion(address(folio), VERSION_5_0_0, "");
 
         require(keccak256(bytes(folio.version())) == VERSION_5_0_0, "US4: version mismatch");
-
-        // set name and symbol
-
-        folio.setName(name);
-        folio.setSymbol(symbol);
 
         // enable permissionless bids
 
