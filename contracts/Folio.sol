@@ -186,6 +186,9 @@ contract Folio is
     // === 4.0.2 ===
     bool public bidsEnabled;
 
+    string private _name;
+    string private _symbol;
+
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
         _poke();
@@ -211,11 +214,14 @@ contract Folio is
         __AccessControl_init();
         __ReentrancyGuard_init();
 
+        _setName(_basicDetails.name);
+        _setSymbol(_basicDetails.symbol);
+        _setMandate(_additionalDetails.mandate);
+
         _setFeeRecipients(_additionalDetails.feeRecipients);
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
         _setAuctionLength(_additionalDetails.auctionLength);
-        _setMandate(_additionalDetails.mandate);
 
         _setRebalanceControl(_folioFlags.rebalanceControl);
         _setBidsEnabled(_folioFlags.bidsEnabled);
@@ -255,6 +261,16 @@ contract Folio is
     function stateChangeActive() external view returns (bool syncStateChangeActive, bool asyncStateChangeActive) {
         syncStateChangeActive = _reentrancyGuardEntered();
         asyncStateChangeActive = address(activeTrustedFill) != address(0) && activeTrustedFill.swapActive();
+    }
+
+    // === ERC20 ===
+
+    function name() public view override returns (string memory) {
+        return _name;
+    }
+
+    function symbol() public view override returns (string memory) {
+        return _symbol;
     }
 
     // ==== Governance ====
@@ -313,6 +329,16 @@ contract Folio is
     /// @param _newLength {s} Length of an auction
     function setAuctionLength(uint256 _newLength) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         _setAuctionLength(_newLength);
+    }
+
+    /// @param _newName New token name
+    function setName(string calldata _newName) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setName(_newName);
+    }
+
+    /// @param _newSymbol New token symbol
+    function setSymbol(string calldata _newSymbol) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setSymbol(_newSymbol);
     }
 
     /// @param _newMandate New mandate, a schelling point to guide governance
@@ -1039,6 +1065,16 @@ contract Folio is
 
         auctionLength = _newLength;
         emit AuctionLengthSet(auctionLength);
+    }
+
+    function _setName(string memory _newName) internal {
+        _name = _newName;
+        emit NameSet(_newName);
+    }
+
+    function _setSymbol(string memory _newSymbol) internal {
+        _symbol = _newSymbol;
+        emit SymbolSet(_newSymbol);
     }
 
     function _setMandate(string memory _newMandate) internal {
