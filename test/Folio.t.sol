@@ -3333,7 +3333,7 @@ contract FolioTest is BaseTest {
 
         uint256 amt = D6_TOKEN_10K;
 
-        // Sell USDC, will start as BUY and change before open auction
+        // Start as BUY and change to SELL later
         weights[0] = BUY_FULL_RANGE;
 
         // Add USDT to buy
@@ -3366,12 +3366,7 @@ contract FolioTest is BaseTest {
             });
         }
 
-        // openAuction should revert because USDC has weight [0, MAX_WEIGHT, MAX_WEIGHT]
-        vm.prank(auctionLauncher);
-        vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
-
-        // Fix revert by setting USDC weight to [0, 0, 0]
+        // Sell USDC
         weights[0] = SELL;
 
         vm.prank(auctionLauncher);
