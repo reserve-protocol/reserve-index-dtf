@@ -211,12 +211,11 @@ contract Folio is
         __AccessControl_init();
         __ReentrancyGuard_init();
 
-        _setMetadata(_basicDetails.name, _basicDetails.symbol, _additionalDetails.mandate);
-
         _setFeeRecipients(_additionalDetails.feeRecipients);
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
         _setAuctionLength(_additionalDetails.auctionLength);
+        _setMandate(_additionalDetails.mandate);
 
         _setRebalanceControl(_folioFlags.rebalanceControl);
         _setBidsEnabled(_folioFlags.bidsEnabled);
@@ -316,14 +315,14 @@ contract Folio is
         _setAuctionLength(_newLength);
     }
 
+    /// @param _newMandate New mandate, a schelling point to guide governance
+    function setMandate(string calldata _newMandate) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setMandate(_newMandate);
+    }
+
     /// @param _newName New token name
-    /// @param _newSymbol New token symbol
-    function setMetadata(
-        string calldata _newName,
-        string calldata _newSymbol,
-        string calldata _newMandate
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setMetadata(_newName, _newSymbol, _newMandate);
+    function setName(string calldata _newName) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setName(_newName);
     }
 
     /// @dev _newFillerRegistry must be the already set registry if already set. This is to ensure
@@ -1047,21 +1046,21 @@ contract Folio is
         emit AuctionLengthSet(auctionLength);
     }
 
+    function _setMandate(string calldata _newMandate) internal {
+        mandate = _newMandate;
+        emit MandateSet(_newMandate);
+    }
+
+    /// @dev Called on changes only, not initialization
     /// @param _newName New token name
-    /// @param _newSymbol New token symbol
-    /// @param _newMandate New mandate, a schelling point to guide governance
-    function _setMetadata(string calldata _newName, string calldata _newSymbol, string calldata _newMandate) internal {
+    function _setName(string calldata _newName) internal {
         ERC20Storage storage $;
         assembly {
             $.slot := ERC20_STORAGE_LOCATION
         }
 
         $._name = _newName;
-        emit NameSet(_newName);
-        $._symbol = _newSymbol;
-        emit SymbolSet(_newSymbol);
-        mandate = _newMandate;
-        emit MandateSet(_newMandate);
+        emit NameChanged(_newName);
     }
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date

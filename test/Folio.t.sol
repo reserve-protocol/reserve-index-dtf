@@ -764,21 +764,14 @@ contract FolioTest is BaseTest {
         folio.setAuctionLength(MAX_AUCTION_LENGTH + 1);
     }
 
-    function test_updateMetadata() public {
-        string memory newName = "Test Folio 2";
-        string memory newSymbol = "TFOLIO2";
+    function test_setMandate() public {
+        assertEq(folio.mandate(), "mandate", "wrong mandate");
         string memory newMandate = "new mandate";
 
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
-        emit IFolio.NameSet(newName);
-        vm.expectEmit(true, true, false, true);
-        emit IFolio.SymbolSet(newSymbol);
-        vm.expectEmit(true, true, false, true);
         emit IFolio.MandateSet(newMandate);
-        folio.setMetadata(newName, newSymbol, newMandate);
-        assertEq(folio.name(), newName, "wrong name");
-        assertEq(folio.symbol(), newSymbol, "wrong symbol");
+        folio.setMandate(newMandate);
         assertEq(folio.mandate(), newMandate, "wrong mandate");
 
         vm.expectRevert(
@@ -789,7 +782,28 @@ contract FolioTest is BaseTest {
             )
         );
         vm.prank(dao);
-        folio.setMetadata(newName, newSymbol, newMandate);
+        folio.setMandate(newMandate);
+    }
+
+    function test_setName() public {
+        assertEq(folio.name(), "Test Folio", "wrong name");
+        string memory newName = "Test Folio NewName";
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.NameChanged(newName);
+        folio.setName(newName);
+        assertEq(folio.name(), newName, "wrong name");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                dao,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        vm.prank(dao);
+        folio.setName(newName);
     }
 
     function test_setTrustedFillerRegistry() public {
