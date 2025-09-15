@@ -216,6 +216,7 @@ contract Folio is
         _setMintFee(_additionalDetails.mintFee);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
+        _setName(_basicDetails.name);
 
         _setRebalanceControl(_folioFlags.rebalanceControl);
         _setBidsEnabled(_folioFlags.bidsEnabled);
@@ -1051,7 +1052,6 @@ contract Folio is
         emit MandateSet(_newMandate);
     }
 
-    /// @dev Called on changes only, not initialization
     /// @param _newName New token name
     function _setName(string calldata _newName) internal {
         ERC20Storage storage $;
@@ -1060,7 +1060,7 @@ contract Folio is
         }
 
         $._name = _newName;
-        emit NameChanged(_newName);
+        emit NameSet(_newName);
     }
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date

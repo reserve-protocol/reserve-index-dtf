@@ -50,7 +50,7 @@ interface IFolio {
     );
     event RebalanceEnded(uint256 nonce);
     event BidsEnabledSet(bool bidsEnabled);
-    event NameChanged(string newName);
+    event NameSet(string newName);
 
     // === Errors ===
 

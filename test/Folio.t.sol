@@ -791,7 +791,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
-        emit IFolio.NameChanged(newName);
+        emit IFolio.NameSet(newName);
         folio.setName(newName);
         assertEq(folio.name(), newName, "wrong name");
 
