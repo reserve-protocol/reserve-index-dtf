@@ -67,9 +67,6 @@ library RebalancingLib {
                         weights[i].high <= MAX_WEIGHT,
                     IFolio.Folio__InvalidWeights()
                 );
-
-                // weights are all 0, or none are 0
-                require(weights[i].low != 0 || weights[i].high == 0, IFolio.Folio__InvalidWeights());
             }
 
             // enforce prices are internally consistent
