@@ -976,9 +976,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@reserve-protocol/trusted-fillers@github:reserve-protocol/trusted-fillers#a9169ec805e2e02957caa18403d6b65c7f3f52c0":
+"@reserve-protocol/trusted-fillers@github:reserve-protocol/trusted-fillers#eabd9dbd60e8aaaec2c50db43742991e4cb55208":
   version: 0.1.0
-  resolution: "@reserve-protocol/trusted-fillers@https://github.com/reserve-protocol/trusted-fillers.git#commit=a9169ec805e2e02957caa18403d6b65c7f3f52c0"
+  resolution: "@reserve-protocol/trusted-fillers@https://github.com/reserve-protocol/trusted-fillers.git#commit=eabd9dbd60e8aaaec2c50db43742991e4cb55208"
   dependencies:
     "@cowprotocol/app-data": "npm:^2.5.1"
     "@cowprotocol/cow-sdk": "npm:^5.10.1"
@@ -988,7 +988,7 @@ __metadata:
     ethers: "npm:^5.7.2"
     forge-std: "github:foundry-rs/forge-std#v1.9.7"
     viem: "npm:^2.23.11"
-  checksum: 10c0/a6ba9e2a32362e7ce3f27b373e274108c3cf55cffd7256e4b4e392ac5c3ed33e3ab747ab266f46101b5f541a2a6afe88a604c8c9c87227b482331fed70608d25
+  checksum: 10c0/ccc3a5aa98371fc31d88f0a56cebdc4e99b1cd956b4807a810967d9b025381777224a5fcd0ecff67a36c68601e01f98d1a9a29bf8f116759f8ece8854a1f472a
   languageName: node
   linkType: hard
 
@@ -1936,7 +1936,7 @@ __metadata:
     "@openzeppelin/contracts": "npm:5.1.0"
     "@openzeppelin/contracts-upgradeable": "npm:5.1.0"
     "@prb/math": "npm:4.1.0"
-    "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#a9169ec805e2e02957caa18403d6b65c7f3f52c0"
+    "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#eabd9dbd60e8aaaec2c50db43742991e4cb55208"
     forge-std: "github:foundry-rs/forge-std#v1.9.7"
     prettier: "npm:^3.5.3"
     prettier-plugin-solidity: "npm:^1.4.3"
