@@ -26,6 +26,7 @@ contract FolioTest is BaseTest {
 
     IFolio.WeightRange internal SELL = IFolio.WeightRange({ low: 0, spot: 0, high: 0 }); // sell as much as possible
     IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: MAX_WEIGHT, spot: MAX_WEIGHT, high: MAX_WEIGHT }); // buy as much as possible
+    IFolio.WeightRange internal BUY_FULL_RANGE = IFolio.WeightRange({ low: 0, spot: MAX_WEIGHT, high: MAX_WEIGHT }); // default BUY, but can remove
 
     IFolio.WeightRange internal WEIGHTS_6 = IFolio.WeightRange({ low: 1e15, spot: 1e15, high: 1e15 }); // D27{tok/BU} 1:1 with BUs
     IFolio.WeightRange internal WEIGHTS_18 = IFolio.WeightRange({ low: 1e27, spot: 1e27, high: 1e27 }); // D27{tok/BU} 1:1 with BUs
@@ -3370,8 +3371,8 @@ contract FolioTest is BaseTest {
 
         uint256 amt = D6_TOKEN_10K;
 
-        // Sell USDC
-        weights[0] = SELL;
+        // Start as BUY and change to SELL later
+        weights[0] = BUY_FULL_RANGE;
 
         // Add USDT to buy
         IFolio.WeightRange memory WEIGHTS_BUY_6 = IFolio.WeightRange({ low: 9e14, spot: 1e15, high: 11e14 }); // D27{tok/BU}
@@ -3402,6 +3403,9 @@ contract FolioTest is BaseTest {
                 high: (weights[i].spot * 105) / 100
             });
         }
+
+        // Sell USDC
+        weights[0] = SELL;
 
         vm.prank(auctionLauncher);
         vm.expectEmit(true, false, false, true);
