@@ -765,14 +765,14 @@ contract FolioTest is BaseTest {
     }
 
     function test_setMandate() public {
-        vm.startPrank(owner);
         assertEq(folio.mandate(), "mandate", "wrong mandate");
         string memory newMandate = "new mandate";
+
+        vm.prank(owner);
         vm.expectEmit(true, true, false, true);
         emit IFolio.MandateSet(newMandate);
         folio.setMandate(newMandate);
-        assertEq(folio.mandate(), newMandate);
-        vm.stopPrank();
+        assertEq(folio.mandate(), newMandate, "wrong mandate");
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -783,6 +783,27 @@ contract FolioTest is BaseTest {
         );
         vm.prank(dao);
         folio.setMandate(newMandate);
+    }
+
+    function test_setName() public {
+        assertEq(folio.name(), "Test Folio", "wrong name");
+        string memory newName = "Test Folio NewName";
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.NameSet(newName);
+        folio.setName(newName);
+        assertEq(folio.name(), newName, "wrong name");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                dao,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        vm.prank(dao);
+        folio.setName(newName);
     }
 
     function test_setTrustedFillerRegistry() public {
