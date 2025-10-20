@@ -22,9 +22,7 @@ library RebalancingLib {
     function startRebalance(
         IFolio.RebalanceControl storage rebalanceControl,
         IFolio.Rebalance storage rebalance,
-        address[] calldata tokens,
-        IFolio.WeightRange[] calldata weights,
-        IFolio.PriceRange[] calldata prices,
+        IFolio.TokenRebalanceParams[] calldata tokens,
         IFolio.RebalanceLimits calldata limits,
         uint256 auctionLauncherWindow,
         uint256 ttl,
@@ -39,49 +37,53 @@ library RebalancingLib {
         );
 
         uint256 len = tokens.length;
-        require(len != 0 && len == weights.length && len == prices.length, IFolio.Folio__InvalidArrayLengths());
+        require(len != 0, IFolio.Folio__EmptyAssets());
 
         // set new rebalance details and prices
         for (uint256 i; i < len; i++) {
-            address token = tokens[i];
+            address token = tokens[i].token;
+
+            // enforce in rebalance
+            require(rebalance.details[token].inRebalance, IFolio.Folio__InvalidAsset());
 
             // enforce valid token
             require(token != address(0) && token != address(this), IFolio.Folio__InvalidAsset());
 
             // enforce no duplicates
-            require(!rebalance.details[token].inRebalance, IFolio.Folio__DuplicateAsset());
+            require(rebalance.details[token].initialPrices.low == 0, IFolio.Folio__DuplicateAsset());
 
             if (!rebalanceControl.weightControl) {
                 // weights must be fixed
                 require(
-                    weights[i].low == weights[i].spot &&
-                        weights[i].spot == weights[i].high &&
-                        weights[i].high <= MAX_WEIGHT,
+                    tokens[i].weight.low == tokens[i].weight.spot &&
+                        tokens[i].weight.spot == tokens[i].weight.high &&
+                        tokens[i].weight.high <= MAX_WEIGHT,
                     IFolio.Folio__InvalidWeights()
                 );
             } else {
                 // weights can be revised within bounds
                 require(
-                    weights[i].low <= weights[i].spot &&
-                        weights[i].spot <= weights[i].high &&
-                        weights[i].high <= MAX_WEIGHT,
+                    tokens[i].weight.low <= tokens[i].weight.spot &&
+                        tokens[i].weight.spot <= tokens[i].weight.high &&
+                        tokens[i].weight.high <= MAX_WEIGHT,
                     IFolio.Folio__InvalidWeights()
                 );
             }
 
             // enforce prices are internally consistent
             require(
-                prices[i].low != 0 &&
-                    prices[i].low < prices[i].high &&
-                    prices[i].high <= MAX_TOKEN_PRICE &&
-                    prices[i].high <= MAX_TOKEN_PRICE_RANGE * prices[i].low,
+                tokens[i].price.low != 0 &&
+                    tokens[i].price.low < tokens[i].price.high &&
+                    tokens[i].price.high <= MAX_TOKEN_PRICE &&
+                    tokens[i].price.high <= MAX_TOKEN_PRICE_RANGE * tokens[i].price.low,
                 IFolio.Folio__InvalidPrices()
             );
 
             rebalance.details[token] = IFolio.RebalanceDetails({
-                inRebalance: true,
-                weights: weights[i],
-                initialPrices: prices[i]
+                inRebalance: tokens[i].inRebalance,
+                weights: tokens[i].weight,
+                initialPrices: tokens[i].price,
+                maxAuctionSize: tokens[i].maxAuctionSize
             });
         }
 
@@ -97,11 +99,11 @@ library RebalancingLib {
             rebalance.nonce,
             rebalance.priceControl,
             tokens,
-            weights,
-            prices,
             limits,
+            block.timestamp,
             block.timestamp + auctionLauncherWindow,
-            block.timestamp + ttl
+            block.timestamp + ttl,
+            bidsEnabled
         );
     }
 
@@ -257,35 +259,38 @@ library RebalancingLib {
     ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
         assert(params.minSellAmount <= params.maxSellAmount);
 
+        IFolio.RebalanceDetails memory sellDetails = rebalance.details[address(sellToken)];
+
         // checks auction is ongoing and part of rebalance
         // D27{buyTok/sellTok}
         price = _price(rebalance, auction, sellToken, buyToken);
 
-        // sell down to the high BU limit and high weight
-        // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
-        uint256 sellLimit = Math.mulDiv(
-            rebalance.limits.high,
-            rebalance.details[address(sellToken)].weights.high,
-            D18,
-            Math.Rounding.Ceil
-        );
+        uint256 sellAvailable;
+        {
+            // sell down to the high BU limit and high weight
+            // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
+            uint256 sellLimit = Math.mulDiv(rebalance.limits.high, sellDetails.weights.high, D18, Math.Rounding.Ceil);
 
-        // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 sellLimitBal = Math.mulDiv(sellLimit, params.totalSupply, D27, Math.Rounding.Ceil);
-        uint256 sellAvailable = params.sellBal > sellLimitBal ? params.sellBal - sellLimitBal : 0;
+            // {sellTok} = D27{sellTok/share} * {share} / D27
+            uint256 sellLimitBal = Math.mulDiv(sellLimit, params.totalSupply, D27, Math.Rounding.Ceil);
+            sellAvailable = params.sellBal > sellLimitBal ? params.sellBal - sellLimitBal : 0;
+        }
 
-        // buy up to the low BU limit and low weight
-        // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
-        uint256 buyLimit = Math.mulDiv(
-            rebalance.limits.low,
-            rebalance.details[address(buyToken)].weights.low,
-            D18,
-            Math.Rounding.Floor
-        );
+        uint256 buyAvailable;
+        {
+            // buy up to the low BU limit and low weight
+            // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
+            uint256 buyLimit = Math.mulDiv(
+                rebalance.limits.low,
+                rebalance.details[address(buyToken)].weights.low,
+                D18,
+                Math.Rounding.Floor
+            );
 
-        // {buyTok} = D27{buyTok/share} * {share} / D27
-        uint256 buyLimitBal = Math.mulDiv(buyLimit, params.totalSupply, D27, Math.Rounding.Floor);
-        uint256 buyAvailable = params.buyBal < buyLimitBal ? buyLimitBal - params.buyBal : 0;
+            // {buyTok} = D27{buyTok/share} * {share} / D27
+            uint256 buyLimitBal = Math.mulDiv(buyLimit, params.totalSupply, D27, Math.Rounding.Floor);
+            buyAvailable = params.buyBal < buyLimitBal ? buyLimitBal - params.buyBal : 0;
+        }
 
         // maximum valid token purchase is 1e36; do not try to buy more than this
         buyAvailable = Math.min(buyAvailable, MAX_TOKEN_BUY_AMOUNT);
@@ -293,6 +298,12 @@ library RebalancingLib {
         // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
         uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
         sellAvailable = Math.min(sellAvailable, sellAvailableFromBuy);
+
+        // {sellTok}
+        uint256 sellRemaining = sellDetails.maxAuctionSize > auction.sold[address(sellToken)]
+            ? sellDetails.maxAuctionSize - auction.sold[address(sellToken)]
+            : 0;
+        sellAvailable = Math.min(sellAvailable, sellRemaining);
 
         // ensure auction is large enough to cover bid
         require(sellAvailable >= params.minSellAmount, IFolio.Folio__InsufficientSellAvailable());

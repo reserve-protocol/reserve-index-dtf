@@ -41,12 +41,12 @@ interface IFolio {
     event RebalanceStarted(
         uint256 nonce,
         PriceControl priceControl,
-        address[] tokens,
-        WeightRange[] weights,
-        PriceRange[] prices,
+        TokenRebalanceParams[] tokens,
         RebalanceLimits limits,
+        uint256 startedAt,
         uint256 restrictedUntil,
-        uint256 availableUntil
+        uint256 availableUntil,
+        bool bidsEnabled
     );
     event RebalanceEnded(uint256 nonce);
     event BidsEnabledSet(bool bidsEnabled);
@@ -164,11 +164,12 @@ interface IFolio {
         uint256 high; // D27{UoA/tok} (0, 1e45]
     }
 
-    /// Rebalance details for a token
+    /// Rebalance details for a token (storage)
     struct RebalanceDetails {
         bool inRebalance;
         WeightRange weights; // D27{tok/BU} [0, 1e54]
         PriceRange initialPrices; // D27{UoA/tok} (0, 1e45]
+        uint256 maxAuctionSize; // {tok}
     }
 
     /// Singleton rebalance state
@@ -183,7 +184,7 @@ interface IFolio {
         bool bidsEnabled; // If true, permissionless bids are enabled
     }
 
-    /// 1 running auction at a time; N per rebalance overall
+    /// 1 running auction at a time; N per rebalance overall (storage)
     /// Auction states:
     ///   - UNINITIALIZED: startTime == 0 && endTime == 0
     ///   - PENDING: block.timestamp < startTime
@@ -194,11 +195,21 @@ interface IFolio {
         mapping(address token => PriceRange) prices; // D27{UoA/tok} (0, 1e45]
         uint256 startTime; // {s} inclusive
         uint256 endTime; // {s} inclusive
+        mapping(address token => uint256) sold; // {tok}
     }
 
     /// Used to mark old storage slots now deprecated
     struct DeprecatedStruct {
         bytes32 EMPTY;
+    }
+
+    /// Token rebalance parameters (memory/calldata)
+    struct TokenRebalanceParams {
+        address token;
+        WeightRange weight; // D27{tok/BU} [0, 1e54]
+        PriceRange price; // D27{UoA/tok} (0, 1e45]
+        uint256 maxAuctionSize; // {tok}
+        bool inRebalance;
     }
 
     function distributeFees() external;
