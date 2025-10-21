@@ -87,7 +87,7 @@ contract DeployScript is Script {
             // BNB Smart Chain Mainnet - Canonical Parameters
             deploymentParams[56] = DeploymentParams({
                 roleRegistry: 0xE1eC57C8EE970280f237863910B606059e9641C9,
-                folioFeeRegistry: 0xF5733751C0b6fFa63ddb2e3EBe98FBBB691c399E,
+                folioFeeRegistry: 0x135437333990f799293F6AD19fE45032Ba68285e,
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0x79A4E963378AE34fC6c796a24c764322fC6c9390,
                 trustedFillerRegistry: 0x08424d7C52bf9edd4070701591Ea3FE6dca6449B
