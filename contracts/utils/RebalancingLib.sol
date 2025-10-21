@@ -20,6 +20,7 @@ import { MathLib } from "@utils/MathLib.sol";
  */
 library RebalancingLib {
     function startRebalance(
+        address[] calldata oldTokens,
         IFolio.RebalanceControl storage rebalanceControl,
         IFolio.Rebalance storage rebalance,
         IFolio.TokenRebalanceParams[] calldata tokens,
@@ -28,6 +29,13 @@ library RebalancingLib {
         uint256 ttl,
         bool bidsEnabled
     ) external {
+        // remove old tokens from rebalance while keeping them in the basket
+        for (uint256 i; i < oldTokens.length; i++) {
+            delete rebalance.details[oldTokens[i]];
+        }
+
+        // ====
+
         require(ttl >= auctionLauncherWindow && ttl <= MAX_TTL, IFolio.Folio__InvalidTTL());
 
         // enforce limits are internally consistent
@@ -325,6 +333,7 @@ library RebalancingLib {
     /// @param data Arbitrary data to pass to the callback
     /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after
     function bid(
+        IFolio.Auction storage auction,
         uint256 auctionId,
         IERC20 sellToken,
         IERC20 buyToken,
@@ -334,6 +343,9 @@ library RebalancingLib {
         bytes calldata data
     ) external returns (bool shouldRemoveFromBasket) {
         require(bidAmount != 0, IFolio.Folio__InsufficientBuyAvailable());
+
+        // track sold amt
+        auction.sold[address(sellToken)] += sellAmount;
 
         uint256 sellBalBefore = sellToken.balanceOf(address(this));
 

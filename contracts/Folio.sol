@@ -594,14 +594,8 @@ contract Folio is
         uint256 auctionLauncherWindow,
         uint256 ttl
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
-        // remove old tokens from rebalance while keeping them in the basket
-        address[] memory oldTokens = basket.values();
-        for (uint256 i; i < oldTokens.length; i++) {
-            delete rebalance.details[oldTokens[i]];
-        }
-
-        // start rebalance
         RebalancingLib.startRebalance(
+            basket.values(),
             rebalanceControl,
             rebalance,
             tokens,
@@ -740,10 +734,8 @@ contract Folio is
         // checks auction is ongoing and that boughtAmt is below maxBuyAmount
         (, boughtAmt, ) = _getBid(auction, sellToken, buyToken, sellAmount, sellAmount, maxBuyAmount);
 
-        auction.sold[address(sellToken)] += sellAmount;
-
         // bid via approval or callback
-        if (RebalancingLib.bid(auctionId, sellToken, buyToken, sellAmount, boughtAmt, withCallback, data)) {
+        if (RebalancingLib.bid(auction, auctionId, sellToken, buyToken, sellAmount, boughtAmt, withCallback, data)) {
             _removeFromBasket(address(sellToken));
         }
     }

@@ -39,7 +39,7 @@ interface IFolio {
 
     event RebalanceControlSet(RebalanceControl newControl);
     event RebalanceStarted(
-        uint256 nonce,
+        uint256 indexed nonce,
         PriceControl priceControl,
         TokenRebalanceParams[] tokens,
         RebalanceLimits limits,
