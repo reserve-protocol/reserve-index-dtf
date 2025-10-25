@@ -547,17 +547,16 @@ contract Folio is
         nonce = rebalance.nonce;
         priceControl = rebalance.priceControl;
 
-        address[] memory _tokens = basket.values();
-        uint256 len = _tokens.length;
+        address[] memory basketTokens = basket.values();
+        uint256 len = basketTokens.length;
 
         tokens = new TokenRebalanceParams[](len);
 
         for (uint256 i; i < len; i++) {
-            address token = _tokens[i];
-            RebalanceDetails storage details = rebalance.details[token];
+            RebalanceDetails storage details = rebalance.details[basketTokens[i]];
 
             tokens[i] = TokenRebalanceParams({
-                token: token,
+                token: basketTokens[i],
                 weight: details.weights,
                 price: details.initialPrices,
                 maxAuctionSize: details.maxAuctionSize,
