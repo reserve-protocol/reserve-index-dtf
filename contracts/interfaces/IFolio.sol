@@ -95,6 +95,7 @@ interface IFolio {
     error Folio__NotRebalancing();
     error Folio__MixedAtomicSwaps();
     error Folio__PermissionlessBidsDisabled();
+    error Folio__EmptyRebalance();
 
     // === Structures ===
 

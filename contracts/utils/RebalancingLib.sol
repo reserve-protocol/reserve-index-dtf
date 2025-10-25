@@ -44,56 +44,60 @@ library RebalancingLib {
             IFolio.Folio__InvalidLimits()
         );
 
+        uint256 count = 0;
         uint256 len = tokens.length;
-        require(len != 0, IFolio.Folio__EmptyAssets());
 
         // set new rebalance details and prices
         for (uint256 i; i < len; i++) {
-            address token = tokens[i].token;
+            IFolio.TokenRebalanceParams calldata params = tokens[i];
 
-            // enforce in rebalance
-            require(rebalance.details[token].inRebalance, IFolio.Folio__InvalidAsset());
+            if (!params.inRebalance) {
+                continue;
+            }
+            count++;
 
             // enforce valid token
-            require(token != address(0) && token != address(this), IFolio.Folio__InvalidAsset());
+            require(params.token != address(0) && params.token != address(this), IFolio.Folio__InvalidAsset());
 
             // enforce no duplicates
-            require(rebalance.details[token].initialPrices.low == 0, IFolio.Folio__DuplicateAsset());
+            require(rebalance.details[params.token].initialPrices.low == 0, IFolio.Folio__DuplicateAsset());
 
             if (!rebalanceControl.weightControl) {
                 // weights must be fixed
                 require(
-                    tokens[i].weight.low == tokens[i].weight.spot &&
-                        tokens[i].weight.spot == tokens[i].weight.high &&
-                        tokens[i].weight.high <= MAX_WEIGHT,
+                    params.weight.low == params.weight.spot &&
+                        params.weight.spot == params.weight.high &&
+                        params.weight.high <= MAX_WEIGHT,
                     IFolio.Folio__InvalidWeights()
                 );
             } else {
                 // weights can be revised within bounds
                 require(
-                    tokens[i].weight.low <= tokens[i].weight.spot &&
-                        tokens[i].weight.spot <= tokens[i].weight.high &&
-                        tokens[i].weight.high <= MAX_WEIGHT,
+                    params.weight.low <= params.weight.spot &&
+                        params.weight.spot <= params.weight.high &&
+                        params.weight.high <= MAX_WEIGHT,
                     IFolio.Folio__InvalidWeights()
                 );
             }
 
             // enforce prices are internally consistent
             require(
-                tokens[i].price.low != 0 &&
-                    tokens[i].price.low < tokens[i].price.high &&
-                    tokens[i].price.high <= MAX_TOKEN_PRICE &&
-                    tokens[i].price.high <= MAX_TOKEN_PRICE_RANGE * tokens[i].price.low,
+                params.price.low != 0 &&
+                    params.price.low < params.price.high &&
+                    params.price.high <= MAX_TOKEN_PRICE &&
+                    params.price.high <= MAX_TOKEN_PRICE_RANGE * params.price.low,
                 IFolio.Folio__InvalidPrices()
             );
 
-            rebalance.details[token] = IFolio.RebalanceDetails({
-                inRebalance: tokens[i].inRebalance,
-                weights: tokens[i].weight,
-                initialPrices: tokens[i].price,
-                maxAuctionSize: tokens[i].maxAuctionSize
+            rebalance.details[params.token] = IFolio.RebalanceDetails({
+                inRebalance: true,
+                weights: params.weight,
+                initialPrices: params.price,
+                maxAuctionSize: params.maxAuctionSize
             });
         }
+
+        require(count > 1, IFolio.Folio__EmptyRebalance());
 
         rebalance.nonce++;
         rebalance.limits = limits;
