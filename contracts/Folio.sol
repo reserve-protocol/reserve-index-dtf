@@ -530,7 +530,7 @@ contract Folio is
     /// @return priceControl How much price control the AUCTION_LAUNCHER has: [NONE, PARTIAL, ATOMIC_SWAP]
     /// @return tokens The rebalance parameters for each token in the basket
     /// @return limits D18{BU/share} The current target limits for rebalancing
-    /// @return timestamps The timestamps for the rebalance
+    /// @return timestamps {s} The timestamps for the rebalance
     /// @return bidsEnabled_ If true, permissionless bids are enabled for this rebalance
     function getRebalance()
         external
