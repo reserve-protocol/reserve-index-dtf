@@ -1235,6 +1235,77 @@ contract FolioTest is BaseTest {
         folio.getBid(0, USDC, IERC20(address(USDT)), amt);
     }
 
+    function test_maxAuctionSize() public {
+        // Test max auction size within a single auction and across different auctions
+        // Also tests cross-decimal trading: USDC (6 decimals) -> DAI (18 decimals)
+
+        // Phase 1: Setup - enable atomic swaps
+        vm.prank(owner);
+        folio.setRebalanceControl(
+            IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.ATOMIC_SWAP })
+        );
+
+        uint256 maxAuctionSize = 6000e6; // 6000 USDC with 6 decimals
+
+        // Sell USDC with limited max auction size
+        weights[0] = SELL;
+
+        // Buy DAI (18 decimals) - testing cross-decimal trading
+        weights[1] = BUY;
+
+        // Phase 2: Start first rebalance with maxAuctionSize limit
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], maxAuctionSize, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        vm.prank(dao);
+        folio.startRebalance(tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // use atomic swap prices
+        prices[0] = PRICE_POINT_6;
+        prices[1] = PRICE_POINT_18;
+        prices[2] = PRICE_POINT_27;
+
+        // Auction 1: Test max auction size with multiple bids
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+
+        // First bid: 2500 USDC for 2500 DAI
+        uint256 amt1 = 2500e6; // sell amount in USDC (6 decimals)
+        vm.startPrank(user1);
+        DAI.approve(address(folio), 2500e18); // buy amount in DAI (18 decimals)
+        folio.bid(0, USDC, DAI, amt1, 2500e18, false, bytes(""));
+
+        // Second bid: 2500 USDC more (total 5000)
+        uint256 amt2 = 2500e6; // sell amount in USDC (6 decimals)
+        DAI.approve(address(folio), 2500e18); // buy amount in DAI (18 decimals)
+        folio.bid(0, USDC, DAI, amt2, 2500e18, false, bytes(""));
+
+        // Third bid attempt: Try to get 5000 USDC, should only get remaining 1000
+        uint256 requestedAmt = 5000e6;
+        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, USDC, DAI, requestedAmt);
+        assertEq(sellAmount, 1000e6, "should only have 1000 USDC remaining in auction");
+        assertEq(buyAmount, 1000e18, "should only need 1000 DAI (18 decimals)");
+
+        // Bid the remaining 1000 USDC
+        DAI.approve(address(folio), 1000e18);
+        folio.bid(0, USDC, DAI, 1000e6, 1000e18, false, bytes(""));
+
+        // Verify no more USDC can be sold in this auction (max auction size reached)
+        (uint256 sellAmountRemaining, , ) = folio.getBid(0, USDC, DAI, 1000e6);
+        assertEq(sellAmountRemaining, 0, "no USDC should remain after hitting max auction size");
+        vm.stopPrank();
+
+        // Auction 2: Verify max auction size resets for new auction within same rebalance
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+
+        // Should be able to bid up to maxAuctionSize again in new auction
+        (sellAmountRemaining, , ) = folio.getBid(1, USDC, DAI, 1000e6);
+        assertGt(sellAmountRemaining, 0, "max auction size should reset for new auction");
+    }
+
     function test_auctionBidWithoutCallback() public {
         // bid in two chunks, one at start time and one at end time
 
@@ -2329,8 +2400,20 @@ contract FolioTest is BaseTest {
         smallerPrices[1] = prices[1];
 
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](2);
-        tokens[0] = IFolio.TokenRebalanceParams(smallerAssets[0], smallerWeights[0], smallerPrices[0], type(uint256).max, true);
-        tokens[1] = IFolio.TokenRebalanceParams(smallerAssets[1], smallerWeights[1], smallerPrices[1], type(uint256).max, true);
+        tokens[0] = IFolio.TokenRebalanceParams(
+            smallerAssets[0],
+            smallerWeights[0],
+            smallerPrices[0],
+            type(uint256).max,
+            true
+        );
+        tokens[1] = IFolio.TokenRebalanceParams(
+            smallerAssets[1],
+            smallerWeights[1],
+            smallerPrices[1],
+            type(uint256).max,
+            true
+        );
 
         vm.prank(dao);
         folio.startRebalance(tokens, NATIVE_LIMITS, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
