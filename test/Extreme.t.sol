@@ -272,8 +272,12 @@ contract ExtremeTest is BaseExtremeTest {
                 prices[1] = IFolio.PriceRange(lowBuyPrice, highBuyPrice);
             }
 
+            IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](2);
+            tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+            tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+
             vm.prank(dao);
-            folio.startRebalance(assets, weights, prices, limits, 0, MAX_TTL);
+            folio.startRebalance(tokens, limits, 0, MAX_TTL);
         }
 
         // openAuctionUnrestricted
