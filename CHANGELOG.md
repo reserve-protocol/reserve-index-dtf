@@ -1,6 +1,7 @@
 ## Release 5.0.0
 
 - Add ability to disable permissionless bids and restrict all trading to trusted fillers
+- Add ability to change name
 
 ## Release 4.0.0
 

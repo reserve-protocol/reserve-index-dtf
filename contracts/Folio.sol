@@ -13,7 +13,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
-import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, REBALANCE_MANAGER, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -183,7 +183,7 @@ contract Folio is
     mapping(uint256 id => Auction auction) public auctions;
     uint256 public nextAuctionId;
 
-    // === 4.0.2 ===
+    // === 5.0.0 ===
     bool public bidsEnabled;
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
@@ -216,6 +216,7 @@ contract Folio is
         _setMintFee(_additionalDetails.mintFee);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
+        _setName(_basicDetails.name);
 
         _setRebalanceControl(_folioFlags.rebalanceControl);
         _setBidsEnabled(_folioFlags.bidsEnabled);
@@ -304,7 +305,7 @@ contract Folio is
     /// @dev Non-reentrant via distributeFees()
     /// @dev Fee recipients must be unique and sorted by address, and sum to 1e18
     /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
-    function setFeeRecipients(FeeRecipient[] memory _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFeeRecipients(FeeRecipient[] calldata _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
         _setFeeRecipients(_newRecipients);
@@ -318,6 +319,11 @@ contract Folio is
     /// @param _newMandate New mandate, a schelling point to guide governance
     function setMandate(string calldata _newMandate) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setMandate(_newMandate);
+    }
+
+    /// @param _newName New token name
+    function setName(string calldata _newName) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setName(_newName);
     }
 
     /// @dev _newFillerRegistry must be the already set registry if already set. This is to ensure
@@ -999,7 +1005,7 @@ contract Folio is
     }
 
     /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
-    function _setFeeRecipients(FeeRecipient[] memory _feeRecipients) internal {
+    function _setFeeRecipients(FeeRecipient[] calldata _feeRecipients) internal {
         emit FeeRecipientsSet(_feeRecipients);
 
         // Clear existing fee table
@@ -1041,9 +1047,20 @@ contract Folio is
         emit AuctionLengthSet(auctionLength);
     }
 
-    function _setMandate(string memory _newMandate) internal {
+    function _setMandate(string calldata _newMandate) internal {
         mandate = _newMandate;
         emit MandateSet(_newMandate);
+    }
+
+    /// @param _newName New token name
+    function _setName(string calldata _newName) internal {
+        ERC20Storage storage $;
+        assembly {
+            $.slot := ERC20_STORAGE_LOCATION
+        }
+
+        $._name = _newName;
+        emit NameSet(_newName);
     }
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
@@ -1092,7 +1109,7 @@ contract Folio is
         emit TrustedFillerRegistrySet(address(trustedFillerRegistry), trustedFillerEnabled);
     }
 
-    function _setRebalanceControl(RebalanceControl memory _rebalanceControl) internal {
+    function _setRebalanceControl(RebalanceControl calldata _rebalanceControl) internal {
         rebalanceControl = _rebalanceControl;
         emit RebalanceControlSet(_rebalanceControl);
     }

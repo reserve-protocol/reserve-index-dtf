@@ -67,9 +67,6 @@ library RebalancingLib {
                         weights[i].high <= MAX_WEIGHT,
                     IFolio.Folio__InvalidWeights()
                 );
-
-                // weights are all 0, or none are 0
-                require(weights[i].low != 0 || weights[i].high == 0, IFolio.Folio__InvalidWeights());
             }
 
             // enforce prices are internally consistent
@@ -327,13 +324,10 @@ library RebalancingLib {
     ) external returns (bool shouldRemoveFromBasket) {
         require(bidAmount != 0, IFolio.Folio__InsufficientBuyAvailable());
 
+        uint256 sellBalBefore = sellToken.balanceOf(address(this));
+
         // pay bidder
         SafeERC20.safeTransfer(sellToken, msg.sender, sellAmount);
-
-        // remove sell token from basket at 0 balance
-        if (sellToken.balanceOf(address(this)) == 0) {
-            shouldRemoveFromBasket = true;
-        }
 
         // {buyTok}
         uint256 buyBalBefore = buyToken.balanceOf(address(this));
@@ -345,10 +339,16 @@ library RebalancingLib {
             SafeERC20.safeTransferFrom(buyToken, msg.sender, address(this), bidAmount);
         }
 
-        uint256 delta = buyToken.balanceOf(address(this)) - buyBalBefore;
-        require(delta >= bidAmount, IFolio.Folio__InsufficientBid());
+        uint256 buyDelta = buyToken.balanceOf(address(this)) - buyBalBefore;
+        require(buyDelta >= bidAmount, IFolio.Folio__InsufficientBid());
 
-        emit IFolio.AuctionBid(auctionId, address(sellToken), address(buyToken), sellAmount, delta);
+        uint256 sellBal = sellToken.balanceOf(address(this));
+        uint256 sellDelta = sellBalBefore > sellBal ? sellBalBefore - sellBal : 0;
+
+        emit IFolio.AuctionBid(auctionId, address(sellToken), address(buyToken), sellDelta, buyDelta);
+
+        // shouldRemoveFromBasket
+        return sellBal == 0;
     }
 
     // ==== Internal ====

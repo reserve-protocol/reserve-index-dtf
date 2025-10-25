@@ -28,3 +28,6 @@ bytes32 constant AUCTION_APPROVER = keccak256("AUCTION_APPROVER"); // 0x2be23b02
 bytes32 constant REBALANCE_MANAGER = keccak256("REBALANCE_MANAGER"); // 0x4ff6ae4d6a29e79ca45c6441bdc89b93878ac6118485b33c8baa3749fc3cb130
 bytes32 constant AUCTION_LAUNCHER = keccak256("AUCTION_LAUNCHER"); // 0x13ff1b2625181b311f257c723b5e6d366eb318b212d9dd694c48fcf227659df5
 bytes32 constant BRAND_MANAGER = keccak256("BRAND_MANAGER"); // 0x2d8e650da9bd8c373ab2450d770f2ed39549bfc28d3630025cecc51511bcd374
+
+// keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
+bytes32 constant ERC20_STORAGE_LOCATION = 0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
