@@ -517,91 +517,88 @@ contract Folio is
         require(range.low != 0, Folio__InvalidAsset());
     }
 
+    /// @dev stack-too-deep
+    struct RebalanceTimestamps {
+        uint256 startedAt; // {s} timestamp rebalancing started, inclusive
+        uint256 restrictedUntil; // {s} timestamp rebalancing becomes unrestricted, exclusive
+        uint256 availableUntil; // {s} timestamp rebalancing ends overall, exclusive
+    }
+
     /// Get the currently ongoing rebalance
     /// @dev Nonzero return values do not imply a rebalance is ongoing; check `rebalance.availableUntil`
     /// @return nonce The current rebalance nonce
-    /// @return tokens The tokens in the basket
-    /// @return weights D27{tok/BU} The weights of the tokens in the basket
-    /// @return initialPrices D27{UoA/tok} The initial prices of the tokens in the basket
-    /// @return inRebalance Whether the token is in the rebalance
+    /// @return priceControl How much price control the AUCTION_LAUNCHER has: [NONE, PARTIAL, ATOMIC_SWAP]
+    /// @return tokens The rebalance parameters for each token in the basket
     /// @return limits D18{BU/share} The current target limits for rebalancing
-    /// @return startedAt {s} The timestamp rebalancing started, inclusive
-    /// @return restrictedUntil {s} The timestamp rebalancing is unrestricted to everyone, exclusive
-    /// @return availableUntil {s} The timestamp rebalancing ends overall, exclusive
-    /// @return priceControl How much price control to give to AUCTION_LAUNCHER: [NONE, PARTIAL, ATOMIC_SWAP]
+    /// @return timestamps {s} The timestamps for the rebalance
     /// @return bidsEnabled_ If true, permissionless bids are enabled for this rebalance
     function getRebalance()
         external
         view
         returns (
             uint256 nonce,
-            address[] memory tokens,
-            WeightRange[] memory weights,
-            PriceRange[] memory initialPrices,
-            bool[] memory inRebalance,
-            RebalanceLimits memory limits,
-            uint256 startedAt,
-            uint256 restrictedUntil,
-            uint256 availableUntil,
             PriceControl priceControl,
+            TokenRebalanceParams[] memory tokens,
+            RebalanceLimits memory limits,
+            RebalanceTimestamps memory timestamps,
             bool bidsEnabled_
         )
     {
-        tokens = basket.values();
-        uint256 len = tokens.length;
+        nonce = rebalance.nonce;
+        priceControl = rebalance.priceControl;
 
-        weights = new WeightRange[](len);
-        initialPrices = new PriceRange[](len);
-        inRebalance = new bool[](len);
+        address[] memory basketTokens = basket.values();
+        uint256 len = basketTokens.length;
+
+        tokens = new TokenRebalanceParams[](len);
 
         for (uint256 i; i < len; i++) {
-            RebalanceDetails storage details = rebalance.details[tokens[i]];
+            address token = basketTokens[i];
+            RebalanceDetails storage details = rebalance.details[token];
 
-            weights[i] = details.weights;
-            initialPrices[i] = details.initialPrices;
-            inRebalance[i] = details.inRebalance;
+            tokens[i] = TokenRebalanceParams({
+                token: token,
+                weight: details.weights,
+                price: details.initialPrices,
+                maxAuctionSize: details.maxAuctionSize,
+                inRebalance: details.inRebalance
+            });
         }
 
-        nonce = rebalance.nonce;
         limits = rebalance.limits;
-        startedAt = rebalance.startedAt;
-        restrictedUntil = rebalance.restrictedUntil;
-        availableUntil = rebalance.availableUntil;
-        priceControl = rebalance.priceControl;
+
+        timestamps = RebalanceTimestamps({
+            startedAt: rebalance.startedAt,
+            restrictedUntil: rebalance.restrictedUntil,
+            availableUntil: rebalance.availableUntil
+        });
+
         bidsEnabled_ = rebalance.bidsEnabled;
     }
 
     /// Start a new rebalance, ending the currently running auction
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
-    /// @param tokens Tokens to rebalance, MUST be unique
-    /// @param weights D27{tok/BU} Basket weight ranges for the basket unit definition; cannot be empty [0, 1e54]
-    /// @param prices D27{UoA/tok} Prices for each token in terms of the unit of account; cannot be empty (0, 1e45]
+    /// @param tokens The rebalance parameters for each token in the rebalance
+    /// @param tokens.token MUST be unique
+    /// @param tokens.weight D27{tok/BU} Basket weight ranges; cannot be empty [0, 1e54]
+    /// @param tokens.price D27{UoA/tok} Prices for each token; cannot be empty (0, 1e45]
+    /// @param tokens.maxAuctionSize {tok} Max amount to sell in any single auction
+    /// @param tokens.inRebalance MUST be true
     /// @param limits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e27]
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
     /// @param ttl {s} The amount of time the rebalance is valid for
     function startRebalance(
-        address[] calldata tokens,
-        WeightRange[] calldata weights,
-        PriceRange[] calldata prices,
+        TokenRebalanceParams[] calldata tokens,
         RebalanceLimits calldata limits,
         uint256 auctionLauncherWindow,
         uint256 ttl
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
-        // remove old tokens from rebalance while keeping them in the basket
-        address[] memory oldTokens = basket.values();
-        uint256 len = oldTokens.length;
-        for (uint256 i; i < len; i++) {
-            delete rebalance.details[oldTokens[i]];
-        }
-
-        // start rebalance
         RebalancingLib.startRebalance(
+            basket.values(),
             rebalanceControl,
             rebalance,
             tokens,
-            weights,
-            prices,
             limits,
             auctionLauncherWindow,
             ttl,
@@ -609,9 +606,8 @@ contract Folio is
         );
 
         // add new tokens to basket
-        len = tokens.length;
-        for (uint256 i; i < len; i++) {
-            _addToBasket(tokens[i]);
+        for (uint256 i; i < tokens.length; i++) {
+            _addToBasket(tokens[i].token);
         }
     }
 
@@ -739,7 +735,7 @@ contract Folio is
         (, boughtAmt, ) = _getBid(auction, sellToken, buyToken, sellAmount, sellAmount, maxBuyAmount);
 
         // bid via approval or callback
-        if (RebalancingLib.bid(auctionId, sellToken, buyToken, sellAmount, boughtAmt, withCallback, data)) {
+        if (RebalancingLib.bid(auction, auctionId, sellToken, buyToken, sellAmount, boughtAmt, withCallback, data)) {
             _removeFromBasket(address(sellToken));
         }
     }
@@ -1128,7 +1124,17 @@ contract Folio is
     /// Claim all token balances from outstanding trusted fill
     function _closeTrustedFill() internal {
         if (address(activeTrustedFill) != address(0)) {
+            IERC20 sellToken = activeTrustedFill.sellToken();
+            uint256 sellBalBefore = sellToken.balanceOf(address(this));
+
             activeTrustedFill.closeFiller();
+
+            // {tok}
+            uint256 returned = sellToken.balanceOf(address(this)) - sellBalBefore;
+            uint256 sellAmount = activeTrustedFill.sellAmount();
+            uint256 sold = sellAmount > returned ? sellAmount - returned : 0;
+
+            auctions[nextAuctionId - 1].sold[address(sellToken)] += sold;
 
             delete activeTrustedFill;
         }
