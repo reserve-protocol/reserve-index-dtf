@@ -20,16 +20,22 @@ import { MathLib } from "@utils/MathLib.sol";
  */
 library RebalancingLib {
     function startRebalance(
+        address[] calldata oldTokens,
         IFolio.RebalanceControl storage rebalanceControl,
         IFolio.Rebalance storage rebalance,
-        address[] calldata tokens,
-        IFolio.WeightRange[] calldata weights,
-        IFolio.PriceRange[] calldata prices,
+        IFolio.TokenRebalanceParams[] calldata tokens,
         IFolio.RebalanceLimits calldata limits,
         uint256 auctionLauncherWindow,
         uint256 ttl,
         bool bidsEnabled
     ) external {
+        // remove old tokens from rebalance while keeping them in the basket
+        for (uint256 i; i < oldTokens.length; i++) {
+            delete rebalance.details[oldTokens[i]];
+        }
+
+        // ====
+
         require(ttl >= auctionLauncherWindow && ttl <= MAX_TTL, IFolio.Folio__InvalidTTL());
 
         // enforce limits are internally consistent
@@ -38,55 +44,60 @@ library RebalancingLib {
             IFolio.Folio__InvalidLimits()
         );
 
+        uint256 count = 0;
         uint256 len = tokens.length;
-        require(len != 0 && len == weights.length && len == prices.length, IFolio.Folio__InvalidArrayLengths());
 
         // set new rebalance details and prices
         for (uint256 i; i < len; i++) {
-            address token = tokens[i];
+            IFolio.TokenRebalanceParams calldata params = tokens[i];
+
+            if (!params.inRebalance) {
+                continue;
+            }
+            count++;
 
             // enforce valid token
-            require(token != address(0) && token != address(this), IFolio.Folio__InvalidAsset());
+            require(params.token != address(0) && params.token != address(this), IFolio.Folio__InvalidAsset());
 
             // enforce no duplicates
-            require(!rebalance.details[token].inRebalance, IFolio.Folio__DuplicateAsset());
+            require(rebalance.details[params.token].initialPrices.low == 0, IFolio.Folio__DuplicateAsset());
 
             if (!rebalanceControl.weightControl) {
                 // weights must be fixed
                 require(
-                    weights[i].low == weights[i].spot &&
-                        weights[i].spot == weights[i].high &&
-                        weights[i].high <= MAX_WEIGHT,
+                    params.weight.low == params.weight.spot &&
+                        params.weight.spot == params.weight.high &&
+                        params.weight.high <= MAX_WEIGHT,
                     IFolio.Folio__InvalidWeights()
                 );
             } else {
                 // weights can be revised within bounds
                 require(
-                    weights[i].low <= weights[i].spot &&
-                        weights[i].spot <= weights[i].high &&
-                        weights[i].high <= MAX_WEIGHT,
+                    params.weight.low <= params.weight.spot &&
+                        params.weight.spot <= params.weight.high &&
+                        params.weight.high <= MAX_WEIGHT,
                     IFolio.Folio__InvalidWeights()
                 );
-
-                // weights are all 0, or none are 0
-                require(weights[i].low != 0 || weights[i].high == 0, IFolio.Folio__InvalidWeights());
             }
 
             // enforce prices are internally consistent
             require(
-                prices[i].low != 0 &&
-                    prices[i].low < prices[i].high &&
-                    prices[i].high <= MAX_TOKEN_PRICE &&
-                    prices[i].high <= MAX_TOKEN_PRICE_RANGE * prices[i].low,
+                params.price.low != 0 &&
+                    params.price.low < params.price.high &&
+                    params.price.high <= MAX_TOKEN_PRICE &&
+                    params.price.high <= MAX_TOKEN_PRICE_RANGE * params.price.low,
                 IFolio.Folio__InvalidPrices()
             );
 
-            rebalance.details[token] = IFolio.RebalanceDetails({
+            rebalance.details[params.token] = IFolio.RebalanceDetails({
                 inRebalance: true,
-                weights: weights[i],
-                initialPrices: prices[i]
+                weights: params.weight,
+                initialPrices: params.price,
+                maxAuctionSize: params.maxAuctionSize
             });
         }
+
+        require(count > 1, IFolio.Folio__EmptyRebalance());
 
         rebalance.nonce++;
         rebalance.limits = limits;
@@ -100,11 +111,11 @@ library RebalancingLib {
             rebalance.nonce,
             rebalance.priceControl,
             tokens,
-            weights,
-            prices,
             limits,
+            block.timestamp,
             block.timestamp + auctionLauncherWindow,
-            block.timestamp + ttl
+            block.timestamp + ttl,
+            bidsEnabled
         );
     }
 
@@ -260,35 +271,38 @@ library RebalancingLib {
     ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
         assert(params.minSellAmount <= params.maxSellAmount);
 
+        IFolio.RebalanceDetails memory sellDetails = rebalance.details[address(sellToken)];
+
         // checks auction is ongoing and part of rebalance
         // D27{buyTok/sellTok}
         price = _price(rebalance, auction, sellToken, buyToken);
 
-        // sell down to the high BU limit and high weight
-        // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
-        uint256 sellLimit = Math.mulDiv(
-            rebalance.limits.high,
-            rebalance.details[address(sellToken)].weights.high,
-            D18,
-            Math.Rounding.Ceil
-        );
+        uint256 sellAvailable;
+        {
+            // sell down to the high BU limit and high weight
+            // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
+            uint256 sellLimit = Math.mulDiv(rebalance.limits.high, sellDetails.weights.high, D18, Math.Rounding.Ceil);
 
-        // {sellTok} = D27{sellTok/share} * {share} / D27
-        uint256 sellLimitBal = Math.mulDiv(sellLimit, params.totalSupply, D27, Math.Rounding.Ceil);
-        uint256 sellAvailable = params.sellBal > sellLimitBal ? params.sellBal - sellLimitBal : 0;
+            // {sellTok} = D27{sellTok/share} * {share} / D27
+            uint256 sellLimitBal = Math.mulDiv(sellLimit, params.totalSupply, D27, Math.Rounding.Ceil);
+            sellAvailable = params.sellBal > sellLimitBal ? params.sellBal - sellLimitBal : 0;
+        }
 
-        // buy up to the low BU limit and low weight
-        // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
-        uint256 buyLimit = Math.mulDiv(
-            rebalance.limits.low,
-            rebalance.details[address(buyToken)].weights.low,
-            D18,
-            Math.Rounding.Floor
-        );
+        uint256 buyAvailable;
+        {
+            // buy up to the low BU limit and low weight
+            // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
+            uint256 buyLimit = Math.mulDiv(
+                rebalance.limits.low,
+                rebalance.details[address(buyToken)].weights.low,
+                D18,
+                Math.Rounding.Floor
+            );
 
-        // {buyTok} = D27{buyTok/share} * {share} / D27
-        uint256 buyLimitBal = Math.mulDiv(buyLimit, params.totalSupply, D27, Math.Rounding.Floor);
-        uint256 buyAvailable = params.buyBal < buyLimitBal ? buyLimitBal - params.buyBal : 0;
+            // {buyTok} = D27{buyTok/share} * {share} / D27
+            uint256 buyLimitBal = Math.mulDiv(buyLimit, params.totalSupply, D27, Math.Rounding.Floor);
+            buyAvailable = params.buyBal < buyLimitBal ? buyLimitBal - params.buyBal : 0;
+        }
 
         // maximum valid token purchase is 1e36; do not try to buy more than this
         buyAvailable = Math.min(buyAvailable, MAX_TOKEN_BUY_AMOUNT);
@@ -296,6 +310,12 @@ library RebalancingLib {
         // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
         uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
         sellAvailable = Math.min(sellAvailable, sellAvailableFromBuy);
+
+        // {sellTok}
+        uint256 sellRemaining = sellDetails.maxAuctionSize > auction.sold[address(sellToken)]
+            ? sellDetails.maxAuctionSize - auction.sold[address(sellToken)]
+            : 0;
+        sellAvailable = Math.min(sellAvailable, sellRemaining);
 
         // ensure auction is large enough to cover bid
         require(sellAvailable >= params.minSellAmount, IFolio.Folio__InsufficientSellAvailable());
@@ -317,6 +337,7 @@ library RebalancingLib {
     /// @param data Arbitrary data to pass to the callback
     /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after
     function bid(
+        IFolio.Auction storage auction,
         uint256 auctionId,
         IERC20 sellToken,
         IERC20 buyToken,
@@ -327,13 +348,13 @@ library RebalancingLib {
     ) external returns (bool shouldRemoveFromBasket) {
         require(bidAmount != 0, IFolio.Folio__InsufficientBuyAvailable());
 
+        // track sold amt
+        auction.sold[address(sellToken)] += sellAmount;
+
+        uint256 sellBalBefore = sellToken.balanceOf(address(this));
+
         // pay bidder
         SafeERC20.safeTransfer(sellToken, msg.sender, sellAmount);
-
-        // remove sell token from basket at 0 balance
-        if (sellToken.balanceOf(address(this)) == 0) {
-            shouldRemoveFromBasket = true;
-        }
 
         // {buyTok}
         uint256 buyBalBefore = buyToken.balanceOf(address(this));
@@ -345,10 +366,16 @@ library RebalancingLib {
             SafeERC20.safeTransferFrom(buyToken, msg.sender, address(this), bidAmount);
         }
 
-        uint256 delta = buyToken.balanceOf(address(this)) - buyBalBefore;
-        require(delta >= bidAmount, IFolio.Folio__InsufficientBid());
+        uint256 buyDelta = buyToken.balanceOf(address(this)) - buyBalBefore;
+        require(buyDelta >= bidAmount, IFolio.Folio__InsufficientBid());
 
-        emit IFolio.AuctionBid(auctionId, address(sellToken), address(buyToken), sellAmount, delta);
+        uint256 sellBal = sellToken.balanceOf(address(this));
+        uint256 sellDelta = sellBalBefore > sellBal ? sellBalBefore - sellBal : 0;
+
+        emit IFolio.AuctionBid(auctionId, address(sellToken), address(buyToken), sellDelta, buyDelta);
+
+        // shouldRemoveFromBasket
+        return sellBal == 0;
     }
 
     // ==== Internal ====
