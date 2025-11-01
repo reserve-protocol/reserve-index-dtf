@@ -9,7 +9,7 @@ import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 
 import { Folio, IFolio } from "@src/Folio.sol";
 import { FolioProxyAdmin, FolioProxy } from "@folio/FolioProxy.sol";
-import { AUCTION_LAUNCHER, BRAND_MANAGER, REBALANCE_MANAGER } from "@utils/Constants.sol";
+import { AUCTION_LAUNCHER, BRAND_MANAGER, DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER } from "@utils/Constants.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 /**
@@ -99,7 +99,9 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         }
 
         // Renounce Ownership
-        folio.renounceRole(folio.DEFAULT_ADMIN_ROLE(), address(this));
+        if (owner != address(this)) {
+            folio.renounceRole(folio.DEFAULT_ADMIN_ROLE(), address(this));
+        }
 
         emit FolioDeployed(owner, address(folio), proxyAdmin);
     }
@@ -110,7 +112,10 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         address timelock;
     }
 
-    /// Deploy a Folio instance with brand new owner + rebalancing governors
+    /// Deploy a Folio instance with brand new owner + trading governors
+    /// @param stToken The staking vault for the staking token, pass address(0) to self-govern
+    /// @param ownerGovParams Re-used for stToken when self-governed
+    /// @param govRoles.existingBasketManagers Pass empty array to deploy a trading governor
     /// @return folio The deployed Folio instance
     /// @return proxyAdmin The deployed FolioProxyAdmin instance
     function deployGovernedFolio(
@@ -125,43 +130,58 @@ contract FolioDeployer is IFolioDeployer, Versioned {
     ) external returns (Folio folio, address proxyAdmin) {
         bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
 
+        // Deploy Folio
+        (folio, proxyAdmin) = deployFolio(
+            basicDetails,
+            additionalDetails,
+            folioFlags,
+            address(this), // temporary owner
+            govRoles.existingBasketManagers,
+            govRoles.auctionLaunchers,
+            govRoles.brandManagers,
+            deploymentSalt
+        );
+
         GovernancePair[] memory govPairs = new GovernancePair[](2);
         // govPairs[0] is owner governor
         // govPairs[1] is trading governor
 
-        // Deploy Owner Governance
-        (govPairs[0].governor, govPairs[0].timelock) = governanceDeployer.deployGovernanceWithTimelock(
-            ownerGovParams,
-            stToken,
-            deploymentSalt
-        );
+        if (address(stToken) == address(0)) {
+            // Self-govern
+            (stToken, govPairs[0].governor, govPairs[0].timelock) = governanceDeployer.deployGovernedStakingToken(
+                string(abi.encodePacked("Vote-Locked ", basicDetails.name)),
+                string(abi.encodePacked("VL", basicDetails.symbol)),
+                folio,
+                ownerGovParams,
+                deploymentSalt
+            );
+        } else {
+            // Deploy separate owner governance
+            (govPairs[0].governor, govPairs[0].timelock) = governanceDeployer.deployGovernanceWithTimelock(
+                ownerGovParams,
+                stToken,
+                deploymentSalt
+            );
+        }
 
-        address[] memory basketManagers = govRoles.existingBasketManagers;
-
-        // Deploy trading Governance if rebalance managers are not provided
-        if (basketManagers.length == 0) {
-            // Flip deployment nonce to avoid timelock/governor collisions
+        // Deploy trading Governance if basket managers are not provided
+        if (govRoles.existingBasketManagers.length == 0) {
+            // Invert deployment nonce to avoid timelock/governor collisions
             (govPairs[1].governor, govPairs[1].timelock) = governanceDeployer.deployGovernanceWithTimelock(
                 tradingGovParams,
                 stToken,
                 ~deploymentSalt
             );
 
-            basketManagers = new address[](1);
-            basketManagers[0] = govPairs[1].timelock;
+            folio.grantRole(REBALANCE_MANAGER, govPairs[1].timelock);
         }
 
-        // Deploy Folio
-        (folio, proxyAdmin) = deployFolio(
-            basicDetails,
-            additionalDetails,
-            folioFlags,
-            govPairs[0].timelock,
-            basketManagers,
-            govRoles.auctionLaunchers,
-            govRoles.brandManagers,
-            deploymentSalt
-        );
+        // Swap Folio owner
+        folio.grantRole(DEFAULT_ADMIN_ROLE, govPairs[0].timelock);
+        folio.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
+
+        // Swap proxyAdmin owner
+        FolioProxyAdmin(payable(proxyAdmin)).transferOwnership(govPairs[0].timelock);
 
         emit GovernedFolioDeployed(
             address(stToken),
