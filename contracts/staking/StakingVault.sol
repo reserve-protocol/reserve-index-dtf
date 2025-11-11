@@ -135,7 +135,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         uint256 _assets,
         uint256 _shares
     ) internal override {
-        _accrueRewards(_caller, _receiver);
+        _accrueRewards(_owner, _receiver);
 
         if (unstakingDelay == 0) {
             super._withdraw(_caller, _receiver, _owner, _assets, _shares);

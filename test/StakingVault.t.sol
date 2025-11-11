@@ -792,4 +792,45 @@ contract StakingVaultTest is Test {
         assertApproxEqRel(aliceRedeemable, 1125e18, 0.001e18);
         assertApproxEqRel(bobRedeemable, 3375e18, 0.001e18);
     }
+
+    function test__accrual_redeemOnBehalfAccruesOwnerRewards() public {
+        // Deposit for owner (address(this))
+        _mintAndDepositFor(address(this), 1000e18);
+
+        // Mint reward tokens to the vault
+        vm.warp(block.timestamp + 1);
+        reward.mint(address(vault), 1000e18);
+        vault.poke();
+
+        // Advance time to accrue rewards
+        _payoutRewards(1);
+
+        // Approve ACTOR_ALICE to redeem on behalf of owner
+        vault.approve(ACTOR_ALICE, 1000e18);
+
+        // Record owner's reward balance before redemption
+        address[] memory rewardTokens = new address[](1);
+        rewardTokens[0] = address(reward);
+
+        // Accrue rewards for owner to see what they should have
+        vault.poke();
+
+        // Calculate expected rewards: owner has 100% of shares, so gets 100% of distributed rewards
+        // After one cycle, ~50% of 1000e18 = 500e18 should be distributed
+        uint256 expectedOwnerRewards = 500e18;
+
+        // Redeem on behalf of owner (caller != owner)
+        vm.startPrank(ACTOR_ALICE);
+        vault.redeem(1000e18, address(this), address(this));
+        vm.stopPrank();
+
+        // Claim rewards for owner and verify they received the expected amount
+        vm.startPrank(address(this));
+        uint256[] memory claimedRewards = vault.claimRewards(rewardTokens);
+        vm.stopPrank();
+
+        // Owner should have received their rewards (not lost due to missing accrual)
+        assertApproxEqRel(claimedRewards[0], expectedOwnerRewards, 0.001e18);
+        assertApproxEqRel(reward.balanceOf(address(this)), expectedOwnerRewards, 0.001e18);
+    }
 }
