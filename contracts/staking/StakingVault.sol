@@ -337,7 +337,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         uint256 rewardsBalance,
         uint256 elapsed
     ) internal view returns (uint256 tokensToHandout) {
-        if (rewardsBalance == 0 || elapsed == 0) {
+        // The checks are in order is likelihood to save gas
+        if (rewardsBalance == 0 || elapsed == 0 || totalSupply() == 0) {
             return 0;
         }
 
