@@ -58,6 +58,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     mapping(address token => bool isDisallowed) public disallowedRewardTokens;
     mapping(address token => mapping(address user => UserRewardInfo userReward)) public userRewardTrackers;
 
+    uint256 private totalDeposited; // {qAsset}
+
     error Vault__InvalidRewardToken(address rewardToken);
     error Vault__DisallowedRewardToken(address rewardToken);
     error Vault__RewardAlreadyRegistered();
@@ -100,6 +102,32 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         _delegate(msg.sender, msg.sender);
     }
 
+    function totalAssets() public view override returns (uint256) {
+        // {qAsset} = {qAsset} + {qAsset}
+        return totalDeposited + _currentAccountedNativeRewards();
+    }
+
+    function _currentAccountedNativeRewards() internal view returns (uint256) {
+        RewardInfo storage rewardTracker = rewardTrackers[asset()];
+
+        uint256 elapsed = block.timestamp - rewardTracker.payoutLastPaid;
+        uint256 rewardsBalance = IERC20(asset()).balanceOf(address(this)) - totalDeposited;
+
+        uint256 handoutPercentage = 1e18 - UD60x18.wrap(1e18 - rewardRatio).powu(elapsed).unwrap() - 1; // rounds down
+
+        // {reward} = {reward} * D18{1} / D18
+        uint256 tokensToHandout = (rewardsBalance * handoutPercentage) / 1e18;
+
+        return tokensToHandout;
+    }
+
+    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
+        _accrueRewards(caller, receiver);
+
+        super._deposit(caller, receiver, assets, shares);
+        totalDeposited += assets;
+    }
+
     /**
      * Withdraw Logic
      */
@@ -110,6 +138,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         uint256 _assets,
         uint256 _shares
     ) internal override {
+        _accrueRewards(_caller, _receiver);
+
         if (unstakingDelay == 0) {
             super._withdraw(_caller, _receiver, _owner, _assets, _shares);
         } else {
@@ -126,6 +156,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
             emit Withdraw(_caller, _receiver, _owner, _assets, _shares);
         }
+
+        totalDeposited -= _assets;
     }
 
     /// @param _delay {s} New unstaking delay
@@ -147,9 +179,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     /// @param _rewardToken Reward token to add
     function addRewardToken(address _rewardToken) external onlyOwner {
         require(_rewardToken != address(this) && _rewardToken != asset(), Vault__InvalidRewardToken(_rewardToken));
-
         require(!disallowedRewardTokens[_rewardToken], Vault__DisallowedRewardToken(_rewardToken));
-
         require(rewardTokens.add(_rewardToken), Vault__RewardAlreadyRegistered());
 
         RewardInfo storage rewardInfo = rewardTrackers[_rewardToken];
@@ -247,6 +277,14 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
                 _accrueUser(_caller, rewardToken);
             }
         }
+
+        /**
+         * Native asset() rewards are special cased, most properties from the struct
+         * are not used since they are handled via totalAssets()
+         */
+        RewardInfo storage rewardTracker = rewardTrackers[asset()];
+        totalDeposited += _currentAccountedNativeRewards();
+        rewardTracker.payoutLastPaid = block.timestamp;
     }
 
     function _accrueRewards(address _rewardToken) internal {
