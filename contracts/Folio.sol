@@ -1124,18 +1124,7 @@ contract Folio is
     /// Claim all token balances from outstanding trusted fill
     function _closeTrustedFill() internal {
         if (address(activeTrustedFill) != address(0)) {
-            IERC20 sellToken = activeTrustedFill.sellToken();
-            uint256 sellBalBefore = sellToken.balanceOf(address(this));
-
-            activeTrustedFill.closeFiller();
-
-            // {tok}
-            uint256 returned = sellToken.balanceOf(address(this)) - sellBalBefore;
-            uint256 sellAmount = activeTrustedFill.sellAmount();
-            uint256 sold = sellAmount > returned ? sellAmount - returned : 0;
-
-            auctions[nextAuctionId - 1].sold[address(sellToken)] += sold;
-
+            RebalancingLib.closeTrustedFill(auctions[nextAuctionId - 1], activeTrustedFill);
             delete activeTrustedFill;
         }
     }

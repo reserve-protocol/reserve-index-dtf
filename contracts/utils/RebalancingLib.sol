@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/IBaseTrustedFiller.sol";
+
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -268,14 +270,37 @@ library RebalancingLib {
     ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
         assert(params.minSellAmount <= params.maxSellAmount);
 
-        IFolio.RebalanceDetails memory sellDetails = rebalance.details[address(sellToken)];
-
         // checks auction is ongoing and part of rebalance
         // D27{buyTok/sellTok}
         price = _price(rebalance, auction, sellToken, buyToken);
 
+        uint256 buyAvailable;
+        {
+            IFolio.RebalanceDetails memory buyDetails = rebalance.details[address(buyToken)];
+
+            // buy up to the low BU limit and low weight
+            // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
+            uint256 buyLimit = Math.mulDiv(rebalance.limits.low, buyDetails.weights.low, D18, Math.Rounding.Floor);
+
+            // {buyTok} = D27{buyTok/share} * {share} / D27
+            uint256 buyLimitBal = Math.mulDiv(buyLimit, params.totalSupply, D27, Math.Rounding.Floor);
+            buyAvailable = params.buyBal < buyLimitBal ? buyLimitBal - params.buyBal : 0;
+
+            // max auction size
+            // {buyTok}
+            uint256 buyRemaining = buyDetails.maxAuctionSize > auction.traded[address(buyToken)]
+                ? buyDetails.maxAuctionSize - auction.traded[address(buyToken)]
+                : 0;
+            buyAvailable = Math.min(buyAvailable, buyRemaining);
+
+            // maximum valid token purchase is 1e36; do not try to buy more than this
+            buyAvailable = Math.min(buyAvailable, MAX_TOKEN_BUY_AMOUNT);
+        }
+
         uint256 sellAvailable;
         {
+            IFolio.RebalanceDetails memory sellDetails = rebalance.details[address(sellToken)];
+
             // sell down to the high BU limit and high weight
             // D27{sellTok/share} = D18{BU/share} * D27{sellTok/BU} / D18
             uint256 sellLimit = Math.mulDiv(rebalance.limits.high, sellDetails.weights.high, D18, Math.Rounding.Ceil);
@@ -283,36 +308,18 @@ library RebalancingLib {
             // {sellTok} = D27{sellTok/share} * {share} / D27
             uint256 sellLimitBal = Math.mulDiv(sellLimit, params.totalSupply, D27, Math.Rounding.Ceil);
             sellAvailable = params.sellBal > sellLimitBal ? params.sellBal - sellLimitBal : 0;
+
+            // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
+            uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
+            sellAvailable = Math.min(sellAvailable, sellAvailableFromBuy);
+
+            // max auction size
+            // {sellTok}
+            uint256 sellRemaining = sellDetails.maxAuctionSize > auction.traded[address(sellToken)]
+                ? sellDetails.maxAuctionSize - auction.traded[address(sellToken)]
+                : 0;
+            sellAvailable = Math.min(sellAvailable, sellRemaining);
         }
-
-        uint256 buyAvailable;
-        {
-            // buy up to the low BU limit and low weight
-            // D27{buyTok/share} = D18{BU/share} * D27{buyTok/BU} / D18
-            uint256 buyLimit = Math.mulDiv(
-                rebalance.limits.low,
-                rebalance.details[address(buyToken)].weights.low,
-                D18,
-                Math.Rounding.Floor
-            );
-
-            // {buyTok} = D27{buyTok/share} * {share} / D27
-            uint256 buyLimitBal = Math.mulDiv(buyLimit, params.totalSupply, D27, Math.Rounding.Floor);
-            buyAvailable = params.buyBal < buyLimitBal ? buyLimitBal - params.buyBal : 0;
-        }
-
-        // maximum valid token purchase is 1e36; do not try to buy more than this
-        buyAvailable = Math.min(buyAvailable, MAX_TOKEN_BUY_AMOUNT);
-
-        // {sellTok} = {buyTok} * D27 / D27{buyTok/sellTok}
-        uint256 sellAvailableFromBuy = Math.mulDiv(buyAvailable, D27, price, Math.Rounding.Floor);
-        sellAvailable = Math.min(sellAvailable, sellAvailableFromBuy);
-
-        // {sellTok}
-        uint256 sellRemaining = sellDetails.maxAuctionSize > auction.sold[address(sellToken)]
-            ? sellDetails.maxAuctionSize - auction.sold[address(sellToken)]
-            : 0;
-        sellAvailable = Math.min(sellAvailable, sellRemaining);
 
         // ensure auction is large enough to cover bid
         require(sellAvailable >= params.minSellAmount, IFolio.Folio__InsufficientSellAvailable());
@@ -345,9 +352,6 @@ library RebalancingLib {
     ) external returns (bool shouldRemoveFromBasket) {
         require(bidAmount != 0, IFolio.Folio__InsufficientBuyAvailable());
 
-        // track sold amt
-        auction.sold[address(sellToken)] += sellAmount;
-
         uint256 sellBalBefore = sellToken.balanceOf(address(this));
 
         // pay bidder
@@ -363,16 +367,47 @@ library RebalancingLib {
             SafeERC20.safeTransferFrom(buyToken, msg.sender, address(this), bidAmount);
         }
 
-        uint256 buyDelta = buyToken.balanceOf(address(this)) - buyBalBefore;
-        require(buyDelta >= bidAmount, IFolio.Folio__InsufficientBid());
+        uint256 bought = buyToken.balanceOf(address(this)) - buyBalBefore;
+        require(bought >= bidAmount, IFolio.Folio__InsufficientBid());
 
         uint256 sellBal = sellToken.balanceOf(address(this));
-        uint256 sellDelta = sellBalBefore > sellBal ? sellBalBefore - sellBal : 0;
+        uint256 sold = sellBalBefore > sellBal ? sellBalBefore - sellBal : 0;
 
-        emit IFolio.AuctionBid(auctionId, address(sellToken), address(buyToken), sellDelta, buyDelta);
+        // track traded amts
+        auction.traded[address(sellToken)] += sold;
+        auction.traded[address(buyToken)] += bought;
+
+        emit IFolio.AuctionBid(auctionId, address(sellToken), address(buyToken), sold, bought);
 
         // shouldRemoveFromBasket
         return sellBal == 0;
+    }
+
+    /// Close a trusted fill
+    /// @param auction The current ongoing auction
+    /// @param activeTrustedFill The active trusted fill to close
+    function closeTrustedFill(IFolio.Auction storage auction, IBaseTrustedFiller activeTrustedFill) external {
+        IERC20 sellToken = activeTrustedFill.sellToken();
+        IERC20 buyToken = activeTrustedFill.buyToken();
+
+        uint256 sellBalBefore = sellToken.balanceOf(address(this)); // {sellTok}
+        uint256 buyBalBefore = buyToken.balanceOf(address(this)); // {buyTok}
+
+        activeTrustedFill.closeFiller();
+
+        // {sellTok}
+        uint256 sellReturned = sellToken.balanceOf(address(this)) - sellBalBefore;
+        uint256 sellAmount = activeTrustedFill.sellAmount();
+        uint256 sold = sellAmount > sellReturned ? sellAmount - sellReturned : 0;
+
+        // {buyTok}
+        uint256 bought = buyToken.balanceOf(address(this)) - buyBalBefore;
+
+        // track traded amts
+        auction.traded[address(sellToken)] += sold;
+        auction.traded[address(buyToken)] += bought;
+
+        // no event, cannot rely on executing in same block as fill occurred
     }
 
     // ==== Internal ====

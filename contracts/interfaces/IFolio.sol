@@ -197,7 +197,7 @@ interface IFolio {
         mapping(address token => PriceRange) prices; // D27{UoA/tok} (0, 1e45]
         uint256 startTime; // {s} inclusive
         uint256 endTime; // {s} inclusive
-        mapping(address token => uint256) sold; // {tok}
+        mapping(address token => uint256) traded; // {tok}
     }
 
     /// Used to mark old storage slots now deprecated

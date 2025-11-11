@@ -1235,7 +1235,7 @@ contract FolioTest is BaseTest {
         folio.getBid(0, USDC, IERC20(address(USDT)), amt);
     }
 
-    function test_maxAuctionSize() public {
+    function test_maxAuctionSizeSellSide() public {
         // Test max auction size within a single auction and across different auctions
         // Also tests cross-decimal trading: USDC (6 decimals) -> DAI (18 decimals)
 
@@ -1304,6 +1304,77 @@ contract FolioTest is BaseTest {
         // Should be able to bid up to maxAuctionSize again in new auction
         (sellAmountRemaining, , ) = folio.getBid(1, USDC, DAI, 1000e6);
         assertGt(sellAmountRemaining, 0, "max auction size should reset for new auction");
+    }
+
+    function test_maxAuctionSizeBuySide() public {
+        // Test max auction size within a single auction and across different auctions
+        // Also tests cross-decimal trading: DAI (18 decimals) -> USDC (6 decimals)
+
+        // Phase 1: Setup - enable atomic swaps
+        vm.prank(owner);
+        folio.setRebalanceControl(
+            IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.ATOMIC_SWAP })
+        );
+
+        uint256 maxAuctionSize = 6000e6; // 6000 USDC with 6 decimals
+
+        // Buy USDC with limited max auction size
+        weights[0] = BUY;
+
+        // Sell DAI (18 decimals) - testing cross-decimal trading
+        weights[1] = SELL;
+
+        // Phase 2: Start first rebalance with maxAuctionSize limit
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], maxAuctionSize, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        vm.prank(dao);
+        folio.startRebalance(tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        // use atomic swap prices
+        prices[0] = PRICE_POINT_6;
+        prices[1] = PRICE_POINT_18;
+        prices[2] = PRICE_POINT_27;
+
+        // Auction 1: Test max auction size with multiple bids
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+
+        // First bid: 2500 DAI for 2500 USDC
+        uint256 amt1 = 2500e18; // sell amount in DAI (18 decimals)
+        vm.startPrank(user1);
+        USDC.approve(address(folio), 2500e6); // buy amount in USDC (6 decimals)
+        folio.bid(0, DAI, USDC, amt1, 2500e6, false, bytes(""));
+
+        // Second bid: 2500 DAI more for 2500 USDC (total 5000)
+        uint256 amt2 = 2500e18; // sell amount in DAI (18 decimals)
+        USDC.approve(address(folio), 2500e6); // buy amount in USDC (6 decimals)
+        folio.bid(0, DAI, USDC, amt2, 2500e6, false, bytes(""));
+
+        // Third bid attempt: Try to provide 5000 USDC, should only be able to provide remaining 1000
+        uint256 requestedAmt = 5000e18;
+        (uint256 sellAmount, uint256 buyAmount, ) = folio.getBid(0, DAI, USDC, requestedAmt);
+        assertEq(buyAmount, 1000e6, "should only be able to buy 1000 USDC remaining in auction");
+        assertEq(sellAmount, 1000e18, "should only need 1000 DAI (18 decimals)");
+
+        // Bid the remaining 1000 USDC
+        USDC.approve(address(folio), 1000e6);
+        folio.bid(0, DAI, USDC, 1000e18, 1000e6, false, bytes(""));
+
+        // Verify no more USDC can be bought in this auction (max auction size reached)
+        (, uint256 buyAmountRemaining, ) = folio.getBid(0, DAI, USDC, 1000e18);
+        assertEq(buyAmountRemaining, 0, "no USDC should remain after hitting max auction size");
+        vm.stopPrank();
+
+        // Auction 2: Verify max auction size resets for new auction within same rebalance
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+
+        // Should be able to bid up to maxAuctionSize again in new auction
+        (, buyAmountRemaining, ) = folio.getBid(1, DAI, USDC, 1000e18);
+        assertGt(buyAmountRemaining, 0, "max auction size should reset for new auction");
     }
 
     function test_auctionBidWithoutCallback() public {
