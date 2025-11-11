@@ -4,6 +4,7 @@
 - Add max auction sizes
 - Add ability to disable permissionless bids and restrict all trading to trusted fillers
 - Add ability to change name
+- Remove support for downward-rebasing tokens
 
 ## Release 4.0.0
 
