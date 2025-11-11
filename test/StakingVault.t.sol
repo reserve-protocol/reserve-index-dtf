@@ -662,4 +662,134 @@ contract StakingVaultTest is Test {
 
         assertApproxEqRel(reward.balanceOf(ACTOR_BOB), 250e18, 0.01e18);
     }
+
+    function test__accrual_nativeAssetRewardsIncreaseTotalAssets() public {
+        _mintAndDepositFor(ACTOR_ALICE, 1000e18);
+        _mintAndDepositFor(ACTOR_BOB, 1000e18);
+
+        uint256 initialTotalAssets = vault.totalAssets();
+        assertEq(initialTotalAssets, 2000e18);
+
+        // Mint native asset rewards to the vault
+        vm.warp(block.timestamp + 1);
+        token.mint(address(vault), 1000e18);
+        vault.poke();
+
+        // After one reward half-life, totalAssets should increase
+        _payoutRewards(1);
+        vault.poke(); // Accrue rewards
+        uint256 totalAssetsAfterOneCycle = vault.totalAssets();
+        assertGt(totalAssetsAfterOneCycle, initialTotalAssets);
+        // Approximately 50% of the 1000e18 rewards should be accounted for
+        assertApproxEqRel(totalAssetsAfterOneCycle, 2500e18, 0.001e18);
+
+        // After another cycle, more rewards should accrue
+        _payoutRewards(1);
+        vault.poke(); // Accrue rewards
+        uint256 totalAssetsAfterTwoCycles = vault.totalAssets();
+        assertGt(totalAssetsAfterTwoCycles, totalAssetsAfterOneCycle);
+        // Approximately 75% of the 1000e18 rewards should be accounted for
+        assertApproxEqRel(totalAssetsAfterTwoCycles, 2750e18, 0.001e18);
+    }
+
+    function test__accrual_nativeAssetRewardsImproveExchangeRate() public {
+        _mintAndDepositFor(ACTOR_ALICE, 1000e18);
+
+        uint256 aliceShares = vault.balanceOf(ACTOR_ALICE);
+        assertEq(aliceShares, 1000e18);
+
+        // Mint native asset rewards to the vault
+        vm.warp(block.timestamp + 1);
+        token.mint(address(vault), 1000e18);
+        vault.poke();
+
+        // After one reward half-life, Alice should be able to redeem more than she deposited
+        _payoutRewards(1);
+        vault.poke(); // Accrue rewards
+
+        // Calculate how much Alice can redeem
+        uint256 redeemableAssets = vault.previewRedeem(aliceShares);
+        assertGt(redeemableAssets, 1000e18);
+        // Approximately 50% of the 1000e18 rewards should be distributed, and Alice has 100% of shares
+        assertApproxEqRel(redeemableAssets, 1500e18, 0.001e18);
+
+        // After another cycle, even more should be redeemable
+        _payoutRewards(1);
+        vault.poke(); // Accrue rewards
+        uint256 redeemableAssetsAfterTwoCycles = vault.previewRedeem(aliceShares);
+        assertGt(redeemableAssetsAfterTwoCycles, redeemableAssets);
+        // Approximately 75% of the 1000e18 rewards should be distributed, and Alice has 100% of shares
+        assertApproxEqRel(redeemableAssetsAfterTwoCycles, 1750e18, 0.001e18);
+    }
+
+    function test__accrual_nativeAssetRewardsMultipleEvenActors() public {
+        _mintAndDepositFor(ACTOR_ALICE, 1000e18);
+        _mintAndDepositFor(ACTOR_BOB, 1000e18);
+
+        uint256 aliceShares = vault.balanceOf(ACTOR_ALICE);
+        uint256 bobShares = vault.balanceOf(ACTOR_BOB);
+        assertEq(aliceShares, 1000e18);
+        assertEq(bobShares, 1000e18);
+
+        // Mint native asset rewards to the vault
+        vm.warp(block.timestamp + 1);
+        token.mint(address(vault), 1000e18);
+        vault.poke();
+
+        _payoutRewards(1);
+        vault.poke(); // Accrue rewards
+
+        // Both should be able to redeem the same amount (equal shares)
+        uint256 aliceRedeemable = vault.previewRedeem(aliceShares);
+        uint256 bobRedeemable = vault.previewRedeem(bobShares);
+        assertEq(aliceRedeemable, bobRedeemable);
+        assertGt(aliceRedeemable, 1000e18);
+        assertApproxEqRel(aliceRedeemable, 1250e18, 0.001e18);
+
+        // Both should be able to actually redeem and get more than they deposited
+        uint256 aliceBalanceBefore = token.balanceOf(ACTOR_ALICE);
+        uint256 bobBalanceBefore = token.balanceOf(ACTOR_BOB);
+
+        _withdrawAs(ACTOR_ALICE, aliceShares);
+        _withdrawAs(ACTOR_BOB, bobShares);
+
+        uint256 aliceBalanceAfter = token.balanceOf(ACTOR_ALICE);
+        uint256 bobBalanceAfter = token.balanceOf(ACTOR_BOB);
+
+        assertGt(aliceBalanceAfter - aliceBalanceBefore, 1000e18);
+        assertGt(bobBalanceAfter - bobBalanceBefore, 1000e18);
+        assertApproxEqRel(aliceBalanceAfter - aliceBalanceBefore, bobBalanceAfter - bobBalanceBefore, 0.001e18);
+    }
+
+    function test__accrual_nativeAssetRewardsMultipleUnevenActors() public {
+        _mintAndDepositFor(ACTOR_ALICE, 1000e18);
+        _mintAndDepositFor(ACTOR_BOB, 3000e18);
+
+        uint256 aliceShares = vault.balanceOf(ACTOR_ALICE);
+        uint256 bobShares = vault.balanceOf(ACTOR_BOB);
+        assertEq(aliceShares, 1000e18);
+        assertEq(bobShares, 3000e18);
+
+        // Mint native asset rewards to the vault
+        vm.warp(block.timestamp + 1);
+        token.mint(address(vault), 1000e18);
+        vault.poke();
+
+        _payoutRewards(1);
+        vault.poke(); // Accrue rewards
+
+        // Bob should be able to redeem 3x more than Alice (proportional to shares)
+        uint256 aliceRedeemable = vault.previewRedeem(aliceShares);
+        uint256 bobRedeemable = vault.previewRedeem(bobShares);
+
+        assertGt(aliceRedeemable, 1000e18);
+        assertGt(bobRedeemable, 3000e18);
+        // Bob should get 3x Alice's total (proportional to shares)
+        assertApproxEqRel(bobRedeemable, aliceRedeemable * 3, 0.001e18);
+        // Alice has 25% of shares, Bob has 75% of shares
+        // After one cycle, ~50% of 1000e18 rewards = 500e18 distributed
+        // Alice gets 25% = 125e18, Bob gets 75% = 375e18
+        assertApproxEqRel(aliceRedeemable, 1125e18, 0.001e18);
+        assertApproxEqRel(bobRedeemable, 3375e18, 0.001e18);
+    }
 }

@@ -91,6 +91,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         _setUnstakingDelay(_unstakingDelay);
 
         unstakingManager = new UnstakingManager(_underlying);
+
+        rewardTrackers[asset()].payoutLastPaid = block.timestamp;
     }
 
     /**
@@ -113,16 +115,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         uint256 elapsed = block.timestamp - rewardTracker.payoutLastPaid;
         uint256 rewardsBalance = IERC20(asset()).balanceOf(address(this)) - totalDeposited;
 
-        if (rewardsBalance == 0 || elapsed == 0) {
-            return 0;
-        }
-
-        uint256 handoutPercentage = 1e18 - UD60x18.wrap(1e18 - rewardRatio).powu(elapsed).unwrap() - 1; // rounds down
-
-        // {reward} = {reward} * D18{1} / D18
-        uint256 tokensToHandout = (rewardsBalance * handoutPercentage) / 1e18;
-
-        return tokensToHandout;
+        return _calculateHandout(rewardsBalance, elapsed);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
@@ -298,15 +291,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         rewardInfo.balanceLastKnown = IERC20(_rewardToken).balanceOf(address(this)) + rewardInfo.totalClaimed;
 
         uint256 elapsed = block.timestamp - rewardInfo.payoutLastPaid;
-        if (elapsed == 0) {
-            return;
-        }
-
         uint256 unaccountedBalance = balanceLastKnown - rewardInfo.balanceAccounted;
-        uint256 handoutPercentage = 1e18 - UD60x18.wrap(1e18 - rewardRatio).powu(elapsed).unwrap() - 1; // rounds down
-
-        // {reward} = {reward} * D18{1} / D18
-        uint256 tokensToHandout = (unaccountedBalance * handoutPercentage) / 1e18;
+        uint256 tokensToHandout = _calculateHandout(unaccountedBalance, elapsed);
 
         uint256 supplyTokens = totalSupply();
 
@@ -342,6 +328,23 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
             userRewardTracker.accruedRewards += supplierDelta;
             userRewardTracker.lastRewardIndex = rewardInfo.rewardIndex;
         }
+    }
+
+    /**
+     * @dev Uses global `rewardRatio`
+     */
+    function _calculateHandout(
+        uint256 rewardsBalance,
+        uint256 elapsed
+    ) internal view returns (uint256 tokensToHandout) {
+        if (rewardsBalance == 0 || elapsed == 0) {
+            return 0;
+        }
+
+        uint256 handoutPercentage = 1e18 - UD60x18.wrap(1e18 - rewardRatio).powu(elapsed).unwrap() - 1; // rounds down
+
+        // {reward} = {reward} * D18{1} / D18
+        tokensToHandout = (rewardsBalance * handoutPercentage) / 1e18;
     }
 
     /**
