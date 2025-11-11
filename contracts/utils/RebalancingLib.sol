@@ -74,6 +74,9 @@ library RebalancingLib {
                         params.weight.high <= MAX_WEIGHT,
                     IFolio.Folio__InvalidWeights()
                 );
+
+                // ensure removeFromBasket() cannot be griefed
+                require(params.weight.spot != 0 || params.weight.high == 0, IFolio.Folio__InvalidWeights());
             }
 
             // enforce prices are internally consistent
