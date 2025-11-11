@@ -113,6 +113,10 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         uint256 elapsed = block.timestamp - rewardTracker.payoutLastPaid;
         uint256 rewardsBalance = IERC20(asset()).balanceOf(address(this)) - totalDeposited;
 
+        if (rewardsBalance == 0 || elapsed == 0) {
+            return 0;
+        }
+
         uint256 handoutPercentage = 1e18 - UD60x18.wrap(1e18 - rewardRatio).powu(elapsed).unwrap() - 1; // rounds down
 
         // {reward} = {reward} * D18{1} / D18
