@@ -44,23 +44,19 @@ library RebalancingLib {
             IFolio.Folio__InvalidLimits()
         );
 
-        uint256 count = 0;
         uint256 len = tokens.length;
+        require(len != 0, IFolio.Folio__EmptyRebalance());
 
         // set new rebalance details and prices
         for (uint256 i; i < len; i++) {
             IFolio.TokenRebalanceParams calldata params = tokens[i];
-
-            if (!params.inRebalance) {
-                continue;
-            }
-            count++;
+            require(params.inRebalance, IFolio.Folo__NotInRebalance());
 
             // enforce valid token
             require(params.token != address(0) && params.token != address(this), IFolio.Folio__InvalidAsset());
 
             // enforce no duplicates
-            require(rebalance.details[params.token].initialPrices.low == 0, IFolio.Folio__DuplicateAsset());
+            require(!rebalance.details[params.token].inRebalance, IFolio.Folio__DuplicateAsset());
 
             if (!rebalanceControl.weightControl) {
                 // weights must be fixed
@@ -96,8 +92,6 @@ library RebalancingLib {
                 maxAuctionSize: params.maxAuctionSize
             });
         }
-
-        require(count > 1, IFolio.Folio__EmptyRebalance());
 
         rebalance.nonce++;
         rebalance.limits = limits;
