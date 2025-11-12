@@ -88,7 +88,7 @@ Rebalances have a time-to-live (TTL) that controls how long the rebalance can ru
 
 ##### Rebalance Targeting
 
-The `REBALANCE_MANAGER` configures a large number of rebalance ranges including spot estimates to be used in fallback to the unrestricted case. A "completed" rebalance is one where all range deltas have reached 0 for all variables in the rebalance, e.g `low == spot == high`.
+The `REBALANCE_MANAGER` configures a large number of rebalance ranges including spot estimates to be used during fallback to the unrestricted case. A "completed" rebalance is one where all range deltas have reached 0 for all variables in the rebalance, e.g `low == spot == high`.
 
 ```solidity
 /// Target limits for rebalancing
