@@ -12,7 +12,7 @@ The `AUCTION_LAUNCHER` is trusted to provide additional input to the rebalance p
 
 `AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig. They can open auctions within the bounds set by governance, hopefully adding basket and pricing precision. If they are offline the auction can be opened through the permissonless route instead. If the `AUCTION_LAUNCHER` is not just offline but actively evil, at-best they can maximally deviate the final portfolio within the governance-granted range, or prevent a Folio from rebalancing entirely. In the case that `RebalanceControl.priceControl == PriceControl.PARTIAL`, they can additionally cause value leakage but cannot guarantee they themselves are the beneficiary; in the case that `RebalanceControl.priceControl == PriceControl.ATOMIC_SWAP`, they can cause value leakage AND make themselves the beneficiary.
 
-There is no limit to how many auctions can be opened during a rebalance except for the rebalance's TTL. The `AUCTION_LAUNCHER` always has opportunity to open another auction or close the rebalance before the permissionless (unrestricted) period begins.
+There is no limit to how many auctions can be opened during a rebalance except for the rebalance's TTL. The `AUCTION_LAUNCHER` always has the opportunity to open another auction or close the rebalance before the permissionless (unrestricted) period begins.
 
 ### Architecture
 
