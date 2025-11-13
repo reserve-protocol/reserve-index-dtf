@@ -216,7 +216,6 @@ contract Folio is
         _setMintFee(_additionalDetails.mintFee);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
-        _setName(_basicDetails.name);
 
         _setRebalanceControl(_folioFlags.rebalanceControl);
         _setBidsEnabled(_folioFlags.bidsEnabled);
