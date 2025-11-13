@@ -38,7 +38,7 @@ library RebalancingLib {
 
         // ====
 
-        require(ttl >= auctionLauncherWindow && ttl <= MAX_TTL, IFolio.Folio__InvalidTTL());
+        require(ttl != 0 && ttl >= auctionLauncherWindow && ttl <= MAX_TTL, IFolio.Folio__InvalidTTL());
 
         // enforce limits are internally consistent
         require(

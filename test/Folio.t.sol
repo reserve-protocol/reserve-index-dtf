@@ -2185,6 +2185,17 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
+    function test_rebalanceBelowMinTTL() public {
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidTTL.selector);
+        folio.startRebalance(tokens, limits, MAX_AUCTION_LENGTH, 0);
+    }
+
     function test_rebalanceAboveMaxTTL() public {
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
         tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
