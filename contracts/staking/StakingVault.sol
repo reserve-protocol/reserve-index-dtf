@@ -27,9 +27,10 @@ uint256 constant SCALAR = 1e18; // D18
 /**
  * @title StakingVault
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
- * @notice StakingVault is a transferrable 1:1 wrapping of an underlying token that uses the ERC4626 interface.
+ * @notice StakingVault is a transferrable vault of an underlying token that uses the ERC4626 interface.
  *         It earns the holder a claimable stream of multi rewards and enables them to vote in (external) governance.
  *         Unstaking is gated by a delay, implemented by an UnstakingManager.
+ * @dev StakingVault also supports native asset() rewards alongside other reward tokens, but are handled independently.
  */
 contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -58,7 +59,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     mapping(address token => bool isDisallowed) public disallowedRewardTokens;
     mapping(address token => mapping(address user => UserRewardInfo userReward)) public userRewardTrackers;
 
-    uint256 private totalDeposited; // {qAsset}
+    uint256 private totalDeposited; // {asset}
+    uint256 private nativeRewardsLastPaid; // {s}
 
     error Vault__InvalidRewardToken(address rewardToken);
     error Vault__DisallowedRewardToken(address rewardToken);
@@ -92,7 +94,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
         unstakingManager = new UnstakingManager(_underlying);
 
-        rewardTrackers[asset()].payoutLastPaid = block.timestamp;
+        nativeRewardsLastPaid = block.timestamp;
     }
 
     /**
@@ -110,19 +112,20 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     }
 
     function _currentAccountedNativeRewards() internal view returns (uint256) {
-        RewardInfo storage rewardTracker = rewardTrackers[asset()];
-
-        uint256 elapsed = block.timestamp - rewardTracker.payoutLastPaid;
+        uint256 elapsed = block.timestamp - nativeRewardsLastPaid;
         uint256 rewardsBalance = IERC20(asset()).balanceOf(address(this)) - totalDeposited;
 
         return _calculateHandout(rewardsBalance, elapsed);
     }
 
-    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
-        _accrueRewards(caller, receiver);
-
-        super._deposit(caller, receiver, assets, shares);
+    function _deposit(
+        address caller,
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal override accrueRewards(caller, receiver) {
         totalDeposited += assets;
+        super._deposit(caller, receiver, assets, shares);
     }
 
     /**
@@ -134,8 +137,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         address _owner,
         uint256 _assets,
         uint256 _shares
-    ) internal override {
-        _accrueRewards(_owner, _receiver);
+    ) internal override accrueRewards(_owner, _receiver) {
+        totalDeposited -= _assets;
 
         if (unstakingDelay == 0) {
             super._withdraw(_caller, _receiver, _owner, _assets, _shares);
@@ -153,8 +156,6 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
 
             emit Withdraw(_caller, _receiver, _owner, _assets, _shares);
         }
-
-        totalDeposited -= _assets;
     }
 
     /// @param _delay {s} New unstaking delay
@@ -276,12 +277,10 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         }
 
         /**
-         * Native asset() rewards are special cased, most properties from the struct
-         * are not used since they are handled via totalAssets()
+         * Native asset() rewards are special cased
          */
-        RewardInfo storage rewardTracker = rewardTrackers[asset()];
         totalDeposited += _currentAccountedNativeRewards();
-        rewardTracker.payoutLastPaid = block.timestamp;
+        nativeRewardsLastPaid = block.timestamp;
     }
 
     function _accrueRewards(address _rewardToken) internal {
@@ -294,11 +293,9 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         uint256 unaccountedBalance = balanceLastKnown - rewardInfo.balanceAccounted;
         uint256 tokensToHandout = _calculateHandout(unaccountedBalance, elapsed);
 
-        uint256 supplyTokens = totalSupply();
-
-        if (supplyTokens != 0) {
+        if (tokensToHandout != 0) {
             // D18+decimals{reward/share} = D18 * {reward} * decimals / {share}
-            uint256 deltaIndex = (SCALAR * tokensToHandout * uint256(10 ** decimals())) / supplyTokens;
+            uint256 deltaIndex = (SCALAR * tokensToHandout * uint256(10 ** decimals())) / totalSupply();
 
             // D18+decimals{reward/share} += D18+decimals{reward/share}
             rewardInfo.rewardIndex += deltaIndex;
@@ -334,18 +331,18 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
      * @dev Uses global `rewardRatio`
      */
     function _calculateHandout(
-        uint256 rewardsBalance,
+        uint256 balanceAvailable,
         uint256 elapsed
     ) internal view returns (uint256 tokensToHandout) {
-        // The checks are in order is likelihood to save gas
-        if (rewardsBalance == 0 || elapsed == 0 || totalSupply() == 0) {
+        // The checks are in order of likelihood to save gas
+        if (balanceAvailable == 0 || elapsed == 0 || totalSupply() == 0) {
             return 0;
         }
 
         uint256 handoutPercentage = 1e18 - UD60x18.wrap(1e18 - rewardRatio).powu(elapsed).unwrap() - 1; // rounds down
 
-        // {reward} = {reward} * D18{1} / D18
-        tokensToHandout = (rewardsBalance * handoutPercentage) / 1e18;
+        // {reward|asset} = {reward|asset} * D18{1} / D18
+        tokensToHandout = (balanceAvailable * handoutPercentage) / 1e18;
     }
 
     /**
