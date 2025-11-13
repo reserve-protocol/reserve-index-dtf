@@ -11,6 +11,8 @@ import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
+import { StakingVaultDeployLib } from "./StakingVaultDeployLib.sol";
+
 /**
  * @title Governance Deployer
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
@@ -55,13 +57,14 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
             abi.encode(msg.sender, name, symbol, underlying, govParams, deploymentNonce)
         );
 
-        stToken = new StakingVault{ salt: deploymentSalt }(
+        stToken = StakingVaultDeployLib.deployStakingVault(
             name,
             symbol,
             underlying,
             address(this), // temporary admin
             DEFAULT_REWARD_PERIOD,
-            DEFAULT_UNSTAKING_DELAY
+            DEFAULT_UNSTAKING_DELAY,
+            deploymentSalt
         );
 
         (governor, timelock) = deployGovernanceWithTimelock(govParams, IVotes(stToken), deploymentSalt);
