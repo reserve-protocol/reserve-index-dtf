@@ -14,7 +14,7 @@ contract MockBidder {
         honest = honest_;
     }
 
-    function bidCallback(address buyToken, uint256 buyAmount, bytes calldata) external {
+    function bidCallback(address buyToken, uint256 buyAmount, bytes calldata) public virtual {
         if (honest) {
             IERC20(buyToken).safeTransfer(msg.sender, buyAmount);
         } else {

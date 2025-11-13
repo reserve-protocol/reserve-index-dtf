@@ -24,14 +24,19 @@ contract FolioLens is Versioned {
     /// @return tokens The tokens in the basket
     /// @return weights D27{tok/share} The weights of the tokens per share given by the current balances
     function getSpotWeights(Folio folio) external view returns (address[] memory tokens, uint256[] memory weights) {
-        (, tokens, , , , , , , , , ) = folio.getRebalance();
-        weights = new uint256[](tokens.length);
+        (, , IFolio.TokenRebalanceParams[] memory tokenParams, , , ) = folio.getRebalance();
+
+        tokens = new address[](tokenParams.length);
+        weights = new uint256[](tokenParams.length);
 
         uint256 totalSupply = folio.totalSupply();
 
         for (uint256 i = 0; i < tokens.length; i++) {
+            address token = tokenParams[i].token;
+            tokens[i] = token;
+
             // D27{tok/share} = D27 * {tok} / {share}
-            weights[i] = (D27 * IERC20(tokens[i]).balanceOf(address(folio))) / totalSupply;
+            weights[i] = (D27 * IERC20(token).balanceOf(address(folio))) / totalSupply;
         }
     }
 
@@ -46,7 +51,7 @@ contract FolioLens is Versioned {
     /// Get bids for all pairs at once for the current block
     /// Many entries will be 0 to indicate an invalid token pair
     function getAllBids(Folio folio, uint256 auctionId) external view returns (SingleBid[] memory bids) {
-        (uint256 nonce, address[] memory tokens, , , , , , , , , ) = folio.getRebalance();
+        (uint256 nonce, , IFolio.TokenRebalanceParams[] memory tokenParams, , , ) = folio.getRebalance();
 
         {
             (uint256 rebalanceNonce, , ) = folio.auctions(auctionId);
@@ -56,21 +61,24 @@ contract FolioLens is Versioned {
             }
         }
 
-        uint256 len = tokens.length;
+        uint256 len = tokenParams.length;
         SingleBid[] memory allBids = new SingleBid[](len * len);
 
         uint256 count = 0;
         for (uint256 i = 0; i < len; i++) {
             for (uint256 j = 0; j < len; j++) {
-                try folio.getBid(auctionId, IERC20(tokens[i]), IERC20(tokens[j]), type(uint256).max) returns (
-                    uint256 sellAmount,
-                    uint256 bidAmount,
-                    uint256 price
-                ) {
+                try
+                    folio.getBid(
+                        auctionId,
+                        IERC20(tokenParams[i].token),
+                        IERC20(tokenParams[j].token),
+                        type(uint256).max
+                    )
+                returns (uint256 sellAmount, uint256 bidAmount, uint256 price) {
                     if (sellAmount != 0 && bidAmount != 0) {
                         allBids[count] = SingleBid({
-                            sellToken: tokens[i],
-                            buyToken: tokens[j],
+                            sellToken: tokenParams[i].token,
+                            buyToken: tokenParams[j].token,
                             sellAmount: sellAmount,
                             bidAmount: bidAmount,
                             price: price
@@ -101,17 +109,25 @@ contract FolioLens is Versioned {
 
         uint256 totalSupply = folio.totalSupply();
 
-        IFolio.WeightRange[] memory weights;
-        (, tokens, weights, , , , , , , , ) = folio.getRebalance();
+        (, , IFolio.TokenRebalanceParams[] memory tokenParams, , , ) = folio.getRebalance();
 
-        for (uint256 i = 0; i < tokens.length; i++) {
+        uint256 len = tokenParams.length;
+        tokens = new address[](len);
+        surpluses = new uint256[](len);
+        deficits = new uint256[](len);
+
+        for (uint256 i = 0; i < len; i++) {
+            address token = tokenParams[i].token;
+
+            tokens[i] = token;
+
             // {tok}
-            uint256 bal = IERC20(tokens[i]).balanceOf(address(folio));
+            uint256 bal = IERC20(token).balanceOf(address(folio));
 
             // surpluses
             {
                 // D27{tok/share} = D18{BU/share} * D27{tok/BU} / D18
-                uint256 tokenSellLimit = Math.mulDiv(sellLimit, weights[i].high, D18, Math.Rounding.Ceil);
+                uint256 tokenSellLimit = Math.mulDiv(sellLimit, tokenParams[i].weight.high, D18, Math.Rounding.Ceil);
 
                 // {tok} = D27{tok/share} * {share} / D27
                 uint256 sellLimitBal = Math.mulDiv(tokenSellLimit, totalSupply, D27, Math.Rounding.Ceil);
@@ -124,7 +140,7 @@ contract FolioLens is Versioned {
             // only possible if there wasn't a surplus
             if (surpluses[i] == 0) {
                 // D27{tok/share} = D18{BU/share} * D27{tok/BU} / D18
-                uint256 tokenBuyLimit = Math.mulDiv(buyLimit, weights[i].low, D18, Math.Rounding.Floor);
+                uint256 tokenBuyLimit = Math.mulDiv(buyLimit, tokenParams[i].weight.low, D18, Math.Rounding.Floor);
 
                 // {tok} = D27{tok/share} * {share} / D27
                 uint256 buyLimitBal = Math.mulDiv(tokenBuyLimit, totalSupply, D27, Math.Rounding.Floor);

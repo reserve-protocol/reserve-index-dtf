@@ -27,9 +27,10 @@ uint256 constant SCALAR = 1e18; // D18
 /**
  * @title StakingVault
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
- * @notice StakingVault is a transferrable 1:1 wrapping of an underlying token that uses the ERC4626 interface.
+ * @notice StakingVault is a transferrable vault of an underlying token that uses the ERC4626 interface.
  *         It earns the holder a claimable stream of multi rewards and enables them to vote in (external) governance.
  *         Unstaking is gated by a delay, implemented by an UnstakingManager.
+ * @dev StakingVault also supports native asset() rewards alongside other reward tokens, but are handled independently.
  */
 contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -57,6 +58,9 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     mapping(address token => RewardInfo rewardInfo) public rewardTrackers;
     mapping(address token => bool isDisallowed) public disallowedRewardTokens;
     mapping(address token => mapping(address user => UserRewardInfo userReward)) public userRewardTrackers;
+
+    uint256 private totalDeposited; // {asset}
+    uint256 private nativeRewardsLastPaid; // {s}
 
     error Vault__InvalidRewardToken(address rewardToken);
     error Vault__DisallowedRewardToken(address rewardToken);
@@ -89,6 +93,8 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         _setUnstakingDelay(_unstakingDelay);
 
         unstakingManager = new UnstakingManager(_underlying);
+
+        nativeRewardsLastPaid = block.timestamp;
     }
 
     /**
@@ -100,6 +106,28 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         _delegate(msg.sender, msg.sender);
     }
 
+    function totalAssets() public view override returns (uint256) {
+        // {qAsset} = {qAsset} + {qAsset}
+        return totalDeposited + _currentAccountedNativeRewards();
+    }
+
+    function _currentAccountedNativeRewards() internal view returns (uint256) {
+        uint256 elapsed = block.timestamp - nativeRewardsLastPaid;
+        uint256 rewardsBalance = IERC20(asset()).balanceOf(address(this)) - totalDeposited;
+
+        return _calculateHandout(rewardsBalance, elapsed);
+    }
+
+    function _deposit(
+        address caller,
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal override accrueRewards(caller, receiver) {
+        totalDeposited += assets;
+        super._deposit(caller, receiver, assets, shares);
+    }
+
     /**
      * Withdraw Logic
      */
@@ -109,7 +137,9 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         address _owner,
         uint256 _assets,
         uint256 _shares
-    ) internal override {
+    ) internal override accrueRewards(_owner, _receiver) {
+        totalDeposited -= _assets;
+
         if (unstakingDelay == 0) {
             super._withdraw(_caller, _receiver, _owner, _assets, _shares);
         } else {
@@ -147,9 +177,7 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     /// @param _rewardToken Reward token to add
     function addRewardToken(address _rewardToken) external onlyOwner {
         require(_rewardToken != address(this) && _rewardToken != asset(), Vault__InvalidRewardToken(_rewardToken));
-
         require(!disallowedRewardTokens[_rewardToken], Vault__DisallowedRewardToken(_rewardToken));
-
         require(rewardTokens.add(_rewardToken), Vault__RewardAlreadyRegistered());
 
         RewardInfo storage rewardInfo = rewardTrackers[_rewardToken];
@@ -247,6 +275,12 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
                 _accrueUser(_caller, rewardToken);
             }
         }
+
+        /**
+         * Native asset() rewards are special cased
+         */
+        totalDeposited += _currentAccountedNativeRewards();
+        nativeRewardsLastPaid = block.timestamp;
     }
 
     function _accrueRewards(address _rewardToken) internal {
@@ -256,21 +290,12 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         rewardInfo.balanceLastKnown = IERC20(_rewardToken).balanceOf(address(this)) + rewardInfo.totalClaimed;
 
         uint256 elapsed = block.timestamp - rewardInfo.payoutLastPaid;
-        if (elapsed == 0) {
-            return;
-        }
-
         uint256 unaccountedBalance = balanceLastKnown - rewardInfo.balanceAccounted;
-        uint256 handoutPercentage = 1e18 - UD60x18.wrap(1e18 - rewardRatio).powu(elapsed).unwrap() - 1; // rounds down
+        uint256 tokensToHandout = _calculateHandout(unaccountedBalance, elapsed);
 
-        // {reward} = {reward} * D18{1} / D18
-        uint256 tokensToHandout = (unaccountedBalance * handoutPercentage) / 1e18;
-
-        uint256 supplyTokens = totalSupply();
-
-        if (supplyTokens != 0) {
+        if (tokensToHandout != 0) {
             // D18+decimals{reward/share} = D18 * {reward} * decimals / {share}
-            uint256 deltaIndex = (SCALAR * tokensToHandout * uint256(10 ** decimals())) / supplyTokens;
+            uint256 deltaIndex = (SCALAR * tokensToHandout * uint256(10 ** decimals())) / totalSupply();
 
             // D18+decimals{reward/share} += D18+decimals{reward/share}
             rewardInfo.rewardIndex += deltaIndex;
@@ -300,6 +325,24 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
             userRewardTracker.accruedRewards += supplierDelta;
             userRewardTracker.lastRewardIndex = rewardInfo.rewardIndex;
         }
+    }
+
+    /**
+     * @dev Uses global `rewardRatio`
+     */
+    function _calculateHandout(
+        uint256 balanceAvailable,
+        uint256 elapsed
+    ) internal view returns (uint256 tokensToHandout) {
+        // The checks are in order of likelihood to save gas
+        if (balanceAvailable == 0 || elapsed == 0 || totalSupply() == 0) {
+            return 0;
+        }
+
+        uint256 handoutPercentage = 1e18 - UD60x18.wrap(1e18 - rewardRatio).powu(elapsed).unwrap() - 1; // rounds down
+
+        // {reward|asset} = {reward|asset} * D18{1} / D18
+        tokensToHandout = (balanceAvailable * handoutPercentage) / 1e18;
     }
 
     /**
