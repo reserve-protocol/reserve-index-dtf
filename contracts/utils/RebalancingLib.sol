@@ -47,7 +47,7 @@ library RebalancingLib {
         );
 
         uint256 len = tokens.length;
-        require(len != 0, IFolio.Folio__EmptyRebalance());
+        require(len > 1, IFolio.Folio__EmptyRebalance());
 
         // set new rebalance details and prices
         for (uint256 i; i < len; i++) {

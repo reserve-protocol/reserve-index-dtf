@@ -243,7 +243,6 @@ contract Folio is
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    /// @dev Testing function, no production use
     function poke() external nonReentrant {
         _poke();
     }
