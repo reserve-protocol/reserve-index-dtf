@@ -396,12 +396,16 @@ library RebalancingLib {
         activeTrustedFill.closeFiller();
 
         // {sellTok}
-        uint256 sellReturned = sellToken.balanceOf(address(this)) - sellBalBefore;
+        uint256 sellBalAfter = sellToken.balanceOf(address(this));
+        uint256 sellReturned = sellBalAfter > sellBalBefore ? sellBalAfter - sellBalBefore : 0;
+
+        // {sellTok}
         uint256 sellAmount = activeTrustedFill.sellAmount();
         uint256 sold = sellAmount > sellReturned ? sellAmount - sellReturned : 0;
 
         // {buyTok}
-        uint256 bought = buyToken.balanceOf(address(this)) - buyBalBefore;
+        uint256 buyBalAfter = buyToken.balanceOf(address(this));
+        uint256 bought = buyBalAfter > buyBalBefore ? buyBalAfter - buyBalBefore : 0;
 
         // track traded amts
         auction.traded[address(sellToken)] += sold;
