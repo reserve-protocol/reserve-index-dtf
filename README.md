@@ -243,8 +243,8 @@ Some ERC20s are NOT supported
 | Pausable / Blocklist           | ❌    | ❌           |
 | Fee-on-transfer                | ❌    | ❌           |
 | ERC777 / Callback              | ❌    | ❌           |
-| Downward-rebasing              | ❌    | ❌           |
 | Upward-rebasing                | ✅    | ❌           |
+| Downward-rebasing              | ✅    | ❌           |
 | Revert on zero-value transfers | ✅    | ✅           |
 | Flash mint                     | ✅    | ✅           |
 | Missing return values          | ✅    | ✅           |
