@@ -58,7 +58,15 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             abi.encode(
                 msg.sender,
                 keccak256(
-                    abi.encode(basicDetails, additionalDetails, owner, basketManagers, auctionLaunchers, brandManagers)
+                    abi.encode(
+                        basicDetails,
+                        additionalDetails,
+                        folioFlags,
+                        owner,
+                        basketManagers,
+                        auctionLaunchers,
+                        brandManagers
+                    )
                 ),
                 deploymentNonce
             )
