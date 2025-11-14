@@ -352,6 +352,7 @@ library RebalancingLib {
     ) external returns (bool shouldRemoveFromBasket) {
         require(bidAmount != 0, IFolio.Folio__InsufficientBuyAvailable());
 
+        // {sellTok}
         uint256 sellBalBefore = sellToken.balanceOf(address(this));
 
         // pay bidder
@@ -367,11 +368,15 @@ library RebalancingLib {
             SafeERC20.safeTransferFrom(buyToken, msg.sender, address(this), bidAmount);
         }
 
-        uint256 bought = buyToken.balanceOf(address(this)) - buyBalBefore;
-        require(bought >= bidAmount, IFolio.Folio__InsufficientBid());
+        uint256 bought;
+        {
+            uint256 buyBalAfter = buyToken.balanceOf(address(this));
+            bought = buyBalAfter > buyBalBefore ? buyBalAfter - buyBalBefore : 0;
+            require(bought >= bidAmount, IFolio.Folio__InsufficientBid());
+        }
 
-        uint256 sellBal = sellToken.balanceOf(address(this));
-        uint256 sold = sellBalBefore > sellBal ? sellBalBefore - sellBal : 0;
+        uint256 sellBalAfter = sellToken.balanceOf(address(this));
+        uint256 sold = sellBalBefore > sellBalAfter ? sellBalBefore - sellBalAfter : 0;
 
         // track traded amts
         auction.traded[address(sellToken)] += sold;
@@ -380,7 +385,7 @@ library RebalancingLib {
         emit IFolio.AuctionBid(auctionId, address(sellToken), address(buyToken), sold, bought);
 
         // shouldRemoveFromBasket
-        return sellBal == 0;
+        return sellBalAfter == 0;
     }
 
     /// Close a trusted fill
