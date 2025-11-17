@@ -250,7 +250,11 @@ Some ERC20s are NOT supported
 | Missing return values          | ✅    | ✅           |
 | No revert on failure           | ✅    | ✅           |
 
-Note: While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible. To check for reentrancy, call `stateChangeActive()` and require that both return values are false. The (non-ERC20) Folio mutator calls are all `nonReentrant` and will close async actions as a pre-hook, but for view functions this check is important to perform before relying on any returned data.
+> While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible. To check for reentrancy, call `stateChangeActive()` and require that both return values are false. The (non-ERC20) Folio mutator calls are all `nonReentrant` and will close async actions as a pre-hook, but for view functions this check is important to perform before relying on any returned data.
+
+> While downward-rebasing and upward-rebasing tokens are generally supported, the Folio’s accounting for bought and sold token amounts relies on differences in token balances. Sold and bought token amounts can therefore be misreported if the source for the change in balance is not a transfer of tokens but a rebasing. For this reason it is discouraged to use rebasing tokens with the potential for non-incremental rebasings that lead to outsized deviations in the Folio’s accounting.
+
+> Trusted fillers introduce their own token restrictions. If trusted fillers are enabled, the tokens used in the Folio must also be supported by the external trusted fillers that are whitelisted in the trusted filler registry.
 
 ### Chain Assumptions
 
