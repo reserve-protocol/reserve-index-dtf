@@ -14,6 +14,7 @@ const artifactsList = [
   "FolioProxy.sol/FolioProxy.json",
   "StakingVault.sol/StakingVault.json",
   "UnstakingManager.sol/UnstakingManager.json",
+  "FolioGovernor.sol/FolioGovernor.json",
 ];
 
 const artifactDirectory = "artifacts";
