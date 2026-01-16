@@ -7,10 +7,6 @@
 
 ## Release 4.0.0
 
-TODO
-
-## Release 3.0.0
-
 This release adds the following features:
 
 - **Trusted Fillers**: The Folio is now integrated with [Trusted Fillers](https://github.com/reserve-protocol/trusted-fillers/) and can be enabled by governance to allow async fillers to compete in auctions to provide better prices. All auction limitations still apply to these fillers. Currently, the only supported async filler is CoW Swap.
@@ -26,6 +22,12 @@ Additionally, the following features have been deprecated:
 - **Auction Approver**: The `AUCTION_APPROVER` role has been deprecated and replaced with the `REBALANCE_MANAGER` role.
 
 - **Dust Limits**: The dust limits have been deprecated and replaced with the new rebalancing target system.
+
+## Release 3.0.0
+
+Skipped.
+
+Individual repeatable auctions against target weights, deprecated in 4.0.0 in favor of a basket-level approach.
 
 ## Release 2.0.0
 
