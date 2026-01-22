@@ -14,8 +14,8 @@ import { Time } from "@openzeppelin/contracts/utils/types/Time.sol";
 
 import { UD60x18 } from "@prb/math/src/UD60x18.sol";
 
-import { Versioned } from "contracts/utils/Versioned.sol";
 import { UnstakingManager } from "./UnstakingManager.sol";
+import { Versioned } from "../utils/Versioned.sol";
 
 uint256 constant MAX_UNSTAKING_DELAY = 4 weeks; // {s}
 uint256 constant MAX_REWARD_HALF_LIFE = 2 weeks; // {s}
