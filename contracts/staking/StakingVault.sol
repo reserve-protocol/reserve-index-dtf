@@ -15,6 +15,7 @@ import { Time } from "@openzeppelin/contracts/utils/types/Time.sol";
 import { UD60x18 } from "@prb/math/src/UD60x18.sol";
 
 import { UnstakingManager } from "./UnstakingManager.sol";
+import { Versioned } from "@utils/Versioned.sol";
 
 uint256 constant MAX_UNSTAKING_DELAY = 4 weeks; // {s}
 uint256 constant MAX_REWARD_HALF_LIFE = 2 weeks; // {s}
@@ -32,7 +33,7 @@ uint256 constant SCALAR = 1e18; // D18
  *         Unstaking is gated by a delay, implemented by an UnstakingManager.
  * @dev StakingVault also supports native asset() rewards alongside other reward tokens, but are handled independently.
  */
-contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
+contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable, Versioned {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     EnumerableSet.AddressSet private rewardTokens;
@@ -95,6 +96,19 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         unstakingManager = new UnstakingManager(_underlying);
 
         nativeRewardsLastPaid = block.timestamp;
+    }
+
+    /**
+     * Slashing logic
+     */
+    /// Burn a quantity of shares and drip them to remaining holders as native rewards
+    /// @dev NOT FOR USE BY REGULAR USERS
+    function burn(uint256 _shares) external accrueRewards(msg.sender, msg.sender) {
+        uint256 _assets = convertToAssets(_shares);
+
+        // reduce share and asset counts, automatically adding `_assets` to the native drip
+        totalDeposited -= _assets;
+        _burn(msg.sender, _shares);
     }
 
     /**
