@@ -1,9 +1,9 @@
 ## Release 5.0.0
 
-- Allow full weight range in startRebalance()
-- Add max auction sizes
-- Add ability to disable permissionless bids and restrict all trading to trusted fillers
-- Add ability to change name
+- Allow full weight range in startRebalance() (`REBALANCE_MANAGER`)
+- Add max auction sizes (`REBALANCE_MANAGER`)
+- Add ability to disable permissionless bids and restrict all trading to trusted fillers (`DEFAULT_ADMIN_ROLE`)
+- Add ability to change name (`DEFAULT_ADMIN_ROLE`)
 
 ## Release 4.0.0
 
