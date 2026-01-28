@@ -86,40 +86,40 @@ contract UpgradeSpell_5_1_0 is Versioned {
 
         // prepare GovParams
 
-        uint256 votingDelay = oldGovernor.votingDelay();
-        require(votingDelay <= type(uint48).max, UpgradeError(10));
+        IGovernanceDeployer.GovParams memory govParams;
+        {
+            uint256 votingDelay = oldGovernor.votingDelay();
+            require(votingDelay <= type(uint48).max, UpgradeError(10));
+            govParams.votingDelay = uint48(votingDelay);
 
-        uint256 votingPeriod = oldGovernor.votingPeriod();
-        require(votingPeriod <= type(uint32).max, UpgradeError(11));
+            uint256 votingPeriod = oldGovernor.votingPeriod();
+            require(votingPeriod <= type(uint32).max, UpgradeError(11));
+            govParams.votingPeriod = uint32(votingPeriod);
 
-        uint256 proposalThresholdWithSupply = oldGovernor.proposalThreshold();
-        uint256 pastSupply = oldStakingVault.getPastTotalSupply(oldStakingVault.clock() - 1);
-        uint256 proposalThreshold = (proposalThresholdWithSupply * 1e18 + pastSupply - 1) / pastSupply;
-        require(proposalThreshold >= 0.0001e18 && proposalThreshold <= 0.1e18, UpgradeError(13));
-
-        uint256 quorumNumerator = oldGovernor.quorumNumerator();
-        require(quorumNumerator >= 0.01e18 && quorumNumerator <= 0.25e18, UpgradeError(19));
-
-        uint256 timelockDelay = TimelockController(payable(msg.sender)).getMinDelay();
-        require(timelockDelay != 0, UpgradeError(21));
-
-        require(guardians.length != 0, UpgradeError(22));
-        for (uint256 i; i < guardians.length; i++) {
-            require(guardians[i] != address(0), "GS: guardian 0");
+            uint256 proposalThresholdWithSupply = oldGovernor.proposalThreshold();
+            uint256 pastSupply = oldStakingVault.getPastTotalSupply(oldStakingVault.clock() - 1);
+            govParams.proposalThreshold = (proposalThresholdWithSupply * 1e18 + pastSupply - 1) / pastSupply;
             require(
-                TimelockController(payable(msg.sender)).hasRole(CANCELLER_ROLE, guardians[i]),
-                "GS: guardian not on old timelock"
+                govParams.proposalThreshold >= 0.0001e18 && govParams.proposalThreshold <= 0.1e18,
+                UpgradeError(13)
             );
-        }
 
-        IGovernanceDeployer.GovParams memory govParams = IGovernanceDeployer.GovParams({
-            votingDelay: uint48(votingDelay),
-            votingPeriod: uint32(votingPeriod),
-            proposalThreshold: proposalThreshold,
-            quorumThreshold: quorumNumerator,
-            timelockDelay: TimelockController(payable(msg.sender)).getMinDelay(),
-            guardians: guardians
-        });
+            govParams.quorumThreshold = oldGovernor.quorumNumerator();
+            require(govParams.quorumThreshold >= 0.01e18 && govParams.quorumThreshold <= 0.25e18, UpgradeError(19));
+
+            govParams.timelockDelay = TimelockController(payable(msg.sender)).getMinDelay();
+            require(govParams.timelockDelay != 0, UpgradeError(21));
+
+            require(guardians.length != 0, UpgradeError(22));
+            for (uint256 i; i < guardians.length; i++) {
+                require(guardians[i] != address(0), UpgradeError(23));
+                require(
+                    TimelockController(payable(msg.sender)).hasRole(CANCELLER_ROLE, guardians[i]),
+                    UpgradeError(24)
+                );
+            }
+            govParams.guardians = guardians;
+        }
 
         // TODO pass to deployGovernedStakingToken()
         bytes4[] memory allowlistedSelectors = new bytes4[](11);
