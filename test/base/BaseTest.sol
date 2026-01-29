@@ -133,7 +133,11 @@ abstract contract BaseTest is Script, Test {
         governorImplementation = address(new FolioGovernor());
         timelockImplementation = address(new TimelockControllerUpgradeable());
         stakingVaultImplementation = address(new StakingVault());
-        governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation, stakingVaultImplementation);
+        governanceDeployer = new GovernanceDeployer(
+            governorImplementation,
+            timelockImplementation,
+            stakingVaultImplementation
+        );
         folioDeployer = new FolioDeployer(
             address(daoFeeRegistry),
             address(versionRegistry),
