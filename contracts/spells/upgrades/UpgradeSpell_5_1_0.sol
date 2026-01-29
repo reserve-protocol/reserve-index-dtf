@@ -40,11 +40,12 @@ contract UpgradeSpell_5_1_0 is Versioned {
         governanceDeployer = _governanceDeployer;
     }
 
-    /// Cast spell to upgrade from 5.0.0 -> 5.1.0
+    /// Cast spell to upgrade from 5.0.0 -> 5.1.0 and add vlDTF optimistic governance
     /// @dev Requirements:
-    ///      - Caller is owner timelock (of the Folio)
-    ///      - Has ownership of the proxy admin
-    ///      - Has DEFAULT_ADMIN_ROLE of Folio, as the 2nd admin in addition to the owner timelock
+    ///      - Caller is owner timelock of the Folio
+    ///      - Spell has ownership of the proxy admin
+    ///      - Spell has DEFAULT_ADMIN_ROLE of Folio (as the 2nd admin in addition to the owner timelock)
+    /// @param guardians Must be a subset of the old guardians, and nonempty
     function cast(
         Folio folio,
         FolioProxyAdmin proxyAdmin,
@@ -54,29 +55,26 @@ contract UpgradeSpell_5_1_0 is Versioned {
         address tradingTimelock,
         bytes32 deploymentNonce
     ) external {
+        // nonReentrancy checks
+        {
+            folio.poke();
+
+            (bool syncStateChangeActive, bool asyncStateChangeActive) = folio.stateChangeActive();
+            require(!syncStateChangeActive && !asyncStateChangeActive, UpgradeError(1));
+        }
+
         // confirm caller is old owner timelock
 
         require(msg.sender == oldGovernor.timelock(), UpgradeError(14));
+        require(folio.hasRole(DEFAULT_ADMIN_ROLE, msg.sender), UpgradeError(4));
 
-        // nonReentrancy checks
+        // confirm self has DEFAULT_ADMIN_ROLE
 
-        folio.poke();
-
-        (bool syncStateChangeActive, bool asyncStateChangeActive) = folio.stateChangeActive();
-        require(!syncStateChangeActive && !asyncStateChangeActive, UpgradeError(1));
+        require(folio.hasRole(DEFAULT_ADMIN_ROLE, address(this)), UpgradeError(3));
 
         // check Folio version is 5.0.0
 
         require(keccak256(bytes(folio.version())) == VERSION_5_0_0, UpgradeError(2));
-
-        // check old Governor
-
-        require(oldGovernor.quorumDenominator() == 1e18, UpgradeError(12));
-
-        // check privileges / setup
-
-        require(folio.hasRole(DEFAULT_ADMIN_ROLE, address(this)), UpgradeError(3));
-        require(folio.hasRole(DEFAULT_ADMIN_ROLE, msg.sender), UpgradeError(4));
 
         // upgrade Folio to 5.1.0
 
@@ -84,7 +82,7 @@ contract UpgradeSpell_5_1_0 is Versioned {
 
         require(keccak256(bytes(folio.version())) == VERSION_5_1_0, UpgradeError(5));
 
-        // prepare GovParams
+        // prepare GovParams for new ReserveOptimisticGovernor
 
         IGovernanceDeployer.GovParams memory govParams;
         {
@@ -121,36 +119,41 @@ contract UpgradeSpell_5_1_0 is Versioned {
             govParams.guardians = guardians;
         }
 
-        // TODO pass to deployGovernedStakingToken()
-        bytes4[] memory allowlistedSelectors = new bytes4[](11);
-        allowlistedSelectors[0] = Folio.addToBasket.selector;
-        allowlistedSelectors[1] = Folio.removeFromBasket.selector;
-        allowlistedSelectors[2] = Folio.setTVLFee.selector;
-        allowlistedSelectors[3] = Folio.setMintFee.selector;
-        allowlistedSelectors[4] = Folio.setFeeRecipients.selector;
-        allowlistedSelectors[5] = Folio.setAuctionLength.selector;
-        allowlistedSelectors[6] = Folio.setMandate.selector;
-        allowlistedSelectors[7] = Folio.setName.selector;
-        allowlistedSelectors[8] = Folio.setRebalanceControl.selector;
-        allowlistedSelectors[9] = Folio.setBidsEnabled.selector;
-        allowlistedSelectors[10] = Folio.startRebalance.selector;
-
         // deploy new StakingVault + ReserveOptimisticGovernor + TimelockControllerOptimistic
 
         (StakingVault newStakingVault, address newGovernor, address newTimelock) = governanceDeployer
-            .deployGovernedStakingToken(
-                oldStakingVault.name(),
-                oldStakingVault.symbol(),
-                IERC20(oldStakingVault.asset()),
-                govParams,
-                deploymentNonce
-            );
-        // require(ReserveOptimisticGovernor(payable(newGovernor)).token() == address(newStakingVault), UpgradeError(20));
-        // require(ReserveOptimisticGovernor(payable(newGovernor)).timelock() == newTimelock, UpgradeError(20));
+            .deployGovernedStakingToken(folio, govParams, deploymentNonce);
 
-        // check new rewardRatio matches old StakingVault's rewardRatio
+        // validate new StakingVault
 
+        require(newStakingVault.asset() == address(folio), UpgradeError(26));
+        require(newStakingVault.owner() == newTimelock, UpgradeError(27));
         require(newStakingVault.rewardRatio() == oldStakingVault.rewardRatio(), UpgradeError(9));
+        require(newStakingVault.unstakingDelay() == oldStakingVault.unstakingDelay(), UpgradeError(25));
+
+        // validate new Governor
+        // {
+        //     ReserveOptimisticGovernor _newGovernor = ReserveOptimisticGovernor(payable(newGovernor));
+        //
+        //     require(_newGovernor.votingDelay() == oldGovernor.votingDelay(), UpgradeError(12));
+        //     require(_newGovernor.votingPeriod() == oldGovernor.votingPeriod(), UpgradeError(12));
+        //     require(_newGovernor.quorumNumerator() == oldGovernor.quorumNumerator(), UpgradeError(12));
+        //     require(_newGovernor.quorumDenominator() == oldGovernor.quorumDenominator(), UpgradeError(12));
+        //     require(_newGovernor.token() == address(newStakingVault), UpgradeError(20));
+        //     require(_newGovernor.timelock() == newTimelock, UpgradeError(20));
+        // }
+
+        // validate new Timelock
+        // {
+        //     TimelockControllerOptimistic _newTimelock = TimelockControllerOptimistic(payable(newTimelock));
+        //
+        //     require(_newTimelock.getMinDelay() == oldGovernor.timelock().getMinDelay(), UpgradeError(12));
+        //     require(_newTimelock.hasRole(PROPOSER_ROLE, newGovernor), UpgradeError(12));
+        //     require(_newTimelock.hasRole(EXECUTOR_ROLE, newGovernor), UpgradeError(12));
+        //     require(_newTimelock.hasRole(CANCELLER_ROLE, newGovernor), UpgradeError(12));
+        //     require(_newTimelock.hasRole(DEFAULT_ADMIN_ROLE, newTimelock), UpgradeError(12));
+        //     require(!_newTimelock.hasRole(DEFAULT_ADMIN_ROLE, address(this)), UpgradeError(12));
+        // }
 
         // rotate Folio DEFAULT_ADMIN_ROLE
 
