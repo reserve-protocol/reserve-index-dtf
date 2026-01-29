@@ -21,8 +21,8 @@ importers:
         specifier: 4.1.0
         version: 4.1.0
       '@reserve-protocol/reserve-governor':
-        specifier: github:reserve-protocol/reserve-governor#336deff289545ee4960dce038240084a88bd2eae
-        version: git+https://git@github.com:reserve-protocol/reserve-governor.git#336deff289545ee4960dce038240084a88bd2eae(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)
+        specifier: github:reserve-protocol/reserve-governor#c2b17012567bafcb99b03d20f31d516fd5482f93
+        version: https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/c2b17012567bafcb99b03d20f31d516fd5482f93(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)
       '@reserve-protocol/trusted-fillers':
         specifier: github:reserve-protocol/trusted-fillers#eabd9dbd60e8aaaec2c50db43742991e4cb55208
         version: https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/eabd9dbd60e8aaaec2c50db43742991e4cb55208(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)
@@ -457,8 +457,8 @@ packages:
   '@protobufjs/utf8@1.1.0':
     resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
 
-  '@reserve-protocol/reserve-governor@git+https://git@github.com:reserve-protocol/reserve-governor.git#336deff289545ee4960dce038240084a88bd2eae':
-    resolution: {commit: 336deff289545ee4960dce038240084a88bd2eae, repo: git@github.com:reserve-protocol/reserve-governor.git, type: git}
+  '@reserve-protocol/reserve-governor@https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/c2b17012567bafcb99b03d20f31d516fd5482f93':
+    resolution: {tarball: https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/c2b17012567bafcb99b03d20f31d516fd5482f93}
     version: 0.1.0
 
   '@reserve-protocol/reserve-index-dtf@file:':
@@ -2013,7 +2013,7 @@ snapshots:
 
   '@protobufjs/utf8@1.1.0': {}
 
-  '@reserve-protocol/reserve-governor@git+https://git@github.com:reserve-protocol/reserve-governor.git#336deff289545ee4960dce038240084a88bd2eae(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)':
+  '@reserve-protocol/reserve-governor@https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/c2b17012567bafcb99b03d20f31d516fd5482f93(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)':
     dependencies:
       '@openzeppelin/contracts': 5.4.0
       '@openzeppelin/contracts-upgradeable': 5.4.0(@openzeppelin/contracts@5.4.0)
@@ -2035,7 +2035,7 @@ snapshots:
       '@openzeppelin/contracts': 5.1.0
       '@openzeppelin/contracts-upgradeable': 5.1.0(@openzeppelin/contracts@5.1.0)
       '@prb/math': 4.1.0
-      '@reserve-protocol/reserve-governor': git+https://git@github.com:reserve-protocol/reserve-governor.git#336deff289545ee4960dce038240084a88bd2eae(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)
+      '@reserve-protocol/reserve-governor': https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/c2b17012567bafcb99b03d20f31d516fd5482f93(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)
       '@reserve-protocol/trusted-fillers': https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/eabd9dbd60e8aaaec2c50db43742991e4cb55208(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)
       forge-std: https://codeload.github.com/foundry-rs/forge-std/tar.gz/1801b0541f4fda118a10798fd3486bb7051c5dd6
     transitivePeerDependencies:
