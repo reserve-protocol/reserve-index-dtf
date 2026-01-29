@@ -1,5 +1,5 @@
 {
-  "name": "folio",
+  "name": "@reserve-protocol/reserve-index-dtf",
   "version": "0.1.0",
   "description": "Reserve Folio Protocol",
   "license": "MIT",
@@ -9,7 +9,8 @@
     "@openzeppelin/contracts-upgradeable": "5.1.0",
     "@prb/math": "4.1.0",
     "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#eabd9dbd60e8aaaec2c50db43742991e4cb55208",
-    "forge-std": "github:foundry-rs/forge-std#v1.9.7"
+    "@reserve-protocol/reserve-governor": "github:reserve-protocol/reserve-governor#c2b17012567bafcb99b03d20f31d516fd5482f93",
+    "forge-std": "github:foundry-rs/forge-std#v1.14.0"
   },
   "devDependencies": {
     "prettier": "^3.5.3",
@@ -38,5 +39,5 @@
     "anvil": "anvil --fork-url https://ethereum-rpc.publicnode.com --chain-id 31337 --prune-history",
     "export": "tsx script/export.ts"
   },
-  "packageManager": "yarn@4.9.2"
+  "packageManager": "pnpm@10.28.2"
 }
