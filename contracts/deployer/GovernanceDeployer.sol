@@ -3,7 +3,6 @@ pragma solidity 0.8.28;
 
 import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 
@@ -58,14 +57,8 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
             abi.encode(msg.sender, name, symbol, underlying, govParams, deploymentNonce)
         );
 
-        bytes memory initData = abi.encodeCall(
-            StakingVault.initialize,
-            (name, symbol, underlying, address(this), DEFAULT_REWARD_PERIOD, DEFAULT_UNSTAKING_DELAY)
-        );
-
-        ERC1967Proxy proxy = new ERC1967Proxy{ salt: deploymentSalt }(stakingVaultImplementation, initData);
-
-        stToken = StakingVault(address(proxy));
+        stToken = StakingVault(Clones.cloneDeterministic(stakingVaultImplementation, deploymentSalt));
+        stToken.initialize(name, symbol, underlying, address(this), DEFAULT_REWARD_PERIOD, DEFAULT_UNSTAKING_DELAY);
 
         (governor, timelock) = deployGovernanceWithTimelock(govParams, IVotes(stToken), deploymentSalt);
 
