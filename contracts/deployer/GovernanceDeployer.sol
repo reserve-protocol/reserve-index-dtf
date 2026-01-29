@@ -3,10 +3,10 @@ pragma solidity 0.8.28;
 
 import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 
 import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
+import { Folio } from "@src/Folio.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import { Versioned } from "@utils/Versioned.sol";
@@ -20,7 +20,7 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
     uint256 constant DEFAULT_UNSTAKING_DELAY = 1 weeks;
 
     event DeployedGovernedStakingToken(
-        address indexed underlying,
+        address indexed folio,
         address indexed stToken,
         address governor,
         address timelock
@@ -38,37 +38,35 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
     }
 
     /// Deploys a StakingVault owned by a Governor with Timelock
-    /// @param name Name of the staking vault
-    /// @param symbol Symbol of the staking vault
-    /// @param underlying Underlying token for the staking vault
+    /// @param folio Folio token for the vlDTF staking vault
     /// @param govParams Governance parameters for the governor
     /// @param deploymentNonce Nonce for the deployment salt
     /// @return stToken A staking vault that can be used with multiple governors
     /// @return governor A governor responsible for the staking vault
     /// @return timelock Timelock for the governor, owns staking vault
     function deployGovernedStakingToken(
-        string memory name,
-        string memory symbol,
-        IERC20 underlying,
+        Folio folio,
         IGovernanceDeployer.GovParams calldata govParams,
         bytes32 deploymentNonce
     ) external returns (StakingVault stToken, address governor, address timelock) {
-        bytes32 deploymentSalt = keccak256(
-            abi.encode(msg.sender, name, symbol, underlying, govParams, deploymentNonce)
-        );
+        string memory name = string(abi.encodePacked("Vote-Locked ", folio.name()));
+        string memory symbol = string(abi.encodePacked("vl", folio.symbol()));
+
+        bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, name, symbol, folio, govParams, deploymentNonce));
 
         stToken = StakingVault(Clones.cloneDeterministic(stakingVaultImplementation, deploymentSalt));
-        stToken.initialize(name, symbol, underlying, address(this), DEFAULT_REWARD_PERIOD, DEFAULT_UNSTAKING_DELAY);
+        stToken.initialize(name, symbol, folio, address(this), DEFAULT_REWARD_PERIOD, DEFAULT_UNSTAKING_DELAY);
 
-        (governor, timelock) = deployGovernanceWithTimelock(govParams, IVotes(stToken), deploymentSalt);
+        (governor, timelock) = deployGovernanceWithTimelock(govParams, folio, IVotes(stToken), deploymentSalt);
 
         stToken.transferOwnership(timelock);
 
-        emit DeployedGovernedStakingToken(address(underlying), address(stToken), governor, timelock);
+        emit DeployedGovernedStakingToken(address(folio), address(stToken), governor, timelock);
     }
 
     function deployGovernanceWithTimelock(
         IGovernanceDeployer.GovParams calldata govParams,
+        Folio folio,
         IVotes stToken,
         bytes32 deploymentNonce
     ) public returns (address governor, address timelock) {
@@ -90,6 +88,20 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
 
         address[] memory proposersAndExecutors = new address[](1);
         proposersAndExecutors[0] = governor;
+
+        // TODO configure in timelock
+        // bytes4[] memory allowlistedSelectors = new bytes4[](11);
+        // allowlistedSelectors[0] = Folio.addToBasket.selector;
+        // allowlistedSelectors[1] = Folio.removeFromBasket.selector;
+        // allowlistedSelectors[2] = Folio.setTVLFee.selector;
+        // allowlistedSelectors[3] = Folio.setMintFee.selector;
+        // allowlistedSelectors[4] = Folio.setFeeRecipients.selector;
+        // allowlistedSelectors[5] = Folio.setAuctionLength.selector;
+        // allowlistedSelectors[6] = Folio.setMandate.selector;
+        // allowlistedSelectors[7] = Folio.setName.selector;
+        // allowlistedSelectors[8] = Folio.setRebalanceControl.selector;
+        // allowlistedSelectors[9] = Folio.setBidsEnabled.selector;
+        // allowlistedSelectors[10] = Folio.startRebalance.selector;
 
         timelockController.initialize(
             govParams.timelockDelay,
