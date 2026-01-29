@@ -23,8 +23,8 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v6
         with:
-          node-version: 22
-          cache: yarn
+          node-version: 24
+          cache: pnpm
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -33,7 +33,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          yarn --immutable
+          pnpm install --frozen-lockfile
 
       - name: Compile Contracts
         run: |
@@ -41,7 +41,7 @@ jobs:
 
       - name: Generate Artifacts
         run: |
-          yarn export
+          pnpm export
 
       - name: Save Artifacts
         uses: actions/upload-artifact@v4
@@ -52,7 +52,7 @@ jobs:
 
       - name: Upload Selectors
         run: |
-          yarn selectors:upload
+          pnpm selectors:upload
 
   size:
     runs-on: ubuntu-latest
@@ -65,8 +65,8 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v6
         with:
-          node-version: 22
-          cache: yarn
+          node-version: 24
+          cache: pnpm
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -75,8 +75,8 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          yarn --immutable
+          pnpm install --frozen-lockfile
 
       - name: Contract Size Check
         run: |
-          yarn size contracts/
+          pnpm size contracts/
