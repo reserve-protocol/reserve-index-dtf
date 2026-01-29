@@ -40,7 +40,7 @@ jobs:
         run: pnpm anvil &
 
       - name: Deployment
-        run: pnpm deploy --rpc-url http://localhost:8545
+        run: pnpm run deploy --rpc-url http://localhost:8545
         env:
           ETHERSCAN_KEY: DUMMY
 
