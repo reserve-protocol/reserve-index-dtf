@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import "../../base/BaseTest.sol";
 
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 import { GovernanceSpell_31_03_2025 } from "@spells/31-03-2025/GovernanceSpell_31_03_2025.sol";
@@ -44,7 +45,12 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
 
         governorImplementation = address(new FolioGovernor());
         timelockImplementation = address(new TimelockControllerUpgradeable());
-        governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
+        stakingVaultImplementation = address(new StakingVault());
+        governanceDeployer = new GovernanceDeployer(
+            governorImplementation,
+            timelockImplementation,
+            stakingVaultImplementation
+        );
         // TODO replace with real 3.0.0 governanceDeployer, and bump fork blocks
 
         spell = new GovernanceSpell_31_03_2025(governanceDeployer);
@@ -80,7 +86,7 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
             FolioGovernor newStakingVaultGovernor = FolioGovernor(
                 payable(
                     spell.upgradeStakingVaultGovernance(
-                        stakingVault,
+                        Ownable(address(stakingVault)),
                         stakingVaultGovernor,
                         CONFIGS[i].guardians,
                         bytes32(i)

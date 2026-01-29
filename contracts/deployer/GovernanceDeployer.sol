@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 
@@ -10,8 +11,6 @@ import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import { Versioned } from "@utils/Versioned.sol";
-
-import { StakingVaultDeployLib } from "./StakingVaultDeployLib.sol";
 
 /**
  * @title Governance Deployer
@@ -31,10 +30,12 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
 
     address public immutable governorImplementation;
     address public immutable timelockImplementation;
+    address public immutable stakingVaultImplementation;
 
-    constructor(address _governorImplementation, address _timelockImplementation) {
+    constructor(address _governorImplementation, address _timelockImplementation, address _stakingVaultImplementation) {
         governorImplementation = _governorImplementation;
         timelockImplementation = _timelockImplementation;
+        stakingVaultImplementation = _stakingVaultImplementation;
     }
 
     /// Deploys a StakingVault owned by a Governor with Timelock
@@ -57,15 +58,14 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
             abi.encode(msg.sender, name, symbol, underlying, govParams, deploymentNonce)
         );
 
-        stToken = StakingVaultDeployLib.deployStakingVault(
-            name,
-            symbol,
-            underlying,
-            address(this), // temporary admin
-            DEFAULT_REWARD_PERIOD,
-            DEFAULT_UNSTAKING_DELAY,
-            deploymentSalt
+        bytes memory initData = abi.encodeCall(
+            StakingVault.initialize,
+            (name, symbol, underlying, address(this), DEFAULT_REWARD_PERIOD, DEFAULT_UNSTAKING_DELAY)
         );
+
+        ERC1967Proxy proxy = new ERC1967Proxy{ salt: deploymentSalt }(stakingVaultImplementation, initData);
+
+        stToken = StakingVault(address(proxy));
 
         (governor, timelock) = deployGovernanceWithTimelock(govParams, IVotes(stToken), deploymentSalt);
 

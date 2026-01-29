@@ -18,6 +18,7 @@ import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
+import { StakingVault } from "@staking/StakingVault.sol";
 import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
@@ -71,6 +72,7 @@ abstract contract BaseTest is Script, Test {
 
     address governorImplementation;
     address timelockImplementation;
+    address stakingVaultImplementation;
 
     address cowswapFiller;
 
@@ -130,7 +132,8 @@ abstract contract BaseTest is Script, Test {
 
         governorImplementation = address(new FolioGovernor());
         timelockImplementation = address(new TimelockControllerUpgradeable());
-        governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
+        stakingVaultImplementation = address(new StakingVault());
+        governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation, stakingVaultImplementation);
         folioDeployer = new FolioDeployer(
             address(daoFeeRegistry),
             address(versionRegistry),

@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 import { Folio } from "@src/Folio.sol";
 import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_TTL, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
@@ -362,14 +363,13 @@ contract ExtremeTest is BaseExtremeTest {
 
         IERC20 token = deployCoin("Mock Token", "TKN", 18); // mock
 
-        StakingVault vault = new StakingVault(
-            "Staked Test Token",
-            "sTEST",
-            IERC20(address(token)),
-            address(this),
-            p.rewardHalfLife,
-            0
+        StakingVault stakingVaultImpl = new StakingVault();
+        bytes memory initData = abi.encodeCall(
+            StakingVault.initialize,
+            ("Staked Test Token", "sTEST", IERC20(address(token)), address(this), p.rewardHalfLife, 0)
         );
+        ERC1967Proxy proxy = new ERC1967Proxy(address(stakingVaultImpl), initData);
+        StakingVault vault = StakingVault(address(proxy));
 
         // Create reward tokens
         address[] memory rewardTokens = new address[](p.numTokens);

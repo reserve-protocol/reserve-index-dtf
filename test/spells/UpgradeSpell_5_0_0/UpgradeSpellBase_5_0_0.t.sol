@@ -15,7 +15,7 @@ contract UpgradeSpellBase_5_0_0_Test is GenericUpgradeSpell_5_0_0_Test {
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,
             forkTarget: ForkNetwork.BASE,
-            forkBlock: 35424604
+            forkBlock: 41425585
         });
 
         // BGCI
@@ -87,26 +87,6 @@ contract UpgradeSpellBase_5_0_0_Test is GenericUpgradeSpell_5_0_0_Test {
 
     function _setUp() public virtual override {
         super._setUp();
-
-        // TODO remove after 5.0.0 deployed
-
-        address versionRegistry = 0xA665b273997F70b647B66fa7Ed021287544849dB;
-
-        address governorImplementation = address(new FolioGovernor());
-        address timelockImplementation = address(new TimelockControllerUpgradeable());
-
-        GovernanceDeployer governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
-        FolioDeployer folioDeployer = new FolioDeployer(
-            0x0262E3e15cCFD2221b35D05909222f1f5FCdcd80,
-            versionRegistry,
-            0x72DB5f49D0599C314E2f2FEDf6Fe33E1bA6C7A18,
-            governanceDeployer
-        );
-
-        vm.prank(0xe8259842e71f4E44F2F68D6bfbC15EDA56E63064);
-        FolioVersionRegistry(versionRegistry).registerVersion(folioDeployer);
-
-        // TODO remove after spell deployed
 
         spell = new UpgradeSpell_5_0_0();
     }
