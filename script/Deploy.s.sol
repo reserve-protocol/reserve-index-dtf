@@ -182,8 +182,13 @@ contract DeployScript is Script {
 
         address governorImplementation = address(new FolioGovernor());
         address timelockImplementation = address(new TimelockControllerUpgradeable());
+        address stakingVaultImplementation = address(new StakingVault());
 
-        GovernanceDeployer governanceDeployer = new GovernanceDeployer(governorImplementation, timelockImplementation);
+        GovernanceDeployer governanceDeployer = new GovernanceDeployer(
+            governorImplementation,
+            timelockImplementation,
+            stakingVaultImplementation
+        );
         FolioDeployer folioDeployer = new FolioDeployer(
             deployParams.folioFeeRegistry,
             deployParams.folioVersionRegistry,

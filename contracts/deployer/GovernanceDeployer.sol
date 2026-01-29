@@ -11,8 +11,6 @@ import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
-import { StakingVaultDeployLib } from "./StakingVaultDeployLib.sol";
-
 /**
  * @title Governance Deployer
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
@@ -31,10 +29,12 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
 
     address public immutable governorImplementation;
     address public immutable timelockImplementation;
+    address public immutable stakingVaultImplementation;
 
-    constructor(address _governorImplementation, address _timelockImplementation) {
+    constructor(address _governorImplementation, address _timelockImplementation, address _stakingVaultImplementation) {
         governorImplementation = _governorImplementation;
         timelockImplementation = _timelockImplementation;
+        stakingVaultImplementation = _stakingVaultImplementation;
     }
 
     /// Deploys a StakingVault owned by a Governor with Timelock
@@ -57,15 +57,8 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
             abi.encode(msg.sender, name, symbol, underlying, govParams, deploymentNonce)
         );
 
-        stToken = StakingVaultDeployLib.deployStakingVault(
-            name,
-            symbol,
-            underlying,
-            address(this), // temporary admin
-            DEFAULT_REWARD_PERIOD,
-            DEFAULT_UNSTAKING_DELAY,
-            deploymentSalt
-        );
+        stToken = StakingVault(Clones.cloneDeterministic(stakingVaultImplementation, deploymentSalt));
+        stToken.initialize(name, symbol, underlying, address(this), DEFAULT_REWARD_PERIOD, DEFAULT_UNSTAKING_DELAY);
 
         (governor, timelock) = deployGovernanceWithTimelock(govParams, IVotes(stToken), deploymentSalt);
 

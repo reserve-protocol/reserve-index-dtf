@@ -1,20 +1,24 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity ^0.8.28;
 
-import { ERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
-import { ERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import { ERC20PermitUpgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import { ERC20VotesUpgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20VotesUpgradeable.sol";
+import { ERC4626Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { NoncesUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
 import { Time } from "@openzeppelin/contracts/utils/types/Time.sol";
 
 import { UD60x18 } from "@prb/math/src/UD60x18.sol";
 
 import { UnstakingManager } from "./UnstakingManager.sol";
+import { Versioned } from "../utils/Versioned.sol";
 
 uint256 constant MAX_UNSTAKING_DELAY = 4 weeks; // {s}
 uint256 constant MAX_REWARD_HALF_LIFE = 2 weeks; // {s}
@@ -32,13 +36,21 @@ uint256 constant SCALAR = 1e18; // D18
  *         Unstaking is gated by a delay, implemented by an UnstakingManager.
  * @dev StakingVault also supports native asset() rewards alongside other reward tokens, but are handled independently.
  */
-contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
+contract StakingVault is
+    Initializable,
+    ERC4626Upgradeable,
+    ERC20PermitUpgradeable,
+    ERC20VotesUpgradeable,
+    OwnableUpgradeable,
+    UUPSUpgradeable,
+    Versioned
+{
     using EnumerableSet for EnumerableSet.AddressSet;
 
     EnumerableSet.AddressSet private rewardTokens;
     uint256 public rewardRatio; // D18{1}
 
-    UnstakingManager public immutable unstakingManager;
+    UnstakingManager public unstakingManager;
     uint256 public unstakingDelay; // {s}
 
     struct RewardInfo {
@@ -75,26 +87,57 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
     event RewardsClaimed(address user, address rewardToken, uint256 amount);
     event RewardRatioSet(uint256 rewardRatio, uint256 halfLife);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /// @param _name Name of the vault
     /// @param _symbol Symbol of the vault
     /// @param _underlying Underlying token deposited during staking
     /// @param _initialOwner Initial owner of the vault
     /// @param _rewardPeriod {s} Half life of the reward handout rate
     /// @param _unstakingDelay {s} Delay after unstaking before user receives their deposit
-    constructor(
+    function initialize(
         string memory _name,
         string memory _symbol,
         IERC20 _underlying,
         address _initialOwner,
         uint256 _rewardPeriod,
         uint256 _unstakingDelay
-    ) ERC4626(_underlying) ERC20(_name, _symbol) ERC20Permit(_name) Ownable(_initialOwner) {
+    ) external initializer {
+        __ERC4626_init(_underlying);
+        __ERC20_init(_name, _symbol);
+        __ERC20Permit_init(_name);
+        __ERC20Votes_init();
+        __Ownable_init(_initialOwner);
+        __UUPSUpgradeable_init();
+
         _setRewardRatio(_rewardPeriod);
         _setUnstakingDelay(_unstakingDelay);
 
         unstakingManager = new UnstakingManager(_underlying);
 
         nativeRewardsLastPaid = block.timestamp;
+    }
+
+    /**
+     * @dev Authorize upgrade to a new implementation.
+     * @param newImplementation Address of the new implementation contract
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    /**
+     * Slashing logic
+     */
+    /// Burn a quantity of shares and drip them to remaining holders as native rewards
+    /// @dev NOT FOR USE BY REGULAR USERS
+    function burn(uint256 _shares) external accrueRewards(msg.sender, msg.sender) {
+        uint256 _assets = convertToAssets(_shares);
+
+        // reduce share and asset counts, automatically adding `_assets` to the native drip
+        totalDeposited -= _assets;
+        _burn(msg.sender, _shares);
     }
 
     /**
@@ -352,15 +395,15 @@ contract StakingVault is ERC4626, ERC20Permit, ERC20Votes, Ownable {
         address from,
         address to,
         uint256 value
-    ) internal override(ERC20, ERC20Votes) accrueRewards(from, to) {
+    ) internal override(ERC20Upgradeable, ERC20VotesUpgradeable) accrueRewards(from, to) {
         super._update(from, to, value);
     }
 
-    function nonces(address _owner) public view override(ERC20Permit, Nonces) returns (uint256) {
+    function nonces(address _owner) public view override(ERC20PermitUpgradeable, NoncesUpgradeable) returns (uint256) {
         return super.nonces(_owner);
     }
 
-    function decimals() public view virtual override(ERC20, ERC4626) returns (uint8) {
+    function decimals() public view virtual override(ERC20Upgradeable, ERC4626Upgradeable) returns (uint8) {
         return super.decimals();
     }
 

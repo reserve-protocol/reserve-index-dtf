@@ -5,6 +5,10 @@
 - Add ability to disable permissionless bids and restrict all trading to trusted fillers (`DEFAULT_ADMIN_ROLE`)
 - Add ability to change name (`DEFAULT_ADMIN_ROLE`)
 
+### Optimistic Governance
+
+- Add `StakingVault.burn()` for optimistic governance slashing
+
 ## Release 4.0.0
 
 This release adds the following features:
