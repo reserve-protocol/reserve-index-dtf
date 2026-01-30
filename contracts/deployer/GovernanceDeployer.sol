@@ -53,7 +53,6 @@ contract GovernanceDeployer is IGovernanceDeployer, Versioned {
         string memory symbol = string(abi.encodePacked("vl", folio.symbol()));
 
         bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, name, symbol, folio, govParams, deploymentNonce));
-
         stToken = StakingVault(Clones.cloneDeterministic(stakingVaultImplementation, deploymentSalt));
         stToken.initialize(name, symbol, folio, address(this), DEFAULT_REWARD_PERIOD, DEFAULT_UNSTAKING_DELAY);
 
