@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
-import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
+import { IReserveOptimisticDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
 
 import { Folio, IFolio } from "@src/Folio.sol";
 import { FolioProxyAdmin, FolioProxy } from "@folio/FolioProxy.sol";
@@ -17,26 +16,30 @@ import { Versioned } from "@utils/Versioned.sol";
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 contract FolioDeployer is IFolioDeployer, Versioned {
-    address public immutable versionRegistry;
     address public immutable daoFeeRegistry;
+    address public immutable versionRegistry;
     address public immutable trustedFillerRegistry;
 
-    address public immutable folioImplementation;
+    address public immutable optimisticGovernorDeployer;
 
-    IGovernanceDeployer public immutable governanceDeployer;
+    address public immutable stakingVaultImplementation;
+    address public immutable folioImplementation;
 
     constructor(
         address _daoFeeRegistry,
         address _versionRegistry,
         address _trustedFillerRegistry,
-        IGovernanceDeployer _governanceDeployer
+        address _optimisticGovernorDeployer,
+        address _stakingVaultImplementation
     ) {
         daoFeeRegistry = _daoFeeRegistry;
         versionRegistry = _versionRegistry;
         trustedFillerRegistry = _trustedFillerRegistry;
+        optimisticGovernorDeployer = _optimisticGovernorDeployer;
 
-        folioImplementation = address(new Folio());
-        governanceDeployer = _governanceDeployer;
+        folioImplementation = address(new Folio()); // TODO pass-in?
+
+        stakingVaultImplementation = _stakingVaultImplementation;
     }
 
     /// Deploy a raw Folio instance with previously defined roles
@@ -114,28 +117,32 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         emit FolioDeployed(owner, address(folio), proxyAdmin);
     }
 
-    // internal-only struct for stack-too-deep
-    struct GovernancePair {
-        address governor;
-        address timelock;
-    }
-
     /// Deploy a Folio instance with brand new owner + trading governors
-    /// @param stToken The staking vault for the staking token, pass address(0) to self-govern
-    /// @param ownerGovParams Re-used for stToken when self-governed
-    /// @param govRoles.existingBasketManagers Pass empty array to deploy a trading governor
+    /// @param govParams.token The token to be locked into the StakingVault for governance
+    /// @param govRoles.existingBasketManagers Pass empty array to setup optimistic governance as REBALANCE_MANAGER
     /// @return folio The deployed Folio instance
     /// @return proxyAdmin The deployed FolioProxyAdmin instance
+    /// @return governor The deployed optimistic governor
+    /// @return timelock The deployed optimistic timelock
+    /// @return selectorRegistry The deployed optimistic selector registry
     function deployGovernedFolio(
-        IVotes stToken,
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         IFolio.FolioFlags calldata folioFlags,
-        IGovernanceDeployer.GovParams calldata ownerGovParams,
-        IGovernanceDeployer.GovParams calldata tradingGovParams,
+        GovParams calldata govParams,
         GovRoles calldata govRoles,
         bytes32 deploymentNonce
-    ) external returns (Folio folio, address proxyAdmin) {
+    )
+        external
+        returns (
+            address stToken,
+            address folio,
+            address proxyAdmin,
+            address governor,
+            address timelock,
+            address selectorRegistry
+        )
+    {
         bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
 
         // Deploy Folio
@@ -150,54 +157,53 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             deploymentSalt
         );
 
-        GovernancePair[] memory govPairs = new GovernancePair[](2);
-        // govPairs[0] is owner governor
-        // govPairs[1] is trading governor
+        // Deploy StakingVault
+        bytes memory stakingVaultInitData = abi.encodeCall(
+            StakingVault.initialize,
+            (
+                string.concat("Vote-Locked ", basicDetails.name),
+                string.concat("VL", basicDetails.symbol),
+                IERC20(govParams.token),
+                address(this),
+                DEFAULT_REWARD_PERIOD,
+                DEFAULT_UNSTAKING_DELAY
+            )
+        );
+        stToken = address(new ERC1967Proxy{ salt: deploymentSalt }(stakingVaultImplementation, stakingVaultInitData));
 
-        if (address(stToken) == address(0)) {
-            // Self-govern
-            (stToken, govPairs[0].governor, govPairs[0].timelock) = governanceDeployer.deployGovernedStakingToken(
-                string(abi.encodePacked("Vote-Locked ", basicDetails.name)),
-                string(abi.encodePacked("VL", basicDetails.symbol)),
-                folio,
-                ownerGovParams,
-                deploymentSalt
-            );
-        } else {
-            // Deploy separate owner governance
-            (govPairs[0].governor, govPairs[0].timelock) = governanceDeployer.deployGovernanceWithTimelock(
-                ownerGovParams,
-                stToken,
-                deploymentSalt
-            );
-        }
+        // Deploy Governor + Timelock + Selector Registry
+        (governor, timelock, selectorRegistry) = optimisticGovernorDeployer.deploy(
+            IReserveOptimisticDeployer.DeploymentParams({
+                optimisticParams: govParams.optimisticParams,
+                standardParams: govParams.standardParams,
+                token: IVetoToken(address(stToken)),
+                selectorData: govParams.selectorData,
+                optimisticProposers: govParams.optimisticProposers,
+                guardians: govParams.guardians,
+                timelockDelay: govParams.timelockDelay
+            }),
+            deploymentSalt
+        );
 
-        // Deploy trading Governance if basket managers are not provided
+        // If no basket managers are provided, configure timelock as REBALANCE_MANAGER
         if (govRoles.existingBasketManagers.length == 0) {
-            // Invert deployment nonce to avoid timelock/governor collisions
-            (govPairs[1].governor, govPairs[1].timelock) = governanceDeployer.deployGovernanceWithTimelock(
-                tradingGovParams,
-                stToken,
-                ~deploymentSalt
-            );
-
-            folio.grantRole(REBALANCE_MANAGER, govPairs[1].timelock);
+            Folio(folio).grantRole(REBALANCE_MANAGER, timelock);
         }
 
         // Swap Folio owner
-        folio.grantRole(DEFAULT_ADMIN_ROLE, govPairs[0].timelock);
+        folio.grantRole(DEFAULT_ADMIN_ROLE, timelock);
         folio.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
 
         // Swap proxyAdmin owner
-        FolioProxyAdmin(payable(proxyAdmin)).transferOwnership(govPairs[0].timelock);
+        FolioProxyAdmin(payable(proxyAdmin)).transferOwnership(timelock);
 
         emit GovernedFolioDeployed(
-            address(stToken),
-            address(folio),
-            govPairs[0].governor,
-            govPairs[0].timelock,
-            govPairs[1].governor,
-            govPairs[1].timelock
+            stToken,
+            folio,
+            governor,
+            timelock,
+            govRoles.existingBasketManagers.length == 0 ? governor : address(0),
+            govRoles.existingBasketManagers.length == 0 ? timelock : address(0)
         );
     }
 }

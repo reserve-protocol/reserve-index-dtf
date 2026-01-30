@@ -7,7 +7,7 @@ import { TimelockController } from "@openzeppelin/contracts/governance/TimelockC
 import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
-import { FolioGovernor } from "@gov/FolioGovernor.sol";
+import { ReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/ReserveOptimisticGovernor.sol";
 import { Folio } from "@src/Folio.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import { Versioned } from "@utils/Versioned.sol";
@@ -49,7 +49,7 @@ contract UpgradeSpell_5_1_0 is Versioned {
     function cast(
         Folio folio,
         FolioProxyAdmin proxyAdmin,
-        FolioGovernor oldGovernor,
+        ReserveOptimisticGovernor oldGovernor,
         address[] calldata guardians,
         StakingVault oldStakingVault,
         address tradingTimelock,
