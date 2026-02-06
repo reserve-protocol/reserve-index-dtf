@@ -186,6 +186,10 @@ contract Folio is
     // === 5.0.0 ===
     bool public bidsEnabled;
 
+    // === 6.0.0 ===
+    bool public tradeAllowlistEnabled;
+    EnumerableSet.AddressSet private tradeTokenAllowlist;
+
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
         _poke();
@@ -254,6 +258,19 @@ contract Folio is
     function stateChangeActive() external view returns (bool syncStateChangeActive, bool asyncStateChangeActive) {
         syncStateChangeActive = _reentrancyGuardEntered();
         asyncStateChangeActive = address(activeTrustedFill) != address(0) && activeTrustedFill.swapActive();
+    }
+
+    // ==== Allowlist ====
+
+    /// @return The list of tokens currently on the allowlist
+    function getTokenAllowlist() external view returns (address[] memory) {
+        return tradeTokenAllowlist.values();
+    }
+
+    /// @param token The token to check
+    /// @return True if the token is on the allowlist
+    function isTokenAllowlisted(address token) external view returns (bool) {
+        return tradeTokenAllowlist.contains(token);
     }
 
     // ==== Governance ====
@@ -340,6 +357,33 @@ contract Folio is
     /// @param _bidsEnabled If true, permissionless bids are enabled
     function setBidsEnabled(bool _bidsEnabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setBidsEnabled(_bidsEnabled);
+    }
+
+    /// @param _enabled If true, token allowlist is enforced during rebalancing
+    function setTradeAllowlistEnabled(bool _enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setTradeAllowlistEnabled(_enabled);
+    }
+
+    /// Add tokens to the allowlist
+    /// @param tokens The tokens to add to the allowlist
+    function addToAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        uint256 len = tokens.length;
+        for (uint256 i; i < len; i++) {
+            if (tradeTokenAllowlist.add(tokens[i])) {
+                emit TradeAllowlistTokenAdded(tokens[i]);
+            }
+        }
+    }
+
+    /// Remove tokens from the allowlist
+    /// @param tokens The tokens to remove from the allowlist
+    function removeFromAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        uint256 len = tokens.length;
+        for (uint256 i; i < len; i++) {
+            if (tradeTokenAllowlist.remove(tokens[i])) {
+                emit TradeAllowlistTokenRemoved(tokens[i]);
+            }
+        }
     }
 
     /// Deprecate the Folio, callable only by the admin
@@ -592,6 +636,18 @@ contract Folio is
         uint256 auctionLauncherWindow,
         uint256 ttl
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
+        // enforce token allowlist: non-allowlisted tokens can only be traded out (zero weights)
+        if (tradeAllowlistEnabled) {
+            for (uint256 i; i < tokens.length; i++) {
+                if (!tradeTokenAllowlist.contains(tokens[i].token)) {
+                    require(
+                        tokens[i].weight.low == 0 && tokens[i].weight.spot == 0 && tokens[i].weight.high == 0,
+                        Folio__TokenNotAllowlisted()
+                    );
+                }
+            }
+        }
+
         RebalancingLib.startRebalance(
             basket.values(),
             rebalanceControl,
@@ -1111,6 +1167,11 @@ contract Folio is
     function _setBidsEnabled(bool _bidsEnabled) internal {
         bidsEnabled = _bidsEnabled;
         emit BidsEnabledSet(_bidsEnabled);
+    }
+
+    function _setTradeAllowlistEnabled(bool _enabled) internal {
+        tradeAllowlistEnabled = _enabled;
+        emit TradeAllowlistEnabled(_enabled);
     }
 
     function _setDaoFeeRegistry(address _newDaoFeeRegistry) internal {
