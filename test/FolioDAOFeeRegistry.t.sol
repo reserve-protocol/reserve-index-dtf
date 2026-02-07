@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { IFolioDAOFeeRegistry } from "contracts/interfaces/IFolioDAOFeeRegistry.sol";
 import { FolioDAOFeeRegistry } from "contracts/folio/FolioDAOFeeRegistry.sol";
-import { MAX_AUCTION_LENGTH, MAX_TVL_FEE } from "contracts/Folio.sol";
+import { MAX_AUCTION_LENGTH, MAX_TVL_FEE } from "@utils/Constants.sol";
 import "./base/BaseTest.sol";
 
 contract FolioDAOFeeRegistryTest is BaseTest {

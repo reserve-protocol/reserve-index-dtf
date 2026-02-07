@@ -51,6 +51,9 @@ interface IFolio {
     event RebalanceEnded(uint256 nonce);
     event BidsEnabledSet(bool bidsEnabled);
     event NameSet(string newName);
+    event TradeAllowlistEnabled(bool enabled);
+    event TradeAllowlistTokenAdded(address indexed token);
+    event TradeAllowlistTokenRemoved(address indexed token);
 
     // === Errors ===
 
@@ -97,6 +100,7 @@ interface IFolio {
     error Folio__PermissionlessBidsDisabled();
     error Folio__EmptyRebalance();
     error Folo__NotInRebalance();
+    error Folio__TokenNotAllowlisted();
 
     // === Structures ===
 
