@@ -2,8 +2,10 @@
 pragma solidity 0.8.28;
 
 import { IFolio } from "@interfaces/IFolio.sol";
+import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 
-import { D18, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
+import { D18, MAX_FEE_RECIPIENTS, MAX_TVL_FEE, MIN_MINT_FEE, ONE_OVER_YEAR } from "@utils/Constants.sol";
+import { MathLib } from "@utils/MathLib.sol";
 
 /**
  * @title FolioLib
@@ -47,5 +49,101 @@ library FolioLib {
 
         // ensure table adds up to 100%
         require(total == D18, IFolio.Folio__BadFeeTotal());
+    }
+
+    /// @dev stack-too-deep
+    struct FeeSharesParams {
+        uint256 currentDaoPending; // {share}
+        uint256 currentFeeRecipientsPending; // {share}
+        uint256 tvlFee; // D18{1/s}
+        uint256 supply; // {share}
+        uint256 elapsed; // {s}
+    }
+
+    /// Compute TVL fee shares owed to the DAO and fee recipients
+    /// @return _daoPendingFeeShares {share}
+    /// @return _feeRecipientsPendingFeeShares {share}
+    function computeFeeShares(
+        FeeSharesParams calldata params,
+        IFolioDAOFeeRegistry daoFeeRegistry
+    ) external view returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) {
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
+            address(this)
+        );
+
+        // convert annual percentage to per-second for comparison with stored tvlFee
+        // = 1 - (1 - feeFloor) ^ (1 / 31536000)
+        // D18{1/s} = D18{1} - D18{1} * D18{1} ^ D18{1/s}
+        uint256 feeFloor = D18 - MathLib.pow(D18 - daoFeeFloor, ONE_OVER_YEAR);
+
+        // D18{1/s}
+        uint256 _tvlFee = feeFloor > params.tvlFee ? feeFloor : params.tvlFee;
+
+        // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
+        uint256 feeShares = (params.supply * D18) / MathLib.powu(D18 - _tvlFee, params.elapsed) - params.supply;
+
+        // D18{1} = D18{1/s} * D18 / D18{1/s}
+        uint256 correction = (feeFloor * D18 + _tvlFee - 1) / _tvlFee;
+
+        // {share} = {share} * D18{1} / D18
+        uint256 daoShares = (correction > (daoFeeNumerator * D18 + daoFeeDenominator - 1) / daoFeeDenominator)
+            ? (feeShares * correction + D18 - 1) / D18
+            : (feeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
+
+        _daoPendingFeeShares = params.currentDaoPending + daoShares;
+        _feeRecipientsPendingFeeShares = params.currentFeeRecipientsPending + feeShares - daoShares;
+    }
+
+    /// Set TVL fee by annual percentage. Different from how it is stored!
+    /// @param _newFeeAnnually D18{1}
+    /// @return _tvlFee D18{1/s} The computed per-second fee
+    function setTVLFee(uint256 _newFeeAnnually) external returns (uint256 _tvlFee) {
+        require(_newFeeAnnually <= MAX_TVL_FEE, IFolio.Folio__TVLFeeTooHigh());
+
+        // convert annual percentage to per-second
+        // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
+        // D18{1/s} = D18{1} - D18{1} ^ {s}
+        _tvlFee = D18 - MathLib.pow(D18 - _newFeeAnnually, ONE_OVER_YEAR);
+
+        require(_newFeeAnnually == 0 || _tvlFee != 0, IFolio.Folio__TVLFeeTooLow());
+
+        emit IFolio.TVLFeeSet(_tvlFee, _newFeeAnnually);
+    }
+
+    /// Compute mint fee shares for DAO and fee recipients
+    /// @param shares {share} Amount of shares being minted
+    /// @param _mintFee D18{1} Fee on mint
+    /// @param minSharesOut {share} Minimum shares the caller must receive
+    /// @param daoFeeRegistry The DAO fee registry to query fee details from
+    /// @return sharesOut {share} Shares to mint for the receiver
+    /// @return daoFeeShares {share} Shares owed to the DAO
+    /// @return totalFeeShares {share} Total fee shares (DAO + fee recipients)
+    function computeMintFees(
+        uint256 shares,
+        uint256 _mintFee,
+        uint256 minSharesOut,
+        IFolioDAOFeeRegistry daoFeeRegistry
+    ) external view returns (uint256 sharesOut, uint256 daoFeeShares, uint256 totalFeeShares) {
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
+            address(this)
+        );
+
+        // ensure DAO fee floor is at least 3 bps (set just above daily MAX_TVL_FEE)
+        daoFeeFloor = daoFeeFloor > MIN_MINT_FEE ? daoFeeFloor : MIN_MINT_FEE;
+
+        // {share} = {share} * D18{1} / D18
+        totalFeeShares = (shares * _mintFee + D18 - 1) / D18;
+        daoFeeShares = (totalFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
+
+        // ensure DAO's portion of fees is at least the DAO feeFloor
+        uint256 minDaoShares = (shares * daoFeeFloor + D18 - 1) / D18;
+        daoFeeShares = daoFeeShares < minDaoShares ? minDaoShares : daoFeeShares;
+
+        // 100% to DAO, if necessary
+        totalFeeShares = totalFeeShares < daoFeeShares ? daoFeeShares : totalFeeShares;
+
+        // {share}
+        sharesOut = shares - totalFeeShares;
+        require(sharesOut != 0 && sharesOut >= minSharesOut, IFolio.Folio__InsufficientSharesOut());
     }
 }

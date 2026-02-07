@@ -24,16 +24,12 @@ import {
     D27,
     ERC20_STORAGE_LOCATION,
     REBALANCE_MANAGER,
-    MAX_TVL_FEE,
     MAX_MINT_FEE,
-    MIN_MINT_FEE,
     MIN_AUCTION_LENGTH,
     MAX_AUCTION_LENGTH,
     RESTRICTED_AUCTION_BUFFER,
-    ONE_OVER_YEAR,
     ONE_DAY
 } from "@utils/Constants.sol";
-import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
@@ -453,27 +449,12 @@ contract Folio is
     ) external nonReentrant notDeprecated sync returns (address[] memory _assets, uint256[] memory _amounts) {
         // === Calculate fee shares ===
 
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
-            address(this)
+        (uint256 sharesOut, uint256 daoFeeShares, uint256 totalFeeShares) = FolioLib.computeMintFees(
+            shares,
+            mintFee,
+            minSharesOut,
+            daoFeeRegistry
         );
-
-        // ensure DAO fee floor is at least 3 bps (set just above daily MAX_TVL_FEE)
-        daoFeeFloor = Math.max(daoFeeFloor, MIN_MINT_FEE);
-
-        // {share} = {share} * D18{1} / D18
-        uint256 totalFeeShares = (shares * mintFee + D18 - 1) / D18;
-        uint256 daoFeeShares = (totalFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
-
-        // ensure DAO's portion of fees is at least the DAO feeFloor
-        uint256 minDaoShares = (shares * daoFeeFloor + D18 - 1) / D18;
-        daoFeeShares = daoFeeShares < minDaoShares ? minDaoShares : daoFeeShares;
-
-        // 100% to DAO, if necessary
-        totalFeeShares = totalFeeShares < daoFeeShares ? daoFeeShares : totalFeeShares;
-
-        // {share}
-        uint256 sharesOut = shares - totalFeeShares;
-        require(sharesOut != 0 && sharesOut >= minSharesOut, Folio__InsufficientSharesOut());
 
         // === Transfer assets in ===
 
@@ -1015,52 +996,22 @@ contract Folio is
             return (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke);
         }
 
-        _daoPendingFeeShares = daoPendingFeeShares;
-        _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
-
-        // {share}
-        uint256 supply = super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
-
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
-            address(this)
+        (_daoPendingFeeShares, _feeRecipientsPendingFeeShares) = FolioLib.computeFeeShares(
+            FolioLib.FeeSharesParams({
+                currentDaoPending: daoPendingFeeShares,
+                currentFeeRecipientsPending: feeRecipientsPendingFeeShares,
+                tvlFee: tvlFee,
+                supply: super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares,
+                elapsed: elapsed
+            }),
+            daoFeeRegistry
         );
-
-        // convert annual percentage to per-second for comparison with stored tvlFee
-        // = 1 - (1 - feeFloor) ^ (1 / 31536000)
-        // D18{1/s} = D18{1} - D18{1} * D18{1} ^ D18{1/s}
-        uint256 feeFloor = D18 - MathLib.pow(D18 - daoFeeFloor, ONE_OVER_YEAR);
-
-        // D18{1/s}
-        uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
-
-        // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
-        uint256 feeShares = (supply * D18) / MathLib.powu(D18 - _tvlFee, elapsed) - supply;
-
-        // D18{1} = D18{1/s} * D18 / D18{1/s}
-        uint256 correction = (feeFloor * D18 + _tvlFee - 1) / _tvlFee;
-
-        // {share} = {share} * D18{1} / D18
-        uint256 daoShares = (correction > (daoFeeNumerator * D18 + daoFeeDenominator - 1) / daoFeeDenominator)
-            ? (feeShares * correction + D18 - 1) / D18
-            : (feeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
-
-        _daoPendingFeeShares += daoShares;
-        _feeRecipientsPendingFeeShares += feeShares - daoShares;
     }
 
     /// Set TVL fee by annual percentage. Different from how it is stored!
     /// @param _newFeeAnnually D18{1}
     function _setTVLFee(uint256 _newFeeAnnually) internal {
-        require(_newFeeAnnually <= MAX_TVL_FEE, Folio__TVLFeeTooHigh());
-
-        // convert annual percentage to per-second
-        // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
-        // D18{1/s} = D18{1} - D18{1} ^ {s}
-        tvlFee = D18 - MathLib.pow(D18 - _newFeeAnnually, ONE_OVER_YEAR);
-
-        require(_newFeeAnnually == 0 || tvlFee != 0, Folio__TVLFeeTooLow());
-
-        emit TVLFeeSet(tvlFee, _newFeeAnnually);
+        tvlFee = FolioLib.setTVLFee(_newFeeAnnually);
     }
 
     /// Set mint fee

@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_MINT_FEE } from "contracts/Folio.sol";
+import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_MINT_FEE } from "@utils/Constants.sol";
 import { FolioDeployer, IFolioDeployer } from "@deployer/FolioDeployer.sol";
 import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
