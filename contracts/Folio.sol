@@ -13,7 +13,8 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
-import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
+import { FolioLib } from "@utils/FolioLib.sol";
+import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
@@ -215,7 +216,7 @@ contract Folio is
         __AccessControl_init();
         __ReentrancyGuard_init();
 
-        _setFeeRecipients(_additionalDetails.feeRecipients);
+        FolioLib.setFeeRecipients(feeRecipients, _additionalDetails.feeRecipients);
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
         _setAuctionLength(_additionalDetails.auctionLength);
@@ -323,7 +324,7 @@ contract Folio is
     function setFeeRecipients(FeeRecipient[] calldata _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
-        _setFeeRecipients(_newRecipients);
+        FolioLib.setFeeRecipients(feeRecipients, _newRecipients);
     }
 
     /// @param _newLength {s} Length of an auction
@@ -833,12 +834,7 @@ contract Folio is
     /// If you close an auction before startTime, it would break the invariant that endTime > startTime.
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function closeAuction(uint256 auctionId) external nonReentrant {
-        require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
-                hasRole(REBALANCE_MANAGER, msg.sender) ||
-                hasRole(AUCTION_LAUNCHER, msg.sender),
-            Folio__Unauthorized()
-        );
+        _checkPrivileged();
 
         if (auctions[auctionId].endTime < block.timestamp) {
             return;
@@ -853,12 +849,7 @@ contract Folio is
     /// End the current rebalance, WITHOUT impacting any ongoing auction
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function endRebalance() external nonReentrant {
-        require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
-                hasRole(REBALANCE_MANAGER, msg.sender) ||
-                hasRole(AUCTION_LAUNCHER, msg.sender),
-            Folio__Unauthorized()
-        );
+        _checkPrivileged();
 
         emit RebalanceEnded(rebalance.nonce);
 
@@ -867,6 +858,15 @@ contract Folio is
     }
 
     // ==== Internal ====
+
+    function _checkPrivileged() internal view {
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
+                hasRole(REBALANCE_MANAGER, msg.sender) ||
+                hasRole(AUCTION_LAUNCHER, msg.sender),
+            Folio__Unauthorized()
+        );
+    }
 
     /// @param shares {share}
     /// @return _assets
@@ -1054,40 +1054,6 @@ contract Folio is
         emit MintFeeSet(_newFee);
     }
 
-    /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
-    function _setFeeRecipients(FeeRecipient[] calldata _feeRecipients) internal {
-        emit FeeRecipientsSet(_feeRecipients);
-
-        // Clear existing fee table
-        uint256 len = feeRecipients.length;
-        for (uint256 i; i < len; i++) {
-            feeRecipients.pop();
-        }
-
-        // Add new items to the fee table
-        len = _feeRecipients.length;
-
-        if (len == 0) {
-            return;
-        }
-
-        require(len <= MAX_FEE_RECIPIENTS, Folio__TooManyFeeRecipients());
-
-        address previousRecipient;
-        uint256 total;
-
-        for (uint256 i; i < len; i++) {
-            require(_feeRecipients[i].recipient > previousRecipient, Folio__FeeRecipientInvalidAddress());
-            require(_feeRecipients[i].portion != 0, Folio__FeeRecipientInvalidFeeShare());
-
-            total += _feeRecipients[i].portion;
-            previousRecipient = _feeRecipients[i].recipient;
-            feeRecipients.push(_feeRecipients[i]);
-        }
-
-        // ensure table adds up to 100%
-        require(total == D18, Folio__BadFeeTotal());
-    }
 
     /// @param _newLength {s}
     function _setAuctionLength(uint256 _newLength) internal {
