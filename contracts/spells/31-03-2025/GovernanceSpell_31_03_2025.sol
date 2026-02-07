@@ -218,8 +218,7 @@ contract GovernanceSpell_31_03_2025 is Versioned {
             require(pastSupply != 0, "GS: past supply 0");
 
             proposalThreshold =
-                ((proposalThresholdWithSupply * 1e18 + pastSupply - 1) / pastSupply) /
-                proposalThresholdDivisor;
+                ((proposalThresholdWithSupply * 1e18 + pastSupply - 1) / pastSupply) / proposalThresholdDivisor;
             require(
                 proposalThreshold >= 1e14 && proposalThreshold <= 1e17,
                 "GS: proposal threshold not in expected range"
@@ -293,8 +292,7 @@ contract GovernanceSpell_31_03_2025 is Versioned {
         {
             Votes stakingVault = Votes(address(FolioGovernor(payable(newGovernor)).token()));
             uint256 pastSupply = stakingVault.getPastTotalSupply(stakingVault.clock() - 1);
-            uint256 _proposalThreshold = (FolioGovernor(payable(newGovernor)).proposalThreshold() *
-                1e18 +
+            uint256 _proposalThreshold = (FolioGovernor(payable(newGovernor)).proposalThreshold() * 1e18 +
                 pastSupply -
                 1) / pastSupply;
 
