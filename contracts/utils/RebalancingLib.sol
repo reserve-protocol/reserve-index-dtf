@@ -10,17 +10,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 
-import {
-    AUCTION_WARMUP,
-    D18,
-    D27,
-    MAX_TOKEN_BUY_AMOUNT,
-    MAX_LIMIT,
-    MAX_WEIGHT,
-    MAX_TOKEN_PRICE,
-    MAX_TOKEN_PRICE_RANGE,
-    MAX_TTL
-} from "@utils/Constants.sol";
+import { AUCTION_WARMUP, D18, D27, MAX_TOKEN_BUY_AMOUNT, MAX_LIMIT, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TTL } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 
 /**

@@ -6,20 +6,7 @@ import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/contracts/filler
 import { GPV2_SETTLEMENT } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/Constants.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
-import {
-    AUCTION_WARMUP,
-    D27,
-    MIN_AUCTION_LENGTH,
-    MAX_AUCTION_LENGTH,
-    MAX_MINT_FEE,
-    MAX_TTL,
-    MAX_FEE_RECIPIENTS,
-    MAX_TOKEN_PRICE,
-    MAX_TOKEN_PRICE_RANGE,
-    MAX_TVL_FEE,
-    MAX_LIMIT,
-    MAX_WEIGHT
-} from "@utils/Constants.sol";
+import { AUCTION_WARMUP, D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT } from "@utils/Constants.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -652,7 +639,8 @@ contract FolioTest is BaseTest {
 
         // check receipient balances
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
-        uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator +
+        uint256 expectedDaoShares = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) /
+            daoFeeDenominator +
             1;
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
 

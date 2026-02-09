@@ -10,26 +10,11 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {
-    ITrustedFillerRegistry,
-    IBaseTrustedFiller
-} from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
+import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
 import { FolioLib } from "@utils/FolioLib.sol";
-import {
-    AUCTION_WARMUP,
-    AUCTION_LAUNCHER,
-    D18,
-    D27,
-    ERC20_STORAGE_LOCATION,
-    REBALANCE_MANAGER,
-    MAX_MINT_FEE,
-    MIN_AUCTION_LENGTH,
-    MAX_AUCTION_LENGTH,
-    RESTRICTED_AUCTION_BUFFER,
-    ONE_DAY
-} from "@utils/Constants.sol";
+import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
