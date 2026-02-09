@@ -999,6 +999,88 @@ contract FolioTest is BaseTest {
         folio.setFeeRecipients(recipients);
     }
 
+    function test_distributeFees_burnWhenSelfRecipient() public {
+        // Set folio itself as a fee recipient alongside another address
+        vm.startPrank(owner);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(address(folio), 0.5e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.5e18);
+        folio.setFeeRecipients(recipients);
+        vm.stopPrank();
+
+        // Accumulate fees
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        vm.roll(block.number + 1);
+
+        uint256 supplyBefore = folio.totalSupply();
+
+        folio.distributeFees();
+
+        uint256 supplyAfter = folio.totalSupply();
+
+        // Folio should have 0 balance (burned shares are never minted)
+        assertEq(folio.balanceOf(address(folio)), 0, "folio should have 0 balance");
+
+        // feeReceiver should have received their share
+        assertGt(folio.balanceOf(feeReceiver), 0, "feeReceiver should have shares");
+
+        // DAO should have received its cut
+        assertGt(folio.balanceOf(dao), 0, "dao should have shares");
+
+        // Supply should have decreased by the burned amount
+        // The burned amount is approximately half of the fee-recipient pending shares
+        assertLt(supplyAfter, supplyBefore, "supply should decrease from burn");
+    }
+
+    function test_distributeFees_burnAll_selfAsSoleRecipient() public {
+        // Set folio as the sole fee recipient (100% burn)
+        vm.startPrank(owner);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
+        recipients[0] = IFolio.FeeRecipient(address(folio), 1e18);
+        folio.setFeeRecipients(recipients);
+        vm.stopPrank();
+
+        // Accumulate fees
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        vm.roll(block.number + 1);
+
+        uint256 supplyBefore = folio.totalSupply();
+        uint256 pendingFeeShares = folio.getPendingFeeShares();
+        assertGt(pendingFeeShares, 0, "should have pending fees");
+
+        folio.distributeFees();
+
+        uint256 supplyAfter = folio.totalSupply();
+
+        // Folio should have 0 balance
+        assertEq(folio.balanceOf(address(folio)), 0, "folio should have 0 balance");
+
+        // DAO still gets its cut
+        assertGt(folio.balanceOf(dao), 0, "dao should still have shares");
+
+        // Supply decreased because fee-recipient shares were burned
+        assertLt(supplyAfter, supplyBefore, "supply should decrease from burn");
+    }
+
+    function test_distributeFees_burnEmitsFolioFeeBurned() public {
+        // Set folio as a fee recipient
+        vm.startPrank(owner);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(address(folio), 0.5e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.5e18);
+        folio.setFeeRecipients(recipients);
+        vm.stopPrank();
+
+        // Accumulate fees
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        vm.roll(block.number + 1);
+
+        // Expect FolioFeeBurned event
+        vm.expectEmit(true, true, false, false);
+        emit IFolio.FolioFeeBurned(0); // amount checked loosely
+        folio.distributeFees();
+    }
+
     function test_setFolioDAOFeeRegistry() public {
         // fast forward, accumulate fees
         vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);

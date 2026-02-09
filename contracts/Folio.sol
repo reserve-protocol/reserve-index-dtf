@@ -519,9 +519,13 @@ contract Folio is
             uint256 shares = (_feeRecipientsPendingFeeShares * feeRecipients[i].portion) / D18;
             feeRecipientsTotal += shares;
 
-            _mint(feeRecipients[i].recipient, shares);
-
-            emit FolioFeePaid(feeRecipients[i].recipient, shares);
+            if (feeRecipients[i].recipient == address(this)) {
+                /// @dev Minting then burning the shares is not efficient, this just emits the event to track.
+                emit FolioFeeBurned(shares);
+            } else {
+                _mint(feeRecipients[i].recipient, shares);
+                emit FolioFeePaid(feeRecipients[i].recipient, shares);
+            }
         }
 
         // === DAO ===

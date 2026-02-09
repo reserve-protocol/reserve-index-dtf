@@ -25,6 +25,7 @@ interface IFolio {
     event AuctionTrustedFillCreated(uint256 indexed auctionId, address filler);
 
     event FolioFeePaid(address indexed recipient, uint256 amount);
+    event FolioFeeBurned(uint256 amount);
     event ProtocolFeePaid(address indexed recipient, uint256 amount);
 
     event BasketTokenAdded(address indexed token);
