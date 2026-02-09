@@ -2,11 +2,12 @@
 pragma solidity 0.8.28;
 
 import { AUCTION_APPROVER, DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER } from "@utils/Constants.sol";
-import { UpgradeSpell_4_0_0 } from "@spells/upgrades/UpgradeSpell_4_0_0.sol";
+
+import { IUpgradeSpell_4_0_0 } from "./IUpgradeSpell_4_0_0.sol";
 import "../../base/BaseTest.sol";
 
 abstract contract GenericUpgradeSpell_4_0_0_Test is BaseTest {
-    UpgradeSpell_4_0_0 spell;
+    IUpgradeSpell_4_0_0 spell;
 
     function run_upgradeSpell_400_fork(Folio folio, FolioProxyAdmin proxyAdmin) public {
         assertNotEq(folio.version(), "4.0.0");
@@ -32,12 +33,12 @@ abstract contract GenericUpgradeSpell_4_0_0_Test is BaseTest {
         // only timelock should be able to cast spell
 
         vm.expectRevert("US4: caller not admin");
-        spell.cast(folio, proxyAdmin);
+        spell.cast(address(folio), address(proxyAdmin));
 
         // cast spell as timelock
 
         vm.prank(timelock);
-        spell.cast(folio, proxyAdmin);
+        spell.cast(address(folio), address(proxyAdmin));
 
         // set of REBALANCE_MANAGERs should be the same as old AUCTION_APPROVERs
 

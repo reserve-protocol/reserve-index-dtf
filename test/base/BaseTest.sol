@@ -5,25 +5,32 @@ import "forge-std/Script.sol";
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 
-import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
+import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
+
+import { StakingVaultDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/StakingVaultArtifact.sol";
+import { OptimisticProposalLibDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/OptimisticProposalLibArtifact.sol";
+import { ReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorArtifact.sol";
+import { TimelockControllerOptimisticDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/TimelockControllerOptimisticArtifact.sol";
+import { OptimisticSelectorRegistryDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/OptimisticSelectorRegistryArtifact.sol";
+import { ReserveOptimisticGovernorDeployerDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/DeployerArtifact.sol";
+import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
+
+import { IFolio, Folio } from "@src/Folio.sol";
+import { FolioDeployer } from "@deployer/FolioDeployer.sol";
+import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
+import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
+import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
+
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockERC20 } from "utils/MockERC20.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 
-import { IFolio, Folio } from "@src/Folio.sol";
-import { FolioDeployer } from "@deployer/FolioDeployer.sol";
-import { FolioGovernor } from "@gov/FolioGovernor.sol";
-import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
-import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
-import { StakingVault } from "@staking/StakingVault.sol";
-import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
-import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
-import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
-
 abstract contract BaseTest is Script, Test {
-    string public constant VERSION = "5.1.0";
+    string public constant VERSION = "6.0.0";
     // === Constants per-chain ===
 
     uint256 internal constant MAX_DAO_FEE = 0.5e18;
@@ -63,15 +70,10 @@ abstract contract BaseTest is Script, Test {
     FolioDAOFeeRegistry daoFeeRegistry;
     FolioVersionRegistry versionRegistry;
     TrustedFillerRegistry trustedFillerRegistry;
+    IReserveOptimisticGovernorDeployer optimisticGovernanceDeployer;
 
     FolioProxyAdmin proxyAdmin;
     MockRoleRegistry roleRegistry;
-
-    GovernanceDeployer governanceDeployer;
-
-    address governorImplementation;
-    address timelockImplementation;
-    address stakingVaultImplementation;
 
     address cowswapFiller;
 
@@ -129,12 +131,28 @@ abstract contract BaseTest is Script, Test {
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
         trustedFillerRegistry = new TrustedFillerRegistry(address(roleRegistry));
 
-        stakingVaultImplementation = address(new StakingVault());
+        // Deploy implementations via artifacts
+        address stakingVaultImpl = StakingVaultDeployer.deploy();
+        address lib = OptimisticProposalLibDeployer.deploy();
+        address governorImpl = ReserveOptimisticGovernorDeployer.deploy(lib);
+        address timelockImpl = TimelockControllerOptimisticDeployer.deploy();
+        address selectorRegistryImpl = OptimisticSelectorRegistryDeployer.deploy();
+
+        // Deploy the factory via artifact
+        optimisticGovernanceDeployer = IReserveOptimisticGovernorDeployer(
+            ReserveOptimisticGovernorDeployerDeployer.deploy(
+                stakingVaultImpl,
+                governorImpl,
+                timelockImpl,
+                selectorRegistryImpl
+            )
+        );
+        
         folioDeployer = new FolioDeployer(
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
 
         cowswapFiller = address(new CowSwapFiller());
@@ -254,7 +272,7 @@ abstract contract BaseTest is Script, Test {
         address _owner,
         address _basketManager,
         address _auctionLauncher
-    ) internal returns (Folio _folio, FolioProxyAdmin _proxyAdmin) {
+    ) internal returns (Folio, FolioProxyAdmin) {
         IFolio.FolioBasicDetails memory _basicDetails = IFolio.FolioBasicDetails({
             name: "Test Folio",
             symbol: "TFOLIO",
@@ -278,8 +296,8 @@ abstract contract BaseTest is Script, Test {
         address[] memory _brandManagers = new address[](1);
         _brandManagers[0] = _owner;
 
-        address _proxyAdmin2;
-        (_folio, _proxyAdmin2) = folioDeployer.deployFolio(
+        address[] memory returnAddrs = new address[](2);
+        (returnAddrs[0], returnAddrs[1]) = folioDeployer.deployFolio(
             _basicDetails,
             _additionalDetails,
             _folioFlags,
@@ -290,6 +308,6 @@ abstract contract BaseTest is Script, Test {
             bytes32(0)
         );
 
-        _proxyAdmin = FolioProxyAdmin(_proxyAdmin2);
+        return (Folio(returnAddrs[0]), FolioProxyAdmin(returnAddrs[1]));
     }
 }

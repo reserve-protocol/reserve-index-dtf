@@ -69,7 +69,7 @@ contract UpgradeSpellEthereum_4_0_0_Test is GenericUpgradeSpell_4_0_0_Test {
 
     function _setUp() public virtual override {
         super._setUp();
-        spell = UpgradeSpell_4_0_0(0x7498c6aB0669A09DE7B9185ba72A98fa3Ca39cC9);
+        spell = IUpgradeSpell_4_0_0(0x7498c6aB0669A09DE7B9185ba72A98fa3Ca39cC9);
     }
 
     function test_upgradeSpell_400_fork_ethereum() public {

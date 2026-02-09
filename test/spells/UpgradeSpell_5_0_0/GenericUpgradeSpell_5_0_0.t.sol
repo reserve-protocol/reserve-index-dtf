@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { UpgradeSpell_5_0_0 } from "@spells/upgrades/UpgradeSpell_5_0_0.sol";
+import { IUpgradeSpell_5_0_0 } from "./IUpgradeSpell_5_0_0.sol";
+
 import "../../base/BaseTest.sol";
 
 abstract contract GenericUpgradeSpell_5_0_0_Test is BaseTest {
-    UpgradeSpell_5_0_0 spell;
+    IUpgradeSpell_5_0_0 spell;
 
     function run_upgradeSpell_500_fork(Folio folio, FolioProxyAdmin proxyAdmin) public {
         assertNotEq(folio.version(), "5.0.0");
@@ -29,12 +30,12 @@ abstract contract GenericUpgradeSpell_5_0_0_Test is BaseTest {
         // only timelock should be able to cast spell
 
         vm.expectRevert("US5: caller not admin");
-        spell.cast(folio, proxyAdmin);
+        spell.cast(address(folio), address(proxyAdmin));
 
         // cast spell as timelock
 
         vm.prank(timelock);
-        spell.cast(folio, proxyAdmin);
+        spell.cast(address(folio), address(proxyAdmin));
 
         // name + symbol should be same as before
 

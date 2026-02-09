@@ -15,7 +15,7 @@ contract UpgradeSpellBase_5_0_0_Test is GenericUpgradeSpell_5_0_0_Test {
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,
             forkTarget: ForkNetwork.BASE,
-            forkBlock: 41425585
+            forkBlock: 41720731
         });
 
         // BGCI
@@ -87,8 +87,7 @@ contract UpgradeSpellBase_5_0_0_Test is GenericUpgradeSpell_5_0_0_Test {
 
     function _setUp() public virtual override {
         super._setUp();
-
-        spell = new UpgradeSpell_5_0_0();
+        spell = IUpgradeSpell_5_0_0(0x04B3eD311C68dfB0649D9faf695115F23DcbB540);
     }
 
     function test_upgradeSpell_500_fork_base() public {

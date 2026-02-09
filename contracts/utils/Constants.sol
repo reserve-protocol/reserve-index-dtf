@@ -18,6 +18,10 @@ uint256 constant RESTRICTED_AUCTION_BUFFER = 120; // {s} 2 min
 
 uint256 constant ONE_OVER_YEAR = 31709791983; // D18{1/s} 1e18 / 31536000
 
+// StakingVault
+uint256 constant DEFAULT_REWARD_PERIOD = 3.5 days; // {s} 3.5 days
+uint256 constant DEFAULT_UNSTAKING_DELAY = 1 weeks; // {s} 1 week
+
 uint256 constant ONE_DAY = 24 hours; // {s} 1 day
 
 uint256 constant D18 = 1e18; // D18

@@ -2,7 +2,6 @@
 pragma solidity 0.8.28;
 
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
-import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
 
 interface IFolioDeployer {
     error FolioDeployer__LengthMismatch();
@@ -26,11 +25,10 @@ interface IFolioDeployer {
     struct GovParams {
         IReserveOptimisticGovernor.OptimisticGovernanceParams optimisticParams;
         IReserveOptimisticGovernor.StandardGovernanceParams standardParams;
-        address token;
-        IOptimisticSelectorRegistry.SelectorData[] selectorData;
         address[] optimisticProposers;
         address[] guardians;
         uint256 timelockDelay;
+        address underlying;
     }
 
     function folioImplementation() external view returns (address);

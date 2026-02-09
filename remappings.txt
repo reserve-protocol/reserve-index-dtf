@@ -12,7 +12,6 @@ utils/=test/utils/
 
 @folio/=contracts/folio/
 @gov/=contracts/governance/
-@staking/=contracts/staking/
 @deployer/=contracts/deployer/
 @spells/=contracts/spells/
 @periphery/=contracts/periphery/
