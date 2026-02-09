@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(awk:*)",
+      "Bash(forge build:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(forge test:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(forge remappings:*)",
+      "Bash(forge --version:*)",
+      "Bash(ls:*)",
+      "Bash(pnpm install:*)",
+      "Bash(git -C /Users/tbrent/reserve/dtfs tag)",
+      "WebSearch",
+      "Bash(git -C /Users/tbrent/reserve/dtfs tag --list 'r*' --sort=-version:refname)",
+      "Bash(git -C /Users/tbrent/reserve/dtfs diff --stat r4.0.0..r5.0.0 -- contracts/)",
+      "Bash(git -C /Users/tbrent/reserve/dtfs diff r4.0.0..r5.0.0 -- contracts/)",
+      "Bash(git -C /Users/tbrent/reserve/dtfs diff --stat r5.0.0..HEAD -- contracts/)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,68 @@
+name: Frontend Changes
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      baseline_tag:
+        description: "Override baseline tag (default: from skill config)"
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      # UPDATE AFTER EACH RELEASE: set fallback to the latest rX.X.X tag
+      - name: Check for contract changes
+        id: check-changes
+        run: |
+          BASELINE="${{ github.event.inputs.baseline_tag || 'r5.0.0' }}"
+          echo "baseline=$BASELINE" >> $GITHUB_OUTPUT
+
+          if ! git rev-parse "$BASELINE" >/dev/null 2>&1; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "::warning::Baseline tag $BASELINE not found, running full analysis"
+          else
+            CHANGES=$(git diff --name-only "$BASELINE"..HEAD -- contracts/ | grep -v 'contracts/spells/' | wc -l)
+            if [ "$CHANGES" -gt 0 ]; then
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+              echo "$CHANGES contract file(s) changed since $BASELINE"
+            else
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Setup Node
+        if: steps.check-changes.outputs.has_changes == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Analyze frontend changes
+        if: steps.check-changes.outputs.has_changes == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          OVERRIDE="${{ github.event.inputs.baseline_tag || '' }}"
+          echo "/frontend-changes $OVERRIDE" | npx -y @anthropic-ai/claude-code --print --model sonnet
+
+      - name: No changes
+        if: steps.check-changes.outputs.has_changes == 'false'
+        run: |
+          BASELINE="${{ steps.check-changes.outputs.baseline }}"
+          echo "============================================================"
+          echo "FRONTEND CHANGES REPORT: $BASELINE -> HEAD"
+          echo "============================================================"
+          echo ""
+          echo "No contract changes detected since $BASELINE. No frontend impact."
