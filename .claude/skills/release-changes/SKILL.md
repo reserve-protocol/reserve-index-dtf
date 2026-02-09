@@ -96,6 +96,10 @@ Do NOT report internal implementation details like deploy ordering, temporary ow
 FRONTEND CHANGES REPORT: <from-tag> -> <to-tag>
 ============================================================
 
+Releases:
+- <from-tag>: https://github.com/reserve-protocol/reserve-index-dtf/releases/tag/<from-tag>
+- <to-tag>: https://github.com/reserve-protocol/reserve-index-dtf/releases/tag/<to-tag>
+
 ------------------------------------------------------------
 STRUCT & ENUM CHANGES
 ------------------------------------------------------------
