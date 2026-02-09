@@ -13,8 +13,8 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/ITrustedFillerRegistry.sol";
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
-import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_TVL_FEE, MAX_MINT_FEE, MIN_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_FEE_RECIPIENTS, RESTRICTED_AUCTION_BUFFER, ONE_OVER_YEAR, ONE_DAY } from "@utils/Constants.sol";
-import { MathLib } from "@utils/MathLib.sol";
+import { FolioLib } from "@utils/FolioLib.sol";
+import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
@@ -186,6 +186,10 @@ contract Folio is
     // === 5.0.0 ===
     bool public bidsEnabled;
 
+    // === 6.0.0 ===
+    bool public tradeAllowlistEnabled;
+    EnumerableSet.AddressSet private tradeTokenAllowlist;
+
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
         _poke();
@@ -211,7 +215,7 @@ contract Folio is
         __AccessControl_init();
         __ReentrancyGuard_init();
 
-        _setFeeRecipients(_additionalDetails.feeRecipients);
+        FolioLib.setFeeRecipients(feeRecipients, _additionalDetails.feeRecipients);
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
         _setAuctionLength(_additionalDetails.auctionLength);
@@ -254,6 +258,19 @@ contract Folio is
     function stateChangeActive() external view returns (bool syncStateChangeActive, bool asyncStateChangeActive) {
         syncStateChangeActive = _reentrancyGuardEntered();
         asyncStateChangeActive = address(activeTrustedFill) != address(0) && activeTrustedFill.swapActive();
+    }
+
+    // ==== Allowlist ====
+
+    /// @return The list of tokens currently on the allowlist
+    function getTokenAllowlist() external view returns (address[] memory) {
+        return tradeTokenAllowlist.values();
+    }
+
+    /// @param token The token to check
+    /// @return True if the token is on the allowlist
+    function isTokenAllowlisted(address token) external view returns (bool) {
+        return tradeTokenAllowlist.contains(token);
     }
 
     // ==== Governance ====
@@ -306,7 +323,7 @@ contract Folio is
     function setFeeRecipients(FeeRecipient[] calldata _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
-        _setFeeRecipients(_newRecipients);
+        FolioLib.setFeeRecipients(feeRecipients, _newRecipients);
     }
 
     /// @param _newLength {s} Length of an auction
@@ -340,6 +357,33 @@ contract Folio is
     /// @param _bidsEnabled If true, permissionless bids are enabled
     function setBidsEnabled(bool _bidsEnabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setBidsEnabled(_bidsEnabled);
+    }
+
+    /// @param _enabled If true, token allowlist is enforced during rebalancing
+    function setTradeAllowlistEnabled(bool _enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setTradeAllowlistEnabled(_enabled);
+    }
+
+    /// Add tokens to the allowlist
+    /// @param tokens The tokens to add to the allowlist
+    function addToAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        uint256 len = tokens.length;
+        for (uint256 i; i < len; i++) {
+            if (tradeTokenAllowlist.add(tokens[i])) {
+                emit TradeAllowlistTokenAdded(tokens[i]);
+            }
+        }
+    }
+
+    /// Remove tokens from the allowlist
+    /// @param tokens The tokens to remove from the allowlist
+    function removeFromAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        uint256 len = tokens.length;
+        for (uint256 i; i < len; i++) {
+            if (tradeTokenAllowlist.remove(tokens[i])) {
+                emit TradeAllowlistTokenRemoved(tokens[i]);
+            }
+        }
     }
 
     /// Deprecate the Folio, callable only by the admin
@@ -390,27 +434,12 @@ contract Folio is
     ) external nonReentrant notDeprecated sync returns (address[] memory _assets, uint256[] memory _amounts) {
         // === Calculate fee shares ===
 
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
-            address(this)
+        (uint256 sharesOut, uint256 daoFeeShares, uint256 totalFeeShares) = FolioLib.computeMintFees(
+            shares,
+            mintFee,
+            minSharesOut,
+            daoFeeRegistry
         );
-
-        // ensure DAO fee floor is at least 3 bps (set just above daily MAX_TVL_FEE)
-        daoFeeFloor = Math.max(daoFeeFloor, MIN_MINT_FEE);
-
-        // {share} = {share} * D18{1} / D18
-        uint256 totalFeeShares = (shares * mintFee + D18 - 1) / D18;
-        uint256 daoFeeShares = (totalFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
-
-        // ensure DAO's portion of fees is at least the DAO feeFloor
-        uint256 minDaoShares = (shares * daoFeeFloor + D18 - 1) / D18;
-        daoFeeShares = daoFeeShares < minDaoShares ? minDaoShares : daoFeeShares;
-
-        // 100% to DAO, if necessary
-        totalFeeShares = totalFeeShares < daoFeeShares ? daoFeeShares : totalFeeShares;
-
-        // {share}
-        uint256 sharesOut = shares - totalFeeShares;
-        require(sharesOut != 0 && sharesOut >= minSharesOut, Folio__InsufficientSharesOut());
 
         // === Transfer assets in ===
 
@@ -592,6 +621,18 @@ contract Folio is
         uint256 auctionLauncherWindow,
         uint256 ttl
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
+        // enforce token allowlist: non-allowlisted tokens can only be traded out (zero weights)
+        if (tradeAllowlistEnabled) {
+            for (uint256 i; i < tokens.length; i++) {
+                if (!tradeTokenAllowlist.contains(tokens[i].token)) {
+                    require(
+                        tokens[i].weight.low == 0 && tokens[i].weight.spot == 0 && tokens[i].weight.high == 0,
+                        Folio__TokenNotAllowlisted()
+                    );
+                }
+            }
+        }
+
         RebalancingLib.startRebalance(
             basket.values(),
             rebalanceControl,
@@ -777,12 +818,7 @@ contract Folio is
     /// If you close an auction before startTime, it would break the invariant that endTime > startTime.
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function closeAuction(uint256 auctionId) external nonReentrant {
-        require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
-                hasRole(REBALANCE_MANAGER, msg.sender) ||
-                hasRole(AUCTION_LAUNCHER, msg.sender),
-            Folio__Unauthorized()
-        );
+        _checkPrivileged();
 
         if (auctions[auctionId].endTime < block.timestamp) {
             return;
@@ -797,12 +833,7 @@ contract Folio is
     /// End the current rebalance, WITHOUT impacting any ongoing auction
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function endRebalance() external nonReentrant {
-        require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
-                hasRole(REBALANCE_MANAGER, msg.sender) ||
-                hasRole(AUCTION_LAUNCHER, msg.sender),
-            Folio__Unauthorized()
-        );
+        _checkPrivileged();
 
         emit RebalanceEnded(rebalance.nonce);
 
@@ -811,6 +842,15 @@ contract Folio is
     }
 
     // ==== Internal ====
+
+    function _checkPrivileged() internal view {
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
+                hasRole(REBALANCE_MANAGER, msg.sender) ||
+                hasRole(AUCTION_LAUNCHER, msg.sender),
+            Folio__Unauthorized()
+        );
+    }
 
     /// @param shares {share}
     /// @return _assets
@@ -941,52 +981,22 @@ contract Folio is
             return (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke);
         }
 
-        _daoPendingFeeShares = daoPendingFeeShares;
-        _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
-
-        // {share}
-        uint256 supply = super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
-
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
-            address(this)
+        (_daoPendingFeeShares, _feeRecipientsPendingFeeShares) = FolioLib.computeFeeShares(
+            FolioLib.FeeSharesParams({
+                currentDaoPending: daoPendingFeeShares,
+                currentFeeRecipientsPending: feeRecipientsPendingFeeShares,
+                tvlFee: tvlFee,
+                supply: super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares,
+                elapsed: elapsed
+            }),
+            daoFeeRegistry
         );
-
-        // convert annual percentage to per-second for comparison with stored tvlFee
-        // = 1 - (1 - feeFloor) ^ (1 / 31536000)
-        // D18{1/s} = D18{1} - D18{1} * D18{1} ^ D18{1/s}
-        uint256 feeFloor = D18 - MathLib.pow(D18 - daoFeeFloor, ONE_OVER_YEAR);
-
-        // D18{1/s}
-        uint256 _tvlFee = feeFloor > tvlFee ? feeFloor : tvlFee;
-
-        // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
-        uint256 feeShares = (supply * D18) / MathLib.powu(D18 - _tvlFee, elapsed) - supply;
-
-        // D18{1} = D18{1/s} * D18 / D18{1/s}
-        uint256 correction = (feeFloor * D18 + _tvlFee - 1) / _tvlFee;
-
-        // {share} = {share} * D18{1} / D18
-        uint256 daoShares = (correction > (daoFeeNumerator * D18 + daoFeeDenominator - 1) / daoFeeDenominator)
-            ? (feeShares * correction + D18 - 1) / D18
-            : (feeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator;
-
-        _daoPendingFeeShares += daoShares;
-        _feeRecipientsPendingFeeShares += feeShares - daoShares;
     }
 
     /// Set TVL fee by annual percentage. Different from how it is stored!
     /// @param _newFeeAnnually D18{1}
     function _setTVLFee(uint256 _newFeeAnnually) internal {
-        require(_newFeeAnnually <= MAX_TVL_FEE, Folio__TVLFeeTooHigh());
-
-        // convert annual percentage to per-second
-        // = 1 - (1 - _newFeeAnnually) ^ (1 / 31536000)
-        // D18{1/s} = D18{1} - D18{1} ^ {s}
-        tvlFee = D18 - MathLib.pow(D18 - _newFeeAnnually, ONE_OVER_YEAR);
-
-        require(_newFeeAnnually == 0 || tvlFee != 0, Folio__TVLFeeTooLow());
-
-        emit TVLFeeSet(tvlFee, _newFeeAnnually);
+        tvlFee = FolioLib.setTVLFee(_newFeeAnnually);
     }
 
     /// Set mint fee
@@ -996,41 +1006,6 @@ contract Folio is
 
         mintFee = _newFee;
         emit MintFeeSet(_newFee);
-    }
-
-    /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
-    function _setFeeRecipients(FeeRecipient[] calldata _feeRecipients) internal {
-        emit FeeRecipientsSet(_feeRecipients);
-
-        // Clear existing fee table
-        uint256 len = feeRecipients.length;
-        for (uint256 i; i < len; i++) {
-            feeRecipients.pop();
-        }
-
-        // Add new items to the fee table
-        len = _feeRecipients.length;
-
-        if (len == 0) {
-            return;
-        }
-
-        require(len <= MAX_FEE_RECIPIENTS, Folio__TooManyFeeRecipients());
-
-        address previousRecipient;
-        uint256 total;
-
-        for (uint256 i; i < len; i++) {
-            require(_feeRecipients[i].recipient > previousRecipient, Folio__FeeRecipientInvalidAddress());
-            require(_feeRecipients[i].portion != 0, Folio__FeeRecipientInvalidFeeShare());
-
-            total += _feeRecipients[i].portion;
-            previousRecipient = _feeRecipients[i].recipient;
-            feeRecipients.push(_feeRecipients[i]);
-        }
-
-        // ensure table adds up to 100%
-        require(total == D18, Folio__BadFeeTotal());
     }
 
     /// @param _newLength {s}
@@ -1111,6 +1086,11 @@ contract Folio is
     function _setBidsEnabled(bool _bidsEnabled) internal {
         bidsEnabled = _bidsEnabled;
         emit BidsEnabledSet(_bidsEnabled);
+    }
+
+    function _setTradeAllowlistEnabled(bool _enabled) internal {
+        tradeAllowlistEnabled = _enabled;
+        emit TradeAllowlistEnabled(_enabled);
     }
 
     function _setDaoFeeRegistry(address _newDaoFeeRegistry) internal {
