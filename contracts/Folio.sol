@@ -189,9 +189,7 @@ contract Folio is
     // === 6.0.0 ===
     bool public tradeAllowlistEnabled;
     EnumerableSet.AddressSet private tradeTokenAllowlist;
-
-    // === 7.0.0 ===
-    uint256 public folioFee; // D18{1} fraction of fee-recipient shares to burn
+    uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -221,7 +219,7 @@ contract Folio is
         FolioLib.setFeeRecipients(feeRecipients, _additionalDetails.feeRecipients);
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
-        _setFolioFee(_additionalDetails.folioFee);
+        _setFolioFee(_additionalDetails.folioFeeForSelf);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
 
@@ -451,7 +449,7 @@ contract Folio is
             FolioLib.MintFeeParams({
                 shares: shares,
                 mintFee: mintFee,
-                folioFee: folioFee,
+                folioFeeForSelf: folioFeeForSelf,
                 minSharesOut: minSharesOut
             }),
             daoFeeRegistry
@@ -1002,7 +1000,7 @@ contract Folio is
                 currentDaoPending: daoPendingFeeShares,
                 currentFeeRecipientsPending: feeRecipientsPendingFeeShares,
                 tvlFee: tvlFee,
-                folioFee: folioFee,
+                folioFeeForSelf: folioFeeForSelf,
                 supply: super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares,
                 elapsed: elapsed
             }),
@@ -1030,7 +1028,7 @@ contract Folio is
     function _setFolioFee(uint256 _newFee) internal {
         require(_newFee <= MAX_FOLIO_FEE, Folio__FolioFeeTooHigh());
 
-        folioFee = _newFee;
+        folioFeeForSelf = _newFee;
         emit FolioFeeSet(_newFee);
     }
 

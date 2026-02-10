@@ -126,7 +126,7 @@ interface IFolio {
         FeeRecipient[] feeRecipients;
         uint256 tvlFee; // D18{1/s}
         uint256 mintFee; // D18{1}
-        uint256 folioFee; // D18{1} fraction of fee-recipient shares to burn
+        uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
         string mandate;
     }
 

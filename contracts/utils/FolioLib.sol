@@ -56,7 +56,7 @@ library FolioLib {
         uint256 currentDaoPending; // {share}
         uint256 currentFeeRecipientsPending; // {share}
         uint256 tvlFee; // D18{1/s}
-        uint256 folioFee; // D18{1} fraction of fee-recipient shares to burn
+        uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
         uint256 supply; // {share}
         uint256 elapsed; // {s}
     }
@@ -94,7 +94,7 @@ library FolioLib {
         _daoPendingFeeShares = params.currentDaoPending + daoShares;
 
         uint256 rawRecipientShares = feeShares - daoShares;
-        uint256 selfShares = (rawRecipientShares * params.folioFee) / D18;
+        uint256 selfShares = (rawRecipientShares * params.folioFeeForSelf) / D18;
         _feeRecipientsPendingFeeShares = params.currentFeeRecipientsPending + rawRecipientShares - selfShares;
     }
 
@@ -127,7 +127,7 @@ library FolioLib {
     struct MintFeeParams {
         uint256 shares; // {share}
         uint256 mintFee; // D18{1}
-        uint256 folioFee; // D18{1}
+        uint256 folioFeeForSelf; // D18{1}
         uint256 minSharesOut; // {share}
     }
 
@@ -153,9 +153,9 @@ library FolioLib {
         // 100% to DAO, if necessary
         totalFeeShares = totalFeeShares < daoFeeShares ? daoFeeShares : totalFeeShares;
 
-        // apply folioFee to recipient portion
+        // apply folioFeeForSelf to recipient portion
         feeRecipientFeeShares = totalFeeShares - daoFeeShares;
-        feeRecipientFeeShares -= (feeRecipientFeeShares * params.folioFee) / D18;
+        feeRecipientFeeShares -= (feeRecipientFeeShares * params.folioFeeForSelf) / D18;
 
         // {share} minter pays the full fee (including self-fee shares that are burned)
         sharesOut = params.shares - totalFeeShares;

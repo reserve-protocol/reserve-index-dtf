@@ -276,7 +276,7 @@ abstract contract BaseTest is Script, Test {
             feeRecipients: _feeRecipients,
             tvlFee: _tvlFee,
             mintFee: _mintFee,
-            folioFee: 0,
+            folioFeeForSelf: 0,
             mandate: "mandate"
         });
 
