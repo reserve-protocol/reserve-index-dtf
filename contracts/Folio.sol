@@ -219,7 +219,7 @@ contract Folio is
         FolioLib.setFeeRecipients(feeRecipients, _additionalDetails.feeRecipients);
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
-        _setFolioFee(_additionalDetails.folioFeeForSelf);
+        _setFolioSelfFee(_additionalDetails.folioFeeForSelf);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
 
@@ -322,10 +322,10 @@ contract Folio is
     /// Set the folio fee — fraction of fee-recipient shares that are burned (not minted)
     /// @dev Non-reentrant via distributeFees()
     /// @param _newFee D18{1} Fraction of fee-recipient shares to burn
-    function setFolioFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFolioSelfFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
-        _setFolioFee(_newFee);
+        _setFolioSelfFee(_newFee);
     }
 
     /// @dev Non-reentrant via distributeFees()
@@ -1025,7 +1025,7 @@ contract Folio is
 
     /// Set folio fee — fraction of fee-recipient shares to burn
     /// @param _newFee D18{1}
-    function _setFolioFee(uint256 _newFee) internal {
+    function _setFolioSelfFee(uint256 _newFee) internal {
         require(_newFee <= MAX_FOLIO_FEE, Folio__FolioFeeTooHigh());
 
         folioFeeForSelf = _newFee;
