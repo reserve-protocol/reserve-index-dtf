@@ -154,6 +154,7 @@ contract FolioTest is BaseTest {
             feeRecipients: recipients,
             tvlFee: MAX_TVL_FEE,
             mintFee: 0,
+            folioFee: 0,
             mandate: "mandate"
         });
 
