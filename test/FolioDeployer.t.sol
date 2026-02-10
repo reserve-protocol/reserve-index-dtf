@@ -315,6 +315,7 @@ contract FolioDeployerTest is BaseTest {
                     feeRecipients: recipients,
                     tvlFee: MAX_TVL_FEE,
                     mintFee: MAX_MINT_FEE,
+                    folioFeeForSelf: 0,
                     mandate: "mandate"
                 }),
                 IFolio.FolioFlags({
@@ -485,6 +486,7 @@ contract FolioDeployerTest is BaseTest {
                 feeRecipients: recipients,
                 tvlFee: MAX_TVL_FEE,
                 mintFee: MAX_MINT_FEE,
+                folioFeeForSelf: 0,
                 mandate: "mandate"
             }),
             IFolio.FolioFlags({
@@ -601,6 +603,7 @@ contract FolioDeployerTest is BaseTest {
                     feeRecipients: recipients,
                     tvlFee: MAX_TVL_FEE,
                     mintFee: MAX_MINT_FEE,
+                    folioFeeForSelf: 0,
                     mandate: "mandate"
                 }),
                 IFolio.FolioFlags({

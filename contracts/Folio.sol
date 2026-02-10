@@ -14,7 +14,7 @@ import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/tr
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
 import { FolioLib } from "@utils/FolioLib.sol";
-import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_MINT_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_MINT_FEE, MAX_FOLIO_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
@@ -189,6 +189,7 @@ contract Folio is
     // === 6.0.0 ===
     bool public tradeAllowlistEnabled;
     EnumerableSet.AddressSet private tradeTokenAllowlist;
+    uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -218,6 +219,7 @@ contract Folio is
         FolioLib.setFeeRecipients(feeRecipients, _additionalDetails.feeRecipients);
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
+        _setFolioSelfFee(_additionalDetails.folioFeeForSelf);
         _setAuctionLength(_additionalDetails.auctionLength);
         _setMandate(_additionalDetails.mandate);
 
@@ -315,6 +317,15 @@ contract Folio is
         distributeFees();
 
         _setMintFee(_newFee);
+    }
+
+    /// Set the folio fee — fraction of fee-recipient shares that are burned (not minted)
+    /// @dev Non-reentrant via distributeFees()
+    /// @param _newFee D18{1} Fraction of fee-recipient shares to burn
+    function setFolioSelfFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        distributeFees();
+
+        _setFolioSelfFee(_newFee);
     }
 
     /// @dev Non-reentrant via distributeFees()
@@ -434,10 +445,13 @@ contract Folio is
     ) external nonReentrant notDeprecated sync returns (address[] memory _assets, uint256[] memory _amounts) {
         // === Calculate fee shares ===
 
-        (uint256 sharesOut, uint256 daoFeeShares, uint256 totalFeeShares) = FolioLib.computeMintFees(
-            shares,
-            mintFee,
-            minSharesOut,
+        (uint256 sharesOut, uint256 daoFeeShares, uint256 feeRecipientFeeShares) = FolioLib.computeMintFees(
+            FolioLib.MintFeeParams({
+                shares: shares,
+                mintFee: mintFee,
+                folioFeeForSelf: folioFeeForSelf,
+                minSharesOut: minSharesOut
+            }),
             daoFeeRegistry
         );
 
@@ -458,7 +472,7 @@ contract Folio is
 
         // defer fee handouts until distributeFees()
         daoPendingFeeShares += daoFeeShares;
-        feeRecipientsPendingFeeShares += totalFeeShares - daoFeeShares;
+        feeRecipientsPendingFeeShares += feeRecipientFeeShares;
     }
 
     /// @param shares {share} Amount of shares to redeem
@@ -986,6 +1000,7 @@ contract Folio is
                 currentDaoPending: daoPendingFeeShares,
                 currentFeeRecipientsPending: feeRecipientsPendingFeeShares,
                 tvlFee: tvlFee,
+                folioFeeForSelf: folioFeeForSelf,
                 supply: super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares,
                 elapsed: elapsed
             }),
@@ -1006,6 +1021,15 @@ contract Folio is
 
         mintFee = _newFee;
         emit MintFeeSet(_newFee);
+    }
+
+    /// Set folio fee — fraction of fee-recipient shares to burn
+    /// @param _newFee D18{1}
+    function _setFolioSelfFee(uint256 _newFee) internal {
+        require(_newFee <= MAX_FOLIO_FEE, Folio__FolioFeeTooHigh());
+
+        folioFeeForSelf = _newFee;
+        emit FolioFeeSet(_newFee);
     }
 
     /// @param _newLength {s}
