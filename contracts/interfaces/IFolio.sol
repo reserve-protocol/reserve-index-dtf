@@ -33,7 +33,7 @@ interface IFolio {
     event MintFeeSet(uint256 newFee);
     event FolioFeeSet(uint256 newFolioFee);
     event FeeRecipientsSet(FeeRecipient[] recipients);
-    event AuctionLengthSet(uint256 newAuctionLength);
+    event MaxAuctionLengthSet(uint256 newMaxAuctionLength);
     event MandateSet(string newMandate);
     event TrustedFillerRegistrySet(address trustedFillerRegistry, bool isEnabled);
     event FolioDeprecated();
@@ -122,7 +122,7 @@ interface IFolio {
     }
 
     struct FolioAdditionalDetails {
-        uint256 auctionLength; // {s}
+        uint256 maxAuctionLength; // {s}
         FeeRecipient[] feeRecipients;
         uint256 tvlFee; // D18{1/s}
         uint256 mintFee; // D18{1}

@@ -229,9 +229,9 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
             uint256[] memory values = new uint256[](1);
             values[0] = 0;
             bytes[] memory calldatas = new bytes[](1);
-            calldatas[0] = abi.encodeWithSelector(folio.setAuctionLength.selector, 1 days);
+            calldatas[0] = abi.encodeWithSelector(folio.setMaxAuctionLength.selector, 1 days);
             string memory description = "Update auction length";
-            assertNotEq(folio.auctionLength(), 1 days);
+            assertNotEq(folio.maxAuctionLength(), 1 days);
             uint256 pid = newOwnerGovernor.propose(targets, values, calldatas, description);
 
             skip(newOwnerGovernor.votingDelay() + 1);
@@ -245,7 +245,7 @@ abstract contract GovernanceSpell_31_03_2025_Test is BaseTest {
             skip(TimelockController(payable(newOwnerGovernor.timelock())).getMinDelay() + 1);
             vm.roll(block.number + 1);
             newOwnerGovernor.execute(targets, values, calldatas, keccak256(bytes(description)));
-            assertEq(folio.auctionLength(), 1 days);
+            assertEq(folio.maxAuctionLength(), 1 days);
 
             // and admin proxy upgrade
 
