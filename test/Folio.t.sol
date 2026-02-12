@@ -2213,10 +2213,24 @@ contract FolioTest is BaseTest {
 
         vm.startPrank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
-        folio.openAuction(0, new address[](0), new IFolio.WeightRange[](0), new IFolio.PriceRange[](0), NATIVE_LIMITS, AUCTION_LENGTH);
+        folio.openAuction(
+            0,
+            new address[](0),
+            new IFolio.WeightRange[](0),
+            new IFolio.PriceRange[](0),
+            NATIVE_LIMITS,
+            AUCTION_LENGTH
+        );
 
         vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
-        folio.openAuction(1, new address[](0), new IFolio.WeightRange[](0), new IFolio.PriceRange[](0), NATIVE_LIMITS, AUCTION_LENGTH);
+        folio.openAuction(
+            1,
+            new address[](0),
+            new IFolio.WeightRange[](0),
+            new IFolio.PriceRange[](0),
+            NATIVE_LIMITS,
+            AUCTION_LENGTH
+        );
     }
 
     function test_openAuctionCustomLengthRequiresMaxWhenPriceControlNone() public {
