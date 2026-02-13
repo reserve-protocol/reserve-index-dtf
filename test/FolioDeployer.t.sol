@@ -21,12 +21,9 @@ interface IStakingVaultTest is IERC5805, IERC4626 {
     function owner() external view returns (address);
 }
 
-interface IGovernorTest is IGovernor, IAccessControl {
+interface IGovernorTest is IGovernor {
     function optimisticParams() external view returns (IReserveOptimisticGovernor.OptimisticGovernanceParams memory);
-    function vetoPeriod() external view returns (uint256);
-    function vetoThreshold() external view returns (uint256);
-    function slashingPercentage() external view returns (uint256);
-    function numParallelProposals() external view returns (uint256);
+    function getProposalThrottleCapacity() external view returns (uint256);
     function quorumNumerator() external view returns (uint256);
     function quorumDenominator() external view returns (uint256);
 }
@@ -312,7 +309,7 @@ contract FolioDeployerTest is BaseTest {
                 _basicDetails(),
                 _additionalDetails(),
                 _flags(),
-                _govParams(guardians),
+                _govParams(guardians, address(MEME)),
                 IFolioDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
                 bytes32(0)
             );
@@ -376,12 +373,7 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(timelock.hasRole(PROPOSER_ROLE, address(governor)), "wrong proposer role");
         assertTrue(timelock.hasRole(EXECUTOR_ROLE, address(governor)), "wrong executor role");
         assertFalse(timelock.hasRole(EXECUTOR_ROLE, address(0)), "wrong executor role");
-        assertTrue(timelock.hasRole(CANCELLER_ROLE, user2), "wrong canceler role");
-        assertFalse(governor.hasRole(DEFAULT_ADMIN_ROLE, address(timelock)), "wrong admin role");
-        assertFalse(governor.hasRole(PROPOSER_ROLE, address(timelock)), "wrong proposer role");
-        assertFalse(governor.hasRole(EXECUTOR_ROLE, address(timelock)), "wrong executor role");
-        assertFalse(governor.hasRole(CANCELLER_ROLE, address(timelock)), "wrong canceller role");
-
+        assertTrue(timelock.hasRole(CANCELLER_ROLE, user1), "wrong canceler role");
         // Check optimistic governance
 
         IReserveOptimisticGovernor.OptimisticGovernanceParams memory optimisticParams = governor.optimisticParams();
@@ -389,14 +381,14 @@ contract FolioDeployerTest is BaseTest {
         assertEq(optimisticParams.vetoPeriod, 1 days, "wrong veto period");
         assertEq(optimisticParams.vetoThreshold, 0.05e18, "wrong veto threshold");
         
-        assertTrue(timelock.hasRole(OPTIMISTIC_PROPOSER_ROLE, address(governor)), "wrong optimistic proposer role");
+        assertFalse(timelock.hasRole(OPTIMISTIC_PROPOSER_ROLE, address(governor)), "wrong optimistic proposer role");
 
         // Check rebalance manager is properly set
         assertTrue(folio.hasRole(REBALANCE_MANAGER, address(timelock)), "wrong basket manager role");
 
         // Check StakingVault
         assertEq(stToken.owner(), address(timelock), "wrong staking vault owner");
-        assertEq(stToken.asset(), address(folio), "wrong staking vault asset");
+        assertEq(stToken.asset(), address(MEME), "wrong staking vault asset");
     }
 
     function test_createGovernedFolio_withExistingRebalanceManager() public {
@@ -426,7 +418,7 @@ contract FolioDeployerTest is BaseTest {
                 _basicDetails(),
                 _additionalDetails(),
                 _flags(),
-                _govParams(guardians),
+                _govParams(guardians, address(MEME)),
                 IFolioDeployer.GovRoles(rebalanceManagers, auctionLaunchers, new address[](0)),
                 bytes32(0)
             );
@@ -472,11 +464,12 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(timelock.hasRole(CANCELLER_ROLE, user1), "wrong canceler role");
 
         // Check optimistic governance
-        assertEq(governor.vetoPeriod(), 1 days, "wrong veto period");
-        assertEq(governor.vetoThreshold(), 0.05e18, "wrong veto threshold");
-        assertEq(governor.slashingPercentage(), 0.1e18, "wrong slashing percentage");
-        assertEq(governor.numParallelProposals(), 3, "wrong num parallel proposals");
-        assertTrue(timelock.hasRole(OPTIMISTIC_PROPOSER_ROLE, address(governor)), "wrong optimistic proposer role");
+        IReserveOptimisticGovernor.OptimisticGovernanceParams memory optimisticParams = governor.optimisticParams();
+        assertEq(optimisticParams.vetoDelay, 1 seconds, "wrong veto delay");
+        assertEq(optimisticParams.vetoPeriod, 1 days, "wrong veto period");
+        assertEq(optimisticParams.vetoThreshold, 0.05e18, "wrong veto threshold");
+        assertEq(governor.getProposalThrottleCapacity(), 10, "wrong proposal throttle capacity");
+        assertFalse(timelock.hasRole(OPTIMISTIC_PROPOSER_ROLE, address(governor)), "wrong optimistic proposer role");
 
         // Check rebalance manager is properly set
         assertTrue(folio.hasRole(REBALANCE_MANAGER, dao), "wrong basket manager role");
@@ -499,7 +492,7 @@ contract FolioDeployerTest is BaseTest {
                 _basicDetails(),
                 _additionalDetails(),
                 _flags(),
-                _govParams(guardians),
+                _govParams(guardians, address(MEME)),
                 IFolioDeployer.GovRoles(new address[](0), new address[](0), new address[](0)),
                 bytes32(i)
             );
@@ -560,7 +553,7 @@ contract FolioDeployerTest is BaseTest {
         });
     }
 
-    function _govParams(address[] memory guardians) internal pure returns (IFolioDeployer.GovParams memory) {
+    function _govParams(address[] memory guardians, address underlying) internal pure returns (IFolioDeployer.GovParams memory) {
         return IFolioDeployer.GovParams({
             optimisticParams: IReserveOptimisticGovernor.OptimisticGovernanceParams({
                 vetoDelay: 1 seconds,
@@ -579,7 +572,7 @@ contract FolioDeployerTest is BaseTest {
             optimisticProposers: new address[](0),
             guardians: guardians,
             timelockDelay: 2 days,
-            underlying: address(0)
+            underlying: underlying
         });
     }
 }
