@@ -19,12 +19,20 @@ uint256 constant RESTRICTED_AUCTION_BUFFER = 120; // {s} 2 min
 
 uint256 constant ONE_OVER_YEAR = 31709791983; // D18{1/s} 1e18 / 31536000
 
+// StakingVault
+uint256 constant DEFAULT_REWARD_PERIOD = 3.5 days; // {s} 3.5 days
+uint256 constant DEFAULT_UNSTAKING_DELAY = 1 weeks; // {s} 1 week
+
 uint256 constant ONE_DAY = 24 hours; // {s} 1 day
 
 uint256 constant D18 = 1e18; // D18
 uint256 constant D27 = 1e27; // D27
 
 bytes32 constant DEFAULT_ADMIN_ROLE = 0x00;
+bytes32 constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE"); // 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
+bytes32 constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE"); // 0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63
+bytes32 constant CANCELLER_ROLE = keccak256("CANCELLER_ROLE"); // 0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783
+
 bytes32 constant AUCTION_APPROVER = keccak256("AUCTION_APPROVER"); // 0x2be23b023f3eee571adc019cdcf3f0bcf041151e6ff405a4bf0c4bfc6faea8c9 DEPRECATED
 bytes32 constant REBALANCE_MANAGER = keccak256("REBALANCE_MANAGER"); // 0x4ff6ae4d6a29e79ca45c6441bdc89b93878ac6118485b33c8baa3749fc3cb130
 bytes32 constant AUCTION_LAUNCHER = keccak256("AUCTION_LAUNCHER"); // 0x13ff1b2625181b311f257c723b5e6d366eb318b212d9dd694c48fcf227659df5

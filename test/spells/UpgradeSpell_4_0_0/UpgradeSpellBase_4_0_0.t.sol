@@ -85,7 +85,7 @@ contract UpgradeSpellBase_4_0_0_Test is GenericUpgradeSpell_4_0_0_Test {
 
     function _setUp() public virtual override {
         super._setUp();
-        spell = UpgradeSpell_4_0_0(0x4720dbCAEEF5834AEf590781F93d70fD1e3AcADB);
+        spell = IUpgradeSpell_4_0_0(0x4720dbCAEEF5834AEf590781F93d70fD1e3AcADB);
     }
 
     function test_upgradeSpell_400_fork_base() public {

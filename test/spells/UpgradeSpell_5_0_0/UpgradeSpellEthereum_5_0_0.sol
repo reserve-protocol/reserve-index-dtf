@@ -15,7 +15,7 @@ contract UpgradeSpellEthereum_5_0_0_Test is GenericUpgradeSpell_5_0_0_Test {
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,
             forkTarget: ForkNetwork.ETHEREUM,
-            forkBlock: 24336535
+            forkBlock: 24385145
         });
 
         // BED
@@ -69,8 +69,7 @@ contract UpgradeSpellEthereum_5_0_0_Test is GenericUpgradeSpell_5_0_0_Test {
 
     function _setUp() public virtual override {
         super._setUp();
-
-        spell = new UpgradeSpell_5_0_0();
+        spell = IUpgradeSpell_5_0_0(0x044B6F685FB8D0c3fd56D92FCBE5F0Ad947d2D53);
     }
 
     function test_upgradeSpell_500_fork_ethereum() public {

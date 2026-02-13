@@ -3,7 +3,6 @@ pragma solidity 0.8.28;
 
 import { Script, console2 } from "forge-std/Script.sol";
 
-import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
 
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
@@ -12,10 +11,7 @@ import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 import { FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
 import { FolioDeployer, IERC20, IFolio } from "@deployer/FolioDeployer.sol";
-import { GovernanceDeployer, IGovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
-import { FolioGovernor } from "@gov/FolioGovernor.sol";
-import { StakingVault } from "@staking/StakingVault.sol";
 import { FolioLens } from "@periphery/FolioLens.sol";
 
 string constant junkSeedPhrase = "test test test test test test test test test test test junk";
@@ -30,6 +26,8 @@ struct DeploymentParams {
     address folioVersionRegistry;
     // Trusted Filler Stuff
     address trustedFillerRegistry;
+    // Reserve Optimistic Deployer (from reserve-governor repo)
+    address optimisticDeployer;
 }
 
 enum DeploymentMode {
@@ -59,7 +57,8 @@ contract DeployScript is Script {
                 folioFeeRegistry: address(0),
                 feeRecipient: address(1), // Burn fees for Local Networks
                 folioVersionRegistry: address(0),
-                trustedFillerRegistry: address(0)
+                trustedFillerRegistry: address(0),
+                optimisticDeployer: address(0) // TODO: deploy ReserveOptimisticDeployer
             });
         }
 
@@ -72,7 +71,8 @@ contract DeployScript is Script {
                 folioFeeRegistry: 0x0262E3e15cCFD2221b35D05909222f1f5FCdcd80,
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
-                trustedFillerRegistry: 0x72DB5f49D0599C314E2f2FEDf6Fe33E1bA6C7A18
+                trustedFillerRegistry: 0x72DB5f49D0599C314E2f2FEDf6Fe33E1bA6C7A18,
+                optimisticDeployer: address(0) // TODO: deploy ReserveOptimisticDeployer
             });
 
             // Ethereum Mainnet - Canonical Parameters
@@ -81,7 +81,8 @@ contract DeployScript is Script {
                 folioFeeRegistry: 0x0262E3e15cCFD2221b35D05909222f1f5FCdcd80,
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
-                trustedFillerRegistry: 0x279ccF56441fC74f1aAC39E7faC165Dec5A88B3A
+                trustedFillerRegistry: 0x279ccF56441fC74f1aAC39E7faC165Dec5A88B3A,
+                optimisticDeployer: address(0) // TODO: deploy ReserveOptimisticDeployer
             });
 
             // BNB Smart Chain Mainnet - Canonical Parameters
@@ -90,7 +91,8 @@ contract DeployScript is Script {
                 folioFeeRegistry: 0x135437333990f799293F6AD19fE45032Ba68285e,
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0x79A4E963378AE34fC6c796a24c764322fC6c9390,
-                trustedFillerRegistry: 0x08424d7C52bf9edd4070701591Ea3FE6dca6449B
+                trustedFillerRegistry: 0x08424d7C52bf9edd4070701591Ea3FE6dca6449B,
+                optimisticDeployer: address(0) // TODO: deploy ReserveOptimisticDeployer
             });
         } else {
             // Base Mainnet - Testing Parameters
@@ -99,7 +101,8 @@ contract DeployScript is Script {
                 folioFeeRegistry: 0x6Acb6F241d5Ca0A048dA3d324C06B98f237EBD7b,
                 feeRecipient: 0xD4fda2C612dDc8822206446C81927936A63368E5,
                 folioVersionRegistry: 0x135437333990f799293F6AD19fE45032Ba68285e,
-                trustedFillerRegistry: 0x279ccF56441fC74f1aAC39E7faC165Dec5A88B3A
+                trustedFillerRegistry: 0x279ccF56441fC74f1aAC39E7faC165Dec5A88B3A,
+                optimisticDeployer: address(0) // TODO: deploy ReserveOptimisticDeployer
             });
 
             // BNB Smart Chain Mainnet - Testing Parameters
@@ -108,7 +111,8 @@ contract DeployScript is Script {
                 folioFeeRegistry: 0x91bc364B47992981a7a05C22c3F48b67De8aA61C,
                 feeRecipient: 0xD4fda2C612dDc8822206446C81927936A63368E5,
                 folioVersionRegistry: 0xA29A30307ff1ff2a071E74Ba7d07c59a37b46D56,
-                trustedFillerRegistry: 0xdBd9C5a83A3684E80D51fd1c00Af4A1fbfE03D14
+                trustedFillerRegistry: 0xdBd9C5a83A3684E80D51fd1c00Af4A1fbfE03D14,
+                optimisticDeployer: address(0) // TODO: deploy ReserveOptimisticDeployer
             });
         }
     }
@@ -180,20 +184,11 @@ contract DeployScript is Script {
 
         vm.startBroadcast(privateKey);
 
-        address governorImplementation = address(new FolioGovernor());
-        address timelockImplementation = address(new TimelockControllerUpgradeable());
-        address stakingVaultImplementation = address(new StakingVault());
-
-        GovernanceDeployer governanceDeployer = new GovernanceDeployer(
-            governorImplementation,
-            timelockImplementation,
-            stakingVaultImplementation
-        );
         FolioDeployer folioDeployer = new FolioDeployer(
             deployParams.folioFeeRegistry,
             deployParams.folioVersionRegistry,
             deployParams.trustedFillerRegistry,
-            governanceDeployer
+            deployParams.optimisticDeployer
         );
 
         CowSwapFiller cowSwapFiller = new CowSwapFiller();
@@ -207,16 +202,12 @@ contract DeployScript is Script {
 
         vm.stopBroadcast();
 
-        console2.log("Governance Deployer: %s", address(governanceDeployer));
         console2.log("Folio Deployer: %s", address(folioDeployer));
         console2.log("CowSwap Filler: %s", address(cowSwapFiller));
         console2.log("Folio Lens: %s", address(folioLens));
 
         require(folioDeployer.daoFeeRegistry() == deployParams.folioFeeRegistry, "wrong dao fee registry");
         require(folioDeployer.versionRegistry() == deployParams.folioVersionRegistry, "wrong version registry");
-        require(folioDeployer.governanceDeployer() == governanceDeployer, "wrong version registry");
         require(folioDeployer.trustedFillerRegistry() == deployParams.trustedFillerRegistry, "wrong filler registry");
-        require(governanceDeployer.governorImplementation() == governorImplementation, "wrong governor implementation");
-        require(governanceDeployer.timelockImplementation() == timelockImplementation, "wrong timelock implementation");
     }
 }
