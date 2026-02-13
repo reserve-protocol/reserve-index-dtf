@@ -2,17 +2,17 @@
 pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { IERC5805 } from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 import { Folio } from "@src/Folio.sol";
 import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_TTL, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { StakingVaultDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/StakingVaultArtifact.sol";
-import { IStakingVault } from "@reserve-protocol/reserve-governor/contracts/interfaces/IStakingVault.sol";
 import "./base/BaseExtremeTest.sol";
 
-/// @dev Extended interface for StakingVault testing - includes methods not in IStakingVault
-interface IStakingVaultTest is IStakingVault {
+/// @dev Extended interface for StakingVault testing - includes methods not in IERC5805
+interface IStakingVaultTest is IERC5805 {
     function initialize(
         string memory name,
         string memory symbol,
@@ -27,6 +27,8 @@ interface IStakingVaultTest is IStakingVault {
     function poke() external;
 
     function claimRewards(address[] calldata rewardTokens) external;
+
+    function addRewardToken(address rewardToken) external;
 }
 
 contract ExtremeTest is BaseExtremeTest {

@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import { Script, console2 } from "forge-std/Script.sol";
 
 import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
-import { UpgradeSpell_6_0_0 } from "@spells/upgrades/UpgradeSpell_6_0_0.sol";
+import { GovernanceSpell_12_02_2026 } from "@spells/12-02-2026/GovernanceSpell_12_02_2026.sol";
 
 string constant junkSeedPhrase = "test test test test test test test test test test test junk";
 
@@ -25,7 +25,7 @@ contract DeploySpell is Script {
     function run() external {
         vm.startBroadcast(privateKey);
 
-        UpgradeSpell_6_0_0 spell = new UpgradeSpell_6_0_0(IReserveOptimisticGovernorDeployer(governorDeployer));
+        GovernanceSpell_12_02_2026 spell = new GovernanceSpell_12_02_2026(IReserveOptimisticGovernorDeployer(governorDeployer));
 
         vm.stopBroadcast();
 

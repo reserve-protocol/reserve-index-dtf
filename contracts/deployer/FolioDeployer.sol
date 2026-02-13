@@ -160,7 +160,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             IReserveOptimisticGovernorDeployer.DeploymentParams memory deploymentParams = IReserveOptimisticGovernorDeployer.DeploymentParams({
                 optimisticParams: govParams.optimisticParams,
                 standardParams: govParams.standardParams,
-                selectorData: _optimisticSelectorData(folio),
+                selectorData: govParams.optimisticSelectorData,
                 optimisticProposers: govParams.optimisticProposers,
                 guardians: govParams.guardians,
                 timelockDelay: govParams.timelockDelay,
@@ -204,23 +204,5 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             governor,
             timelock
         );
-    }
-
-    function _optimisticSelectorData(address folio) internal pure returns (IOptimisticSelectorRegistry.SelectorData[] memory) {
-        bytes4[] memory selectors = new bytes4[](10);
-        selectors[0] = Folio.addToBasket.selector;
-        selectors[1] = Folio.removeFromBasket.selector;
-        selectors[2] = Folio.setTVLFee.selector;
-        selectors[3] = Folio.setMintFee.selector;
-        selectors[4] = Folio.setFeeRecipients.selector;
-        selectors[5] = Folio.setAuctionLength.selector;
-        selectors[6] = Folio.setMandate.selector;
-        selectors[7] = Folio.setName.selector;
-        selectors[8] = Folio.setRebalanceControl.selector;
-        selectors[9] = Folio.setBidsEnabled.selector;
-
-        IOptimisticSelectorRegistry.SelectorData[] memory selectorData = new IOptimisticSelectorRegistry.SelectorData[](1);
-        selectorData[0] = IOptimisticSelectorRegistry.SelectorData({ target: folio, selectors: selectors });
-        return selectorData;
     }
 }

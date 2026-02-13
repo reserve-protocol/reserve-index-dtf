@@ -3,10 +3,11 @@ pragma solidity 0.8.28;
 
 import { IGovernor } from "@openzeppelin/contracts/governance/IGovernor.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { IERC5805 } from "@openzeppelin/contracts/interfaces/IERC5805.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 import { OPTIMISTIC_PROPOSER_ROLE } from "@reserve-protocol/reserve-governor/contracts/utils/Constants.sol";
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
-import { IStakingVault } from "@reserve-protocol/reserve-governor/contracts/interfaces/IStakingVault.sol";
 import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
@@ -16,8 +17,8 @@ import { PROPOSER_ROLE, EXECUTOR_ROLE, CANCELLER_ROLE, AUCTION_LAUNCHER, BRAND_M
 import "./base/BaseTest.sol";
 
 /// @dev Extended interfaces for testing - includes methods not in the base interfaces
-interface IStakingVaultTest is IStakingVault {
-    function deposit(uint256 assets, address receiver) external returns (uint256);
+interface IStakingVaultTest is IERC5805, IERC4626 {
+    function owner() external view returns (address);
 }
 
 interface IGovernorTest is IGovernor, IAccessControl {
@@ -384,10 +385,10 @@ contract FolioDeployerTest is BaseTest {
         // Check optimistic governance
 
         IReserveOptimisticGovernor.OptimisticGovernanceParams memory optimisticParams = governor.optimisticParams();
-        assertEq(governor.vetoPeriod(), 1 days, "wrong voting delay");
-        assertEq(governor.vetoThreshold(), 0.05e18, "wrong voting delay");
-        assertEq(governor.slashingPercentage(), 0.1e18, "wrong voting delay");
-        assertEq(governor.numParallelProposals(), 3, "wrong voting delay");
+        assertEq(optimisticParams.vetoDelay, 1 seconds, "wrong veto delay");
+        assertEq(optimisticParams.vetoPeriod, 1 days, "wrong veto period");
+        assertEq(optimisticParams.vetoThreshold, 0.05e18, "wrong veto threshold");
+        
         assertTrue(timelock.hasRole(OPTIMISTIC_PROPOSER_ROLE, address(governor)), "wrong optimistic proposer role");
 
         // Check rebalance manager is properly set
@@ -543,6 +544,7 @@ contract FolioDeployerTest is BaseTest {
             feeRecipients: recipients,
             tvlFee: MAX_TVL_FEE,
             mintFee: MAX_MINT_FEE,
+            folioFeeForSelf: 0,
             mandate: "mandate"
         });
     }
@@ -561,18 +563,19 @@ contract FolioDeployerTest is BaseTest {
     function _govParams(address[] memory guardians) internal pure returns (IFolioDeployer.GovParams memory) {
         return IFolioDeployer.GovParams({
             optimisticParams: IReserveOptimisticGovernor.OptimisticGovernanceParams({
+                vetoDelay: 1 seconds,
                 vetoPeriod: 1 days,
-                vetoThreshold: 0.05e18,
-                slashingPercentage: 0.1e18,
-                numParallelProposals: 3
+                vetoThreshold: 0.05e18
             }),
             standardParams: IReserveOptimisticGovernor.StandardGovernanceParams({
                 votingDelay: 2 seconds,
                 votingPeriod: 2 weeks,
                 voteExtension: 1 weeks,
                 proposalThreshold: 0.02e18,
-                quorumNumerator: 0.08e18
+                quorumNumerator: 0.08e18,
+                proposalThrottleCapacity: 10
             }),
+            optimisticSelectorData: new IOptimisticSelectorRegistry.SelectorData[](0),
             optimisticProposers: new address[](0),
             guardians: guardians,
             timelockDelay: 2 days,
