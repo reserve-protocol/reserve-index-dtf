@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import "./BaseTest.sol";
-import { MAX_TVL_FEE, MAX_FEE_RECIPIENTS } from "@src/Folio.sol";
+import { MAX_TVL_FEE, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 
 abstract contract BaseExtremeTest is BaseTest {
     struct MintRedeemTestParams {

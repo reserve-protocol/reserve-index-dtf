@@ -10,7 +10,7 @@ import { IStakingVault } from "@reserve-protocol/reserve-governor/contracts/inte
 import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
 
 import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_MINT_FEE } from "contracts/Folio.sol";
+import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_MINT_FEE } from "@utils/Constants.sol";
 import { FolioDeployer, IFolioDeployer } from "@deployer/FolioDeployer.sol";
 import { PROPOSER_ROLE, EXECUTOR_ROLE, CANCELLER_ROLE, AUCTION_LAUNCHER, BRAND_MANAGER, REBALANCE_MANAGER, DEFAULT_ADMIN_ROLE } from "@utils/Constants.sol";
 import "./base/BaseTest.sol";

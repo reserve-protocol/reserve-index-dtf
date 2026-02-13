@@ -31,6 +31,7 @@ interface IFolio {
     event BasketTokenRemoved(address indexed token);
     event TVLFeeSet(uint256 newFee, uint256 feeAnnually);
     event MintFeeSet(uint256 newFee);
+    event FolioFeeSet(uint256 newFolioFee);
     event FeeRecipientsSet(FeeRecipient[] recipients);
     event AuctionLengthSet(uint256 newAuctionLength);
     event MandateSet(string newMandate);
@@ -51,6 +52,9 @@ interface IFolio {
     event RebalanceEnded(uint256 nonce);
     event BidsEnabledSet(bool bidsEnabled);
     event NameSet(string newName);
+    event TradeAllowlistEnabled(bool enabled);
+    event TradeAllowlistTokenAdded(address indexed token);
+    event TradeAllowlistTokenRemoved(address indexed token);
 
     // === Errors ===
 
@@ -67,6 +71,7 @@ interface IFolio {
     error Folio__TVLFeeTooHigh();
     error Folio__TVLFeeTooLow();
     error Folio__MintFeeTooHigh();
+    error Folio__FolioFeeTooHigh();
     error Folio__ZeroInitialShares();
 
     error Folio__InvalidAsset();
@@ -97,6 +102,7 @@ interface IFolio {
     error Folio__PermissionlessBidsDisabled();
     error Folio__EmptyRebalance();
     error Folo__NotInRebalance();
+    error Folio__TokenNotAllowlisted();
 
     // === Structures ===
 
@@ -120,6 +126,7 @@ interface IFolio {
         FeeRecipient[] feeRecipients;
         uint256 tvlFee; // D18{1/s}
         uint256 mintFee; // D18{1}
+        uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
         string mandate;
     }
 

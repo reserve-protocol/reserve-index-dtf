@@ -1,1 +1,3 @@
 snapshots/
+pnpm-lock.yaml
+.claude/
