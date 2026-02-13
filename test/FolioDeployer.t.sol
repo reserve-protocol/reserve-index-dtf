@@ -53,7 +53,7 @@ contract FolioDeployerTest is BaseTest {
         assertEq(folio.name(), "Test Folio", "wrong name");
         assertEq(folio.symbol(), "TFOLIO", "wrong symbol");
         assertEq(folio.decimals(), 18, "wrong decimals");
-        assertEq(folio.auctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
+        assertEq(folio.maxAuctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
         assertEq(folio.totalSupply(), 1e18 * 10000, "wrong total supply");
         assertEq(folio.balanceOf(owner), 1e18 * 10000, "wrong owner balance");
         (address[] memory _assets, ) = folio.totalAssets();
@@ -311,7 +311,7 @@ contract FolioDeployerTest is BaseTest {
                     initialShares: INITIAL_SUPPLY
                 }),
                 IFolio.FolioAdditionalDetails({
-                    auctionLength: MAX_AUCTION_LENGTH,
+                    maxAuctionLength: MAX_AUCTION_LENGTH,
                     feeRecipients: recipients,
                     tvlFee: MAX_TVL_FEE,
                     mintFee: MAX_MINT_FEE,
@@ -345,7 +345,7 @@ contract FolioDeployerTest is BaseTest {
 
         assertEq(folio.symbol(), "TFOLIO", "wrong symbol");
         assertEq(folio.decimals(), 18, "wrong decimals");
-        assertEq(folio.auctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
+        assertEq(folio.maxAuctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
         assertEq(folio.totalSupply(), 1e18 * 10000, "wrong total supply");
         assertEq(folio.balanceOf(owner), 1e18 * 10000, "wrong owner balance");
         (address[] memory _assets, ) = folio.totalAssets();
@@ -482,7 +482,7 @@ contract FolioDeployerTest is BaseTest {
                 initialShares: INITIAL_SUPPLY
             }),
             IFolio.FolioAdditionalDetails({
-                auctionLength: MAX_AUCTION_LENGTH,
+                maxAuctionLength: MAX_AUCTION_LENGTH,
                 feeRecipients: recipients,
                 tvlFee: MAX_TVL_FEE,
                 mintFee: MAX_MINT_FEE,
@@ -599,7 +599,7 @@ contract FolioDeployerTest is BaseTest {
                     initialShares: INITIAL_SUPPLY
                 }),
                 IFolio.FolioAdditionalDetails({
-                    auctionLength: MAX_AUCTION_LENGTH,
+                    maxAuctionLength: MAX_AUCTION_LENGTH,
                     feeRecipients: recipients,
                     tvlFee: MAX_TVL_FEE,
                     mintFee: MAX_MINT_FEE,

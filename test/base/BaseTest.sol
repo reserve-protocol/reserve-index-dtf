@@ -255,7 +255,7 @@ abstract contract BaseTest is Script, Test {
         address[] memory _assets,
         uint256[] memory _amounts,
         uint256 _initialShares,
-        uint256 _auctionLength,
+        uint256 _maxAuctionLength,
         IFolio.FeeRecipient[] memory _feeRecipients,
         uint256 _tvlFee,
         uint256 _mintFee,
@@ -272,7 +272,7 @@ abstract contract BaseTest is Script, Test {
         });
 
         IFolio.FolioAdditionalDetails memory _additionalDetails = IFolio.FolioAdditionalDetails({
-            auctionLength: _auctionLength,
+            maxAuctionLength: _maxAuctionLength,
             feeRecipients: _feeRecipients,
             tvlFee: _tvlFee,
             mintFee: _mintFee,
