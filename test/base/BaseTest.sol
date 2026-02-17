@@ -11,13 +11,13 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
 
-import { StakingVaultDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/StakingVaultArtifact.sol";
-import { ProposalLibDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ProposalLibArtifact.sol";
-import { ThrottleLibDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ThrottleLibArtifact.sol";
-import { ReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorArtifact.sol";
-import { TimelockControllerOptimisticDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/TimelockControllerOptimisticArtifact.sol";
-import { OptimisticSelectorRegistryDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/OptimisticSelectorRegistryArtifact.sol";
-import { ReserveOptimisticGovernorDeployerDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/DeployerArtifact.sol";
+import { StakingVaultDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/StakingVaultDeployer.sol";
+import { ProposalLibDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ProposalLibDeployer.sol";
+import { ThrottleLibDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ThrottleLibDeployer.sol";
+import { ReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorDeployer.sol";
+import { TimelockControllerOptimisticDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/TimelockControllerOptimisticDeployer.sol";
+import { OptimisticSelectorRegistryDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/OptimisticSelectorRegistryDeployer.sol";
+import { ReserveOptimisticGovernorDeployerDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorDeployerDeployer.sol";
 import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
@@ -136,7 +136,7 @@ abstract contract BaseTest is Script, Test {
         address stakingVaultImpl = StakingVaultDeployer.deploy();
         address proposalLib = ProposalLibDeployer.deploy();
         address throttleLib = ThrottleLibDeployer.deploy();
-        address governorImpl = ReserveOptimisticGovernorDeployer.deploy(proposalLib, throttleLib);
+        address governorImpl = ReserveOptimisticGovernorDeployer.deploy();
         address timelockImpl = TimelockControllerOptimisticDeployer.deploy();
         address selectorRegistryImpl = OptimisticSelectorRegistryDeployer.deploy();
 
