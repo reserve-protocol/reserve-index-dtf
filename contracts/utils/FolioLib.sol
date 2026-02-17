@@ -134,7 +134,7 @@ library FolioLib {
     function computeMintFees(
         MintFeeParams calldata params,
         IFolioDAOFeeRegistry daoFeeRegistry
-    ) external view returns (uint256 sharesOut, uint256 daoFeeShares, uint256 feeRecipientFeeShares) {
+    ) external returns (uint256 sharesOut, uint256 daoFeeShares, uint256 feeRecipientFeeShares) {
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
             address(this)
         );
