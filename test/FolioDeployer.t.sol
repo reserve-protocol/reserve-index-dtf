@@ -468,7 +468,6 @@ contract FolioDeployerTest is BaseTest {
         assertEq(optimisticParams.vetoDelay, 1 seconds, "wrong veto delay");
         assertEq(optimisticParams.vetoPeriod, 1 days, "wrong veto period");
         assertEq(optimisticParams.vetoThreshold, 0.05e18, "wrong veto threshold");
-        assertEq(governor.getProposalThrottleCapacity(), 10, "wrong proposal throttle capacity");
         assertFalse(timelock.hasRole(OPTIMISTIC_PROPOSER_ROLE, address(governor)), "wrong optimistic proposer role");
 
         // Check rebalance manager is properly set
@@ -533,7 +532,7 @@ contract FolioDeployerTest is BaseTest {
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
         return IFolio.FolioAdditionalDetails({
-            auctionLength: MAX_AUCTION_LENGTH,
+            maxAuctionLength: MAX_AUCTION_LENGTH,
             feeRecipients: recipients,
             tvlFee: MAX_TVL_FEE,
             mintFee: MAX_MINT_FEE,

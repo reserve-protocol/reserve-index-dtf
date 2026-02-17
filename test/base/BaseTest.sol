@@ -12,7 +12,8 @@ import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contrac
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
 
 import { StakingVaultDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/StakingVaultArtifact.sol";
-import { OptimisticProposalLibDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/OptimisticProposalLibArtifact.sol";
+import { ProposalLibDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ProposalLibArtifact.sol";
+import { ThrottleLibDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ThrottleLibArtifact.sol";
 import { ReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorArtifact.sol";
 import { TimelockControllerOptimisticDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/TimelockControllerOptimisticArtifact.sol";
 import { OptimisticSelectorRegistryDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/OptimisticSelectorRegistryArtifact.sol";
@@ -133,8 +134,9 @@ abstract contract BaseTest is Script, Test {
 
         // Deploy implementations via artifacts
         address stakingVaultImpl = StakingVaultDeployer.deploy();
-        address lib = OptimisticProposalLibDeployer.deploy();
-        address governorImpl = ReserveOptimisticGovernorDeployer.deploy(lib);
+        address proposalLib = ProposalLibDeployer.deploy();
+        address throttleLib = ThrottleLibDeployer.deploy();
+        address governorImpl = ReserveOptimisticGovernorDeployer.deploy(proposalLib, throttleLib);
         address timelockImpl = TimelockControllerOptimisticDeployer.deploy();
         address selectorRegistryImpl = OptimisticSelectorRegistryDeployer.deploy();
 
