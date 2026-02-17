@@ -6,7 +6,7 @@ import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/contracts/filler
 import { GPV2_SETTLEMENT } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/Constants.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
-import { AUCTION_WARMUP, D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -150,7 +150,7 @@ contract FolioTest is BaseTest {
         });
 
         IFolio.FolioAdditionalDetails memory additionalDetails = IFolio.FolioAdditionalDetails({
-            auctionLength: AUCTION_LENGTH,
+            maxAuctionLength: AUCTION_LENGTH,
             feeRecipients: recipients,
             tvlFee: MAX_TVL_FEE,
             mintFee: 0,
@@ -746,25 +746,25 @@ contract FolioTest is BaseTest {
         folio.setTVLFee(MAX_TVL_FEE + 1);
     }
 
-    function test_setAuctionLength() public {
+    function test_setMaxAuctionLength() public {
         vm.startPrank(owner);
-        assertEq(folio.auctionLength(), AUCTION_LENGTH, "wrong auction length");
+        assertEq(folio.maxAuctionLength(), AUCTION_LENGTH, "wrong auction length");
 
         vm.expectEmit(true, true, false, true);
-        emit IFolio.AuctionLengthSet(MAX_AUCTION_LENGTH);
-        folio.setAuctionLength(MAX_AUCTION_LENGTH);
-        assertEq(folio.auctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
+        emit IFolio.MaxAuctionLengthSet(MAX_AUCTION_LENGTH);
+        folio.setMaxAuctionLength(MAX_AUCTION_LENGTH);
+        assertEq(folio.maxAuctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
 
         vm.expectEmit(true, true, false, true);
-        emit IFolio.AuctionLengthSet(MIN_AUCTION_LENGTH);
-        folio.setAuctionLength(MIN_AUCTION_LENGTH);
-        assertEq(folio.auctionLength(), MIN_AUCTION_LENGTH, "wrong auction length");
+        emit IFolio.MaxAuctionLengthSet(MIN_AUCTION_LENGTH);
+        folio.setMaxAuctionLength(MIN_AUCTION_LENGTH);
+        assertEq(folio.maxAuctionLength(), MIN_AUCTION_LENGTH, "wrong auction length");
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector);
-        folio.setAuctionLength(MIN_AUCTION_LENGTH - 1);
+        folio.setMaxAuctionLength(MIN_AUCTION_LENGTH - 1);
 
         vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector);
-        folio.setAuctionLength(MAX_AUCTION_LENGTH + 1);
+        folio.setMaxAuctionLength(MAX_AUCTION_LENGTH + 1);
     }
 
     function test_setMandate() public {
@@ -1108,7 +1108,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, false, false, false);
         emit IFolio.AuctionOpened(1, 0, assets, weights, prices, NATIVE_LIMITS, block.timestamp, block.timestamp);
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // bid for half volume, leaving rest unused
 
@@ -1185,7 +1185,7 @@ contract FolioTest is BaseTest {
         vm.expectEmit(true, false, false, false);
         emit IFolio.AuctionOpened(1, 0, assets, weights, prices, NATIVE_LIMITS, block.timestamp, block.timestamp);
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // bid for half volume, leaving rest unused
 
@@ -1270,7 +1270,7 @@ contract FolioTest is BaseTest {
 
         // Auction 1: Test max auction size with multiple bids
         vm.prank(auctionLauncher);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // First bid: 2500 USDC for 2500 DAI
         uint256 amt1 = 2500e6; // sell amount in USDC (6 decimals)
@@ -1300,7 +1300,7 @@ contract FolioTest is BaseTest {
 
         // Auction 2: Verify max auction size resets for new auction within same rebalance
         vm.prank(auctionLauncher);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // Should be able to bid up to maxAuctionSize again in new auction
         (sellAmountRemaining, , ) = folio.getBid(1, USDC, DAI, 1000e6);
@@ -1341,7 +1341,7 @@ contract FolioTest is BaseTest {
 
         // Auction 1: Test max auction size with multiple bids
         vm.prank(auctionLauncher);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // First bid: 2500 DAI for 2500 USDC
         uint256 amt1 = 2500e18; // sell amount in DAI (18 decimals)
@@ -1371,7 +1371,7 @@ contract FolioTest is BaseTest {
 
         // Auction 2: Verify max auction size resets for new auction within same rebalance
         vm.prank(auctionLauncher);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // Should be able to bid up to maxAuctionSize again in new auction
         (, buyAmountRemaining, ) = folio.getBid(1, DAI, USDC, 1000e18);
@@ -1424,7 +1424,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // bid once at start time
@@ -1509,7 +1509,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // bid once at start time (10x)
@@ -1595,7 +1595,7 @@ contract FolioTest is BaseTest {
 
         // open auction
         vm.prank(auctionLauncher);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // bid should work
@@ -1617,7 +1617,7 @@ contract FolioTest is BaseTest {
         assertEq(bidsEnabled, false, "bids enabled should be false");
 
         vm.prank(auctionLauncher);
-        folio.openAuction(2, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(2, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // bid should revert now
@@ -1672,7 +1672,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // check prices
@@ -1773,7 +1773,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         (, uint256 start, uint256 end) = folio.auctions(0);
         vm.warp(start);
@@ -1860,7 +1860,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // now createTrustedFill should work
@@ -1952,7 +1952,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // should have right bid at start, middle, and end of auction
 
@@ -2014,7 +2014,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         vm.prank(user1);
         vm.expectRevert(IFolio.Folio__Unauthorized.selector);
@@ -2088,7 +2088,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         vm.prank(user1);
         vm.expectRevert(IFolio.Folio__Unauthorized.selector);
@@ -2159,7 +2159,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         (, uint256 start, uint256 end) = folio.auctions(0);
 
@@ -2213,10 +2213,151 @@ contract FolioTest is BaseTest {
 
         vm.startPrank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
-        folio.openAuction(0, new address[](0), new IFolio.WeightRange[](0), new IFolio.PriceRange[](0), NATIVE_LIMITS);
+        folio.openAuction(
+            0,
+            new address[](0),
+            new IFolio.WeightRange[](0),
+            new IFolio.PriceRange[](0),
+            NATIVE_LIMITS,
+            AUCTION_LENGTH
+        );
 
         vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
-        folio.openAuction(1, new address[](0), new IFolio.WeightRange[](0), new IFolio.PriceRange[](0), NATIVE_LIMITS);
+        folio.openAuction(
+            1,
+            new address[](0),
+            new IFolio.WeightRange[](0),
+            new IFolio.PriceRange[](0),
+            NATIVE_LIMITS,
+            AUCTION_LENGTH
+        );
+    }
+
+    function test_openAuctionCustomLengthRequiresMaxWhenPriceControlNone() public {
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        vm.prank(dao);
+        folio.startRebalance(tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        vm.startPrank(auctionLauncher);
+        vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH - 1);
+
+        uint256 auctionId = folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
+        (, uint256 start, uint256 end) = folio.auctions(auctionId);
+        assertEq(end - start, AUCTION_LENGTH, "wrong auction length");
+    }
+
+    function test_openAuctionCustomLengthBoundariesWithPartialControl() public {
+        vm.prank(owner);
+        folio.setRebalanceControl(
+            IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.PARTIAL })
+        );
+
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        vm.prank(dao);
+        folio.startRebalance(tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        vm.startPrank(auctionLauncher);
+        vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, MIN_AUCTION_LENGTH - 1);
+
+        uint256 aboveMax = folio.maxAuctionLength() + 1;
+        vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, aboveMax);
+
+        uint256 auctionId = folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, MIN_AUCTION_LENGTH);
+        (, uint256 start, uint256 end) = folio.auctions(auctionId);
+        assertEq(end - start, MIN_AUCTION_LENGTH, "wrong auction length");
+    }
+
+    function test_openAuctionCustomLengthExtendsRestrictedUntilByEffectiveLength() public {
+        vm.prank(owner);
+        folio.setRebalanceControl(
+            IFolio.RebalanceControl({ weightControl: false, priceControl: IFolio.PriceControl.PARTIAL })
+        );
+
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        uint256 launcherWindow = 1;
+        vm.prank(dao);
+        folio.startRebalance(tokens, limits, launcherWindow, MAX_TTL);
+
+        vm.warp(block.timestamp + launcherWindow + 1);
+
+        uint256 customLength = MIN_AUCTION_LENGTH + 13;
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, customLength);
+
+        (, , , , Folio.RebalanceTimestamps memory timestamps, ) = folio.getRebalance();
+        assertEq(
+            timestamps.restrictedUntil,
+            block.timestamp + customLength + AUCTION_WARMUP + RESTRICTED_AUCTION_BUFFER + 1,
+            "wrong restricted-until extension"
+        );
+    }
+
+    function test_openAuctionUnrestrictedUsesMaxAuctionLength() public {
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        vm.prank(dao);
+        folio.startRebalance(tokens, limits, 1, MAX_TTL);
+
+        (, , , , Folio.RebalanceTimestamps memory timestamps, ) = folio.getRebalance();
+        vm.warp(Math.max(timestamps.restrictedUntil, timestamps.startedAt + RESTRICTED_AUCTION_BUFFER));
+        folio.openAuctionUnrestricted(1);
+
+        (, uint256 start, uint256 end) = folio.auctions(0);
+        assertEq(end - start, folio.maxAuctionLength(), "wrong unrestricted auction length");
+    }
+
+    function test_openAuctionCustomLengthAcrossPriceControlModes() public {
+        IFolio.PriceControl[3] memory controls = [
+            IFolio.PriceControl.NONE,
+            IFolio.PriceControl.PARTIAL,
+            IFolio.PriceControl.ATOMIC_SWAP
+        ];
+        bool[3] memory allowsCustom = [false, true, true];
+        uint256 customLength = MIN_AUCTION_LENGTH + 17;
+
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        for (uint256 i; i < controls.length; i++) {
+            vm.prank(owner);
+            folio.setRebalanceControl(IFolio.RebalanceControl({ weightControl: false, priceControl: controls[i] }));
+
+            vm.prank(dao);
+            folio.startRebalance(tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+            vm.prank(auctionLauncher);
+            if (allowsCustom[i]) {
+                uint256 auctionId = folio.openAuction(i + 1, assets, weights, prices, NATIVE_LIMITS, customLength);
+                (, uint256 start, uint256 end) = folio.auctions(auctionId);
+                assertEq(end - start, customLength, "wrong custom auction length");
+            } else {
+                vm.expectRevert(IFolio.Folio__InvalidAuctionLength.selector);
+                folio.openAuction(i + 1, assets, weights, prices, NATIVE_LIMITS, customLength);
+            }
+
+            vm.prank(dao);
+            folio.endRebalance();
+        }
     }
 
     function test_auctionUnrestrictedCallerCannotClobber() public {
@@ -2259,7 +2400,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP,
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // Attempt to open the same auction unrestricted
         vm.prank(auctionLauncher);
@@ -2285,7 +2426,7 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
 
         // This call should revert because the rebalance period (availableUntil) has passed
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
     }
 
     function test_auctionNotAvailableBeforeOpen() public {
@@ -2331,7 +2472,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // auction should not be biddable after end
 
@@ -2374,7 +2515,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // Bid for most of the USDC, but not all
@@ -2422,7 +2563,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         vm.startPrank(user1);
@@ -2465,7 +2606,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
     }
 
     function test_auctionOnlyConsiderTokensInRebalance() public {
@@ -2543,7 +2684,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // dishonest callback that returns fewer tokens than expected
@@ -2591,7 +2732,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // bid in first pair auction for half volume at start
@@ -2677,7 +2818,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // bid for half of sell volume for DAI at starth
@@ -2763,7 +2904,7 @@ contract FolioTest is BaseTest {
                 block.timestamp + AUCTION_LENGTH
             );
 
-            folio.openAuction(rebalanceNonce, assets, weights, prices, NATIVE_LIMITS);
+            folio.openAuction(rebalanceNonce, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
             (, uint256 start, uint256 end) = folio.auctions(index);
 
             // should not revert
@@ -2928,7 +3069,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // Attempt bid with extremely low maxBuyAmount, causing slippage revert
@@ -2984,7 +3125,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // Attempt to bid for more USDC than is available in the folio.
@@ -3025,28 +3166,28 @@ contract FolioTest is BaseTest {
         invalidTokens1[1] = address(USDC);
         // This should fail because address(0) is not part of the rebalance details.
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
-        folio.openAuction(1, invalidTokens1, validWeights, validPrices, NATIVE_LIMITS);
+        folio.openAuction(1, invalidTokens1, validWeights, validPrices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // --- Case 2: Buy token is zero address ---
         address[] memory invalidTokens2 = new address[](2);
         invalidTokens2[0] = address(USDC);
         invalidTokens2[1] = address(0); // Invalid buy token
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
-        folio.openAuction(1, invalidTokens2, validWeights, validPrices, NATIVE_LIMITS);
+        folio.openAuction(1, invalidTokens2, validWeights, validPrices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // --- Case 3: Sell token is the Folio address ---
         address[] memory invalidTokens3 = new address[](2);
         invalidTokens3[0] = address(folio); // Invalid sell token
         invalidTokens3[1] = address(USDC);
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
-        folio.openAuction(1, invalidTokens3, validWeights, validPrices, NATIVE_LIMITS);
+        folio.openAuction(1, invalidTokens3, validWeights, validPrices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // --- Case 4: Buy token is the Folio address ---
         address[] memory invalidTokens4 = new address[](2);
         invalidTokens4[0] = address(USDC);
         invalidTokens4[1] = address(folio); // Invalid buy token
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
-        folio.openAuction(1, invalidTokens4, validWeights, validPrices, NATIVE_LIMITS);
+        folio.openAuction(1, invalidTokens4, validWeights, validPrices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.stopPrank();
     }
 
@@ -3078,11 +3219,11 @@ contract FolioTest is BaseTest {
         smallerPrices[1] = prices[1];
         smallerPrices[2] = prices[2];
         vm.expectRevert(IFolio.Folio__InvalidArrayLengths.selector);
-        folio.openAuction(1, assets, smallerWeights, smallerPrices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, smallerWeights, smallerPrices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // Add weights and retry, same error
         vm.expectRevert(IFolio.Folio__InvalidArrayLengths.selector);
-        folio.openAuction(1, assets, weights, smallerPrices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, smallerPrices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // Add prices, now should work
         vm.expectEmit(true, true, true, false);
@@ -3096,7 +3237,7 @@ contract FolioTest is BaseTest {
             block.timestamp,
             block.timestamp + AUCTION_LENGTH
         );
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
     }
 
     function test_auctionCannotStartRebalanceOnDuplicateTokens() public {
@@ -3238,23 +3379,23 @@ contract FolioTest is BaseTest {
         // --- Case 1: Low price is zero ---
         invalidPrices[0] = IFolio.PriceRange({ low: 0, high: 1e16 }); // Invalid low = 0
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
-        folio.openAuction(1, auctionAddresses, newWeights, invalidPrices, NATIVE_LIMITS);
+        folio.openAuction(1, auctionAddresses, newWeights, invalidPrices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // --- Case 2: Low price greater than high price ---
         invalidPrices[0] = IFolio.PriceRange({ low: 1e16, high: 1e15 }); // Invalid low > high
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
-        folio.openAuction(1, auctionAddresses, newWeights, invalidPrices, NATIVE_LIMITS);
+        folio.openAuction(1, auctionAddresses, newWeights, invalidPrices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // --- Case 3: High price exceeds MAX_TOKEN_PRICE ---
         invalidPrices[0] = IFolio.PriceRange({ low: 1e16, high: MAX_TOKEN_PRICE + 1 }); // Invalid high > max
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
-        folio.openAuction(1, auctionAddresses, newWeights, invalidPrices, NATIVE_LIMITS);
+        folio.openAuction(1, auctionAddresses, newWeights, invalidPrices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         // --- Case 4: High price exceeds range limit relative to low price ---
         uint256 lowPrice = 1e15;
         invalidPrices[0] = IFolio.PriceRange({ low: lowPrice, high: MAX_TOKEN_PRICE_RANGE * lowPrice + 1 }); // Invalid high > range * low
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
-        folio.openAuction(1, auctionAddresses, newWeights, invalidPrices, NATIVE_LIMITS);
+        folio.openAuction(1, auctionAddresses, newWeights, invalidPrices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.stopPrank();
     }
 
@@ -3264,7 +3405,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__FolioDeprecated.selector);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
     }
 
     function test_auctionCannotBidIfFolioDeprecated() public {
@@ -3291,7 +3432,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         vm.prank(owner);
         folio.deprecateFolio();
@@ -3416,7 +3557,7 @@ contract FolioTest is BaseTest {
 
         vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__MixedAtomicSwaps.selector);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
     }
 
     function test_endRebalance() public {
@@ -3439,7 +3580,7 @@ contract FolioTest is BaseTest {
 
         // Open an auction
         vm.prank(auctionLauncher);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // Attempt to end rebalance with unauthorized role (user1)
@@ -3464,7 +3605,7 @@ contract FolioTest is BaseTest {
         // Verify we cannot open a new auction
         vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
     }
 
     function test_priceControlAuctionBidWithoutCallback() public {
@@ -3523,7 +3664,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP,
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // bid once at start time
@@ -3618,7 +3759,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // bid once at start time
@@ -3695,25 +3836,25 @@ contract FolioTest is BaseTest {
         // 1. Test: startPrice == endPrice
         prices[0].high = prices[0].low;
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         prices[0].high = origPriceHigh;
 
         // // 2. Test: startPrice outside range
         prices[0].low = origPriceLow - 1; // Too low
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         prices[0].low = origPriceLow;
 
         // 3. Test: endPrice outside range
         prices[0].high = origPriceHigh + 1; // Too high
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         prices[0].high = origPriceHigh;
 
         // 4. Test: startPrice < endPrice
         prices[0] = IFolio.PriceRange({ low: origPriceHigh, high: origPriceLow }); // Low > High
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         prices[0] = IFolio.PriceRange({ low: origPriceLow, high: origPriceHigh });
 
         // 5. Test: Valid case should work
@@ -3733,7 +3874,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP,
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
     }
 
     function test_weightControlAuctionBidWithoutCallback() public {
@@ -3811,7 +3952,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         vm.warp(block.timestamp + AUCTION_WARMUP);
 
         // check prices
@@ -3916,7 +4057,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
 
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
 
         (, uint256 start, uint256 end) = folio.auctions(0);
 
@@ -3984,25 +4125,25 @@ contract FolioTest is BaseTest {
         // 1. Test: weightSpot > weightHigh
         weights[3].high = weights[3].low;
         vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         weights[3].high = origWeightHigh;
 
         // 2. Test: weightSpot < weightLow
         weights[3].low = weights[3].high;
         vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         weights[3].low = origWeightLow;
 
         // 3. Test: weightLow outside range
         weights[3].low = origWeightLow - 1; // Too low
         vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         weights[3].low = origWeightLow;
 
         // 4. Test: weightHigh outside range
         weights[3].high = origWeightHigh + 1; // Too high
         vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
         weights[3].high = origWeightHigh;
 
         // 5. Test: Valid case should work
@@ -4026,7 +4167,7 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP,
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
     }
 
     function test_cannotStartRebalanceInvalidArrays() public {

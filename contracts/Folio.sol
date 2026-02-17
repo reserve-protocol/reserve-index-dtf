@@ -61,7 +61,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * After the AUCTION_LAUNCHER's restricted period is over, anyone can open auctions until the rebalance expires. The
  *   AUCTION_LAUNCHER can always deny the unrestricted period by ending the rebalance when they are done.
  *
- * The unrestricted period exists primarily to avoid strong reliance on the AUCTION_LAUNCHER. The auctionLength should be
+ * The unrestricted period exists primarily to avoid strong reliance on the AUCTION_LAUNCHER. The maxAuctionLength should be
  *   long enough to support the price ranges provided by REBALANCE_MANAGER without excessive loss due to block precision
  *   in the case the AUCTION_LAUNCHER is not active.
  *
@@ -142,7 +142,7 @@ contract Folio is
     mapping(address token => uint256 timepoint) private buyEnds_DEPRECATED;
     uint256 private auctionDelay_DEPRECATED;
 
-    uint256 public auctionLength; // {s} length of an auction
+    uint256 public maxAuctionLength; // {s} max length of an auction
 
     // === 2.0.0 ===
     mapping(uint256 auctionId => DeprecatedStruct details) private auctionDetails_DEPRECATED;
@@ -220,7 +220,7 @@ contract Folio is
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
         _setFolioSelfFee(_additionalDetails.folioFeeForSelf);
-        _setAuctionLength(_additionalDetails.auctionLength);
+        _setMaxAuctionLength(_additionalDetails.maxAuctionLength);
         _setMandate(_additionalDetails.mandate);
 
         _setRebalanceControl(_folioFlags.rebalanceControl);
@@ -338,8 +338,8 @@ contract Folio is
     }
 
     /// @param _newLength {s} Length of an auction
-    function setAuctionLength(uint256 _newLength) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setAuctionLength(_newLength);
+    function setMaxAuctionLength(uint256 _newLength) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setMaxAuctionLength(_newLength);
     }
 
     /// @param _newMandate New mandate, a schelling point to guide governance
@@ -670,14 +670,25 @@ contract Folio is
     /// @param newWeights D27{tok/BU} New basket weight ranges for BU definition; must always be provided
     /// @param newPrices D27{UoA/tok} New price ranges; must always be provided and obey PriceControl setting
     /// @param newLimits D18{BU/share} New BU limits; must be within range
+    /// @param auctionLength {s} Desired length for this auction, subject to PriceControl and maxAuctionLength
     /// @return auctionId The newly created auctionId
     function openAuction(
         uint256 rebalanceNonce,
         address[] calldata tokens,
         WeightRange[] calldata newWeights,
         PriceRange[] calldata newPrices,
-        RebalanceLimits calldata newLimits
+        RebalanceLimits calldata newLimits,
+        uint256 auctionLength
     ) external onlyRole(AUCTION_LAUNCHER) nonReentrant notDeprecated sync returns (uint256 auctionId) {
+        if (rebalance.priceControl == PriceControl.NONE) {
+            require(auctionLength == maxAuctionLength, Folio__InvalidAuctionLength());
+        } else {
+            require(
+                auctionLength >= MIN_AUCTION_LENGTH && auctionLength <= maxAuctionLength,
+                Folio__InvalidAuctionLength()
+            );
+        }
+
         // require tokens are in the rebalance
         uint256 len = tokens.length;
         for (uint256 i; i < len; i++) {
@@ -685,7 +696,7 @@ contract Folio is
         }
 
         // open an auction on the provided limits, weights, and prices
-        auctionId = _openAuction(rebalanceNonce, tokens, newWeights, newPrices, newLimits, 0);
+        auctionId = _openAuction(rebalanceNonce, tokens, newWeights, newPrices, newLimits, 0, auctionLength);
 
         // bump rebalance deadlines to ensure an opportunity for the AUCTION_LAUNCHER to act again
         // can potentially send the rebalance from the unrestricted period back into the restricted period
@@ -743,7 +754,15 @@ contract Folio is
         });
 
         // open an auction on spot limits, spot weights, and initial prices
-        auctionId = _openAuction(rebalanceNonce, tokens, weights, prices, limits, RESTRICTED_AUCTION_BUFFER);
+        auctionId = _openAuction(
+            rebalanceNonce,
+            tokens,
+            weights,
+            prices,
+            limits,
+            RESTRICTED_AUCTION_BUFFER,
+            maxAuctionLength
+        );
     }
 
     /// Get auction bid parameters for an ongoing auction in the current block, for some token pair
@@ -913,6 +932,7 @@ contract Folio is
     /// @param tokens The tokens from the rebalance to include in the auction
     /// @param limits D18{BU/share} The BU limits for the auction
     /// @param auctionBuffer {s} The amount of extra buffer time to pad starting and ending rebalances/auctions
+    /// @param auctionLength {s} The effective length to use for this auction
     /// @return auctionId The newly created auctionId
     function _openAuction(
         uint256 rebalanceNonce,
@@ -920,7 +940,8 @@ contract Folio is
         WeightRange[] memory weights,
         PriceRange[] memory prices,
         RebalanceLimits memory limits,
-        uint256 auctionBuffer
+        uint256 auctionBuffer,
+        uint256 auctionLength
     ) internal returns (uint256 auctionId) {
         // enforce rebalance ongoing
         require(
@@ -1033,11 +1054,11 @@ contract Folio is
     }
 
     /// @param _newLength {s}
-    function _setAuctionLength(uint256 _newLength) internal {
+    function _setMaxAuctionLength(uint256 _newLength) internal {
         require(_newLength >= MIN_AUCTION_LENGTH && _newLength <= MAX_AUCTION_LENGTH, Folio__InvalidAuctionLength());
 
-        auctionLength = _newLength;
-        emit AuctionLengthSet(auctionLength);
+        maxAuctionLength = _newLength;
+        emit MaxAuctionLengthSet(maxAuctionLength);
     }
 
     function _setMandate(string calldata _newMandate) internal {

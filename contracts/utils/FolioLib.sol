@@ -134,7 +134,7 @@ library FolioLib {
     function computeMintFees(
         MintFeeParams calldata params,
         IFolioDAOFeeRegistry daoFeeRegistry
-    ) external view returns (uint256 sharesOut, uint256 daoFeeShares, uint256 feeRecipientFeeShares) {
+    ) external returns (uint256 sharesOut, uint256 daoFeeShares, uint256 feeRecipientFeeShares) {
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
             address(this)
         );
@@ -155,10 +155,13 @@ library FolioLib {
 
         // apply folioFeeForSelf to recipient portion
         feeRecipientFeeShares = totalFeeShares - daoFeeShares;
-        feeRecipientFeeShares -= (feeRecipientFeeShares * params.folioFeeForSelf) / D18;
+        uint256 folioSelfShares = (feeRecipientFeeShares * params.folioFeeForSelf) / D18;
+        feeRecipientFeeShares -= folioSelfShares;
 
         // {share} minter pays the full fee (including self-fee shares that are burned)
         sharesOut = params.shares - totalFeeShares;
         require(sharesOut != 0 && sharesOut >= params.minSharesOut, IFolio.Folio__InsufficientSharesOut());
+
+        emit IFolio.FolioFeePaid(address(this), folioSelfShares);
     }
 }

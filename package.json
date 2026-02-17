@@ -34,7 +34,6 @@
     "coverage": "forge coverage --report lcov --no-match-coverage '(script|test)'",
     "coverage:summary": "forge coverage --report summary --no-match-coverage '(script|test)'",
     "deploy": "forge script script/Deploy.s.sol:DeployScript --slow",
-    "deploy:spell": "forge script script/DeploySpell.s.sol:DeploySpell --slow",
     "playground": "forge script script/Playground.s.sol:PlaygroundScript --slow",
     "anvil": "anvil --fork-url https://ethereum-rpc.publicnode.com --chain-id 31337 --prune-history",
     "export": "tsx script/export.ts"

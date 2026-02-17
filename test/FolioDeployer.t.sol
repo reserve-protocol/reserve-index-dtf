@@ -79,7 +79,7 @@ contract FolioDeployerTest is BaseTest {
         assertEq(folio.name(), "Test Folio", "wrong name");
         assertEq(folio.symbol(), "TFOLIO", "wrong symbol");
         assertEq(folio.decimals(), 18, "wrong decimals");
-        assertEq(folio.auctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
+        assertEq(folio.maxAuctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
         assertEq(folio.totalSupply(), 1e18 * 10000, "wrong total supply");
         assertEq(folio.balanceOf(owner), 1e18 * 10000, "wrong owner balance");
         (address[] memory _assets, ) = folio.totalAssets();
@@ -327,7 +327,7 @@ contract FolioDeployerTest is BaseTest {
 
         assertEq(folio.symbol(), "TFOLIO", "wrong symbol");
         assertEq(folio.decimals(), 18, "wrong decimals");
-        assertEq(folio.auctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
+        assertEq(folio.maxAuctionLength(), MAX_AUCTION_LENGTH, "wrong auction length");
         assertEq(folio.totalSupply(), 1e18 * 10000, "wrong total supply");
         assertEq(folio.balanceOf(owner), 1e18 * 10000, "wrong owner balance");
         (address[] memory _assets, ) = folio.totalAssets();
