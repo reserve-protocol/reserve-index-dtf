@@ -157,13 +157,16 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         // Deploy StakingVault, Governor, Timelock, Selector Registry
         {
-            IReserveOptimisticGovernorDeployer.DeploymentParams memory deploymentParams = IReserveOptimisticGovernorDeployer.DeploymentParams({
+            IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = IReserveOptimisticGovernorDeployer.BaseDeploymentParams({
                 optimisticParams: govParams.optimisticParams,
                 standardParams: govParams.standardParams,
                 selectorData: govParams.optimisticSelectorData,
                 optimisticProposers: govParams.optimisticProposers,
                 guardians: govParams.guardians,
-                timelockDelay: govParams.timelockDelay,
+                timelockDelay: govParams.timelockDelay
+            });
+
+            IReserveOptimisticGovernorDeployer.NewStakingVaultParams memory newStakingVaultParams = IReserveOptimisticGovernorDeployer.NewStakingVaultParams({
                 underlying: IERC20Metadata(folio),
                 rewardTokens: new address[](0),
                 rewardHalfLife: DEFAULT_REWARD_PERIOD,
@@ -172,14 +175,15 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
             // non-vlDTF config
             if (govParams.underlying != address(0)) {
-                deploymentParams.underlying = IERC20Metadata(govParams.underlying);
+                newStakingVaultParams.underlying = IERC20Metadata(govParams.underlying);
 
-                deploymentParams.rewardTokens = new address[](1);
-                deploymentParams.rewardTokens[0] = folio;
+                newStakingVaultParams.rewardTokens = new address[](1);
+                newStakingVaultParams.rewardTokens[0] = folio;
             }
 
-            (stToken, governor, timelock, selectorRegistry) = IReserveOptimisticGovernorDeployer(optimisticGovernorDeployer).deploy(
-                deploymentParams,
+            (stToken, governor, timelock, selectorRegistry) = IReserveOptimisticGovernorDeployer(optimisticGovernorDeployer).deployWithNewStakingVault(
+                baseParams,
+                newStakingVaultParams,
                 deploymentSalt
             );
         }
