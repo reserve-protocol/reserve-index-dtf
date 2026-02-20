@@ -149,7 +149,7 @@ abstract contract BaseTest is Script, Test {
                 selectorRegistryImpl
             )
         );
-        
+
         folioDeployer = new FolioDeployer(
             address(daoFeeRegistry),
             address(versionRegistry),

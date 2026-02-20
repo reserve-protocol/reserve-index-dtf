@@ -22,7 +22,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
     address public immutable versionRegistry;
     address public immutable trustedFillerRegistry;
     address public immutable optimisticGovernorDeployer;
-    
+
     address public immutable folioImplementation;
 
     constructor(
@@ -157,21 +157,23 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         // Deploy StakingVault, Governor, Timelock, Selector Registry
         {
-            IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = IReserveOptimisticGovernorDeployer.BaseDeploymentParams({
-                optimisticParams: govParams.optimisticParams,
-                standardParams: govParams.standardParams,
-                selectorData: govParams.optimisticSelectorData,
-                optimisticProposers: govParams.optimisticProposers,
-                guardians: govParams.guardians,
-                timelockDelay: govParams.timelockDelay
-            });
+            IReserveOptimisticGovernorDeployer.BaseDeploymentParams
+                memory baseParams = IReserveOptimisticGovernorDeployer.BaseDeploymentParams({
+                    optimisticParams: govParams.optimisticParams,
+                    standardParams: govParams.standardParams,
+                    selectorData: govParams.optimisticSelectorData,
+                    optimisticProposers: govParams.optimisticProposers,
+                    guardians: govParams.guardians,
+                    timelockDelay: govParams.timelockDelay
+                });
 
-            IReserveOptimisticGovernorDeployer.NewStakingVaultParams memory newStakingVaultParams = IReserveOptimisticGovernorDeployer.NewStakingVaultParams({
-                underlying: IERC20Metadata(folio),
-                rewardTokens: new address[](0),
-                rewardHalfLife: DEFAULT_REWARD_PERIOD,
-                unstakingDelay: DEFAULT_UNSTAKING_DELAY
-            });
+            IReserveOptimisticGovernorDeployer.NewStakingVaultParams
+                memory newStakingVaultParams = IReserveOptimisticGovernorDeployer.NewStakingVaultParams({
+                    underlying: IERC20Metadata(folio),
+                    rewardTokens: new address[](0),
+                    rewardHalfLife: DEFAULT_REWARD_PERIOD,
+                    unstakingDelay: DEFAULT_UNSTAKING_DELAY
+                });
 
             // non-vlDTF config
             if (govParams.underlying != address(0)) {
@@ -181,11 +183,9 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 newStakingVaultParams.rewardTokens[0] = folio;
             }
 
-            (stToken, governor, timelock, selectorRegistry) = IReserveOptimisticGovernorDeployer(optimisticGovernorDeployer).deployWithNewStakingVault(
-                baseParams,
-                newStakingVaultParams,
-                deploymentSalt
-            );
+            (stToken, governor, timelock, selectorRegistry) = IReserveOptimisticGovernorDeployer(
+                optimisticGovernorDeployer
+            ).deployWithNewStakingVault(baseParams, newStakingVaultParams, deploymentSalt);
         }
 
         // If no basket managers are provided, configure timelock as REBALANCE_MANAGER
@@ -200,13 +200,6 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         // Swap proxyAdmin owner
         FolioProxyAdmin(proxyAdmin).transferOwnership(timelock);
 
-        emit GovernedFolioDeployed(
-            stToken,
-            folio,
-            governor,
-            timelock,
-            governor,
-            timelock
-        );
+        emit GovernedFolioDeployed(stToken, folio, governor, timelock, governor, timelock);
     }
 }

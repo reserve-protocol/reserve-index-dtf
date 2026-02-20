@@ -37,7 +37,7 @@ interface IVersioned {
  * @title GovernanceSpell_12_02_2026
  * @author akshatmittal, julianmrodri, tbrent
  * @notice Optimistic governance upgrade spell for DTFs
- * 
+ *
  * Three use-cases:
  *   A. vlDTF: NEW StakingVault + NEW governance (2-steps)
  *     1. deployGovernance(vlDTF=false): deploy NEW governor/timelock on NEW vlDTF staking vault
@@ -47,11 +47,11 @@ interface IVersioned {
  *     2. castTransferRoles(): transfer Folio roles to NEW timelock
  *   C. Join pre-existing vlToken governance: EXISTING StakingVault + EXISTING governance (1-step)
  *     1. castTransferRoles(): transfer Folio roles to EXISTING timelock
- * 
+ *
  * `deployGovernance()` should be executed permissionlessly in advance to prep the `castTransferRoles()` spell cast.
  *
  * In case (A), wait to cast `castTransferRoles()` until the new staking vault is secure (has enough deposits).
- * 
+ *
  * In case (B), wait to cast `castTransferRoles()` until the staking vault's owner is transferred to the new timelock.
  */
 contract GovernanceSpell_12_02_2026 {
@@ -86,12 +86,9 @@ contract GovernanceSpell_12_02_2026 {
         address[] memory guardians,
         bool vlDTF,
         bytes32 deploymentNonce
-    )
-        public
-        returns (NewDeployment memory newDeployment)
-    {
+    ) public returns (NewDeployment memory newDeployment) {
         address oldTimelock = oldGovernor.timelock();
-        
+
         // `oldGovernor.timelock()` MUST be the Folio's owner timelock, not trading timelock
         require(folio.hasRole(DEFAULT_ADMIN_ROLE, oldTimelock), UpgradeError(36));
 
@@ -119,25 +116,37 @@ contract GovernanceSpell_12_02_2026 {
 
         if (vlDTF) {
             // deploy NEW ReserveOptimisticGovernor + TimelockControllerOptimistic on NEW vlDTF StakingVault
-            
-            IReserveOptimisticGovernorDeployer.NewStakingVaultParams memory newStakingVaultParams = IReserveOptimisticGovernorDeployer.NewStakingVaultParams({
-                underlying: IERC20Metadata(address(folio)),
-                rewardTokens: new address[](0),
-                rewardHalfLife: DEFAULT_REWARD_PERIOD,
-                unstakingDelay: DEFAULT_UNSTAKING_DELAY
-            });
 
-            (newDeployment.newStakingVault, newDeployment.newGovernor, newDeployment.newTimelock, newDeployment.newSelectorRegistry) =
-                governorDeployer.deployWithNewStakingVault(baseDeployParams, newStakingVaultParams, deploymentNonce);
+            IReserveOptimisticGovernorDeployer.NewStakingVaultParams
+                memory newStakingVaultParams = IReserveOptimisticGovernorDeployer.NewStakingVaultParams({
+                    underlying: IERC20Metadata(address(folio)),
+                    rewardTokens: new address[](0),
+                    rewardHalfLife: DEFAULT_REWARD_PERIOD,
+                    unstakingDelay: DEFAULT_UNSTAKING_DELAY
+                });
+
+            (
+                newDeployment.newStakingVault,
+                newDeployment.newGovernor,
+                newDeployment.newTimelock,
+                newDeployment.newSelectorRegistry
+            ) = governorDeployer.deployWithNewStakingVault(baseDeployParams, newStakingVaultParams, deploymentNonce);
 
             require(IStakingVault(newDeployment.newStakingVault).asset() == address(folio), UpgradeError(26));
-            require(IStakingVault(newDeployment.newStakingVault).owner() == newDeployment.newTimelock, UpgradeError(27));
+            require(
+                IStakingVault(newDeployment.newStakingVault).owner() == newDeployment.newTimelock,
+                UpgradeError(27)
+            );
         } else {
             // deploy NEW ReserveOptimisticGovernor + TimelockControllerOptimistic on EXISTING staking vault
-            
-            (newDeployment.newStakingVault, newDeployment.newGovernor, newDeployment.newTimelock, newDeployment.newSelectorRegistry) =
-                governorDeployer.deployWithExistingStakingVault(baseDeployParams, oldGovernor.token(), deploymentNonce);
-            
+
+            (
+                newDeployment.newStakingVault,
+                newDeployment.newGovernor,
+                newDeployment.newTimelock,
+                newDeployment.newSelectorRegistry
+            ) = governorDeployer.deployWithExistingStakingVault(baseDeployParams, oldGovernor.token(), deploymentNonce);
+
             require(newDeployment.newStakingVault == oldGovernor.token(), UpgradeError(30));
         }
 
@@ -161,7 +170,7 @@ contract GovernanceSpell_12_02_2026 {
 
         // confirm staking vault owner is new timelock
         require(IStakingVault(oldGovernor.token()).owner() == newTimelock, UpgradeError(37));
-        
+
         // confirm caller is old owner timelock
         require(msg.sender == oldGovernor.timelock(), UpgradeError(14));
         require(folio.hasRole(DEFAULT_ADMIN_ROLE, msg.sender), UpgradeError(4));
