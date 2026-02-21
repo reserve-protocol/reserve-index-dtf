@@ -186,7 +186,7 @@ contract GovernanceSpell_12_02_2026 {
         require(folio.getRoleMember(REBALANCE_MANAGER, 0) == newTimelock, UpgradeError(18));
 
         // transfer proxy admin ownership
-        require(folioProxyAdmin.owner() == msg.sender, UpgradeError(34));
+        require(folioProxyAdmin.owner() == address(this), UpgradeError(34));
         folioProxyAdmin.transferOwnership(newTimelock);
         require(folioProxyAdmin.owner() == newTimelock, UpgradeError(35));
 
