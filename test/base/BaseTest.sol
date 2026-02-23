@@ -134,8 +134,6 @@ abstract contract BaseTest is Script, Test {
 
         // Deploy implementations via artifacts
         address stakingVaultImpl = StakingVaultDeployer.deploy();
-        address proposalLib = ProposalLibDeployer.deploy();
-        address throttleLib = ThrottleLibDeployer.deploy();
         address governorImpl = ReserveOptimisticGovernorDeployer.deploy();
         address timelockImpl = TimelockControllerOptimisticDeployer.deploy();
         address selectorRegistryImpl = OptimisticSelectorRegistryDeployer.deploy();
@@ -170,7 +168,7 @@ abstract contract BaseTest is Script, Test {
     }
 
     function _getForkRpc(ForkNetwork target) internal view returns (string memory forkRpc) {
-        // Enforces that variable exists.
+        // Enforce explicit fork RPC env vars (archive-capable), matching prior fork-test pattern.
         if (target == ForkNetwork.ETHEREUM) {
             forkRpc = vm.envString("FORK_RPC_MAINNET");
         } else if (target == ForkNetwork.BASE) {
@@ -183,6 +181,23 @@ abstract contract BaseTest is Script, Test {
             vm.createSelectFork(_getForkRpc(deploymentData.forkTarget));
         } else {
             vm.createSelectFork(_getForkRpc(deploymentData.forkTarget), deploymentData.forkBlock);
+        }
+
+        // Fork tests still need a local governor deployer instance for spell construction.
+        if (address(optimisticGovernanceDeployer) == address(0)) {
+            address stakingVaultImpl = StakingVaultDeployer.deploy();
+            address governorImpl = ReserveOptimisticGovernorDeployer.deploy();
+            address timelockImpl = TimelockControllerOptimisticDeployer.deploy();
+            address selectorRegistryImpl = OptimisticSelectorRegistryDeployer.deploy();
+
+            optimisticGovernanceDeployer = IReserveOptimisticGovernorDeployer(
+                ReserveOptimisticGovernorDeployerDeployer.deploy(
+                    stakingVaultImpl,
+                    governorImpl,
+                    timelockImpl,
+                    selectorRegistryImpl
+                )
+            );
         }
     }
 

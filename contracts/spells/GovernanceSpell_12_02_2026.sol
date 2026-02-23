@@ -158,18 +158,20 @@ contract GovernanceSpell_12_02_2026 {
     ///      - Caller is owner timelock
     ///      - Self has ownership of the proxy admin
     ///      - Self has DEFAULT_ADMIN_ROLE of Folio, as the 2nd admin in addition to the owner timelock
-    ///      - StakingVault of `oldGovernor` is ALREADY owned by `newTimelock`
+    ///      - StakingVault of `newGovernor` is ALREADY owned by `newGovernor.timelock()`
     function castTransferRoles(
         Folio folio,
         FolioProxyAdmin folioProxyAdmin,
         IFolioGovernor oldGovernor,
-        address oldTradingTimelock,
-        address newTimelock
+        IFolioGovernor oldTradingGovernor,
+        IFolioGovernor newGovernor
     ) public {
+        address oldTradingTimelock = oldTradingGovernor.timelock();
+        address newTimelock = newGovernor.timelock();
         require(newTimelock != address(0), UpgradeError(32));
 
         // confirm staking vault owner is new timelock
-        require(IStakingVault(oldGovernor.token()).owner() == newTimelock, UpgradeError(37));
+        require(IStakingVault(newGovernor.token()).owner() == newTimelock, UpgradeError(37));
 
         // confirm caller is old owner timelock
         require(msg.sender == oldGovernor.timelock(), UpgradeError(14));
@@ -215,10 +217,10 @@ contract GovernanceSpell_12_02_2026 {
         uint256 proposalThreshold = (proposalThresholdWithSupply * 1e18 + pastSupply - 1) / pastSupply;
         require(proposalThreshold >= 0.0001e18 && proposalThreshold <= 0.1e18, UpgradeError(13));
 
-        require(oldGovernor.quorumDenominator() == 1e18, UpgradeError(20));
+        uint256 quorumDenominator = oldGovernor.quorumDenominator();
 
         // D18{1}
-        uint256 quorumNumerator = oldGovernor.quorumNumerator();
+        uint256 quorumNumerator = (oldGovernor.quorumNumerator() * 1e18 + quorumDenominator - 1) / quorumDenominator;
         require(quorumNumerator >= 0.01e18 && quorumNumerator <= 0.25e18, UpgradeError(19));
 
         standardParams = IReserveOptimisticGovernor.StandardGovernanceParams({
