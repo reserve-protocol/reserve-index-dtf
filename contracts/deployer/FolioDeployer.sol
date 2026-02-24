@@ -164,7 +164,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                     selectorData: govParams.optimisticSelectorData,
                     optimisticProposers: govParams.optimisticProposers,
                     guardians: govParams.guardians,
-                    timelockDelay: govParams.timelockDelay
+                    timelockDelay: govParams.timelockDelay,
+                    proposalThrottleCapacity: govParams.proposalThrottleCapacity
                 });
 
             IReserveOptimisticGovernorDeployer.NewStakingVaultParams

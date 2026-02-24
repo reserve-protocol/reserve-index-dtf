@@ -63,7 +63,6 @@ abstract contract GenericGovernanceSpell_12_02_2026_Test is BaseTest {
                 _singleAddressArray(optimisticProposer),
                 cfg.guardians,
                 address(0),
-                3 days,
                 keccak256(abi.encode(i, "transfer"))
             );
             vm.stopPrank();
@@ -117,7 +116,6 @@ abstract contract GenericGovernanceSpell_12_02_2026_Test is BaseTest {
                 _singleAddressArray(optimisticProposer),
                 cfg.guardians,
                 address(cfg.folio),
-                3 days,
                 keccak256(abi.encode(i, "proposal-new"))
             );
             vm.stopPrank();

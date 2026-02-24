@@ -561,13 +561,13 @@ contract FolioDeployerTest is BaseTest {
                     votingPeriod: 2 weeks,
                     voteExtension: 1 weeks,
                     proposalThreshold: 0.02e18,
-                    quorumNumerator: 0.08e18,
-                    proposalThrottleCapacity: 10
+                    quorumNumerator: 0.08e18
                 }),
                 optimisticSelectorData: new IOptimisticSelectorRegistry.SelectorData[](0),
                 optimisticProposers: new address[](0),
                 guardians: guardians,
                 timelockDelay: 2 days,
+                proposalThrottleCapacity: 10,
                 underlying: underlying
             });
     }

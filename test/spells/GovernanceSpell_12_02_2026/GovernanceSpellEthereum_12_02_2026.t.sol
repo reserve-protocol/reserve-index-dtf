@@ -159,7 +159,6 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
             new address[](0),
             mvRwaCfg.guardians,
             address(0),
-            3 days,
             keccak256("mvRWA-shared-vault")
         );
         vm.stopPrank();

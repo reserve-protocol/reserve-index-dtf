@@ -30,6 +30,7 @@ interface IFolioDeployer {
         address[] optimisticProposers;
         address[] guardians;
         uint256 timelockDelay;
+        uint256 proposalThrottleCapacity;
         address underlying;
     }
 

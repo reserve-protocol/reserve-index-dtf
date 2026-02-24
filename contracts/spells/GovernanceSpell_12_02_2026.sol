@@ -98,7 +98,6 @@ contract GovernanceSpell_12_02_2026 {
         address[] calldata optimisticProposers,
         address[] calldata guardians,
         address newUnderlying,
-        uint48 voteExtension,
         bytes32 deploymentNonce
     ) public returns (NewDeployment memory newDeployment) {
         IStakingVault stakingVault = IStakingVault(stakingVaultGovernor.token());
@@ -106,29 +105,38 @@ contract GovernanceSpell_12_02_2026 {
         // spell contract must have ownership of old staking vault
         require(stakingVault.owner() == address(this), UpgradeError(1));
 
-        IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseDeployParams;
+        IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams;
         {
             // Optimistic governance params
-            baseDeployParams.optimisticParams = optimisticParams;
+            baseParams.optimisticParams = optimisticParams;
 
             // Standard governance params
-            (baseDeployParams.standardParams, baseDeployParams.timelockDelay) = _deriveStandardParams(
-                stakingVault,
-                stakingVaultGovernor,
-                voteExtension
-            );
+            baseParams.standardParams.votingDelay = 2 days;
+            baseParams.standardParams.votingPeriod = 3 days;
+            baseParams.standardParams.voteExtension = 2 days;
+            (
+                baseParams.standardParams.proposalThreshold,
+                baseParams.standardParams.quorumNumerator
+            ) = _proposalThresholdAndQuorum(stakingVault, stakingVaultGovernor);
+            // hard-coded long standard governance params to unify across DTFs
 
             // Optimistic whitelists
-            baseDeployParams.selectorData = optimisticSelectorData;
-            baseDeployParams.optimisticProposers = optimisticProposers;
+            baseParams.selectorData = optimisticSelectorData;
+            baseParams.optimisticProposers = optimisticProposers;
 
             // Guardians
             _validateGuardians(stakingVaultGovernor.timelock(), guardians);
-            baseDeployParams.guardians = guardians;
+            baseParams.guardians = guardians;
+
+            // Timelock delay
+            baseParams.timelockDelay = 2 days;
+
+            // Proposal throttle
+            baseParams.proposalThrottleCapacity = 3;
         }
 
         if (newUnderlying != address(0)) {
-            // deploy NEW ReserveOptimisticGovernor + TimelockControllerOptimistic on NEW vlDTF StakingVault
+            // deploy NEW ReserveOptimisticGovernor + TimelockControllerOptimistic on NEW StakingVault
 
             IReserveOptimisticGovernorDeployer.NewStakingVaultParams
                 memory newStakingVaultParams = IReserveOptimisticGovernorDeployer.NewStakingVaultParams({
@@ -143,7 +151,7 @@ contract GovernanceSpell_12_02_2026 {
                 newDeployment.newGovernor,
                 newDeployment.newTimelock,
                 newDeployment.newSelectorRegistry
-            ) = governorDeployer.deployWithNewStakingVault(baseDeployParams, newStakingVaultParams, deploymentNonce);
+            ) = governorDeployer.deployWithNewStakingVault(baseParams, newStakingVaultParams, deploymentNonce);
 
             require(IStakingVault(newDeployment.newStakingVault).asset() == newUnderlying, UpgradeError(3));
             require(address(stakingVault) != newDeployment.newStakingVault, UpgradeError(4));
@@ -161,11 +169,7 @@ contract GovernanceSpell_12_02_2026 {
                 newDeployment.newGovernor,
                 newDeployment.newTimelock,
                 newDeployment.newSelectorRegistry
-            ) = governorDeployer.deployWithExistingStakingVault(
-                baseDeployParams,
-                address(stakingVault),
-                deploymentNonce
-            );
+            ) = governorDeployer.deployWithExistingStakingVault(baseParams, address(stakingVault), deploymentNonce);
 
             require(address(stakingVault) == newDeployment.newStakingVault, UpgradeError(5));
 
@@ -222,48 +226,26 @@ contract GovernanceSpell_12_02_2026 {
 
     // === Internal ===
 
-    /// Derive standard governance params from old governor
-    function _deriveStandardParams(
+    /// @return proposalThreshold D18{1}
+    /// @return quorumNumerator D18{1}
+    function _proposalThresholdAndQuorum(
         IStakingVault stakingVault,
-        IFolioGovernor oldGovernor,
-        uint48 voteExtension
-    )
-        internal
-        view
-        returns (IReserveOptimisticGovernor.StandardGovernanceParams memory standardParams, uint256 timelockDelay)
-    {
+        IFolioGovernor governor
+    ) internal view returns (uint256 proposalThreshold, uint256 quorumNumerator) {
         uint256 pastSupply = stakingVault.getPastTotalSupply(stakingVault.clock() - 1);
 
         // {tok}
-        uint256 proposalThresholdWithSupply = oldGovernor.proposalThreshold();
+        uint256 proposalThresholdWithSupply = governor.proposalThreshold();
 
         // D18{1} = {tok} * D18{1} / {tok}
-        uint256 proposalThreshold = (proposalThresholdWithSupply * 1e18 + pastSupply - 1) / pastSupply;
+        proposalThreshold = (proposalThresholdWithSupply * 1e18 + pastSupply - 1) / pastSupply;
         require(proposalThreshold >= 0.0001e18 && proposalThreshold <= 0.1e18, UpgradeError(18));
 
-        uint256 quorumDenominator = oldGovernor.quorumDenominator();
+        uint256 quorumDenominator = governor.quorumDenominator();
 
         // D18{1}
-        uint256 quorumNumerator = (oldGovernor.quorumNumerator() * 1e18 + quorumDenominator - 1) / quorumDenominator;
+        quorumNumerator = (governor.quorumNumerator() * 1e18 + quorumDenominator - 1) / quorumDenominator;
         require(quorumNumerator >= 0.01e18 && quorumNumerator <= 0.25e18, UpgradeError(19));
-
-        // {s}
-        uint256 votingDelay = oldGovernor.votingDelay();
-        uint256 votingPeriod = oldGovernor.votingPeriod();
-
-        standardParams = IReserveOptimisticGovernor.StandardGovernanceParams({
-            votingDelay: SafeCast.toUint48(votingDelay),
-            votingPeriod: SafeCast.toUint32(votingPeriod),
-            voteExtension: voteExtension,
-            proposalThreshold: proposalThreshold,
-            quorumNumerator: quorumNumerator,
-            proposalThrottleCapacity: 10
-        });
-
-        // Timelock delay
-        uint256 minDelay = TimelockController(payable(oldGovernor.timelock())).getMinDelay();
-        require(minDelay != 0, UpgradeError(2));
-        timelockDelay = SafeCast.toUint48(minDelay);
     }
 
     /// Require `guardians` is a subset of the old timelock's CANCELLER_ROLE members
