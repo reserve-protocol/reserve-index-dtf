@@ -69,17 +69,17 @@ abstract contract GenericGovernanceSpell_12_02_2026_Test is BaseTest {
             vm.stopPrank();
 
             assertEq(dep.newStakingVault, cfg.stakingVaultGovernor.token(), "expected existing staking vault path");
-            assertEq(IFolioGovernor(dep.newGovernor).token(), cfg.stakingVaultGovernor.token(), "governor token mismatch");
+            assertEq(
+                IFolioGovernor(dep.newGovernor).token(),
+                cfg.stakingVaultGovernor.token(),
+                "governor token mismatch"
+            );
             assertTrue(dep.newTimelock != address(0), "timelock should be set");
 
             vm.startPrank(cfg.proxyAdmin.owner());
             cfg.proxyAdmin.transferOwnership(address(spell));
             cfg.folio.grantRole(DEFAULT_ADMIN_ROLE, address(spell));
-            spell.upgradeFolio(
-                cfg.folio,
-                cfg.proxyAdmin,
-                IFolioGovernor(dep.newGovernor)
-            );
+            spell.upgradeFolio(cfg.folio, cfg.proxyAdmin, IFolioGovernor(dep.newGovernor));
             vm.stopPrank();
 
             assertEq(cfg.proxyAdmin.owner(), dep.newTimelock, "proxy admin owner mismatch");
@@ -87,7 +87,7 @@ abstract contract GenericGovernanceSpell_12_02_2026_Test is BaseTest {
             assertEq(cfg.folio.getRoleMember(REBALANCE_MANAGER, 0), dep.newTimelock, "rebalance manager mismatch");
             assertEq(cfg.folio.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "unexpected admin count");
             assertEq(cfg.folio.getRoleMember(DEFAULT_ADMIN_ROLE, 0), dep.newTimelock, "admin mismatch");
-            
+
             _assertCanCreateBothProposalTypes(
                 IReserveOptimisticGovernorLike(dep.newGovernor),
                 IStakingVault(dep.newStakingVault),
@@ -138,7 +138,7 @@ abstract contract GenericGovernanceSpell_12_02_2026_Test is BaseTest {
             assertEq(cfg.folio.getRoleMember(REBALANCE_MANAGER, 0), dep.newTimelock, "rebalance manager mismatch");
             assertEq(cfg.folio.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "unexpected admin count");
             assertEq(cfg.folio.getRoleMember(DEFAULT_ADMIN_ROLE, 0), dep.newTimelock, "admin mismatch");
-            
+
             _assertCanCreateBothProposalTypes(
                 IReserveOptimisticGovernorLike(dep.newGovernor),
                 IStakingVault(dep.newStakingVault),
@@ -164,20 +164,12 @@ abstract contract GenericGovernanceSpell_12_02_2026_Test is BaseTest {
             vm.startPrank(cfg.proxyAdmin.owner());
             cfg.proxyAdmin.transferOwnership(address(spell));
             cfg.folio.grantRole(DEFAULT_ADMIN_ROLE, address(spell));
-            spell.upgradeFolio(
-                cfg.folio,
-                cfg.proxyAdmin,
-                cfg.joinExistingGovernor
-            );
+            spell.upgradeFolio(cfg.folio, cfg.proxyAdmin, cfg.joinExistingGovernor);
             vm.stopPrank();
 
             assertEq(cfg.proxyAdmin.owner(), joinExistingTimelock, "proxy admin owner mismatch");
             assertEq(cfg.folio.getRoleMemberCount(REBALANCE_MANAGER), 1, "unexpected rebalance manager count");
-            assertEq(
-                cfg.folio.getRoleMember(REBALANCE_MANAGER, 0),
-                joinExistingTimelock,
-                "rebalance manager mismatch"
-            );
+            assertEq(cfg.folio.getRoleMember(REBALANCE_MANAGER, 0), joinExistingTimelock, "rebalance manager mismatch");
             assertEq(cfg.folio.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "unexpected admin count");
             assertEq(cfg.folio.getRoleMember(DEFAULT_ADMIN_ROLE, 0), joinExistingTimelock, "admin mismatch");
         }
@@ -217,8 +209,11 @@ abstract contract GenericGovernanceSpell_12_02_2026_Test is BaseTest {
         assertFalse(governor.isOptimistic(standardProposalId));
 
         // Optimistic proposal (fast path)
-        (address[] memory optimisticTargets, uint256[] memory optimisticValues, bytes[] memory optimisticCalldatas) =
-            _singleCall(address(folio), 0, abi.encodeCall(Folio.setName, ("optimistic proposal")));
+        (
+            address[] memory optimisticTargets,
+            uint256[] memory optimisticValues,
+            bytes[] memory optimisticCalldatas
+        ) = _singleCall(address(folio), 0, abi.encodeCall(Folio.setName, ("optimistic proposal")));
 
         vm.prank(optimisticProposer);
         uint256 optimisticProposalId = governor.proposeOptimistic(
@@ -265,15 +260,12 @@ abstract contract GenericGovernanceSpell_12_02_2026_Test is BaseTest {
         calldatas[0] = calldata_;
     }
 
-    function _optimisticParams()
-        internal
-        pure
-        returns (IReserveOptimisticGovernor.OptimisticGovernanceParams memory)
-    {
-        return IReserveOptimisticGovernor.OptimisticGovernanceParams({
-            vetoDelay: 1 seconds,
-            vetoPeriod: 1 days,
-            vetoThreshold: 0.05e18
-        });
+    function _optimisticParams() internal pure returns (IReserveOptimisticGovernor.OptimisticGovernanceParams memory) {
+        return
+            IReserveOptimisticGovernor.OptimisticGovernanceParams({
+                vetoDelay: 1 seconds,
+                vetoPeriod: 1 days,
+                vetoThreshold: 0.05e18
+            });
     }
 }

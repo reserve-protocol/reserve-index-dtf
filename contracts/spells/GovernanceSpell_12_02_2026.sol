@@ -112,7 +112,11 @@ contract GovernanceSpell_12_02_2026 {
             baseDeployParams.optimisticParams = optimisticParams;
 
             // Standard governance params
-            (baseDeployParams.standardParams, baseDeployParams.timelockDelay) = _deriveStandardParams(stakingVault, stakingVaultGovernor, voteExtension);
+            (baseDeployParams.standardParams, baseDeployParams.timelockDelay) = _deriveStandardParams(
+                stakingVault,
+                stakingVaultGovernor,
+                voteExtension
+            );
 
             // Optimistic whitelists
             baseDeployParams.selectorData = optimisticSelectorData;
@@ -223,7 +227,11 @@ contract GovernanceSpell_12_02_2026 {
         IStakingVault stakingVault,
         IFolioGovernor oldGovernor,
         uint48 voteExtension
-    ) internal view returns (IReserveOptimisticGovernor.StandardGovernanceParams memory standardParams, uint256 timelockDelay) {
+    )
+        internal
+        view
+        returns (IReserveOptimisticGovernor.StandardGovernanceParams memory standardParams, uint256 timelockDelay)
+    {
         uint256 pastSupply = stakingVault.getPastTotalSupply(stakingVault.clock() - 1);
 
         // {tok}
