@@ -22,6 +22,7 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
                     folio: Folio(0x323c03c48660fE31186fa82c289b0766d331Ce21),
                     proxyAdmin: FolioProxyAdmin(0x0b79E381eD8D6d676C772Dba61cbeEA0B2d28c7D),
                     stakingVaultGovernor: IFolioGovernor(0x020d7c4a87485709D91E78AEeB2B2177ebFbaf41),
+                    oldFolioGovernor: IFolioGovernor(0x020d7c4a87485709D91E78AEeB2B2177ebFbaf41),
                     guardians: guardians,
                     joinExistingGovernor: IFolioGovernor(address(0))
                 })
@@ -39,6 +40,7 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
                     folio: Folio(0x4E3B170DcBe704b248df5f56D488114acE01B1C5),
                     proxyAdmin: FolioProxyAdmin(0xEAa356F6CD6b3fd15B47838d03cF34fa79F7c712),
                     stakingVaultGovernor: IFolioGovernor(0xD2f9c1D649F104e5D6B9453f3817c05911Cf765E),
+                    oldFolioGovernor: IFolioGovernor(0xFaD4823Ae478637fD8FfdafB6c912f63c8cd1Dd7),
                     guardians: guardians,
                     joinExistingGovernor: IFolioGovernor(address(0))
                 })
@@ -56,6 +58,7 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
                     folio: Folio(0xF91384484F4717314798E8975BCd904A35fc2BF1),
                     proxyAdmin: FolioProxyAdmin(0xDd885B0F2f97703B94d2790320b30017a17768BF),
                     stakingVaultGovernor: IFolioGovernor(0xD2f9c1D649F104e5D6B9453f3817c05911Cf765E),
+                    oldFolioGovernor: IFolioGovernor(0x622c0b5aD82a2A47F330D4a2061a0e3562F583b0),
                     guardians: guardians,
                     joinExistingGovernor: IFolioGovernor(address(0))
                 })
@@ -72,6 +75,7 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
                     folio: Folio(0xA5cdea03B11042fc10B52aF9eCa48bb17A2107d2),
                     proxyAdmin: FolioProxyAdmin(0x019318674560C233893aA31Bc0A380dc71dc2dDf),
                     stakingVaultGovernor: IFolioGovernor(0x83d070B91aef472CE993BCC25907e7c3959483b4),
+                    oldFolioGovernor: IFolioGovernor(0x58e72A9a9E9Dc5209D02335d5Ac67eD28a86EAe9),
                     guardians: guardians,
                     joinExistingGovernor: IFolioGovernor(address(0))
                 })
@@ -89,6 +93,7 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
                     folio: Folio(0x188D12Eb13a5Eadd0867074ce8354B1AD6f4790b),
                     proxyAdmin: FolioProxyAdmin(0x0e3B2EF9701d5Ef230CB67Ee8851bA3071cf557C),
                     stakingVaultGovernor: IFolioGovernor(0xCaA7E91E752db5d79912665774be7B9Bf5171b9E),
+                    oldFolioGovernor: IFolioGovernor(0x404859dE65229b7596Fe58784b6572bB3732DfAc),
                     guardians: guardians,
                     joinExistingGovernor: IFolioGovernor(address(0))
                 })
@@ -105,6 +110,7 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
                     folio: Folio(0xe4a10951f962e6cB93Cb843a4ef05d2F99DB1F94),
                     proxyAdmin: FolioProxyAdmin(0x7a6C7064e0069D60A4D90B16545C1051d3487f63),
                     stakingVaultGovernor: IFolioGovernor(0xB3b141c115203932B6127423D33f60C83cAb3F69),
+                    oldFolioGovernor: IFolioGovernor(0x8F56a509f39F16D30Da576C10B1a52908cA6ac4d),
                     guardians: guardians,
                     joinExistingGovernor: IFolioGovernor(address(0))
                 })
@@ -122,6 +128,7 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
                     folio: Folio(0x9a1741E151233a82Cf69209A2F1bC7442B1fB29C),
                     proxyAdmin: FolioProxyAdmin(0xe24e3DBBEd0db2a9aC2C1d2EA54c6132Dce181b7),
                     stakingVaultGovernor: IFolioGovernor(0xb01C1070E191A3a5535912489Fbff6Cc3f4bb865),
+                    oldFolioGovernor: IFolioGovernor(0xDd36672d48caA6c8c45E49e83DB266568446EEfe),
                     guardians: guardians,
                     joinExistingGovernor: IFolioGovernor(address(0))
                 })
@@ -142,6 +149,7 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
             folio: Folio(0x20d81101D254729a6E689418526bE31e2c544290),
             proxyAdmin: FolioProxyAdmin(0x3927882f047944A9c561F29E204C370Dd84852Fd),
             stakingVaultGovernor: IFolioGovernor(0x83d070B91aef472CE993BCC25907e7c3959483b4),
+            oldFolioGovernor: IFolioGovernor(0xa5168b7b5c081a2098420892c9DA26B6B30fc496),
             guardians: mvDefiGuardians,
             joinExistingGovernor: IFolioGovernor(address(0))
         });
@@ -168,18 +176,43 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
         assertEq(IStakingVault(dep.newStakingVault).asset(), newUnderlying, "new vault asset mismatch");
 
         // First folio using newly deployed staking vault governor
-        vm.startPrank(mvRwaCfg.proxyAdmin.owner());
+        uint96 mvRwaOldVaultFeePortionBefore = _feeRecipientPortion(mvRwaCfg.folio, sharedStakingVault);
+        uint96 mvRwaNewVaultFeePortionBefore = _feeRecipientPortion(mvRwaCfg.folio, dep.newStakingVault);
+        assertGt(uint256(mvRwaOldVaultFeePortionBefore), 0, "mvRWA old vault should receive folio fees");
+        vm.startPrank(mvRwaCfg.oldFolioGovernor.timelock());
         mvRwaCfg.proxyAdmin.transferOwnership(address(spell));
         mvRwaCfg.folio.grantRole(DEFAULT_ADMIN_ROLE, address(spell));
-        spell.upgradeFolio(mvRwaCfg.folio, mvRwaCfg.proxyAdmin, IFolioGovernor(dep.newGovernor));
+        spell.upgradeFolio(mvRwaCfg.folio, mvRwaCfg.proxyAdmin, IFolioGovernor(dep.newGovernor), mvRwaCfg.oldFolioGovernor);
         vm.stopPrank();
+        _assertFeeRecipientMigrated(
+            mvRwaCfg.folio,
+            sharedStakingVault,
+            dep.newStakingVault,
+            mvRwaOldVaultFeePortionBefore,
+            mvRwaNewVaultFeePortionBefore
+        );
 
         // Second folio joins the same newly-deployed governor/timelock
-        vm.startPrank(mvDefiCfg.proxyAdmin.owner());
+        uint96 mvDefiOldVaultFeePortionBefore = _feeRecipientPortion(mvDefiCfg.folio, sharedStakingVault);
+        uint96 mvDefiNewVaultFeePortionBefore = _feeRecipientPortion(mvDefiCfg.folio, dep.newStakingVault);
+        assertGt(uint256(mvDefiOldVaultFeePortionBefore), 0, "mvDEFI old vault should receive folio fees");
+        vm.startPrank(mvDefiCfg.oldFolioGovernor.timelock());
         mvDefiCfg.proxyAdmin.transferOwnership(address(spell));
         mvDefiCfg.folio.grantRole(DEFAULT_ADMIN_ROLE, address(spell));
-        spell.upgradeFolio(mvDefiCfg.folio, mvDefiCfg.proxyAdmin, IFolioGovernor(dep.newGovernor));
+        spell.upgradeFolio(
+            mvDefiCfg.folio,
+            mvDefiCfg.proxyAdmin,
+            IFolioGovernor(dep.newGovernor),
+            mvDefiCfg.oldFolioGovernor
+        );
         vm.stopPrank();
+        _assertFeeRecipientMigrated(
+            mvDefiCfg.folio,
+            sharedStakingVault,
+            dep.newStakingVault,
+            mvDefiOldVaultFeePortionBefore,
+            mvDefiNewVaultFeePortionBefore
+        );
 
         assertEq(mvDefiCfg.proxyAdmin.owner(), dep.newTimelock, "proxy admin owner mismatch");
         assertEq(mvDefiCfg.folio.getRoleMemberCount(REBALANCE_MANAGER), 1, "unexpected rebalance manager count");

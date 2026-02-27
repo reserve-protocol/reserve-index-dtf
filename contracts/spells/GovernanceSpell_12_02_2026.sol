@@ -12,9 +12,9 @@ import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-go
 import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
 
-import { Folio } from "@src/Folio.sol";
+import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
-import { DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, CANCELLER_ROLE, DEFAULT_REWARD_PERIOD, DEFAULT_UNSTAKING_DELAY } from "@utils/Constants.sol";
+import { DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, CANCELLER_ROLE, DEFAULT_REWARD_PERIOD, DEFAULT_UNSTAKING_DELAY, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 
 bytes32 constant VERSION_1_0_0 = keccak256("1.0.0");
 
@@ -45,7 +45,7 @@ interface IVersioned {
  * @author akshatmittal, julianmrodri, tbrent
  * @notice Optimistic governance upgrade spell for DTFs
  *
- * Two-part optimistic governance upgrade spell to upgrade a Folio + StakingVault to optimistic governance.
+ * Two-part optimistic governance upgrade spell to upgrade a StakingVault + Folio to optimistic governance.
  *   A single StakingVault can govern multiple Folios.
  *   A single StakingVault can only have 1 governor/timelock that must be shared with all its Folios.
  *
@@ -182,22 +182,30 @@ contract GovernanceSpell_12_02_2026 {
     ///      - Caller is Folio admin
     ///      - Self is Folio admin
     ///      - Self is FolioProxyAdmin owner
-    function upgradeFolio(Folio folio, FolioProxyAdmin folioProxyAdmin, IFolioGovernor newGovernor) public {
+    function upgradeFolio(
+        Folio folio,
+        FolioProxyAdmin folioProxyAdmin,
+        IFolioGovernor newGovernor,
+        IFolioGovernor oldStakingVaultGovernor
+    ) public {
         address newTimelock = newGovernor.timelock();
         require(newTimelock != address(0), UpgradeError(7));
+        address newStakingVault = newGovernor.token();
 
-        address oldTimelock = msg.sender;
+        address oldTimelock = oldStakingVaultGovernor.timelock();
+        require(oldTimelock == msg.sender, UpgradeError(24));
+        address oldStakingVault = oldStakingVaultGovernor.token();
 
-        // confirm Folio owners are oldTimelock + self
+        // confirm Folio admins are self + old timelock
         require(folio.getRoleMemberCount(DEFAULT_ADMIN_ROLE) == 2, UpgradeError(9));
-        require(folio.hasRole(DEFAULT_ADMIN_ROLE, oldTimelock), UpgradeError(10));
         require(folio.hasRole(DEFAULT_ADMIN_ROLE, address(this)), UpgradeError(11));
+        require(folio.hasRole(DEFAULT_ADMIN_ROLE, oldTimelock), UpgradeError(11));
 
         // confirm new timelock is admin of new staking vault already
-        require(
-            IAccessControlEnumerable(newGovernor.token()).hasRole(DEFAULT_ADMIN_ROLE, newTimelock),
-            UpgradeError(8)
-        );
+        require(IAccessControlEnumerable(newStakingVault).hasRole(DEFAULT_ADMIN_ROLE, newTimelock), UpgradeError(8));
+
+        // rotate Folio fee recipients from old (Ownable) staking vaults to the new staking vault
+        _rotateFeeRecipients(folio, oldStakingVault, newStakingVault);
 
         // rotate Folio REBALANCE_MANAGERs
         uint256 rebalanceManagerCount = folio.getRoleMemberCount(REBALANCE_MANAGER);
@@ -254,6 +262,58 @@ contract GovernanceSpell_12_02_2026 {
         for (uint256 i; i < guardians.length; i++) {
             require(guardians[i] != address(0), UpgradeError(21));
             require(oldTimelockController.hasRole(CANCELLER_ROLE, guardians[i]), UpgradeError(22));
+        }
+    }
+
+    function _rotateFeeRecipients(Folio folio, address oldStakingVault, address newStakingVault) internal {
+        IFolio.FeeRecipient[] memory recipients = _feeRecipients(folio);
+        uint256 oldStakingVaultRecipientCount;
+        uint256 oldStakingVaultRecipientIndex;
+        bool hasNewStakingVaultRecipient;
+
+        for (uint256 i; i < recipients.length; i++) {
+            address recipient = recipients[i].recipient;
+            if (recipient == oldStakingVault) {
+                oldStakingVaultRecipientCount++;
+                oldStakingVaultRecipientIndex = i;
+            }
+            if (recipient == newStakingVault) hasNewStakingVaultRecipient = true;
+        }
+
+        require(oldStakingVaultRecipientCount == 1, UpgradeError(25));
+        require(!hasNewStakingVaultRecipient, UpgradeError(26));
+
+        recipients[oldStakingVaultRecipientIndex].recipient = newStakingVault;
+        _sortFeeRecipients(recipients);
+        folio.setFeeRecipients(recipients);
+    }
+
+    function _feeRecipients(Folio folio) internal view returns (IFolio.FeeRecipient[] memory recipients) {
+        uint256 length;
+        for (; length < MAX_FEE_RECIPIENTS; length++) {
+            try folio.feeRecipients(length) returns (address, uint96) {
+                // no-op
+            } catch {
+                break;
+            }
+        }
+
+        recipients = new IFolio.FeeRecipient[](length);
+        for (uint256 i; i < length; i++) {
+            (address recipient, uint96 portion) = folio.feeRecipients(i);
+            recipients[i] = IFolio.FeeRecipient({ recipient: recipient, portion: portion });
+        }
+    }
+
+    function _sortFeeRecipients(IFolio.FeeRecipient[] memory recipients) internal pure {
+        for (uint256 i = 1; i < recipients.length; i++) {
+            IFolio.FeeRecipient memory recipient = recipients[i];
+            uint256 j = i;
+            while (j > 0 && uint160(recipients[j - 1].recipient) > uint160(recipient.recipient)) {
+                recipients[j] = recipients[j - 1];
+                j--;
+            }
+            recipients[j] = recipient;
         }
     }
 }
