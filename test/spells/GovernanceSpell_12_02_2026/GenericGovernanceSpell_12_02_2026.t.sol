@@ -5,16 +5,13 @@ import "../../base/BaseTest.sol";
 
 import { IGovernor } from "@openzeppelin/contracts/governance/IGovernor.sol";
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
+import { IAccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/IAccessControlEnumerable.sol";
 import { console2 } from "forge-std/console2.sol";
 
-import { GovernanceSpell_12_02_2026, IFolioGovernor, IStakingVault } from "@spells/GovernanceSpell_12_02_2026.sol";
+import { GovernanceSpell_12_02_2026, IFolioGovernor, IOwnableStakingVault, IStakingVault } from "@spells/GovernanceSpell_12_02_2026.sol";
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
 import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
 import { REBALANCE_MANAGER } from "@utils/Constants.sol";
-
-interface IOwnableLike {
-    function transferOwnership(address newOwner) external;
-}
 
 interface IReserveOptimisticGovernorLike is IFolioGovernor {
     function proposeOptimistic(
@@ -44,75 +41,22 @@ abstract contract GenericGovernanceSpell_12_02_2026_Test is BaseTest {
         spell = new GovernanceSpell_12_02_2026(optimisticGovernanceDeployer);
     }
 
-    function test_upgradeFolio_existingStakingVault_fork() public {
-        for (uint256 i; i < CONFIGS.length; i++) {
-            Config memory cfg = CONFIGS[i];
-            _logFolioSymbol(cfg.folio);
-
-            address oldStakingVault = cfg.stakingVaultGovernor.token();
-            address oldStakingVaultOwner = IStakingVault(oldStakingVault).owner();
-            address optimisticProposer = makeAddr(string.concat("existing-opt-", vm.toString(i)));
-            address standardProposer = makeAddr(string.concat("existing-std-", vm.toString(i)));
-
-            vm.startPrank(oldStakingVaultOwner);
-            IOwnableLike(oldStakingVault).transferOwnership(address(spell));
-            GovernanceSpell_12_02_2026.NewDeployment memory dep = spell.upgradeStakingVault(
-                cfg.stakingVaultGovernor,
-                _optimisticParams(),
-                _selectorDataForFolio(cfg.folio),
-                _singleAddressArray(optimisticProposer),
-                cfg.guardians,
-                address(0),
-                keccak256(abi.encode(i, "transfer"))
-            );
-            vm.stopPrank();
-
-            assertEq(dep.newStakingVault, cfg.stakingVaultGovernor.token(), "expected existing staking vault path");
-            assertEq(
-                IFolioGovernor(dep.newGovernor).token(),
-                cfg.stakingVaultGovernor.token(),
-                "governor token mismatch"
-            );
-            assertTrue(dep.newTimelock != address(0), "timelock should be set");
-
-            vm.startPrank(cfg.proxyAdmin.owner());
-            cfg.proxyAdmin.transferOwnership(address(spell));
-            cfg.folio.grantRole(DEFAULT_ADMIN_ROLE, address(spell));
-            spell.upgradeFolio(cfg.folio, cfg.proxyAdmin, IFolioGovernor(dep.newGovernor));
-            vm.stopPrank();
-
-            assertEq(cfg.proxyAdmin.owner(), dep.newTimelock, "proxy admin owner mismatch");
-            assertEq(cfg.folio.getRoleMemberCount(REBALANCE_MANAGER), 1, "unexpected rebalance manager count");
-            assertEq(cfg.folio.getRoleMember(REBALANCE_MANAGER, 0), dep.newTimelock, "rebalance manager mismatch");
-            assertEq(cfg.folio.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1, "unexpected admin count");
-            assertEq(cfg.folio.getRoleMember(DEFAULT_ADMIN_ROLE, 0), dep.newTimelock, "admin mismatch");
-
-            _assertCanCreateBothProposalTypes(
-                IReserveOptimisticGovernorLike(dep.newGovernor),
-                IStakingVault(dep.newStakingVault),
-                cfg.folio,
-                standardProposer,
-                optimisticProposer
-            );
-        }
-    }
-
     function test_upgradeFolio_newStakingVault_fork() public {
         for (uint256 i; i < CONFIGS.length; i++) {
             Config memory cfg = CONFIGS[i];
             _logFolioSymbol(cfg.folio);
 
             address oldStakingVault = cfg.stakingVaultGovernor.token();
-            address oldStakingVaultOwner = IStakingVault(oldStakingVault).owner();
+            address oldStakingVaultOwner = IOwnableStakingVault(oldStakingVault).owner();
             address optimisticProposer = makeAddr(string.concat("new-opt-", vm.toString(i)));
             address standardProposer = makeAddr(string.concat("new-std-", vm.toString(i)));
 
             vm.startPrank(oldStakingVaultOwner);
-            IOwnableLike(oldStakingVault).transferOwnership(address(spell));
+            IOwnableStakingVault(oldStakingVault).transferOwnership(address(spell));
             GovernanceSpell_12_02_2026.NewDeployment memory dep = spell.upgradeStakingVault(
                 cfg.stakingVaultGovernor,
                 _optimisticParams(),
-                _selectorDataForFolio(cfg.folio),
+                _selectorDataForFolio(cfg.folio, optimisticProposer),
                 _singleAddressArray(optimisticProposer),
                 cfg.guardians,
                 address(cfg.folio),
@@ -122,8 +66,12 @@ abstract contract GenericGovernanceSpell_12_02_2026_Test is BaseTest {
 
             assertTrue(dep.newStakingVault != cfg.stakingVaultGovernor.token(), "expected new staking vault path");
             assertEq(IStakingVault(dep.newStakingVault).asset(), address(cfg.folio), "new vault should be vlDTF");
-            assertEq(IStakingVault(dep.newStakingVault).owner(), dep.newTimelock, "new vault owner mismatch");
-            assertEq(IStakingVault(oldStakingVault).owner(), address(0), "old vault should be deprecated");
+            assertEq(IFolioGovernor(dep.newGovernor).timelock(), dep.newTimelock, "governor timelock mismatch");
+            assertTrue(
+                IAccessControlEnumerable(dep.newStakingVault).hasRole(DEFAULT_ADMIN_ROLE, dep.newTimelock),
+                "new vault admin mismatch"
+            );
+            assertEq(IOwnableStakingVault(oldStakingVault).owner(), address(0), "old vault should be deprecated");
 
             vm.startPrank(cfg.proxyAdmin.owner());
             cfg.proxyAdmin.transferOwnership(address(spell));
@@ -155,9 +103,10 @@ abstract contract GenericGovernanceSpell_12_02_2026_Test is BaseTest {
 
             address joinExistingTimelock = cfg.joinExistingGovernor.timelock();
             address joinExistingStakingVault = cfg.joinExistingGovernor.token();
-            address stakingVaultOwner = IStakingVault(joinExistingStakingVault).owner();
-            vm.prank(stakingVaultOwner);
-            IOwnableLike(joinExistingStakingVault).transferOwnership(joinExistingTimelock);
+            assertTrue(
+                IAccessControlEnumerable(joinExistingStakingVault).hasRole(DEFAULT_ADMIN_ROLE, joinExistingTimelock),
+                "join-existing vault admin mismatch"
+            );
 
             vm.startPrank(cfg.proxyAdmin.owner());
             cfg.proxyAdmin.transferOwnership(address(spell));
@@ -232,12 +181,17 @@ abstract contract GenericGovernanceSpell_12_02_2026_Test is BaseTest {
     }
 
     function _selectorDataForFolio(
-        Folio folio
+        Folio folio,
+        address proposer
     ) internal pure returns (IOptimisticSelectorRegistry.SelectorData[] memory selectorData) {
         selectorData = new IOptimisticSelectorRegistry.SelectorData[](1);
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = Folio.setName.selector;
-        selectorData[0] = IOptimisticSelectorRegistry.SelectorData({ target: address(folio), selectors: selectors });
+        selectorData[0] = IOptimisticSelectorRegistry.SelectorData({
+            proposer: proposer,
+            target: address(folio),
+            selectors: selectors
+        });
     }
 
     function _singleAddressArray(address value) internal pure returns (address[] memory arr) {

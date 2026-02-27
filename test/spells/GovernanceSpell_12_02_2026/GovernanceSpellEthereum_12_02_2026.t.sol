@@ -149,21 +149,25 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
         address sharedStakingVault = mvRwaCfg.stakingVaultGovernor.token();
         assertEq(sharedStakingVault, mvDefiCfg.stakingVaultGovernor.token(), "expected shared staking vault");
 
-        address oldStakingVaultOwner = IStakingVault(sharedStakingVault).owner();
+        address newUnderlying = IStakingVault(sharedStakingVault).asset();
+        address oldStakingVaultOwner = IOwnableStakingVault(sharedStakingVault).owner();
         vm.startPrank(oldStakingVaultOwner);
-        IOwnableLike(sharedStakingVault).transferOwnership(address(spell));
+        IOwnableStakingVault(sharedStakingVault).transferOwnership(address(spell));
         GovernanceSpell_12_02_2026.NewDeployment memory dep = spell.upgradeStakingVault(
             mvRwaCfg.stakingVaultGovernor,
             _optimisticParams(),
             new IOptimisticSelectorRegistry.SelectorData[](0),
             new address[](0),
             mvRwaCfg.guardians,
-            address(0),
+            newUnderlying,
             keccak256("mvRWA-shared-vault")
         );
         vm.stopPrank();
 
-        // First folio using shared staking vault governor
+        assertTrue(dep.newStakingVault != sharedStakingVault, "expected new staking vault path");
+        assertEq(IStakingVault(dep.newStakingVault).asset(), newUnderlying, "new vault asset mismatch");
+
+        // First folio using newly deployed staking vault governor
         vm.startPrank(mvRwaCfg.proxyAdmin.owner());
         mvRwaCfg.proxyAdmin.transferOwnership(address(spell));
         mvRwaCfg.folio.grantRole(DEFAULT_ADMIN_ROLE, address(spell));

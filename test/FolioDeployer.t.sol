@@ -17,9 +17,7 @@ import { PROPOSER_ROLE, EXECUTOR_ROLE, CANCELLER_ROLE, AUCTION_LAUNCHER, BRAND_M
 import "./base/BaseTest.sol";
 
 /// @dev Extended interfaces for testing - includes methods not in the base interfaces
-interface IStakingVaultTest is IERC5805, IERC4626 {
-    function owner() external view returns (address);
-}
+interface IStakingVaultTest is IERC5805, IERC4626, IAccessControl {}
 
 interface IGovernorTest is IGovernor {
     function optimisticParams() external view returns (IReserveOptimisticGovernor.OptimisticGovernanceParams memory);
@@ -382,7 +380,7 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(folio.hasRole(REBALANCE_MANAGER, address(timelock)), "wrong basket manager role");
 
         // Check StakingVault
-        assertEq(stToken.owner(), address(timelock), "wrong staking vault owner");
+        assertTrue(stToken.hasRole(DEFAULT_ADMIN_ROLE, address(timelock)), "wrong staking vault admin role");
         assertEq(stToken.asset(), address(MEME), "wrong staking vault asset");
     }
 
