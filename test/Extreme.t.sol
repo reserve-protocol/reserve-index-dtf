@@ -2,13 +2,34 @@
 pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { IERC5805 } from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 import { Folio } from "@src/Folio.sol";
 import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_TTL, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
-import { StakingVault } from "@staking/StakingVault.sol";
+import { StakingVaultDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/StakingVaultDeployer.sol";
 import "./base/BaseExtremeTest.sol";
+
+/// @dev Extended interface for StakingVault testing - includes methods not in IERC5805
+interface IStakingVaultTest is IERC5805 {
+    function initialize(
+        string memory name,
+        string memory symbol,
+        address underlying,
+        address owner,
+        uint256 rewardHalfLife,
+        uint256 unstakingDelay
+    ) external;
+
+    function deposit(uint256 assets, address receiver) external returns (uint256);
+
+    function poke() external;
+
+    function claimRewards(address[] calldata rewardTokens) external;
+
+    function addRewardToken(address rewardToken) external;
+}
 
 contract ExtremeTest is BaseExtremeTest {
     IFolio.WeightRange internal REMOVE = IFolio.WeightRange({ low: 0, spot: 0, high: 0 });
@@ -363,13 +384,13 @@ contract ExtremeTest is BaseExtremeTest {
 
         IERC20 token = deployCoin("Mock Token", "TKN", 18); // mock
 
-        StakingVault stakingVaultImpl = new StakingVault();
+        address stakingVaultImpl = StakingVaultDeployer.deploy();
         bytes memory initData = abi.encodeCall(
-            StakingVault.initialize,
-            ("Staked Test Token", "sTEST", IERC20(address(token)), address(this), p.rewardHalfLife, 0)
+            IStakingVaultTest.initialize,
+            ("Staked Test Token", "sTEST", address(token), address(this), p.rewardHalfLife, 0)
         );
-        ERC1967Proxy proxy = new ERC1967Proxy(address(stakingVaultImpl), initData);
-        StakingVault vault = StakingVault(address(proxy));
+        ERC1967Proxy proxy = new ERC1967Proxy(stakingVaultImpl, initData);
+        IStakingVaultTest vault = IStakingVaultTest(address(proxy));
 
         // Create reward tokens
         address[] memory rewardTokens = new address[](p.numTokens);

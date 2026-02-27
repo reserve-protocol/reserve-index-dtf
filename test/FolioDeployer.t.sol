@@ -1,24 +1,48 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+import { IGovernor } from "@openzeppelin/contracts/governance/IGovernor.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { IERC5805 } from "@openzeppelin/contracts/interfaces/IERC5805.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+
+import { OPTIMISTIC_PROPOSER_ROLE } from "@reserve-protocol/reserve-governor/contracts/utils/Constants.sol";
+import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
+import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
+
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_MINT_FEE } from "@utils/Constants.sol";
 import { FolioDeployer, IFolioDeployer } from "@deployer/FolioDeployer.sol";
-import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
-import { FolioGovernor } from "@gov/FolioGovernor.sol";
-import { StakingVault } from "@staking/StakingVault.sol";
-import { AUCTION_LAUNCHER, BRAND_MANAGER, REBALANCE_MANAGER } from "@utils/Constants.sol";
+import { PROPOSER_ROLE, EXECUTOR_ROLE, CANCELLER_ROLE, AUCTION_LAUNCHER, BRAND_MANAGER, REBALANCE_MANAGER, DEFAULT_ADMIN_ROLE } from "@utils/Constants.sol";
 import "./base/BaseTest.sol";
+
+/// @dev Extended interfaces for testing - includes methods not in the base interfaces
+interface IStakingVaultTest is IERC5805, IERC4626, IAccessControl {}
+
+interface IGovernorTest is IGovernor {
+    function optimisticParams() external view returns (IReserveOptimisticGovernor.OptimisticGovernanceParams memory);
+    function getProposalThrottleCapacity() external view returns (uint256);
+    function quorumNumerator() external view returns (uint256);
+    function quorumDenominator() external view returns (uint256);
+}
+
+interface ITimelockTest is IAccessControl {
+    function getMinDelay() external view returns (uint256);
+}
 
 contract FolioDeployerTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
     uint256 internal constant MAX_TVL_FEE_PER_SECOND = 3340960028; // D18{1/s} 10% annually, per second
 
+    IStakingVaultTest stToken;
+    IGovernorTest governor;
+    ITimelockTest timelock;
+    IOptimisticSelectorRegistry selectorRegistry;
+
     function test_constructor() public view {
         assertEq(address(folioDeployer.daoFeeRegistry()), address(daoFeeRegistry));
         assertNotEq(address(folioDeployer.folioImplementation()), address(0));
-        assertEq(address(folioDeployer.governanceDeployer()), address(governanceDeployer));
+        assertEq(folioDeployer.optimisticGovernorDeployer(), address(optimisticGovernanceDeployer));
     }
 
     function test_createFolio() public {
@@ -258,29 +282,8 @@ contract FolioDeployerTest is BaseTest {
     }
 
     function test_createGovernedFolio() public {
-        // Deploy Community Governor
-
         address[] memory guardians = new address[](1);
         guardians[0] = user1;
-        (StakingVault stToken, , ) = governanceDeployer.deployGovernedStakingToken(
-            "Test Staked MEME Token",
-            "STKMEME",
-            MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians),
-            bytes32(0)
-        );
-
-        // Deploy Governed Folio
-
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(USDC);
-        tokens[1] = address(DAI);
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = D6_TOKEN_10K;
-        amounts[1] = D18_TOKEN_10K;
-        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioDeployer), type(uint256).max);
@@ -289,56 +292,34 @@ contract FolioDeployerTest is BaseTest {
         address[] memory auctionLaunchers = new address[](1);
         auctionLaunchers[0] = auctionLauncher;
 
-        address _ownerGovernor;
-        address _tradingGovernor;
         {
             // stack-too-deep
-            address _folioAdmin;
-            address[] memory _guardians1 = new address[](1);
-            address[] memory _guardians2 = new address[](1);
-            _guardians1[0] = user1;
-            _guardians2[0] = user2;
+            address _stToken;
+            address _folio;
+            address _proxyAdmin;
+            address _governor;
+            address _timelock;
+            address _selectorRegistry;
 
             vm.startSnapshotGas("deployGovernedFolio");
             vm.recordLogs();
-            (folio, _folioAdmin) = folioDeployer.deployGovernedFolio(
-                stToken,
-                IFolio.FolioBasicDetails({
-                    name: "Test Folio",
-                    symbol: "TFOLIO",
-                    assets: tokens,
-                    amounts: amounts,
-                    initialShares: INITIAL_SUPPLY
-                }),
-                IFolio.FolioAdditionalDetails({
-                    maxAuctionLength: MAX_AUCTION_LENGTH,
-                    feeRecipients: recipients,
-                    tvlFee: MAX_TVL_FEE,
-                    mintFee: MAX_MINT_FEE,
-                    folioFeeForSelf: 0,
-                    mandate: "mandate"
-                }),
-                IFolio.FolioFlags({
-                    trustedFillerEnabled: true,
-                    rebalanceControl: IFolio.RebalanceControl({
-                        weightControl: false,
-                        priceControl: IFolio.PriceControl.NONE
-                    }),
-                    bidsEnabled: true
-                }),
-                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 0.08e18, 2 days, _guardians2),
-                IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 0.04e18, 1 days, _guardians1),
-                IFolioDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
-                bytes32(0)
-            );
-            Vm.Log[] memory logs = vm.getRecordedLogs();
-            (_ownerGovernor, , _tradingGovernor, ) = abi.decode(
-                logs[logs.length - 1].data,
-                (address, address, address, address)
-            );
+            (_stToken, _folio, _proxyAdmin, _governor, _timelock, _selectorRegistry) = folioDeployer
+                .deployGovernedFolio(
+                    _basicDetails(),
+                    _additionalDetails(),
+                    _flags(),
+                    _govParams(guardians, address(MEME)),
+                    IFolioDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
+                    bytes32(0)
+                );
             vm.stopSnapshotGas("deployGovernedFolio()");
             vm.stopPrank();
-            proxyAdmin = FolioProxyAdmin(_folioAdmin);
+            stToken = IStakingVaultTest(_stToken);
+            governor = IGovernorTest(_governor);
+            timelock = ITimelockTest(_timelock);
+            selectorRegistry = IOptimisticSelectorRegistry(_selectorRegistry);
+            folio = Folio(_folio);
+            proxyAdmin = FolioProxyAdmin(_proxyAdmin);
         }
 
         // Check Folio
@@ -369,90 +350,43 @@ contract FolioDeployerTest is BaseTest {
         vm.stopPrank();
         vm.warp(block.timestamp + 1);
 
-        FolioGovernor ownerGovernor = FolioGovernor(payable(_ownerGovernor));
-        TimelockController ownerTimelock = TimelockController(payable(ownerGovernor.timelock()));
-        assertEq(ownerGovernor.votingDelay(), 2 seconds, "wrong voting delay");
-        assertEq(ownerGovernor.votingPeriod(), 2 weeks, "wrong voting period");
-        assertEq(ownerGovernor.proposalThreshold(), 0.02e18, "wrong proposal threshold");
-        assertEq(ownerGovernor.quorumNumerator(), 0.08e18, "wrong quorum numerator");
-        assertEq(ownerGovernor.quorumDenominator(), 1e18, "wrong quorum denominator");
-        assertEq(ownerTimelock.getMinDelay(), 2 days, "wrong timelock min delay");
-        assertTrue(
-            ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), address(ownerTimelock)),
-            "wrong admin role"
-        );
-        assertFalse(ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), _ownerGovernor), "wrong admin role");
-        assertFalse(
-            ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), address(folioDeployer)),
-            "wrong admin role"
-        );
-        assertFalse(ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), _ownerGovernor), "wrong admin role");
-        assertFalse(ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), owner), "wrong admin role");
-        assertFalse(ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), user2), "wrong admin role");
-        assertFalse(ownerTimelock.hasRole(ownerTimelock.PROPOSER_ROLE(), address(0)), "wrong proposer role");
-        assertTrue(ownerTimelock.hasRole(ownerTimelock.PROPOSER_ROLE(), _ownerGovernor), "wrong proposer role");
-        assertTrue(ownerTimelock.hasRole(ownerTimelock.EXECUTOR_ROLE(), _ownerGovernor), "wrong executor role");
-        assertFalse(ownerTimelock.hasRole(ownerTimelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
-        assertTrue(ownerTimelock.hasRole(ownerTimelock.CANCELLER_ROLE(), user2), "wrong canceler role");
+        assertEq(governor.votingDelay(), 2 seconds, "wrong voting delay");
+        assertEq(governor.votingPeriod(), 2 weeks, "wrong voting period");
+        assertEq(governor.proposalThreshold(), 0.02e18, "wrong proposal threshold");
+        assertEq(governor.quorumNumerator(), 0.08e18, "wrong quorum numerator");
+        assertEq(governor.quorumDenominator(), 1e18, "wrong quorum denominator");
+        assertEq(timelock.getMinDelay(), 2 days, "wrong timelock min delay");
+        assertTrue(timelock.hasRole(DEFAULT_ADMIN_ROLE, address(timelock)), "wrong admin role");
+        assertFalse(timelock.hasRole(DEFAULT_ADMIN_ROLE, address(governor)), "wrong admin role");
+        assertFalse(timelock.hasRole(DEFAULT_ADMIN_ROLE, address(folioDeployer)), "wrong admin role");
+        assertFalse(timelock.hasRole(DEFAULT_ADMIN_ROLE, address(governor)), "wrong admin role");
+        assertFalse(timelock.hasRole(DEFAULT_ADMIN_ROLE, owner), "wrong admin role");
+        assertFalse(timelock.hasRole(DEFAULT_ADMIN_ROLE, user2), "wrong admin role");
+        assertFalse(timelock.hasRole(PROPOSER_ROLE, address(0)), "wrong proposer role");
+        assertTrue(timelock.hasRole(PROPOSER_ROLE, address(governor)), "wrong proposer role");
+        assertTrue(timelock.hasRole(EXECUTOR_ROLE, address(governor)), "wrong executor role");
+        assertFalse(timelock.hasRole(EXECUTOR_ROLE, address(0)), "wrong executor role");
+        assertTrue(timelock.hasRole(CANCELLER_ROLE, user1), "wrong canceler role");
+        // Check optimistic governance
 
-        // Check rebalancing governor + trading timelock
+        IReserveOptimisticGovernor.OptimisticGovernanceParams memory optimisticParams = governor.optimisticParams();
+        assertEq(optimisticParams.vetoDelay, 1 seconds, "wrong veto delay");
+        assertEq(optimisticParams.vetoPeriod, 1 days, "wrong veto period");
+        assertEq(optimisticParams.vetoThreshold, 0.05e18, "wrong veto threshold");
 
-        FolioGovernor tradingGovernor = FolioGovernor(payable(_tradingGovernor));
-        TimelockController tradingTimelock = TimelockController(payable(tradingGovernor.timelock()));
-        assertEq(tradingGovernor.votingDelay(), 1 seconds, "wrong voting delay");
-        assertEq(tradingGovernor.votingPeriod(), 1 weeks, "wrong voting period");
-        assertEq(tradingGovernor.proposalThreshold(), 0.01e18, "wrong proposal threshold");
-        assertEq(tradingGovernor.quorumNumerator(), 0.04e18, "wrong quorum numerator");
-        assertEq(tradingGovernor.quorumDenominator(), 1e18, "wrong quorum denominator");
-        assertEq(tradingTimelock.getMinDelay(), 1 days, "wrong timelock min delay");
-        assertTrue(
-            tradingTimelock.hasRole(tradingTimelock.DEFAULT_ADMIN_ROLE(), address(tradingTimelock)),
-            "wrong admin role"
-        );
-        assertFalse(
-            tradingTimelock.hasRole(tradingTimelock.DEFAULT_ADMIN_ROLE(), _tradingGovernor),
-            "wrong admin role"
-        );
-        assertFalse(
-            tradingTimelock.hasRole(tradingTimelock.DEFAULT_ADMIN_ROLE(), address(folioDeployer)),
-            "wrong admin role"
-        );
-        assertFalse(tradingTimelock.hasRole(tradingTimelock.DEFAULT_ADMIN_ROLE(), owner), "wrong admin role");
-        assertFalse(tradingTimelock.hasRole(tradingTimelock.DEFAULT_ADMIN_ROLE(), user1), "wrong admin role");
-        assertFalse(tradingTimelock.hasRole(tradingTimelock.PROPOSER_ROLE(), address(0)), "wrong proposer role");
-        assertTrue(tradingTimelock.hasRole(tradingTimelock.PROPOSER_ROLE(), _tradingGovernor), "wrong proposer role");
-        assertTrue(tradingTimelock.hasRole(tradingTimelock.EXECUTOR_ROLE(), _tradingGovernor), "wrong executor role");
-        assertFalse(tradingTimelock.hasRole(tradingTimelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
-        assertTrue(tradingTimelock.hasRole(tradingTimelock.CANCELLER_ROLE(), user1), "wrong canceler role");
+        assertFalse(timelock.hasRole(OPTIMISTIC_PROPOSER_ROLE, address(governor)), "wrong optimistic proposer role");
 
         // Check rebalance manager is properly set
-        assertTrue(folio.hasRole(REBALANCE_MANAGER, address(tradingTimelock)), "wrong basket manager role");
+        assertTrue(folio.hasRole(REBALANCE_MANAGER, address(timelock)), "wrong basket manager role");
+
+        // Check StakingVault
+        assertTrue(stToken.hasRole(DEFAULT_ADMIN_ROLE, address(timelock)), "wrong staking vault admin role");
+        assertEq(stToken.asset(), address(MEME), "wrong staking vault asset");
     }
 
     function test_createGovernedFolio_withExistingRebalanceManager() public {
-        // Deploy Community Governor
-
         address[] memory guardians = new address[](1);
         guardians[0] = user1;
-        (StakingVault stToken, , ) = governanceDeployer.deployGovernedStakingToken(
-            "Test Staked MEME Token",
-            "STKMEME",
-            MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 0.04e18, 1 days, guardians),
-            bytes32(0)
-        );
-
-        // Deploy Governed Folio
-
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(USDC);
-        tokens[1] = address(DAI);
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = D6_TOKEN_10K;
-        amounts[1] = D18_TOKEN_10K;
-        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioDeployer), type(uint256).max);
@@ -465,52 +399,32 @@ contract FolioDeployerTest is BaseTest {
         auctionLaunchers[0] = auctionLauncher;
 
         vm.startSnapshotGas("deployGovernedFolio");
-        address _folioAdmin;
-        address[] memory _guardians1 = new address[](1);
-        address[] memory _guardians2 = new address[](1);
-        _guardians1[0] = user1;
-        _guardians2[0] = user2;
+        {
+            address _stToken;
+            address _folio;
+            address _proxyAdmin;
+            address _governor;
+            address _timelock;
+            address _selectorRegistry;
 
-        vm.recordLogs();
-        (folio, _folioAdmin) = folioDeployer.deployGovernedFolio(
-            stToken,
-            IFolio.FolioBasicDetails({
-                name: "Test Folio",
-                symbol: "TFOLIO",
-                assets: tokens,
-                amounts: amounts,
-                initialShares: INITIAL_SUPPLY
-            }),
-            IFolio.FolioAdditionalDetails({
-                maxAuctionLength: MAX_AUCTION_LENGTH,
-                feeRecipients: recipients,
-                tvlFee: MAX_TVL_FEE,
-                mintFee: MAX_MINT_FEE,
-                folioFeeForSelf: 0,
-                mandate: "mandate"
-            }),
-            IFolio.FolioFlags({
-                trustedFillerEnabled: true,
-                rebalanceControl: IFolio.RebalanceControl({
-                    weightControl: false,
-                    priceControl: IFolio.PriceControl.NONE
-                }),
-                bidsEnabled: true
-            }),
-            IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 0.08e18, 2 days, _guardians2),
-            IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 0.04e18, 1 days, _guardians1),
-            IFolioDeployer.GovRoles(rebalanceManagers, auctionLaunchers, new address[](0)),
-            bytes32(0)
-        );
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        (address _ownerGovernor, , address _tradingGovernor, ) = abi.decode(
-            logs[logs.length - 1].data,
-            (address, address, address, address)
-        );
-        vm.stopSnapshotGas("deployGovernedFolio()");
-        vm.stopPrank();
-        proxyAdmin = FolioProxyAdmin(_folioAdmin);
-        assertEq(_tradingGovernor, address(0));
+            (_stToken, _folio, _proxyAdmin, _governor, _timelock, _selectorRegistry) = folioDeployer
+                .deployGovernedFolio(
+                    _basicDetails(),
+                    _additionalDetails(),
+                    _flags(),
+                    _govParams(guardians, address(MEME)),
+                    IFolioDeployer.GovRoles(rebalanceManagers, auctionLaunchers, new address[](0)),
+                    bytes32(0)
+                );
+            vm.stopSnapshotGas("deployGovernedFolio()");
+            vm.stopPrank();
+            stToken = IStakingVaultTest(_stToken);
+            folio = Folio(_folio);
+            proxyAdmin = FolioProxyAdmin(_proxyAdmin);
+            governor = IGovernorTest(_governor);
+            timelock = ITimelockTest(_timelock);
+            selectorRegistry = IOptimisticSelectorRegistry(_selectorRegistry);
+        }
 
         // Check owner governor + owner timelock
         vm.startPrank(user1);
@@ -519,116 +433,140 @@ contract FolioDeployerTest is BaseTest {
         vm.stopPrank();
         vm.warp(block.timestamp + 1);
 
-        FolioGovernor ownerGovernor = FolioGovernor(payable(_ownerGovernor));
-        TimelockController ownerTimelock = TimelockController(payable(ownerGovernor.timelock()));
-        assertEq(ownerGovernor.votingDelay(), 2 seconds, "wrong voting delay");
-        assertEq(ownerGovernor.votingPeriod(), 2 weeks, "wrong voting period");
-        assertEq(ownerGovernor.proposalThreshold(), 0.02e18, "wrong proposal threshold");
-        assertEq(ownerGovernor.quorumNumerator(), 0.08e18, "wrong quorum numerator");
-        assertEq(ownerGovernor.quorumDenominator(), 1e18, "wrong quorum denominator");
-        assertEq(ownerTimelock.getMinDelay(), 2 days, "wrong timelock min delay");
-        assertTrue(
-            ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), address(ownerTimelock)),
-            "wrong admin role"
-        );
-        assertFalse(ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), _ownerGovernor), "wrong admin role");
-        assertFalse(
-            ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), address(folioDeployer)),
-            "wrong admin role"
-        );
-        assertFalse(ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), _ownerGovernor), "wrong admin role");
-        assertFalse(ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), owner), "wrong admin role");
-        assertFalse(ownerTimelock.hasRole(ownerTimelock.DEFAULT_ADMIN_ROLE(), user2), "wrong admin role");
-        assertFalse(ownerTimelock.hasRole(ownerTimelock.PROPOSER_ROLE(), address(0)), "wrong proposer role");
-        assertTrue(ownerTimelock.hasRole(ownerTimelock.PROPOSER_ROLE(), _ownerGovernor), "wrong proposer role");
-        assertTrue(ownerTimelock.hasRole(ownerTimelock.EXECUTOR_ROLE(), _ownerGovernor), "wrong executor role");
-        assertFalse(ownerTimelock.hasRole(ownerTimelock.EXECUTOR_ROLE(), address(0)), "wrong executor role");
-        assertTrue(ownerTimelock.hasRole(ownerTimelock.CANCELLER_ROLE(), user2), "wrong canceler role");
+        assertEq(governor.votingDelay(), 2 seconds, "wrong voting delay");
+        assertEq(governor.votingPeriod(), 2 weeks, "wrong voting period");
+        assertEq(governor.proposalThreshold(), 0.02e18, "wrong proposal threshold");
+        assertEq(governor.quorumNumerator(), 0.08e18, "wrong quorum numerator");
+        assertEq(governor.quorumDenominator(), 1e18, "wrong quorum denominator");
+        assertEq(timelock.getMinDelay(), 2 days, "wrong timelock min delay");
+        assertTrue(timelock.hasRole(DEFAULT_ADMIN_ROLE, address(timelock)), "wrong admin role");
+        assertFalse(timelock.hasRole(DEFAULT_ADMIN_ROLE, address(governor)), "wrong admin role");
+        assertFalse(timelock.hasRole(DEFAULT_ADMIN_ROLE, address(folioDeployer)), "wrong admin role");
+        assertFalse(timelock.hasRole(DEFAULT_ADMIN_ROLE, address(governor)), "wrong admin role");
+        assertFalse(timelock.hasRole(DEFAULT_ADMIN_ROLE, owner), "wrong admin role");
+        assertFalse(timelock.hasRole(DEFAULT_ADMIN_ROLE, user2), "wrong admin role");
+        assertFalse(timelock.hasRole(PROPOSER_ROLE, address(0)), "wrong proposer role");
+        assertTrue(timelock.hasRole(PROPOSER_ROLE, address(governor)), "wrong proposer role");
+        assertTrue(timelock.hasRole(EXECUTOR_ROLE, address(governor)), "wrong executor role");
+        assertFalse(timelock.hasRole(EXECUTOR_ROLE, address(0)), "wrong executor role");
+        assertTrue(timelock.hasRole(CANCELLER_ROLE, user1), "wrong canceler role");
+
+        // Check optimistic governance
+        IReserveOptimisticGovernor.OptimisticGovernanceParams memory optimisticParams = governor.optimisticParams();
+        assertEq(optimisticParams.vetoDelay, 1 seconds, "wrong veto delay");
+        assertEq(optimisticParams.vetoPeriod, 1 days, "wrong veto period");
+        assertEq(optimisticParams.vetoThreshold, 0.05e18, "wrong veto threshold");
+        assertFalse(timelock.hasRole(OPTIMISTIC_PROPOSER_ROLE, address(governor)), "wrong optimistic proposer role");
 
         // Check rebalance manager is properly set
         assertTrue(folio.hasRole(REBALANCE_MANAGER, dao), "wrong basket manager role");
     }
 
     function test_canMineVanityAddress() public {
-        // Deploy Community Governor
-
         address[] memory guardians = new address[](1);
         guardians[0] = user1;
-
-        (StakingVault stToken, , ) = governanceDeployer.deployGovernedStakingToken(
-            "Test Staked MEME Token",
-            "STKMEME",
-            MEME,
-            IGovernanceDeployer.GovParams(1 days, 1 weeks, 0.01e18, 4, 1 days, guardians),
-            bytes32(0)
-        );
-
-        // Deploy Governed Folio
-
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(USDC);
-        tokens[1] = address(DAI);
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = D6_TOKEN_10K;
-        amounts[1] = D18_TOKEN_10K;
-        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
-        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
-        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.startPrank(owner);
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
 
-        Folio folio;
-
-        address[] memory guardians1 = new address[](1);
-        address[] memory guardians2 = new address[](1);
-        guardians1[0] = user1;
-        guardians2[0] = user2;
+        Folio _folio;
 
         for (uint256 i = 0; i < 1000; i++) {
             uint256 snapshot = vm.snapshotState();
 
-            (folio, ) = folioDeployer.deployGovernedFolio(
-                stToken,
-                IFolio.FolioBasicDetails({
-                    name: "Test Folio",
-                    symbol: "TFOLIO",
-                    assets: tokens,
-                    amounts: amounts,
-                    initialShares: INITIAL_SUPPLY
-                }),
-                IFolio.FolioAdditionalDetails({
-                    maxAuctionLength: MAX_AUCTION_LENGTH,
-                    feeRecipients: recipients,
-                    tvlFee: MAX_TVL_FEE,
-                    mintFee: MAX_MINT_FEE,
-                    folioFeeForSelf: 0,
-                    mandate: "mandate"
-                }),
-                IFolio.FolioFlags({
-                    trustedFillerEnabled: true,
-                    rebalanceControl: IFolio.RebalanceControl({
-                        weightControl: false,
-                        priceControl: IFolio.PriceControl.NONE
-                    }),
-                    bidsEnabled: true
-                }),
-                IGovernanceDeployer.GovParams(2 seconds, 2 weeks, 0.02e18, 8, 2 days, guardians2),
-                IGovernanceDeployer.GovParams(1 seconds, 1 weeks, 0.01e18, 4, 1 days, guardians1),
+            (, address _folioAddr, , , , ) = folioDeployer.deployGovernedFolio(
+                _basicDetails(),
+                _additionalDetails(),
+                _flags(),
+                _govParams(guardians, address(MEME)),
                 IFolioDeployer.GovRoles(new address[](0), new address[](0), new address[](0)),
                 bytes32(i)
             );
+            _folio = Folio(_folioAddr);
 
             // get first byte
             // 152 = 160 - 8 (one byte)
-            if (uint160(address(folio)) >> 152 == uint256(uint160(0xff))) {
+            if (uint160(address(_folio)) >> 152 == uint256(uint160(0xff))) {
                 break;
             }
 
             vm.revertToState(snapshot);
         }
 
-        assertEq(uint160(address(folio)) >> 152, uint256(uint160(0xff)), "failed to mine salt");
+        assertEq(uint160(address(_folio)) >> 152, uint256(uint160(0xff)), "failed to mine salt");
+    }
+
+    // === Helpers ===
+
+    function _basicDetails() internal view returns (IFolio.FolioBasicDetails memory) {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(DAI);
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = D6_TOKEN_10K;
+        amounts[1] = D18_TOKEN_10K;
+        return
+            IFolio.FolioBasicDetails({
+                name: "Test Folio",
+                symbol: "TFOLIO",
+                assets: tokens,
+                amounts: amounts,
+                initialShares: INITIAL_SUPPLY
+            });
+    }
+
+    function _additionalDetails() internal view returns (IFolio.FolioAdditionalDetails memory) {
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
+        return
+            IFolio.FolioAdditionalDetails({
+                maxAuctionLength: MAX_AUCTION_LENGTH,
+                feeRecipients: recipients,
+                tvlFee: MAX_TVL_FEE,
+                mintFee: MAX_MINT_FEE,
+                folioFeeForSelf: 0,
+                mandate: "mandate"
+            });
+    }
+
+    function _flags() internal pure returns (IFolio.FolioFlags memory) {
+        return
+            IFolio.FolioFlags({
+                trustedFillerEnabled: true,
+                rebalanceControl: IFolio.RebalanceControl({
+                    weightControl: false,
+                    priceControl: IFolio.PriceControl.NONE
+                }),
+                bidsEnabled: true
+            });
+    }
+
+    function _govParams(
+        address[] memory guardians,
+        address underlying
+    ) internal pure returns (IFolioDeployer.GovParams memory) {
+        return
+            IFolioDeployer.GovParams({
+                optimisticParams: IReserveOptimisticGovernor.OptimisticGovernanceParams({
+                    vetoDelay: 1 seconds,
+                    vetoPeriod: 1 days,
+                    vetoThreshold: 0.05e18
+                }),
+                standardParams: IReserveOptimisticGovernor.StandardGovernanceParams({
+                    votingDelay: 2 seconds,
+                    votingPeriod: 2 weeks,
+                    voteExtension: 1 weeks,
+                    proposalThreshold: 0.02e18,
+                    quorumNumerator: 0.08e18
+                }),
+                optimisticSelectorData: new IOptimisticSelectorRegistry.SelectorData[](0),
+                optimisticProposers: new address[](0),
+                guardians: guardians,
+                timelockDelay: 2 days,
+                proposalThrottleCapacity: 10,
+                underlying: underlying
+            });
     }
 }

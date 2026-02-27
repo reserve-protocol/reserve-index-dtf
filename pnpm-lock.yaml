@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@reserve-protocol/reserve-index-dtf': file:./
-
 importers:
 
   .:
@@ -21,8 +18,8 @@ importers:
         specifier: 4.1.0
         version: 4.1.0
       '@reserve-protocol/reserve-governor':
-        specifier: github:reserve-protocol/reserve-governor#c2b17012567bafcb99b03d20f31d516fd5482f93
-        version: https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/c2b17012567bafcb99b03d20f31d516fd5482f93(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)
+        specifier: github:reserve-protocol/reserve-governor#2c0467eecf69562a8e7e94bb7a2ac6a9d11b86ac
+        version: https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/2c0467eecf69562a8e7e94bb7a2ac6a9d11b86ac
       '@reserve-protocol/trusted-fillers':
         specifier: github:reserve-protocol/trusted-fillers#eabd9dbd60e8aaaec2c50db43742991e4cb55208
         version: https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/eabd9dbd60e8aaaec2c50db43742991e4cb55208(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)
@@ -457,12 +454,9 @@ packages:
   '@protobufjs/utf8@1.1.0':
     resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
 
-  '@reserve-protocol/reserve-governor@https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/c2b17012567bafcb99b03d20f31d516fd5482f93':
-    resolution: {tarball: https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/c2b17012567bafcb99b03d20f31d516fd5482f93}
+  '@reserve-protocol/reserve-governor@https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/2c0467eecf69562a8e7e94bb7a2ac6a9d11b86ac':
+    resolution: {tarball: https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/2c0467eecf69562a8e7e94bb7a2ac6a9d11b86ac}
     version: 0.1.0
-
-  '@reserve-protocol/reserve-index-dtf@file:':
-    resolution: {directory: '', type: directory}
 
   '@reserve-protocol/trusted-fillers@https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/eabd9dbd60e8aaaec2c50db43742991e4cb55208':
     resolution: {tarball: https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/eabd9dbd60e8aaaec2c50db43742991e4cb55208}
@@ -831,7 +825,7 @@ packages:
   glob@8.1.0:
     resolution: {integrity: sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ==}
     engines: {node: '>=12'}
-    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+    deprecated: Glob versions prior to v9 are no longer supported
 
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
@@ -2013,41 +2007,12 @@ snapshots:
 
   '@protobufjs/utf8@1.1.0': {}
 
-  '@reserve-protocol/reserve-governor@https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/c2b17012567bafcb99b03d20f31d516fd5482f93(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)':
+  '@reserve-protocol/reserve-governor@https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/2c0467eecf69562a8e7e94bb7a2ac6a9d11b86ac':
     dependencies:
       '@openzeppelin/contracts': 5.4.0
       '@openzeppelin/contracts-upgradeable': 5.4.0(@openzeppelin/contracts@5.4.0)
-      '@reserve-protocol/reserve-index-dtf': file:(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)
-      forge-std: https://codeload.github.com/foundry-rs/forge-std/tar.gz/1801b0541f4fda118a10798fd3486bb7051c5dd6
-    transitivePeerDependencies:
-      - bufferutil
-      - cross-fetch
-      - encoding
-      - ipfs-only-hash
-      - multiformats
-      - supports-color
-      - typescript
-      - utf-8-validate
-      - zod
-
-  '@reserve-protocol/reserve-index-dtf@file:(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)':
-    dependencies:
-      '@openzeppelin/contracts': 5.1.0
-      '@openzeppelin/contracts-upgradeable': 5.1.0(@openzeppelin/contracts@5.1.0)
       '@prb/math': 4.1.0
-      '@reserve-protocol/reserve-governor': https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/c2b17012567bafcb99b03d20f31d516fd5482f93(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)
-      '@reserve-protocol/trusted-fillers': https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/eabd9dbd60e8aaaec2c50db43742991e4cb55208(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)
       forge-std: https://codeload.github.com/foundry-rs/forge-std/tar.gz/1801b0541f4fda118a10798fd3486bb7051c5dd6
-    transitivePeerDependencies:
-      - bufferutil
-      - cross-fetch
-      - encoding
-      - ipfs-only-hash
-      - multiformats
-      - supports-color
-      - typescript
-      - utf-8-validate
-      - zod
 
   '@reserve-protocol/trusted-fillers@https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/eabd9dbd60e8aaaec2c50db43742991e4cb55208(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)':
     dependencies:

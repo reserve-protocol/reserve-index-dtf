@@ -2923,7 +2923,7 @@ contract FolioTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -2960,7 +2960,7 @@ contract FolioTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -2985,7 +2985,7 @@ contract FolioTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -3008,7 +3008,7 @@ contract FolioTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         versionRegistry.registerVersion(newDeployerV2);
 
