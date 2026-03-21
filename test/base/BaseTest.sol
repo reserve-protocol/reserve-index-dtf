@@ -27,7 +27,7 @@ import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 
 import { MockERC20 } from "utils/MockERC20.sol";
-import { MockERC20 } from "utils/MockERC20.sol";
+import { MockGovernanceVersionRegistry } from "utils/MockGovernanceVersionRegistry.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 
 abstract contract BaseTest is Script, Test {
@@ -71,6 +71,7 @@ abstract contract BaseTest is Script, Test {
     FolioDAOFeeRegistry daoFeeRegistry;
     FolioVersionRegistry versionRegistry;
     TrustedFillerRegistry trustedFillerRegistry;
+    MockGovernanceVersionRegistry optimisticGovernanceVersionRegistry;
     IReserveOptimisticGovernorDeployer optimisticGovernanceDeployer;
 
     FolioProxyAdmin proxyAdmin;
@@ -132,20 +133,23 @@ abstract contract BaseTest is Script, Test {
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
         trustedFillerRegistry = new TrustedFillerRegistry(address(roleRegistry));
+        optimisticGovernanceVersionRegistry = new MockGovernanceVersionRegistry();
 
         // Deploy implementations via artifacts
-        address stakingVaultImpl = StakingVaultDeployer.deploy();
-        address governorImpl = ReserveOptimisticGovernorDeployer.deploy();
-        address timelockImpl = TimelockControllerOptimisticDeployer.deploy();
-        address selectorRegistryImpl = OptimisticSelectorRegistryDeployer.deploy();
+        address stakingVaultImpl = StakingVaultDeployer.deploy(bytes32(uint256(1)));
+        address governorImpl = ReserveOptimisticGovernorDeployer.deploy(bytes32(uint256(2)));
+        address timelockImpl = TimelockControllerOptimisticDeployer.deploy(bytes32(uint256(3)));
+        address selectorRegistryImpl = OptimisticSelectorRegistryDeployer.deploy(bytes32(uint256(4)));
 
         // Deploy the factory via artifact
         optimisticGovernanceDeployer = IReserveOptimisticGovernorDeployer(
             ReserveOptimisticGovernorDeployerDeployer.deploy(
+                address(optimisticGovernanceVersionRegistry),
                 stakingVaultImpl,
                 governorImpl,
                 timelockImpl,
-                selectorRegistryImpl
+                selectorRegistryImpl,
+                bytes32(uint256(5))
             )
         );
 
@@ -161,6 +165,7 @@ abstract contract BaseTest is Script, Test {
         // register version
         versionRegistry.registerVersion(folioDeployer);
         trustedFillerRegistry.addTrustedFiller(CowSwapFiller(cowswapFiller));
+        optimisticGovernanceVersionRegistry.registerVersion(optimisticGovernanceDeployer);
 
         deployCoins();
         mintTokens();
@@ -188,19 +193,25 @@ abstract contract BaseTest is Script, Test {
 
         // Fork tests still need a local governor deployer instance for spell construction.
         if (address(optimisticGovernanceDeployer) == address(0)) {
-            address stakingVaultImpl = StakingVaultDeployer.deploy();
-            address governorImpl = ReserveOptimisticGovernorDeployer.deploy();
-            address timelockImpl = TimelockControllerOptimisticDeployer.deploy();
-            address selectorRegistryImpl = OptimisticSelectorRegistryDeployer.deploy();
+            roleRegistry = new MockRoleRegistry();
+            optimisticGovernanceVersionRegistry = new MockGovernanceVersionRegistry();
+
+            address stakingVaultImpl = StakingVaultDeployer.deploy(bytes32(uint256(1)));
+            address governorImpl = ReserveOptimisticGovernorDeployer.deploy(bytes32(uint256(2)));
+            address timelockImpl = TimelockControllerOptimisticDeployer.deploy(bytes32(uint256(3)));
+            address selectorRegistryImpl = OptimisticSelectorRegistryDeployer.deploy(bytes32(uint256(4)));
 
             optimisticGovernanceDeployer = IReserveOptimisticGovernorDeployer(
                 ReserveOptimisticGovernorDeployerDeployer.deploy(
+                    address(optimisticGovernanceVersionRegistry),
                     stakingVaultImpl,
                     governorImpl,
                     timelockImpl,
-                    selectorRegistryImpl
+                    selectorRegistryImpl,
+                    bytes32(uint256(5))
                 )
             );
+            optimisticGovernanceVersionRegistry.registerVersion(optimisticGovernanceDeployer);
         }
     }
 

@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 import { FolioDeployerV2 } from "./utils/upgrades/FolioDeployerV2.sol";
 import { IFolioVersionRegistry } from "contracts/interfaces/IFolioVersionRegistry.sol";
-import { FolioVersionRegistry } from "contracts/folio/FolioVersionRegistry.sol";
 import "./base/BaseTest.sol";
 
 contract FolioVersionRegistryTest is BaseTest {

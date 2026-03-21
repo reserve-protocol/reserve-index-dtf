@@ -384,7 +384,7 @@ contract ExtremeTest is BaseExtremeTest {
 
         IERC20 token = deployCoin("Mock Token", "TKN", 18); // mock
 
-        address stakingVaultImpl = StakingVaultDeployer.deploy();
+        address stakingVaultImpl = StakingVaultDeployer.deploy(bytes32(0));
         bytes memory initData = abi.encodeCall(
             IStakingVaultTest.initialize,
             ("Staked Test Token", "sTEST", address(token), address(this), p.rewardHalfLife, 0)

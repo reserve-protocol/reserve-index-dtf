@@ -157,12 +157,14 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         // Deploy StakingVault, Governor, Timelock, Selector Registry
         {
+            address upgradeManager;
             IReserveOptimisticGovernorDeployer.BaseDeploymentParams
                 memory baseParams = IReserveOptimisticGovernorDeployer.BaseDeploymentParams({
                     optimisticParams: govParams.optimisticParams,
                     standardParams: govParams.standardParams,
                     selectorData: govParams.optimisticSelectorData,
                     optimisticProposers: govParams.optimisticProposers,
+                    optimisticGuardians: govParams.guardians,
                     guardians: govParams.guardians,
                     timelockDelay: govParams.timelockDelay,
                     proposalThrottleCapacity: govParams.proposalThrottleCapacity
@@ -184,10 +186,13 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 newStakingVaultParams.rewardTokens[0] = folio;
             }
 
-            (stToken, governor, timelock, selectorRegistry) = IReserveOptimisticGovernorDeployer(
+            (upgradeManager, stToken, governor, timelock, selectorRegistry) = IReserveOptimisticGovernorDeployer(
                 optimisticGovernorDeployer
             ).deployWithNewStakingVault(baseParams, newStakingVaultParams, deploymentSalt);
+            upgradeManager;
         }
+
+        // TODO Token Jar
 
         // If no basket managers are provided, configure timelock as REBALANCE_MANAGER
         if (govRoles.existingBasketManagers.length == 0) {

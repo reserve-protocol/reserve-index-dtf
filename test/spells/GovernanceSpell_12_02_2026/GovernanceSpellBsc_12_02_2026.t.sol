@@ -23,8 +23,7 @@ contract GovernanceSpellBsc_12_02_2026_Test is GenericGovernanceSpell_12_02_2026
                     proxyAdmin: FolioProxyAdmin(0x91a42b577189A52F211E830b73dc5479D611579A),
                     stakingVaultGovernor: IFolioGovernor(0x3D047aBc5b95BC9989904c557789C1bCf3057d99),
                     oldFolioGovernor: IFolioGovernor(0x6304135c135DA8553d66b0065C8A7c3b0d16c1e8),
-                    guardians: guardians,
-                    joinExistingGovernor: IFolioGovernor(address(0))
+                    guardians: guardians
                 })
             );
         }

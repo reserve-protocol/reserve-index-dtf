@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio } from "contracts/Folio.sol";
 import { AUCTION_WARMUP, D27, MAX_AUCTION_LENGTH, MAX_TTL, MAX_WEIGHT, MAX_LIMIT } from "@utils/Constants.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
-import { FolioProxyAdmin } from "contracts/folio/FolioProxy.sol";
 import "./base/BaseTest.sol";
 
 contract AllowlistTest is BaseTest {
