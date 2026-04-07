@@ -159,20 +159,20 @@ FORK_RPC_MAINNET="<archive_rpc>" \
 
 ### Function Selectors
 
-| Function | Selector |
-| --- | --- |
-| `deprecateFolio()` | `0x7aeaafb3` |
-| `revokeRole(bytes32,address)` | `0xd547741f` |
-| `renounceOwnership()` | `0x715018a6` |
+| Function                                      | Selector     |
+| --------------------------------------------- | ------------ |
+| `deprecateFolio()`                            | `0x7aeaafb3` |
+| `revokeRole(bytes32,address)`                 | `0xd547741f` |
+| `renounceOwnership()`                         | `0x715018a6` |
 | `propose(address[],uint256[],bytes[],string)` | `0x7d5e81e2` |
 
 ### Role Hashes
 
-| Role | Hash |
-| --- | --- |
+| Role                 | Hash                                                                 |
+| -------------------- | -------------------------------------------------------------------- |
 | `DEFAULT_ADMIN_ROLE` | `0x0000000000000000000000000000000000000000000000000000000000000000` |
-| `REBALANCE_MANAGER` | `0x4ff6ae4d6a29e79ca45c6441bdc89b93878ac6118485b33c8baa3749fc3cb130` |
-| `AUCTION_LAUNCHER` | `0x13ff1b2625181b311f257c723b5e6d366eb318b212d9dd694c48fcf227659df5` |
+| `REBALANCE_MANAGER`  | `0x4ff6ae4d6a29e79ca45c6441bdc89b93878ac6118485b33c8baa3749fc3cb130` |
+| `AUCTION_LAUNCHER`   | `0x13ff1b2625181b311f257c723b5e6d366eb318b212d9dd694c48fcf227659df5` |
 
 ### ERC1967 Admin Slot
 

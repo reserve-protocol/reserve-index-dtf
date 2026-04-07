@@ -3,13 +3,13 @@ pragma solidity 0.8.28;
 
 import "forge-std/Test.sol";
 
-import {IAccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/IAccessControlEnumerable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IFolio} from "contracts/interfaces/IFolio.sol";
-import {Folio} from "@src/Folio.sol";
+import { IAccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/IAccessControlEnumerable.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { IFolio } from "contracts/interfaces/IFolio.sol";
+import { Folio } from "@src/Folio.sol";
 
 bytes32 constant DEFAULT_ADMIN_ROLE = 0x00;
 bytes32 constant REBALANCE_MANAGER = keccak256("REBALANCE_MANAGER");
@@ -46,10 +46,9 @@ interface IStakingVault is IERC4626 {
 }
 
 interface IUnstakingManager {
-    function locks(uint256 lockId)
-        external
-        view
-        returns (address user, uint256 amount, uint256 unlockTime, uint256 claimedAt);
+    function locks(
+        uint256 lockId
+    ) external view returns (address user, uint256 amount, uint256 unlockTime, uint256 claimedAt);
     function claimLock(uint256 lockId) external;
 }
 
@@ -218,7 +217,7 @@ abstract contract DeprecationProposalForkTest is Test {
         IUnstakingManager umgr = IUnstakingManager(vault.unstakingManager());
         bool found;
         for (uint256 lockId; lockId < 100; lockId++) {
-            (address lockUser,,, uint256 claimedAt) = umgr.locks(lockId);
+            (address lockUser, , , uint256 claimedAt) = umgr.locks(lockId);
             if (lockUser == staker && claimedAt == 0) {
                 umgr.claimLock(lockId);
                 assertGt(
@@ -254,21 +253,31 @@ contract DeprecationProposalFork_mvRWA is DeprecationProposalForkTest {
         calldatas[0] = abi.encodeWithSignature("deprecateFolio()");
         // 2. revokeRole(REBALANCE_MANAGER, tradingTimelock)
         calldatas[1] = abi.encodeWithSignature(
-            "revokeRole(bytes32,address)", REBALANCE_MANAGER, 0xF156F05d8eB854926f08983F98bD8Ac27c2f18c4
+            "revokeRole(bytes32,address)",
+            REBALANCE_MANAGER,
+            0xF156F05d8eB854926f08983F98bD8Ac27c2f18c4
         );
         // 3-5. revokeRole(AUCTION_LAUNCHER, launcher)
         calldatas[2] = abi.encodeWithSignature(
-            "revokeRole(bytes32,address)", AUCTION_LAUNCHER, 0x6293e97900aA987Cf3Cbd419e0D5Ba43ebfA91c1
+            "revokeRole(bytes32,address)",
+            AUCTION_LAUNCHER,
+            0x6293e97900aA987Cf3Cbd419e0D5Ba43ebfA91c1
         );
         calldatas[3] = abi.encodeWithSignature(
-            "revokeRole(bytes32,address)", AUCTION_LAUNCHER, 0xC6625129C9df3314a4dd604845488f4bA62F9dB8
+            "revokeRole(bytes32,address)",
+            AUCTION_LAUNCHER,
+            0xC6625129C9df3314a4dd604845488f4bA62F9dB8
         );
         calldatas[4] = abi.encodeWithSignature(
-            "revokeRole(bytes32,address)", AUCTION_LAUNCHER, 0x7DaAf7Bc2eE8bf4C0ac7f37E6b6cfaEB3ed9a868
+            "revokeRole(bytes32,address)",
+            AUCTION_LAUNCHER,
+            0x7DaAf7Bc2eE8bf4C0ac7f37E6b6cfaEB3ed9a868
         );
         // 6. revokeRole(DEFAULT_ADMIN_ROLE, ownerTimelock)
         calldatas[5] = abi.encodeWithSignature(
-            "revokeRole(bytes32,address)", DEFAULT_ADMIN_ROLE, 0x02188526Dd0021F8032868552d2Ea8529d3A4E53
+            "revokeRole(bytes32,address)",
+            DEFAULT_ADMIN_ROLE,
+            0x02188526Dd0021F8032868552d2Ea8529d3A4E53
         );
 
         _addProposal(

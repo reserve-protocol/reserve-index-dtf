@@ -3,13 +3,13 @@ pragma solidity 0.8.28;
 
 import "forge-std/Test.sol";
 
-import {IAccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/IAccessControlEnumerable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IFolio} from "contracts/interfaces/IFolio.sol";
-import {Folio} from "@src/Folio.sol";
+import { IAccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/IAccessControlEnumerable.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { IFolio } from "contracts/interfaces/IFolio.sol";
+import { Folio } from "@src/Folio.sol";
 
 bytes32 constant DEFAULT_ADMIN_ROLE = 0x00;
 bytes32 constant REBALANCE_MANAGER = keccak256("REBALANCE_MANAGER");
@@ -21,10 +21,9 @@ interface IStakingVault is IERC4626 {
 }
 
 interface IUnstakingManager {
-    function locks(uint256 lockId)
-        external
-        view
-        returns (address user, uint256 amount, uint256 unlockTime, uint256 claimedAt);
+    function locks(
+        uint256 lockId
+    ) external view returns (address user, uint256 amount, uint256 unlockTime, uint256 claimedAt);
     function claimLock(uint256 lockId) external;
 }
 
@@ -218,7 +217,7 @@ abstract contract DeprecationForkTest is Test {
         IUnstakingManager umgr = IUnstakingManager(vault.unstakingManager());
         bool found;
         for (uint256 lockId; lockId < 100; lockId++) {
-            (address lockUser,,, uint256 claimedAt) = umgr.locks(lockId);
+            (address lockUser, , , uint256 claimedAt) = umgr.locks(lockId);
             if (lockUser == staker && claimedAt == 0) {
                 umgr.claimLock(lockId);
                 assertGt(
