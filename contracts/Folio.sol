@@ -479,6 +479,8 @@ contract Folio is
     /// @param assets Assets to receive, must match basket exactly
     /// @param minAmountsOut {tok} Minimum amounts of each asset to receive
     /// @return _amounts {tok} Actual amounts transferred of each asset
+    /// @dev Redeeming to Folio directly skips minAmountOut checks and transfers,
+    ///      mainly useful for donating shares to the Folio.
     function redeem(
         uint256 shares,
         address receiver,
@@ -497,12 +499,14 @@ contract Folio is
         uint256 len = _assets.length;
         require(len == assets.length && len == minAmountsOut.length, Folio__InvalidArrayLengths());
 
-        for (uint256 i; i < len; i++) {
-            require(_assets[i] == assets[i], Folio__InvalidAsset());
-            require(_amounts[i] >= minAmountsOut[i], Folio__InvalidAssetAmount(_assets[i]));
+        if (receiver != address(this)) {
+            for (uint256 i; i < len; i++) {
+                require(_assets[i] == assets[i], Folio__InvalidAsset());
+                require(_amounts[i] >= minAmountsOut[i], Folio__InvalidAssetAmount(_assets[i]));
 
-            if (_amounts[i] != 0) {
-                SafeERC20.safeTransfer(IERC20(_assets[i]), receiver, _amounts[i]);
+                if (_amounts[i] != 0) {
+                    SafeERC20.safeTransfer(IERC20(_assets[i]), receiver, _amounts[i]);
+                }
             }
         }
     }
