@@ -497,11 +497,13 @@ contract Folio is
         uint256 len = _assets.length;
         require(len == assets.length && len == minAmountsOut.length, Folio__InvalidArrayLengths());
 
+        bool doTransfer = receiver != address(this);
+
         for (uint256 i; i < len; i++) {
             require(_assets[i] == assets[i], Folio__InvalidAsset());
             require(_amounts[i] >= minAmountsOut[i], Folio__InvalidAssetAmount(_assets[i]));
 
-            if (_amounts[i] != 0) {
+            if (_amounts[i] != 0 && doTransfer) {
                 SafeERC20.safeTransfer(IERC20(_assets[i]), receiver, _amounts[i]);
             }
         }
