@@ -5,10 +5,15 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { IERC5805 } from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
+import { IRoleRegistry as IRewardRoleRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IRoleRegistry.sol";
+import { RewardTokenRegistry } from "@reserve-protocol/reserve-governor/contracts/staking/RewardTokenRegistry.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
 import { Folio } from "@src/Folio.sol";
 import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_TTL, MAX_WEIGHT, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { StakingVaultDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/StakingVaultDeployer.sol";
+import { MockGovernanceVersionRegistry } from "utils/MockGovernanceVersionRegistry.sol";
+import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 import "./base/BaseExtremeTest.sol";
 
 /// @dev Extended interface for StakingVault testing - includes methods not in IERC5805
@@ -383,6 +388,7 @@ contract ExtremeTest is BaseExtremeTest {
         );
 
         IERC20 token = deployCoin("Mock Token", "TKN", 18); // mock
+        RewardTokenRegistry rewardTokenRegistry_ = _mockGovernanceDependencies();
 
         address stakingVaultImpl = StakingVaultDeployer.deploy(bytes32(0));
         bytes memory initData = abi.encodeCall(
@@ -402,6 +408,7 @@ contract ExtremeTest is BaseExtremeTest {
                     p.decimals
                 )
             );
+            rewardTokenRegistry_.registerRewardToken(rewardTokens[j]);
             vault.addRewardToken(rewardTokens[j]);
         }
 
@@ -453,5 +460,24 @@ contract ExtremeTest is BaseExtremeTest {
             MockERC20 reward = MockERC20(rewardTokens[j]);
             assertApproxEqRel(reward.balanceOf(user1), expectedRewards, 1e14);
         }
+
+        vm.clearMockedCalls();
+    }
+
+    function _mockGovernanceDependencies() internal returns (RewardTokenRegistry rewardTokenRegistry_) {
+        MockGovernanceVersionRegistry versionRegistry_ = new MockGovernanceVersionRegistry();
+        MockRoleRegistry rewardRoleRegistry_ = new MockRoleRegistry();
+        rewardTokenRegistry_ = new RewardTokenRegistry(IRewardRoleRegistry(address(rewardRoleRegistry_)));
+
+        vm.mockCall(
+            address(this),
+            abi.encodeWithSelector(IReserveOptimisticGovernorDeployer.rewardTokenRegistry.selector),
+            abi.encode(address(rewardTokenRegistry_))
+        );
+        vm.mockCall(
+            address(this),
+            abi.encodeWithSelector(IReserveOptimisticGovernorDeployer.versionRegistry.selector),
+            abi.encode(address(versionRegistry_))
+        );
     }
 }

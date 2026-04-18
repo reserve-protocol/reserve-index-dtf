@@ -19,6 +19,8 @@ import { TimelockControllerOptimisticDeployer } from "@reserve-protocol/reserve-
 import { OptimisticSelectorRegistryDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/OptimisticSelectorRegistryDeployer.sol";
 import { ReserveOptimisticGovernorDeployerDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorDeployerDeployer.sol";
 import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
+import { IRoleRegistry as IRewardRoleRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IRoleRegistry.sol";
+import { RewardTokenRegistry } from "@reserve-protocol/reserve-governor/contracts/staking/RewardTokenRegistry.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";
@@ -72,6 +74,7 @@ abstract contract BaseTest is Script, Test {
     FolioVersionRegistry versionRegistry;
     TrustedFillerRegistry trustedFillerRegistry;
     MockGovernanceVersionRegistry optimisticGovernanceVersionRegistry;
+    RewardTokenRegistry rewardTokenRegistry;
     IReserveOptimisticGovernorDeployer optimisticGovernanceDeployer;
 
     FolioProxyAdmin proxyAdmin;
@@ -134,6 +137,7 @@ abstract contract BaseTest is Script, Test {
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
         trustedFillerRegistry = new TrustedFillerRegistry(address(roleRegistry));
         optimisticGovernanceVersionRegistry = new MockGovernanceVersionRegistry();
+        rewardTokenRegistry = new RewardTokenRegistry(IRewardRoleRegistry(address(roleRegistry)));
 
         // Deploy implementations via artifacts
         address stakingVaultImpl = StakingVaultDeployer.deploy(bytes32(uint256(1)));
@@ -145,6 +149,8 @@ abstract contract BaseTest is Script, Test {
         optimisticGovernanceDeployer = IReserveOptimisticGovernorDeployer(
             ReserveOptimisticGovernorDeployerDeployer.deploy(
                 address(optimisticGovernanceVersionRegistry),
+                address(rewardTokenRegistry),
+                user1,
                 stakingVaultImpl,
                 governorImpl,
                 timelockImpl,
@@ -195,6 +201,7 @@ abstract contract BaseTest is Script, Test {
         if (address(optimisticGovernanceDeployer) == address(0)) {
             roleRegistry = new MockRoleRegistry();
             optimisticGovernanceVersionRegistry = new MockGovernanceVersionRegistry();
+            rewardTokenRegistry = new RewardTokenRegistry(IRewardRoleRegistry(address(roleRegistry)));
 
             address stakingVaultImpl = StakingVaultDeployer.deploy(bytes32(uint256(1)));
             address governorImpl = ReserveOptimisticGovernorDeployer.deploy(bytes32(uint256(2)));
@@ -204,6 +211,8 @@ abstract contract BaseTest is Script, Test {
             optimisticGovernanceDeployer = IReserveOptimisticGovernorDeployer(
                 ReserveOptimisticGovernorDeployerDeployer.deploy(
                     address(optimisticGovernanceVersionRegistry),
+                    address(rewardTokenRegistry),
+                    user1,
                     stakingVaultImpl,
                     governorImpl,
                     timelockImpl,
@@ -280,6 +289,18 @@ abstract contract BaseTest is Script, Test {
     function dealETH(address[] memory _accounts, uint256[] memory _amounts) public {
         for (uint256 i = 0; i < _accounts.length; i++) {
             vm.deal(_accounts[i], _amounts[i]);
+        }
+    }
+
+    function _registerRewardToken(address rewardToken) internal {
+        if (rewardToken == address(0) || rewardTokenRegistry.isRegistered(rewardToken)) return;
+
+        rewardTokenRegistry.registerRewardToken(rewardToken);
+    }
+
+    function _registerRewardTokens(address[] memory rewardTokens) internal {
+        for (uint256 i = 0; i < rewardTokens.length; i++) {
+            _registerRewardToken(rewardTokens[i]);
         }
     }
 

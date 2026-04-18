@@ -12,11 +12,16 @@ import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/
 
 import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_MINT_FEE } from "@utils/Constants.sol";
 import { FolioDeployer, IFolioDeployer } from "@deployer/FolioDeployer.sol";
+import { FolioProxy, FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { PROPOSER_ROLE, EXECUTOR_ROLE, CANCELLER_ROLE, AUCTION_LAUNCHER, BRAND_MANAGER, REBALANCE_MANAGER, DEFAULT_ADMIN_ROLE } from "@utils/Constants.sol";
 import "./base/BaseTest.sol";
 
 /// @dev Extended interfaces for testing - includes methods not in the base interfaces
 interface IStakingVaultTest is IERC5805, IERC4626, IAccessControl {}
+
+interface IStakingVaultRewards is IStakingVaultTest {
+    function getAllRewardTokens() external view returns (address[] memory);
+}
 
 interface IGovernorTest is IGovernor {
     function optimisticParams() external view returns (IReserveOptimisticGovernor.OptimisticGovernanceParams memory);
@@ -284,12 +289,17 @@ contract FolioDeployerTest is BaseTest {
         address[] memory guardians = new address[](1);
         guardians[0] = user1;
 
+        address[] memory auctionLaunchers = new address[](1);
+        auctionLaunchers[0] = auctionLauncher;
+
+        IFolioDeployer.GovRoles memory govRoles = IFolioDeployer.GovRoles(
+            new address[](0), auctionLaunchers, new address[](0)
+        );
+        _registerGovernedFolioRewardToken(govRoles, bytes32(0));
+
         vm.startPrank(owner);
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
-
-        address[] memory auctionLaunchers = new address[](1);
-        auctionLaunchers[0] = auctionLauncher;
 
         {
             // stack-too-deep
@@ -308,7 +318,7 @@ contract FolioDeployerTest is BaseTest {
                     _additionalDetails(),
                     _flags(),
                     _govParams(guardians, address(MEME)),
-                    IFolioDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
+                    govRoles,
                     bytes32(0)
                 );
             vm.stopSnapshotGas("deployGovernedFolio()");
@@ -381,21 +391,30 @@ contract FolioDeployerTest is BaseTest {
         // Check StakingVault
         assertTrue(stToken.hasRole(DEFAULT_ADMIN_ROLE, address(timelock)), "wrong staking vault admin role");
         assertEq(stToken.asset(), address(MEME), "wrong staking vault asset");
+
+        address[] memory rewardTokens = IStakingVaultRewards(address(stToken)).getAllRewardTokens();
+        assertEq(rewardTokens.length, 1, "wrong staking vault reward token count");
+        assertEq(rewardTokens[0], address(folio), "wrong staking vault reward token");
     }
 
     function test_createGovernedFolio_withExistingRebalanceManager() public {
         address[] memory guardians = new address[](1);
         guardians[0] = user1;
 
-        vm.startPrank(owner);
-        USDC.approve(address(folioDeployer), type(uint256).max);
-        DAI.approve(address(folioDeployer), type(uint256).max);
-
         address[] memory rebalanceManagers = new address[](1);
         rebalanceManagers[0] = dao;
 
         address[] memory auctionLaunchers = new address[](1);
         auctionLaunchers[0] = auctionLauncher;
+
+        IFolioDeployer.GovRoles memory govRoles = IFolioDeployer.GovRoles(
+            rebalanceManagers, auctionLaunchers, new address[](0)
+        );
+        _registerGovernedFolioRewardToken(govRoles, bytes32(0));
+
+        vm.startPrank(owner);
+        USDC.approve(address(folioDeployer), type(uint256).max);
+        DAI.approve(address(folioDeployer), type(uint256).max);
 
         vm.startSnapshotGas("deployGovernedFolio");
         {
@@ -412,7 +431,7 @@ contract FolioDeployerTest is BaseTest {
                     _additionalDetails(),
                     _flags(),
                     _govParams(guardians, address(MEME)),
-                    IFolioDeployer.GovRoles(rebalanceManagers, auctionLaunchers, new address[](0)),
+                    govRoles,
                     bytes32(0)
                 );
             vm.stopSnapshotGas("deployGovernedFolio()");
@@ -459,6 +478,32 @@ contract FolioDeployerTest is BaseTest {
 
         // Check rebalance manager is properly set
         assertTrue(folio.hasRole(REBALANCE_MANAGER, dao), "wrong basket manager role");
+
+        address[] memory rewardTokens = IStakingVaultRewards(address(stToken)).getAllRewardTokens();
+        assertEq(rewardTokens.length, 1, "wrong staking vault reward token count");
+        assertEq(rewardTokens[0], address(folio), "wrong staking vault reward token");
+    }
+
+    function test_createGovernedFolio_requiresRegisteredRewardToken() public {
+        address[] memory guardians = new address[](1);
+        guardians[0] = user1;
+
+        address[] memory auctionLaunchers = new address[](1);
+        auctionLaunchers[0] = auctionLauncher;
+
+        vm.startPrank(owner);
+        USDC.approve(address(folioDeployer), type(uint256).max);
+        DAI.approve(address(folioDeployer), type(uint256).max);
+
+        vm.expectRevert(bytes4(keccak256("Vault__RewardNotRegistered()")));
+        folioDeployer.deployGovernedFolio(
+            _basicDetails(),
+            _additionalDetails(),
+            _flags(),
+            _govParams(guardians, address(MEME)),
+            IFolioDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
+            bytes32(0)
+        );
     }
 
     function test_canMineVanityAddress() public {
@@ -468,18 +513,25 @@ contract FolioDeployerTest is BaseTest {
         vm.startPrank(owner);
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
+        vm.stopPrank();
 
         Folio _folio;
+        IFolioDeployer.GovRoles memory govRoles = IFolioDeployer.GovRoles(
+            new address[](0), new address[](0), new address[](0)
+        );
 
         for (uint256 i = 0; i < 1000; i++) {
             uint256 snapshot = vm.snapshotState();
 
+            _registerGovernedFolioRewardToken(govRoles, bytes32(i));
+
+            vm.prank(owner);
             (, address _folioAddr, , , , ) = folioDeployer.deployGovernedFolio(
                 _basicDetails(),
                 _additionalDetails(),
                 _flags(),
                 _govParams(guardians, address(MEME)),
-                IFolioDeployer.GovRoles(new address[](0), new address[](0), new address[](0)),
+                govRoles,
                 bytes32(i)
             );
             _folio = Folio(_folioAddr);
@@ -494,6 +546,64 @@ contract FolioDeployerTest is BaseTest {
         }
 
         assertEq(uint160(address(_folio)) >> 152, uint256(uint160(0xff)), "failed to mine salt");
+    }
+
+    function _registerGovernedFolioRewardToken(IFolioDeployer.GovRoles memory govRoles, bytes32 deploymentNonce)
+        internal
+    {
+        _registerRewardToken(_predictGovernedFolioAddress(govRoles, deploymentNonce));
+    }
+
+    function _predictGovernedFolioAddress(
+        IFolioDeployer.GovRoles memory govRoles,
+        bytes32 deploymentNonce
+    ) internal view returns (address folioAddress) {
+        bytes32 governedDeploymentNonce = keccak256(abi.encode(owner, deploymentNonce));
+        bytes32 folioDeploymentSalt = keccak256(
+            abi.encode(
+                owner,
+                keccak256(
+                    abi.encode(
+                        _basicDetails(),
+                        _additionalDetails(),
+                        _flags(),
+                        address(folioDeployer),
+                        govRoles.existingBasketManagers,
+                        govRoles.auctionLaunchers,
+                        govRoles.brandManagers
+                    )
+                ),
+                governedDeploymentNonce
+            )
+        );
+
+        address proxyAdminAddress = _computeCreate2Address(
+            address(folioDeployer),
+            folioDeploymentSalt,
+            abi.encodePacked(
+                type(FolioProxyAdmin).creationCode,
+                abi.encode(address(folioDeployer), address(versionRegistry))
+            )
+        );
+
+        folioAddress = _computeCreate2Address(
+            address(folioDeployer),
+            folioDeploymentSalt,
+            abi.encodePacked(
+                type(FolioProxy).creationCode,
+                abi.encode(folioDeployer.folioImplementation(), proxyAdminAddress)
+            )
+        );
+    }
+
+    function _computeCreate2Address(address deployer, bytes32 salt, bytes memory initCode)
+        internal
+        pure
+        returns (address)
+    {
+        return address(
+            uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, keccak256(initCode)))))
+        );
     }
 
     // === Helpers ===

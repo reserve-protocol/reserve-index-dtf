@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "./GenericGovernanceSpell_12_02_2026.t.sol";
+import "./GenericGovernanceSpell_04_17_2026.t.sol";
 
-contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02_2026_Test {
+contract GovernanceSpellEthereum_04_17_2026_Test is GenericGovernanceSpell_04_17_2026_Test {
     constructor() {
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,
@@ -128,7 +128,7 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
         }
     }
 
-    function test_upgradeFolio_sharedNewStakingVault_fork() public {
+    function test_upgradeFlow_sharedNewStakingVault_fork() public {
         address[] memory mvDefiGuardians = new address[](2);
         mvDefiGuardians[0] = 0x38afC3aA2c76b4cA1F8e1DabA68e998e1F4782DB;
         mvDefiGuardians[1] = 0x6f1D6b86d4ad705385e751e6e88b0FdFDBAdf298;
@@ -144,69 +144,74 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
         });
 
         address sharedStakingVault = mvRwaCfg.stakingVaultGovernor.token();
+        address oldSharedStakingVaultOwner = IOwnableStakingVault(sharedStakingVault).owner();
         assertEq(sharedStakingVault, mvDefiCfg.stakingVaultGovernor.token(), "expected shared staking vault");
 
         address newUnderlying = IStakingVault(sharedStakingVault).asset();
-        address oldStakingVaultOwner = IOwnableStakingVault(sharedStakingVault).owner();
-        vm.startPrank(oldStakingVaultOwner);
-        IOwnableStakingVault(sharedStakingVault).transferOwnership(address(spell));
-        GovernanceSpell_12_02_2026.NewDeployment memory stakingVaultDep = spell.upgradeStakingVault(
-            mvRwaCfg.stakingVaultGovernor,
-            _optimisticParams(),
-            new IOptimisticSelectorRegistry.SelectorData[](0),
-            new address[](0),
-            mvRwaCfg.guardians,
-            newUnderlying,
+        address sharedOptimisticProposer = makeAddr("shared-staking-vault-opt");
+        SuccessorDeployment memory stakingVaultDep = _deploySuccessorStakingVault(
+            mvRwaCfg,
+            _doubleAddressArray(address(mvRwaCfg.folio), address(mvDefiCfg.folio)),
+            _singleAddressArray(sharedOptimisticProposer),
             keccak256("mvRWA-shared-vault")
         );
-        vm.stopPrank();
 
+        assertEq(
+            IOwnableStakingVault(sharedStakingVault).owner(),
+            oldSharedStakingVaultOwner,
+            "step 1 should not alter shared vault owner"
+        );
         assertTrue(stakingVaultDep.newStakingVault != sharedStakingVault, "expected new staking vault path");
         assertEq(IStakingVault(stakingVaultDep.newStakingVault).asset(), newUnderlying, "new vault asset mismatch");
+        _assertRewardTokens(
+            stakingVaultDep.newStakingVault,
+            _doubleAddressArray(address(mvRwaCfg.folio), address(mvDefiCfg.folio))
+        );
 
         uint96 mvRwaOldVaultFeePortionBefore = _feeRecipientPortion(mvRwaCfg.folio, sharedStakingVault);
         uint96 mvRwaNewVaultFeePortionBefore = _feeRecipientPortion(mvRwaCfg.folio, stakingVaultDep.newStakingVault);
         assertGt(uint256(mvRwaOldVaultFeePortionBefore), 0, "mvRWA old vault should receive folio fees");
-        GovernanceSpell_12_02_2026.NewDeployment memory mvRwaFolioDep = _upgradeFolio(
+        GovernanceSpell_04_17_2026.NewDeployment memory mvRwaFolioDep = _upgradeFolio(
             mvRwaCfg,
-            IFolioGovernor(stakingVaultDep.newGovernor),
+            IStakingVault(stakingVaultDep.newStakingVault),
             makeAddr("mvrwa-folio-opt"),
             keccak256("mvRWA-folio")
         );
+        assertEq(mvRwaFolioDep.stakingVault, stakingVaultDep.newStakingVault, "mvRWA returned vault mismatch");
         _assertFeeRecipientMigrated(
             mvRwaCfg.folio,
             sharedStakingVault,
-            mvRwaFolioDep.newStakingVault,
+            stakingVaultDep.newStakingVault,
             mvRwaOldVaultFeePortionBefore,
             mvRwaNewVaultFeePortionBefore
         );
         _assertFolioGovernanceInstalled(mvRwaCfg, mvRwaFolioDep.newTimelock);
+        assertEq(
+            IFolioGovernor(mvRwaFolioDep.newGovernor).token(),
+            stakingVaultDep.newStakingVault,
+            "mvRWA folio governor should use the upgraded staking vault"
+        );
 
         uint96 mvDefiOldVaultFeePortionBefore = _feeRecipientPortion(mvDefiCfg.folio, sharedStakingVault);
         uint96 mvDefiNewVaultFeePortionBefore = _feeRecipientPortion(mvDefiCfg.folio, stakingVaultDep.newStakingVault);
         assertGt(uint256(mvDefiOldVaultFeePortionBefore), 0, "mvDEFI old vault should receive folio fees");
-        GovernanceSpell_12_02_2026.NewDeployment memory mvDefiFolioDep = _upgradeFolio(
+        GovernanceSpell_04_17_2026.NewDeployment memory mvDefiFolioDep = _upgradeFolio(
             mvDefiCfg,
-            IFolioGovernor(stakingVaultDep.newGovernor),
+            IStakingVault(stakingVaultDep.newStakingVault),
             makeAddr("mvdefi-folio-opt"),
             keccak256("mvDEFI-folio")
         );
+        assertEq(mvDefiFolioDep.stakingVault, stakingVaultDep.newStakingVault, "mvDEFI returned vault mismatch");
         _assertFeeRecipientMigrated(
             mvDefiCfg.folio,
             sharedStakingVault,
-            mvDefiFolioDep.newStakingVault,
+            stakingVaultDep.newStakingVault,
             mvDefiOldVaultFeePortionBefore,
             mvDefiNewVaultFeePortionBefore
         );
         _assertFolioGovernanceInstalled(mvDefiCfg, mvDefiFolioDep.newTimelock);
-
         assertEq(
-            mvRwaFolioDep.newStakingVault,
-            stakingVaultDep.newStakingVault,
-            "mvRWA folio governor should use the upgraded staking vault"
-        );
-        assertEq(
-            mvDefiFolioDep.newStakingVault,
+            IFolioGovernor(mvDefiFolioDep.newGovernor).token(),
             stakingVaultDep.newStakingVault,
             "mvDEFI folio governor should use the upgraded staking vault"
         );
@@ -220,6 +225,21 @@ contract GovernanceSpellEthereum_12_02_2026_Test is GenericGovernanceSpell_12_02
         );
         assertTrue(mvRwaFolioDep.newGovernor != mvDefiFolioDep.newGovernor, "folios should not share a governor");
         assertTrue(mvRwaFolioDep.newTimelock != mvDefiFolioDep.newTimelock, "folios should not share a timelock");
+
+        _assertCanCreateOptimisticStartRebalanceProposal(
+            IReserveOptimisticGovernorLike(stakingVaultDep.newGovernor),
+            mvRwaCfg.folio,
+            sharedOptimisticProposer,
+            "mvRWA optimistic start rebalance"
+        );
+        _assertCanCreateOptimisticStartRebalanceProposal(
+            IReserveOptimisticGovernorLike(stakingVaultDep.newGovernor),
+            mvDefiCfg.folio,
+            sharedOptimisticProposer,
+            "mvDEFI optimistic start rebalance"
+        );
+
+        _retireOldStakingVault(IOwnableStakingVault(sharedStakingVault));
     }
 
     function _configByFolio(address folio) internal view returns (Config memory cfg) {
