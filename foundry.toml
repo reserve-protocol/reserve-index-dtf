@@ -11,7 +11,7 @@ memory_limit = 1073741824 # 1 GB
 
 # Compiler Options
 bytecode_hash = "none"
-evm_version = "paris"
+evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200
 solc_version = "0.8.28"
