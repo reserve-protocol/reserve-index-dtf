@@ -14,14 +14,7 @@ import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/c
 
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
-import {
-    DEFAULT_ADMIN_ROLE,
-    REBALANCE_MANAGER,
-    CANCELLER_ROLE,
-    DEFAULT_REWARD_PERIOD,
-    DEFAULT_UNSTAKING_DELAY,
-    MAX_FEE_RECIPIENTS
-} from "@utils/Constants.sol";
+import { DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, CANCELLER_ROLE, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 
 bytes32 constant VERSION_1_0_0 = keccak256("1.0.0");
 
@@ -118,8 +111,8 @@ contract GovernanceSpell_04_17_2026 {
             memory newStakingVaultParams = IReserveOptimisticGovernorDeployer.NewStakingVaultParams({
                 underlying: IERC20Metadata(newUnderlying),
                 rewardTokens: rewardTokens,
-                rewardHalfLife: DEFAULT_REWARD_PERIOD,
-                unstakingDelay: DEFAULT_UNSTAKING_DELAY
+                rewardHalfLife: 3.5 days,
+                unstakingDelay: 1 weeks
             });
 
         (

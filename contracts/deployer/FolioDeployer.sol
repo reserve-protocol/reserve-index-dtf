@@ -9,7 +9,7 @@ import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-go
 
 import { Folio, IFolio } from "@src/Folio.sol";
 import { FolioProxyAdmin, FolioProxy } from "@folio/FolioProxy.sol";
-import { AUCTION_LAUNCHER, BRAND_MANAGER, DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, DEFAULT_REWARD_PERIOD, DEFAULT_UNSTAKING_DELAY } from "@utils/Constants.sol";
+import { AUCTION_LAUNCHER, BRAND_MANAGER, DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER } from "@utils/Constants.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 /**
@@ -171,8 +171,8 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 memory newStakingVaultParams = IReserveOptimisticGovernorDeployer.NewStakingVaultParams({
                     underlying: IERC20Metadata(folio),
                     rewardTokens: new address[](0),
-                    rewardHalfLife: DEFAULT_REWARD_PERIOD,
-                    unstakingDelay: DEFAULT_UNSTAKING_DELAY
+                    rewardHalfLife: 3.5 days,
+                    unstakingDelay: 1 weeks
                 });
 
             // non-vlDTF config
