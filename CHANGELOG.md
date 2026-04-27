@@ -1,3 +1,10 @@
+## Release 5.1.0
+
+### Optimistic Governance
+
+- Add support for deploying Folios with Reserve Optimistic Governor infrastructure
+- Add migration spell for moving existing Folios to optimistic governance
+
 ## Release 5.0.0
 
 - Allow full weight range in startRebalance()
