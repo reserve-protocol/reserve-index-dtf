@@ -12,8 +12,6 @@ import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contrac
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
 
 import { StakingVaultDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/StakingVaultDeployer.sol";
-import { ProposalLibDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ProposalLibDeployer.sol";
-import { ThrottleLibDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ThrottleLibDeployer.sol";
 import { ReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorDeployer.sol";
 import { TimelockControllerOptimisticDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/TimelockControllerOptimisticDeployer.sol";
 import { OptimisticSelectorRegistryDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/OptimisticSelectorRegistryDeployer.sol";
@@ -91,8 +89,7 @@ abstract contract BaseTest is Script, Test {
 
     enum ForkNetwork {
         ETHEREUM,
-        BASE,
-        BSC
+        BASE
     }
 
     struct DeploymentData {
@@ -180,13 +177,11 @@ abstract contract BaseTest is Script, Test {
     }
 
     function _getForkRpc(ForkNetwork target) internal view returns (string memory forkRpc) {
-        // Enforce explicit fork RPC env vars (archive-capable), matching prior fork-test pattern.
+        // Enforces that variable exists.
         if (target == ForkNetwork.ETHEREUM) {
             forkRpc = vm.envString("FORK_RPC_MAINNET");
         } else if (target == ForkNetwork.BASE) {
             forkRpc = vm.envString("FORK_RPC_BASE");
-        } else if (target == ForkNetwork.BSC) {
-            forkRpc = vm.envString("FORK_RPC_BSC");
         }
     }
 
@@ -195,32 +190,6 @@ abstract contract BaseTest is Script, Test {
             vm.createSelectFork(_getForkRpc(deploymentData.forkTarget));
         } else {
             vm.createSelectFork(_getForkRpc(deploymentData.forkTarget), deploymentData.forkBlock);
-        }
-
-        // Fork tests still need a local governor deployer instance for spell construction.
-        if (address(optimisticGovernanceDeployer) == address(0)) {
-            roleRegistry = new MockRoleRegistry();
-            optimisticGovernanceVersionRegistry = new MockGovernanceVersionRegistry();
-            rewardTokenRegistry = new RewardTokenRegistry(IRewardRoleRegistry(address(roleRegistry)));
-
-            address stakingVaultImpl = StakingVaultDeployer.deploy(bytes32(uint256(1)));
-            address governorImpl = ReserveOptimisticGovernorDeployer.deploy(bytes32(uint256(2)));
-            address timelockImpl = TimelockControllerOptimisticDeployer.deploy(bytes32(uint256(3)));
-            address selectorRegistryImpl = OptimisticSelectorRegistryDeployer.deploy(bytes32(uint256(4)));
-
-            optimisticGovernanceDeployer = IReserveOptimisticGovernorDeployer(
-                ReserveOptimisticGovernorDeployerDeployer.deploy(
-                    address(optimisticGovernanceVersionRegistry),
-                    address(rewardTokenRegistry),
-                    user1,
-                    stakingVaultImpl,
-                    governorImpl,
-                    timelockImpl,
-                    selectorRegistryImpl,
-                    bytes32(uint256(5))
-                )
-            );
-            optimisticGovernanceVersionRegistry.registerVersion(optimisticGovernanceDeployer);
         }
     }
 

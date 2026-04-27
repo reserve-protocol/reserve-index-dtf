@@ -6,14 +6,14 @@ import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.so
 import { IERC5805 } from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-import { OPTIMISTIC_PROPOSER_ROLE } from "@reserve-protocol/reserve-governor/contracts/utils/Constants.sol";
+import { OPTIMISTIC_PROPOSER_ROLE, PROPOSER_ROLE, EXECUTOR_ROLE, CANCELLER_ROLE } from "@reserve-protocol/reserve-governor/contracts/utils/Constants.sol";
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
 import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
 
 import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_MINT_FEE } from "@utils/Constants.sol";
 import { FolioDeployer, IFolioDeployer } from "@deployer/FolioDeployer.sol";
 import { FolioProxy, FolioProxyAdmin } from "@folio/FolioProxy.sol";
-import { PROPOSER_ROLE, EXECUTOR_ROLE, CANCELLER_ROLE, AUCTION_LAUNCHER, BRAND_MANAGER, REBALANCE_MANAGER, DEFAULT_ADMIN_ROLE } from "@utils/Constants.sol";
+import { AUCTION_LAUNCHER, BRAND_MANAGER, REBALANCE_MANAGER, DEFAULT_ADMIN_ROLE } from "@utils/Constants.sol";
 import "./base/BaseTest.sol";
 
 /// @dev Extended interfaces for testing - includes methods not in the base interfaces
