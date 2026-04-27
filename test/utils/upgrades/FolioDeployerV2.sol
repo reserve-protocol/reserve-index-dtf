@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { FolioDeployer, IGovernanceDeployer } from "@deployer/FolioDeployer.sol";
+import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { FolioV2 } from "./FolioV2.sol";
 
 contract FolioDeployerV2 is FolioDeployer {
@@ -9,8 +9,8 @@ contract FolioDeployerV2 is FolioDeployer {
         address _daoFeeRegistry,
         address _versionRegistry,
         address _trustedFillerRegistry,
-        IGovernanceDeployer _governanceDeployer
-    ) FolioDeployer(_daoFeeRegistry, _versionRegistry, _trustedFillerRegistry, _governanceDeployer) {
+        address _governorDeployer
+    ) FolioDeployer(_daoFeeRegistry, _versionRegistry, _trustedFillerRegistry, _governorDeployer) {
         folioImplementation = address(new FolioV2());
     }
 

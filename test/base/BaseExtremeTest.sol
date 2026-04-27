@@ -65,7 +65,7 @@ abstract contract BaseExtremeTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
 
         CowSwapFiller cowswapFiller = new CowSwapFiller();

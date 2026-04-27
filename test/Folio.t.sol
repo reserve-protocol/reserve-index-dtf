@@ -4,11 +4,9 @@ pragma solidity 0.8.28;
 import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/IBaseTrustedFiller.sol";
 import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/GPv2OrderLib.sol";
 import { GPV2_SETTLEMENT } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/Constants.sol";
-import { IFolio } from "contracts/interfaces/IFolio.sol";
-import { Folio } from "contracts/Folio.sol";
 import { AUCTION_WARMUP, D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
+import { FolioProxy } from "contracts/folio/FolioProxy.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
@@ -2923,7 +2921,7 @@ contract FolioTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -2960,7 +2958,7 @@ contract FolioTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -2985,7 +2983,7 @@ contract FolioTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -3008,7 +3006,7 @@ contract FolioTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         versionRegistry.registerVersion(newDeployerV2);
 
