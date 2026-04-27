@@ -293,7 +293,9 @@ contract FolioDeployerTest is BaseTest {
         auctionLaunchers[0] = auctionLauncher;
 
         IFolioDeployer.GovRoles memory govRoles = IFolioDeployer.GovRoles(
-            new address[](0), auctionLaunchers, new address[](0)
+            new address[](0),
+            auctionLaunchers,
+            new address[](0)
         );
         _registerGovernedFolioRewardToken(govRoles, bytes32(0));
 
@@ -408,7 +410,9 @@ contract FolioDeployerTest is BaseTest {
         auctionLaunchers[0] = auctionLauncher;
 
         IFolioDeployer.GovRoles memory govRoles = IFolioDeployer.GovRoles(
-            rebalanceManagers, auctionLaunchers, new address[](0)
+            rebalanceManagers,
+            auctionLaunchers,
+            new address[](0)
         );
         _registerGovernedFolioRewardToken(govRoles, bytes32(0));
 
@@ -517,7 +521,9 @@ contract FolioDeployerTest is BaseTest {
 
         Folio _folio;
         IFolioDeployer.GovRoles memory govRoles = IFolioDeployer.GovRoles(
-            new address[](0), new address[](0), new address[](0)
+            new address[](0),
+            new address[](0),
+            new address[](0)
         );
 
         for (uint256 i = 0; i < 1000; i++) {
@@ -548,9 +554,10 @@ contract FolioDeployerTest is BaseTest {
         assertEq(uint160(address(_folio)) >> 152, uint256(uint160(0xff)), "failed to mine salt");
     }
 
-    function _registerGovernedFolioRewardToken(IFolioDeployer.GovRoles memory govRoles, bytes32 deploymentNonce)
-        internal
-    {
+    function _registerGovernedFolioRewardToken(
+        IFolioDeployer.GovRoles memory govRoles,
+        bytes32 deploymentNonce
+    ) internal {
         _registerRewardToken(_predictGovernedFolioAddress(govRoles, deploymentNonce));
     }
 
@@ -596,14 +603,13 @@ contract FolioDeployerTest is BaseTest {
         );
     }
 
-    function _computeCreate2Address(address deployer, bytes32 salt, bytes memory initCode)
-        internal
-        pure
-        returns (address)
-    {
-        return address(
-            uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, keccak256(initCode)))))
-        );
+    function _computeCreate2Address(
+        address deployer,
+        bytes32 salt,
+        bytes memory initCode
+    ) internal pure returns (address) {
+        return
+            address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, keccak256(initCode))))));
     }
 
     // === Helpers ===
