@@ -1,10 +1,13 @@
 ## Release 6.0.0
 
-- Allow full weight range in startRebalance() (`REBALANCE_MANAGER`)
-- Add max auction sizes (`REBALANCE_MANAGER`)
 - Add token allowlist controls for rebalancing (`DEFAULT_ADMIN_ROLE`)
 - Add Folio self-fee support (`DEFAULT_ADMIN_ROLE`)
 - Add per-Folio max auction length and per-auction custom lengths
+
+## Release 5.0.0
+
+- Allow full weight range in startRebalance() (`REBALANCE_MANAGER`)
+- Add max auction sizes (`REBALANCE_MANAGER`)
 - Add ability to disable permissionless bids and restrict all trading to trusted fillers (`DEFAULT_ADMIN_ROLE`)
 - Add ability to change name (`DEFAULT_ADMIN_ROLE`)
 
