@@ -85,7 +85,8 @@ abstract contract BaseTest is Script, Test {
 
     enum ForkNetwork {
         ETHEREUM,
-        BASE
+        BASE,
+        BSC
     }
 
     struct DeploymentData {
@@ -163,6 +164,8 @@ abstract contract BaseTest is Script, Test {
             forkRpc = vm.envString("FORK_RPC_MAINNET");
         } else if (target == ForkNetwork.BASE) {
             forkRpc = vm.envString("FORK_RPC_BASE");
+        } else if (target == ForkNetwork.BSC) {
+            forkRpc = vm.envString("FORK_RPC_BSC");
         }
     }
 
