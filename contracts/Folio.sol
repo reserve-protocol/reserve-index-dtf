@@ -288,7 +288,7 @@ contract Folio is
 
     /// @dev Enables permissionless removal of tokens for 0 balance tokens
     function removeFromBasket(IERC20 token) external nonReentrant {
-        _closeTrustedFill();
+        _closeTrustedFill(false);
 
         // always allow admin to remove from basket
         // allow permissionless removal if 0 weight AND 0 balance
@@ -878,6 +878,14 @@ contract Folio is
         rebalance.availableUntil = block.timestamp; // exclusive
     }
 
+    /// Close fill attempting to claw assets back, but always close fill
+    /// @dev Callable by ADMIN
+    function emergencyCloseTrustedFill() external nonReentrant {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), Folio__Unauthorized());
+
+        _closeTrustedFill(true);
+    }
+
     // ==== Internal ====
 
     function _checkPrivileged() internal view {
@@ -1083,7 +1091,7 @@ contract Folio is
 
     /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
     function _poke() internal {
-        _closeTrustedFill();
+        _closeTrustedFill(false);
 
         (
             uint256 _daoPendingFeeShares,
@@ -1149,9 +1157,14 @@ contract Folio is
     }
 
     /// Claim all token balances from outstanding trusted fill
-    function _closeTrustedFill() internal {
+    function _closeTrustedFill(bool _emergency) internal {
         if (address(activeTrustedFill) != address(0)) {
-            RebalancingLib.closeTrustedFill(auctions[nextAuctionId - 1], activeTrustedFill);
+            if (!_emergency) {
+                RebalancingLib.closeTrustedFill(auctions[nextAuctionId - 1], activeTrustedFill);
+            } else {
+                activeTrustedFill.emergencyCloseFiller();
+            }
+
             delete activeTrustedFill;
         }
     }
