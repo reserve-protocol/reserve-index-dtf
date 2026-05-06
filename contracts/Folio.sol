@@ -880,9 +880,7 @@ contract Folio is
 
     /// Close fill attempting to claw assets back, but always close fill
     /// @dev Callable by ADMIN
-    function emergencyCloseTrustedFill() external nonReentrant {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), Folio__Unauthorized());
-
+    function emergencyCloseTrustedFill() external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         _closeTrustedFill(true);
     }
 
