@@ -11,6 +11,7 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
 import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
+import { IRewardTokenRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IRewardTokenRegistry.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
@@ -30,7 +31,9 @@ interface IVersioned {
     function version() external view returns (string memory);
 }
 
-interface IStakingVault is IERC5805, IERC4626, IVersioned {}
+interface IStakingVault is IERC5805, IERC4626, IVersioned {
+    function rewardTokenRegistry() external view returns (IRewardTokenRegistry);
+}
 
 // old staking vault model
 interface IOwnableStakingVault is IStakingVault {
@@ -167,13 +170,18 @@ contract GovernanceSpell_04_17_2026 {
         );
         baseParams.selectorData = _startRebalanceSelectorData(folio);
 
+        // newStakingVault must not be the old immmutable kind, must be new and upgradeable
+        require(keccak256(bytes(IVersioned(address(newStakingVault)).version())) == VERSION_1_0_0, UpgradeError(3));
+        require(
+            address(folio) == newStakingVault.asset() ||
+                newStakingVault.rewardTokenRegistry().isRegistered(address(folio)),
+            UpgradeError(28)
+        );
+
         newDeployment.stakingVault = address(newStakingVault);
         (newDeployment.newGovernor, newDeployment.newTimelock, newDeployment.newSelectorRegistry) = governorDeployer
             .deployWithExistingStakingVault(baseParams, address(newStakingVault), deploymentNonce);
         require(newDeployment.newTimelock != address(0), UpgradeError(2));
-
-        // newStakingVault must not be the old immmutable kind, must be new and upgradeable
-        require(keccak256(bytes(IVersioned(address(newStakingVault)).version())) == VERSION_1_0_0, UpgradeError(3));
 
         // confirm Folio admins are self + old timelock
         require(folio.getRoleMemberCount(DEFAULT_ADMIN_ROLE) == 2, UpgradeError(4));
