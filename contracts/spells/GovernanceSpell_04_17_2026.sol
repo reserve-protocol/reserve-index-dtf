@@ -144,8 +144,10 @@ contract GovernanceSpell_04_17_2026 {
     ///      - Caller is old Folio timelock
     ///      - Self is Folio admin
     ///      - Self is FolioProxyAdmin owner
-    /// @dev New Governance system will use standard 2-3-2 day voting independent of previous voting settings
     /// @dev IMPORTANT: Do not call until the `newStakingVault` has been sufficiently populated by new stake
+    /// @dev New Governance system will use standard 2-3-2 day voting independent of previous voting settings
+    /// @dev It is not verified that the new StakingVault is already configured to handout the Folio as reward token. 
+    ///      This is an accepted limitation to reduce the overall number of blocking steps in the upgrade sequence.
     /// @param newStakingVault New staking vault to use for the new governor
     /// @param oldFolioGovernor Governor currently attached to the Folio being upgraded
     /// @param optimisticProposers Use empty set to disable optimistic governance altogether
