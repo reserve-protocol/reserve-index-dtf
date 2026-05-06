@@ -54,8 +54,8 @@ interface IOwnableStakingVault is IStakingVault {
  * Upgrade flow:
  *   1. deploySuccessorStakingVault: Permissionlessly deploy a NEW StakingVault with its own NEW
  *      governor/timelock system, isolated from the old vault. No permissions required.
- *   2. upgradeFolio: Deploy NEW Folio governance system on the successor StakingVault; rotate Folio roles,
- *      proxy admin ownership, and fee recipients from old StakingVault to new StakingVault.
+ *   2. upgradeFolio: Deploy NEW Folio governance system on the successor StakingVault; rotate Folio roles
+ *      and fee recipients from old StakingVault to new StakingVault. Wait for new stake before calling.
  *        Caller: old timelock of Folio
  *   3. retireOldStakingVault: After every dependent Folio has completed step 2, permanently seal the
  *      old StakingVault (zero unstaking delay, fast reward handout, renounce ownership).
@@ -144,6 +144,7 @@ contract GovernanceSpell_04_17_2026 {
     ///      - Self is Folio admin
     ///      - Self is FolioProxyAdmin owner
     /// @dev New Governance system will use standard 2-3-2 day voting independent of previous voting settings
+    /// @dev IMPORTANT: Do not call until the `newStakingVault` has been sufficiently populated by new stake
     /// @param newStakingVault New staking vault to use for the new governor
     /// @param oldFolioGovernor Governor currently attached to the Folio being upgraded
     /// @param optimisticSelectorData Include Folio.startRebalance.selector if optimistic rebalancing should be enabled
