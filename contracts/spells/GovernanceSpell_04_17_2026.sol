@@ -120,7 +120,11 @@ contract GovernanceSpell_04_17_2026 {
             newDeployment.newGovernor,
             newDeployment.newTimelock,
             newDeployment.newSelectorRegistry
-        ) = governorDeployer.deployWithNewStakingVault(baseParams, newStakingVaultParams, deploymentNonce);
+        ) = governorDeployer.deployWithNewStakingVault(
+            baseParams,
+            newStakingVaultParams,
+            keccak256(abi.encode(deploymentNonce, msg.sender))
+        );
 
         require(newDeployment.newTimelock != address(0), UpgradeError(22));
         require(IStakingVault(newDeployment.stakingVault).asset() == newUnderlying, UpgradeError(23));
