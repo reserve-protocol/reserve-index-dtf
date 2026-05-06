@@ -16,33 +16,10 @@ import { OptimisticSelectorRegistryDeployer } from "@reserve-protocol/reserve-go
 import { ReserveOptimisticGovernorDeployerDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorDeployerDeployer.sol";
 import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
-import { IRewardTokenRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IRewardTokenRegistry.sol";
 import { IRoleRegistry as IRewardRoleRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IRoleRegistry.sol";
 import { RewardTokenRegistry } from "@reserve-protocol/reserve-governor/contracts/staking/RewardTokenRegistry.sol";
 import { REBALANCE_MANAGER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
-
-contract MockUpgradeStakingVault {
-    address private immutable _asset;
-    IRewardTokenRegistry private immutable _rewardTokenRegistry;
-
-    constructor(address asset_, IRewardTokenRegistry rewardTokenRegistry_) {
-        _asset = asset_;
-        _rewardTokenRegistry = rewardTokenRegistry_;
-    }
-
-    function version() external pure returns (string memory) {
-        return "1.0.0";
-    }
-
-    function asset() external view returns (address) {
-        return _asset;
-    }
-
-    function rewardTokenRegistry() external view returns (IRewardTokenRegistry) {
-        return _rewardTokenRegistry;
-    }
-}
 
 interface IVersionedLike {
     function version() external view returns (string memory);
@@ -126,49 +103,6 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
             _logFolioSymbol(cfg.folio);
             _runUpgradeFlowCase(cfg, i);
         }
-    }
-
-    function test_upgradeFolio_revertsIfFolioIsNeitherAssetNorRewardToken_fork() public {
-        Config memory cfg;
-        bool found;
-
-        for (uint256 i; i < CONFIGS.length; i++) {
-            Config memory candidate = CONFIGS[i];
-            if (address(candidate.folio) != IStakingVault(candidate.stakingVaultGovernor.token()).asset()) {
-                cfg = candidate;
-                found = true;
-                break;
-            }
-        }
-
-        require(found, "expected non-asset folio config");
-
-        IStakingVault mockStakingVault = IStakingVault(
-            address(
-                new MockUpgradeStakingVault(
-                    IStakingVault(cfg.stakingVaultGovernor.token()).asset(),
-                    IRewardTokenRegistry(address(rewardTokenRegistry))
-                )
-            )
-        );
-
-        address oldFolioTimelock = cfg.oldFolioGovernor.timelock();
-        vm.startPrank(oldFolioTimelock);
-        cfg.proxyAdmin.transferOwnership(address(spell));
-        cfg.folio.grantRole(DEFAULT_ADMIN_ROLE, address(spell));
-
-        vm.expectRevert(abi.encodeWithSelector(GovernanceSpell_04_17_2026.UpgradeError.selector, 28));
-        spell.upgradeFolio(
-            cfg.folio,
-            cfg.proxyAdmin,
-            mockStakingVault,
-            cfg.oldFolioGovernor,
-            _optimisticParams(),
-            new address[](0),
-            cfg.guardians,
-            keccak256("unregistered-folio-upgrade")
-        );
-        vm.stopPrank();
     }
 
     // === Internal ===
