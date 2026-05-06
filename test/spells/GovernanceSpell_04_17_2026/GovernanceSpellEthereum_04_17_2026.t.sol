@@ -226,13 +226,13 @@ contract GovernanceSpellEthereum_04_17_2026_Test is GenericGovernanceSpell_04_17
         assertTrue(mvRwaFolioDep.newGovernor != mvDefiFolioDep.newGovernor, "folios should not share a governor");
         assertTrue(mvRwaFolioDep.newTimelock != mvDefiFolioDep.newTimelock, "folios should not share a timelock");
 
-        _assertCanCreateOptimisticStartRebalanceProposal(
+        _assertCannotCreateOptimisticStartRebalanceProposal(
             IReserveOptimisticGovernorLike(stakingVaultDep.newGovernor),
             mvRwaCfg.folio,
             sharedOptimisticProposer,
             "mvRWA optimistic start rebalance"
         );
-        _assertCanCreateOptimisticStartRebalanceProposal(
+        _assertCannotCreateOptimisticStartRebalanceProposal(
             IReserveOptimisticGovernorLike(stakingVaultDep.newGovernor),
             mvDefiCfg.folio,
             sharedOptimisticProposer,

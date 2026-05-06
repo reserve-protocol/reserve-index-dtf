@@ -16,7 +16,6 @@ import { OptimisticSelectorRegistryDeployer } from "@reserve-protocol/reserve-go
 import { ReserveOptimisticGovernorDeployerDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorDeployerDeployer.sol";
 import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
-import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
 import { IRoleRegistry as IRewardRoleRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IRoleRegistry.sol";
 import { RewardTokenRegistry } from "@reserve-protocol/reserve-governor/contracts/staking/RewardTokenRegistry.sol";
 import { REBALANCE_MANAGER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
@@ -130,7 +129,6 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
             newStakingVault,
             cfg.oldFolioGovernor,
             _optimisticParams(),
-            _selectorDataForFolio(cfg.folio, optimisticProposer),
             _singleAddressArray(optimisticProposer),
             cfg.guardians,
             deploymentNonce
@@ -230,7 +228,6 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         newDeployment = spell.deploySuccessorStakingVault(
             cfg.stakingVaultGovernor,
             _optimisticParams(),
-            _selectorDataForStartRebalanceFolios(folios),
             optimisticProposers,
             cfg.guardians,
             rewardTokens,
@@ -328,12 +325,12 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         assertEq(uint256(governor.state(standardProposalId)), uint256(IGovernor.ProposalState.Pending));
         assertFalse(governor.isOptimistic(standardProposalId));
 
-        // Optimistic proposal (fast path)
+        // Optimistic proposal (fast path) is limited to Folio.startRebalance.
         (
             address[] memory optimisticTargets,
             uint256[] memory optimisticValues,
             bytes[] memory optimisticCalldatas
-        ) = _singleCall(address(folio), 0, abi.encodeCall(Folio.setName, ("optimistic proposal")));
+        ) = _singleCall(address(folio), 0, _startRebalanceCalldata());
 
         vm.prank(optimisticProposer);
         uint256 optimisticProposalId = governor.proposeOptimistic(
@@ -344,6 +341,30 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         );
         assertEq(uint256(governor.state(optimisticProposalId)), uint256(IGovernor.ProposalState.Pending));
         assertTrue(governor.isOptimistic(optimisticProposalId));
+    }
+
+    function _assertCannotCreateOptimisticStartRebalanceProposal(
+        IReserveOptimisticGovernorLike governor,
+        Folio folio,
+        address optimisticProposer,
+        string memory description
+    ) internal {
+        bytes memory calldata_ = _startRebalanceCalldata();
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = _singleCall(
+            address(folio),
+            0,
+            calldata_
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IReserveOptimisticGovernor.OptimisticGovernor__InvalidCall.selector,
+                address(folio),
+                calldata_
+            )
+        );
+        vm.prank(optimisticProposer);
+        governor.proposeOptimistic(targets, values, calldatas, description);
     }
 
     function _assertCanCreateOptimisticStartRebalanceProposal(
@@ -374,28 +395,6 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         vm.prank(voter);
         IVotes(stakingVault).delegate(voter);
         vm.warp(block.timestamp + 1);
-    }
-
-    function _selectorDataForFolio(
-        Folio folio,
-        address
-    ) internal pure returns (IOptimisticSelectorRegistry.SelectorData[] memory selectorData) {
-        selectorData = new IOptimisticSelectorRegistry.SelectorData[](1);
-        bytes4[] memory selectors = new bytes4[](1);
-        selectors[0] = Folio.setName.selector;
-        selectorData[0] = IOptimisticSelectorRegistry.SelectorData({ target: address(folio), selectors: selectors });
-    }
-
-    function _selectorDataForStartRebalanceFolios(
-        address[] memory folios
-    ) internal pure returns (IOptimisticSelectorRegistry.SelectorData[] memory selectorData) {
-        selectorData = new IOptimisticSelectorRegistry.SelectorData[](folios.length);
-
-        for (uint256 i; i < folios.length; i++) {
-            bytes4[] memory selectors = new bytes4[](1);
-            selectors[0] = Folio.startRebalance.selector;
-            selectorData[i] = IOptimisticSelectorRegistry.SelectorData({ target: folios[i], selectors: selectors });
-        }
     }
 
     function _rewardTokensForUnderlying(

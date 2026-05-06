@@ -84,13 +84,11 @@ contract GovernanceSpell_04_17_2026 {
 
     /// Deploy a successor StakingVault with a fresh optimistic governance system
     /// @dev Permissionless: does not require or change any ownership on the old staking vault
-    /// @param optimisticSelectorData Include Folio.startRebalance.selector if optimistic rebalancing should be enabled
     /// @param optimisticProposers Use empty set to disable optimistic governance altogether
     /// @param guardians Must be a subset of the old staking vault timelock's CANCELLER_ROLE members
     function deploySuccessorStakingVault(
         IFolioGovernor stakingVaultGovernor,
         IReserveOptimisticGovernor.OptimisticGovernanceParams calldata optimisticParams,
-        IOptimisticSelectorRegistry.SelectorData[] calldata optimisticSelectorData,
         address[] calldata optimisticProposers,
         address[] calldata guardians,
         address[] calldata rewardTokens,
@@ -103,7 +101,6 @@ contract GovernanceSpell_04_17_2026 {
         IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = _baseDeploymentParams(
             stakingVaultGovernor,
             optimisticParams,
-            optimisticSelectorData,
             optimisticProposers,
             guardians
         );
@@ -147,7 +144,6 @@ contract GovernanceSpell_04_17_2026 {
     /// @dev IMPORTANT: Do not call until the `newStakingVault` has been sufficiently populated by new stake
     /// @param newStakingVault New staking vault to use for the new governor
     /// @param oldFolioGovernor Governor currently attached to the Folio being upgraded
-    /// @param optimisticSelectorData Include Folio.startRebalance.selector if optimistic rebalancing should be enabled
     /// @param optimisticProposers Use empty set to disable optimistic governance altogether
     /// @param guardians Must be a subset of the old Folio timelock's CANCELLER_ROLE members
     ///                  The shared Guardian contract will be included as a CANCELLER_ROLE member by default
@@ -157,26 +153,23 @@ contract GovernanceSpell_04_17_2026 {
         IStakingVault newStakingVault,
         IFolioGovernor oldFolioGovernor,
         IReserveOptimisticGovernor.OptimisticGovernanceParams calldata optimisticParams,
-        IOptimisticSelectorRegistry.SelectorData[] calldata optimisticSelectorData,
         address[] calldata optimisticProposers,
         address[] calldata guardians,
         bytes32 deploymentNonce
     ) public returns (NewDeployment memory newDeployment) {
         require(oldFolioGovernor.timelock() == msg.sender, UpgradeError(1));
 
+        IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = _baseDeploymentParams(
+            oldFolioGovernor,
+            optimisticParams,
+            optimisticProposers,
+            guardians
+        );
+        baseParams.selectorData = _startRebalanceSelectorData(folio);
+
         newDeployment.stakingVault = address(newStakingVault);
         (newDeployment.newGovernor, newDeployment.newTimelock, newDeployment.newSelectorRegistry) = governorDeployer
-            .deployWithExistingStakingVault(
-                _baseDeploymentParams(
-                    oldFolioGovernor,
-                    optimisticParams,
-                    optimisticSelectorData,
-                    optimisticProposers,
-                    guardians
-                ),
-                address(newStakingVault),
-                deploymentNonce
-            );
+            .deployWithExistingStakingVault(baseParams, address(newStakingVault), deploymentNonce);
         require(newDeployment.newTimelock != address(0), UpgradeError(2));
 
         // newStakingVault must not be the old immmutable kind, must be new and upgradeable
@@ -236,7 +229,6 @@ contract GovernanceSpell_04_17_2026 {
     function _baseDeploymentParams(
         IFolioGovernor oldGovernor,
         IReserveOptimisticGovernor.OptimisticGovernanceParams calldata optimisticParams,
-        IOptimisticSelectorRegistry.SelectorData[] calldata optimisticSelectorData,
         address[] calldata optimisticProposers,
         address[] calldata guardians
     ) internal view returns (IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams) {
@@ -256,7 +248,7 @@ contract GovernanceSpell_04_17_2026 {
         // hard-coded long standard governance params to unify across DTFs
 
         // Optimistic whitelists
-        baseParams.selectorData = optimisticSelectorData;
+        baseParams.selectorData = new IOptimisticSelectorRegistry.SelectorData[](0);
         baseParams.optimisticProposers = optimisticProposers;
 
         // Guardians
@@ -268,6 +260,15 @@ contract GovernanceSpell_04_17_2026 {
 
         // Proposal throttle
         baseParams.proposalThrottleCapacity = 3;
+    }
+
+    function _startRebalanceSelectorData(
+        Folio folio
+    ) internal pure returns (IOptimisticSelectorRegistry.SelectorData[] memory selectorData) {
+        selectorData = new IOptimisticSelectorRegistry.SelectorData[](1);
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = Folio.startRebalance.selector;
+        selectorData[0] = IOptimisticSelectorRegistry.SelectorData({ target: address(folio), selectors: selectors });
     }
 
     /// @return proposalThreshold D18{1}
