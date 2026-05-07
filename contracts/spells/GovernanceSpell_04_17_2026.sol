@@ -84,12 +84,10 @@ contract GovernanceSpell_04_17_2026 {
 
     /// Deploy a successor StakingVault with a fresh optimistic governance system
     /// @dev Permissionless: does not require or change any ownership on the old staking vault
-    /// @param optimisticProposers Use empty set to disable optimistic governance altogether
     /// @param guardians Must be a subset of the old staking vault timelock's CANCELLER_ROLE members
     function deploySuccessorStakingVault(
         IFolioGovernor stakingVaultGovernor,
         IReserveOptimisticGovernor.OptimisticGovernanceParams calldata optimisticParams,
-        address[] calldata optimisticProposers,
         address[] calldata guardians,
         address[] calldata rewardTokens,
         bytes32 deploymentNonce
@@ -101,7 +99,7 @@ contract GovernanceSpell_04_17_2026 {
         IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = _baseDeploymentParams(
             stakingVaultGovernor,
             optimisticParams,
-            optimisticProposers,
+            new address[](0),
             guardians
         );
         IReserveOptimisticGovernorDeployer.NewStakingVaultParams
@@ -235,7 +233,7 @@ contract GovernanceSpell_04_17_2026 {
     function _baseDeploymentParams(
         IFolioGovernor oldGovernor,
         IReserveOptimisticGovernor.OptimisticGovernanceParams calldata optimisticParams,
-        address[] calldata optimisticProposers,
+        address[] memory optimisticProposers,
         address[] calldata guardians
     ) internal view returns (IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams) {
         IStakingVault oldStakingVault = IStakingVault(oldGovernor.token());

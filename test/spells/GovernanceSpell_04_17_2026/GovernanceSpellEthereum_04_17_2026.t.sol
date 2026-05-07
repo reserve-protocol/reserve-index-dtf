@@ -148,11 +148,9 @@ contract GovernanceSpellEthereum_04_17_2026_Test is GenericGovernanceSpell_04_17
         assertEq(sharedStakingVault, mvDefiCfg.stakingVaultGovernor.token(), "expected shared staking vault");
 
         address newUnderlying = IStakingVault(sharedStakingVault).asset();
-        address sharedOptimisticProposer = makeAddr("shared-staking-vault-opt");
         SuccessorDeployment memory stakingVaultDep = _deploySuccessorStakingVault(
             mvRwaCfg,
             _doubleAddressArray(address(mvRwaCfg.folio), address(mvDefiCfg.folio)),
-            _singleAddressArray(sharedOptimisticProposer),
             keccak256("mvRWA-shared-vault")
         );
 
@@ -229,13 +227,13 @@ contract GovernanceSpellEthereum_04_17_2026_Test is GenericGovernanceSpell_04_17
         _assertCannotCreateOptimisticStartRebalanceProposal(
             IReserveOptimisticGovernorLike(stakingVaultDep.newGovernor),
             mvRwaCfg.folio,
-            sharedOptimisticProposer,
+            makeAddr("shared-staking-vault-opt"),
             "mvRWA optimistic start rebalance"
         );
         _assertCannotCreateOptimisticStartRebalanceProposal(
             IReserveOptimisticGovernorLike(stakingVaultDep.newGovernor),
             mvDefiCfg.folio,
-            sharedOptimisticProposer,
+            makeAddr("shared-staking-vault-opt"),
             "mvDEFI optimistic start rebalance"
         );
 

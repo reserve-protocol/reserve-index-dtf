@@ -152,7 +152,6 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
             stakingVaultDep = _deploySuccessorStakingVault(
                 cfg,
                 _singleAddressArray(address(cfg.folio)),
-                new address[](0),
                 keccak256(abi.encode(configIndex, "proposal-new"))
             );
 
@@ -215,7 +214,6 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
     function _deploySuccessorStakingVault(
         Config memory cfg,
         address[] memory folios,
-        address[] memory optimisticProposers,
         bytes32 deploymentNonce
     ) internal returns (SuccessorDeployment memory dep) {
         address newUnderlying = IStakingVault(cfg.stakingVaultGovernor.token()).asset();
@@ -228,7 +226,6 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         newDeployment = spell.deploySuccessorStakingVault(
             cfg.stakingVaultGovernor,
             _optimisticParams(),
-            optimisticProposers,
             cfg.guardians,
             rewardTokens,
             deploymentNonce
@@ -349,18 +346,16 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         address optimisticProposer,
         string memory description
     ) internal {
-        bytes memory calldata_ = _startRebalanceCalldata();
         (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = _singleCall(
             address(folio),
             0,
-            calldata_
+            _startRebalanceCalldata()
         );
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IReserveOptimisticGovernor.OptimisticGovernor__InvalidCall.selector,
-                address(folio),
-                calldata_
+                IReserveOptimisticGovernor.OptimisticGovernor__NotOptimisticProposer.selector,
+                optimisticProposer
             )
         );
         vm.prank(optimisticProposer);
