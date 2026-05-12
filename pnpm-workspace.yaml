@@ -1,2 +1,5 @@
+minimumReleaseAge: 10080
+blockExoticSubdeps: true
+
 overrides:
   "@reserve-protocol/reserve-index-dtf": "file:./"
