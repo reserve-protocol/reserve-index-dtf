@@ -20,14 +20,16 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: pnpm/action-setup@v4
-
       - name: Install Node
         uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
 
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Prepare pnpm
+        run: corepack prepare pnpm@11.1.1 --activate
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
@@ -35,7 +37,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pnpm install --frozen-lockfile
+          corepack pnpm install --frozen-lockfile
 
       - name: Compile Contracts
         run: |
@@ -64,14 +66,16 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: pnpm/action-setup@v4
-
       - name: Install Node
         uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
 
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Prepare pnpm
+        run: corepack prepare pnpm@11.1.1 --activate
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
@@ -79,7 +83,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pnpm install --frozen-lockfile
+          corepack pnpm install --frozen-lockfile
 
       - name: Contract Size Check
         run: |

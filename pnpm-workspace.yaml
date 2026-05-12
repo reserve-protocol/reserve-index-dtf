@@ -1,2 +1,8 @@
+packages:
+  - '.'
+
 overrides:
   "@reserve-protocol/reserve-index-dtf": "file:./"
+minimumReleaseAge: 1440
+blockExoticSubdeps: true
+trustPolicy: no-downgrade

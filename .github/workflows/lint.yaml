@@ -20,16 +20,18 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: pnpm/action-setup@v4
-
       - name: Setup
         uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
 
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Prepare pnpm
+        run: corepack prepare pnpm@11.1.1 --activate
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        run: corepack pnpm install --frozen-lockfile
 
       - name: Check Formatter
         run: pnpm format:check

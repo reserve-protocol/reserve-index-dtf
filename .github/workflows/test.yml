@@ -20,21 +20,23 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: pnpm/action-setup@v4
-
       - name: Install Node
         uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
 
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Prepare pnpm
+        run: corepack prepare pnpm@11.1.1 --activate
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: stable
 
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        run: corepack pnpm install --frozen-lockfile
 
       - name: Start Local Node
         run: pnpm anvil &
@@ -52,21 +54,23 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: pnpm/action-setup@v4
-
       - name: Install Node
         uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
 
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Prepare pnpm
+        run: corepack prepare pnpm@11.1.1 --activate
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: stable
 
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        run: corepack pnpm install --frozen-lockfile
 
       - name: Core Tests
         run: pnpm test
@@ -82,21 +86,23 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: pnpm/action-setup@v4
-
       - name: Install Node
         uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
 
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Prepare pnpm
+        run: corepack prepare pnpm@11.1.1 --activate
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: stable
 
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        run: corepack pnpm install --frozen-lockfile
 
       - name: Extreme Tests
         run: pnpm test:extreme

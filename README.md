@@ -285,7 +285,7 @@ The chain is assumed to have block times equal to or under 30s.
    - Foundry
    - Node v20+
    - Yarn
-2. Install Dependencies: `yarn install`
+2. Install Dependencies: `corepack pnpm install --frozen-lockfile`
 3. Build: `yarn compile`
 4. Testing:
    - Basic Tests: `yarn test`
