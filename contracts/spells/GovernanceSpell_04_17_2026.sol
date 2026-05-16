@@ -14,7 +14,7 @@ import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/c
 
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
-import { DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
+import { DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, BRAND_MANAGER, AUCTION_LAUNCHER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 
 bytes32 constant VERSION_1_0_0 = keccak256("1.0.0");
 bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
@@ -192,6 +192,10 @@ contract GovernanceSpell_04_17_2026 {
         require(folio.getRoleMemberCount(DEFAULT_ADMIN_ROLE) == 2, UpgradeError(4));
         require(folio.hasRole(DEFAULT_ADMIN_ROLE, address(this)), UpgradeError(5));
         require(folio.hasRole(DEFAULT_ADMIN_ROLE, msg.sender), UpgradeError(6));
+
+        // BRAND_MANAGER/AUCTION_LAUNCHER
+        require(!folio.hasRole(BRAND_MANAGER, msg.sender), UpgradeError(29));
+        require(!folio.hasRole(AUCTION_LAUNCHER, msg.sender), UpgradeError(30));
 
         // rotate Folio fee recipients from old staking vault to new staking vault
         _rotateFeeRecipients(folio, oldFolioGovernor.token(), address(newStakingVault));
