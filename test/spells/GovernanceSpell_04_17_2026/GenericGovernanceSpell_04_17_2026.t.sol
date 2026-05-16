@@ -88,6 +88,14 @@ interface IRewardedStakingVaultLike is IStakingVault {
 }
 
 abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
+    bytes32 internal constant FOLIO_VERSION_4_0_0 = keccak256("4.0.0");
+    bytes4 internal constant START_REBALANCE_4_0_0 =
+        bytes4(
+            keccak256(
+                "startRebalance(address[],(uint256,uint256,uint256)[],(uint256,uint256,uint256)[],(uint256,uint256),uint256,uint256)"
+            )
+        );
+
     struct Config {
         Folio folio;
         FolioProxyAdmin proxyAdmin;
@@ -129,7 +137,12 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         address[] memory optimisticProposers = new address[](0);
 
         for (uint256 i; i < CONFIGS.length; i++) {
-            _assertHardcodedBaseParams(harness, CONFIGS[i].stakingVaultGovernor, optimisticProposers, CONFIGS[i].guardians);
+            _assertHardcodedBaseParams(
+                harness,
+                CONFIGS[i].stakingVaultGovernor,
+                optimisticProposers,
+                CONFIGS[i].guardians
+            );
             _assertHardcodedBaseParams(harness, CONFIGS[i].oldFolioGovernor, optimisticProposers, CONFIGS[i].guardians);
         }
     }
@@ -138,6 +151,10 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
 
     function _logFolioSymbol(Folio folio) internal view {
         console2.log("Folio symbol", folio.symbol());
+    }
+
+    function _folioVersion(Folio folio) internal view returns (bytes32) {
+        return keccak256(bytes(IVersionedLike(address(folio)).version()));
     }
 
     function _upgradeFolio(
@@ -340,7 +357,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
             address[] memory standardTargets,
             uint256[] memory standardValues,
             bytes[] memory standardCalldatas
-        ) = _singleCall(address(folio), 0, abi.encodeCall(Folio.setName, ("standard proposal")));
+        ) = _singleCall(address(folio), 0, abi.encodeCall(Folio.setMandate, ("standard proposal")));
 
         vm.prank(standardProposer);
         uint256 standardProposalId = governor.propose(
@@ -357,7 +374,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
             address[] memory optimisticTargets,
             uint256[] memory optimisticValues,
             bytes[] memory optimisticCalldatas
-        ) = _singleCall(address(folio), 0, _startRebalanceCalldata());
+        ) = _singleCall(address(folio), 0, _startRebalanceCalldata(folio));
 
         vm.prank(optimisticProposer);
         uint256 optimisticProposalId = governor.proposeOptimistic(
@@ -401,7 +418,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) = _singleCall(
             address(folio),
             0,
-            _startRebalanceCalldata()
+            _startRebalanceCalldata(folio)
         );
 
         vm.expectRevert(
@@ -424,7 +441,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
             address[] memory optimisticTargets,
             uint256[] memory optimisticValues,
             bytes[] memory optimisticCalldatas
-        ) = _singleCall(address(folio), 0, _startRebalanceCalldata());
+        ) = _singleCall(address(folio), 0, _startRebalanceCalldata(folio));
 
         vm.prank(optimisticProposer);
         uint256 optimisticProposalId = governor.proposeOptimistic(
@@ -560,9 +577,18 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         calldatas[0] = calldata_;
     }
 
-    function _startRebalanceCalldata() internal pure returns (bytes memory calldata_) {
-        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](0);
+    function _startRebalanceCalldata(Folio folio) internal view returns (bytes memory calldata_) {
         IFolio.RebalanceLimits memory limits = IFolio.RebalanceLimits({ low: 1, spot: 1, high: 1 });
+
+        if (_folioVersion(folio) == FOLIO_VERSION_4_0_0) {
+            address[] memory v4Tokens = new address[](0);
+            IFolio.WeightRange[] memory weights = new IFolio.WeightRange[](0);
+            IFolio.PriceRange[] memory prices = new IFolio.PriceRange[](0);
+
+            return abi.encodeWithSelector(START_REBALANCE_4_0_0, v4Tokens, weights, prices, limits, 0, 1);
+        }
+
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](0);
         calldata_ = abi.encodeCall(Folio.startRebalance, (tokens, limits, 0, 1));
     }
 

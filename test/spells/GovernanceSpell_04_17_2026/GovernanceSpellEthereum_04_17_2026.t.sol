@@ -156,7 +156,9 @@ contract GovernanceSpellEthereum_04_17_2026_Test is GenericGovernanceSpell_04_17
         uint96 firstOldVaultFeePortionBefore = _feeRecipientPortion(firstCfg.folio, sharedStakingVault);
         uint96 firstNewVaultFeePortionBefore = _feeRecipientPortion(firstCfg.folio, stakingVaultDep.newStakingVault);
         assertGt(
-            uint256(firstOldVaultFeePortionBefore), 0, string.concat(firstLabel, " old vault should receive folio fees")
+            uint256(firstOldVaultFeePortionBefore),
+            0,
+            string.concat(firstLabel, " old vault should receive folio fees")
         );
         GovernanceSpell_04_17_2026.NewDeployment memory firstFolioDep = _upgradeFolio(
             firstCfg,

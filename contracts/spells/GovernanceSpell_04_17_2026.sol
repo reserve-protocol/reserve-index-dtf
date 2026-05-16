@@ -17,6 +17,13 @@ import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 
 bytes32 constant VERSION_1_0_0 = keccak256("1.0.0");
+bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
+bytes32 constant VERSION_5_0_0 = keccak256("5.0.0");
+bytes4 constant START_REBALANCE_4_0_0 = bytes4(
+    keccak256(
+        "startRebalance(address[],(uint256,uint256,uint256)[],(uint256,uint256,uint256)[],(uint256,uint256),uint256,uint256)"
+    )
+);
 bytes32 constant CANCELLER_ROLE = keccak256("CANCELLER_ROLE");
 
 interface IFolioGovernor is IGovernor {
@@ -138,11 +145,12 @@ contract GovernanceSpell_04_17_2026 {
     /// Deploy a new Folio governor/timelock on an existing staking vault and transfer Folio ownership/roles
     /// @dev Requirements:
     ///      - Caller is old Folio timelock
+    ///      - Folio is exactly version 4.0.0 or 5.0.0
     ///      - Self is Folio admin
     ///      - Self is FolioProxyAdmin owner
     /// @dev IMPORTANT: Do not call until the `newStakingVault` has been sufficiently populated by new stake
     /// @dev New Governance system will use standard 2-3-2 day voting independent of previous voting settings
-    /// @dev It is not verified that the new StakingVault is already configured to handout the Folio as reward token. 
+    /// @dev It is not verified that the new StakingVault is already configured to handout the Folio as reward token.
     ///      This is an accepted limitation to reduce the overall number of blocking steps in the upgrade sequence.
     /// @param newStakingVault New staking vault to use for the new governor
     /// @param oldFolioGovernor Governor currently attached to the Folio being upgraded
@@ -161,6 +169,8 @@ contract GovernanceSpell_04_17_2026 {
     ) public returns (NewDeployment memory newDeployment) {
         // included for readability, root of security is folioProxyAdmin + folio role checks
         require(oldFolioGovernor.timelock() == msg.sender, UpgradeError(1));
+        bytes32 folioVersion = keccak256(bytes(IVersioned(address(folio)).version()));
+        require(folioVersion == VERSION_4_0_0 || folioVersion == VERSION_5_0_0, UpgradeError(28));
 
         IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = _baseDeploymentParams(
             oldFolioGovernor,
@@ -168,7 +178,7 @@ contract GovernanceSpell_04_17_2026 {
             optimisticProposers,
             guardians
         );
-        baseParams.selectorData = _startRebalanceSelectorData(folio);
+        baseParams.selectorData = _startRebalanceSelectorData(folio, folioVersion);
 
         newDeployment.stakingVault = address(newStakingVault);
         (newDeployment.newGovernor, newDeployment.newTimelock, newDeployment.newSelectorRegistry) = governorDeployer
@@ -262,11 +272,13 @@ contract GovernanceSpell_04_17_2026 {
     }
 
     function _startRebalanceSelectorData(
-        Folio folio
+        Folio folio,
+        bytes32 folioVersion
     ) internal pure returns (IOptimisticSelectorRegistry.SelectorData[] memory selectorData) {
         selectorData = new IOptimisticSelectorRegistry.SelectorData[](1);
-        bytes4[] memory selectors = new bytes4[](1);
+        bytes4[] memory selectors = new bytes4[](folioVersion == VERSION_4_0_0 ? 2 : 1);
         selectors[0] = Folio.startRebalance.selector;
+        if (folioVersion == VERSION_4_0_0) selectors[1] = START_REBALANCE_4_0_0;
         selectorData[0] = IOptimisticSelectorRegistry.SelectorData({ target: address(folio), selectors: selectors });
     }
 

@@ -78,23 +78,6 @@ contract GovernanceSpellBase_04_17_2026_Test is GenericGovernanceSpell_04_17_202
             );
         }
 
-        // BDTF
-        {
-            address[] memory guardians = new address[](2);
-            guardians[0] = 0xA80149d051764f9e4854ee83B197bAD648046d51;
-            guardians[1] = 0x6f1D6b86d4ad705385e751e6e88b0FdFDBAdf298;
-
-            CONFIGS.push(
-                Config({
-                    folio: Folio(0xb8753941196692E322846cfEE9C14C97AC81928A),
-                    proxyAdmin: FolioProxyAdmin(0xADC76fB0A5ae3495443E8df8D411FD37a836F763),
-                    stakingVaultGovernor: IFolioGovernor(0xAD3e49d114F193583c1904f93EF25784C381874b),
-                    oldFolioGovernor: IFolioGovernor(0x0D5a4a0FEe1c4f0422938608400d00B9E0037684),
-                    guardians: guardians
-                })
-            );
-        }
-
         // ABX
         {
             address[] memory guardians = new address[](2);
