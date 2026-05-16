@@ -51,6 +51,19 @@ contract MockGovernanceVersionRegistry {
     }
 }
 
+contract GovernanceSpell_04_17_2026_Harness is GovernanceSpell_04_17_2026 {
+    constructor(IReserveOptimisticGovernorDeployer governorDeployer) GovernanceSpell_04_17_2026(governorDeployer) {}
+
+    function baseDeploymentParams(
+        IFolioGovernor oldGovernor,
+        IReserveOptimisticGovernor.OptimisticGovernanceParams calldata optimisticParams,
+        address[] memory optimisticProposers,
+        address[] calldata guardians
+    ) external view returns (IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory) {
+        return _baseDeploymentParams(oldGovernor, optimisticParams, optimisticProposers, guardians);
+    }
+}
+
 interface IReserveOptimisticGovernorLike is IFolioGovernor {
     function proposeOptimistic(
         address[] calldata targets,
@@ -60,6 +73,10 @@ interface IReserveOptimisticGovernorLike is IFolioGovernor {
     ) external returns (uint256);
 
     function isOptimistic(uint256 proposalId) external view returns (bool);
+
+    function quorumNumerator() external view returns (uint256);
+
+    function quorumDenominator() external view returns (uint256);
 }
 
 interface IRetiredStakingVaultLike is IOwnableStakingVault {
@@ -102,6 +119,18 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
             Config memory cfg = CONFIGS[i];
             _logFolioSymbol(cfg.folio);
             _runUpgradeFlowCase(cfg, i);
+        }
+    }
+
+    function test_standardGovernanceParamsAreHardcoded_fork() public {
+        GovernanceSpell_04_17_2026_Harness harness = new GovernanceSpell_04_17_2026_Harness(
+            optimisticGovernanceDeployer
+        );
+        address[] memory optimisticProposers = new address[](0);
+
+        for (uint256 i; i < CONFIGS.length; i++) {
+            _assertHardcodedBaseParams(harness, CONFIGS[i].stakingVaultGovernor, optimisticProposers, CONFIGS[i].guardians);
+            _assertHardcodedBaseParams(harness, CONFIGS[i].oldFolioGovernor, optimisticProposers, CONFIGS[i].guardians);
         }
     }
 
@@ -304,6 +333,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
     ) internal {
         uint256 proposalThreshold = governor.proposalThreshold();
         _seedVotes(address(stakingVault), standardProposer, proposalThreshold + 1e18);
+        _assertDeployedGovernanceParams(governor);
 
         // Standard proposal (pessimistic path)
         (
@@ -338,6 +368,28 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         );
         assertEq(uint256(governor.state(optimisticProposalId)), uint256(IGovernor.ProposalState.Pending));
         assertTrue(governor.isOptimistic(optimisticProposalId));
+    }
+
+    function _assertDeployedGovernanceParams(IReserveOptimisticGovernorLike governor) internal view {
+        assertEq(governor.quorumNumerator(), 0.1e18, "quorum numerator mismatch");
+        assertEq(governor.quorumDenominator(), 1e18, "quorum denominator mismatch");
+    }
+
+    function _assertHardcodedBaseParams(
+        GovernanceSpell_04_17_2026_Harness harness,
+        IFolioGovernor oldGovernor,
+        address[] memory optimisticProposers,
+        address[] memory guardians
+    ) internal view {
+        IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = harness.baseDeploymentParams(
+            oldGovernor,
+            _optimisticParams(),
+            optimisticProposers,
+            guardians
+        );
+
+        assertEq(baseParams.standardParams.proposalThreshold, 0.001e18, "proposal threshold param mismatch");
+        assertEq(baseParams.standardParams.quorumNumerator, 0.1e18, "quorum numerator param mismatch");
     }
 
     function _assertCannotCreateOptimisticStartRebalanceProposal(

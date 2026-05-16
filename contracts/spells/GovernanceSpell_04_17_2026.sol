@@ -22,8 +22,6 @@ bytes32 constant CANCELLER_ROLE = keccak256("CANCELLER_ROLE");
 interface IFolioGovernor is IGovernor {
     function token() external view returns (address);
     function timelock() external view returns (address);
-    function quorumNumerator() external view returns (uint256);
-    function quorumDenominator() external view returns (uint256);
 }
 
 interface IVersioned {
@@ -236,8 +234,6 @@ contract GovernanceSpell_04_17_2026 {
         address[] memory optimisticProposers,
         address[] calldata guardians
     ) internal view returns (IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams) {
-        IStakingVault oldStakingVault = IStakingVault(oldGovernor.token());
-
         // Optimistic governance params
         baseParams.optimisticParams = optimisticParams;
 
@@ -245,10 +241,8 @@ contract GovernanceSpell_04_17_2026 {
         baseParams.standardParams.votingDelay = 2 days;
         baseParams.standardParams.votingPeriod = 3 days;
         baseParams.standardParams.voteExtension = 2 days;
-        (
-            baseParams.standardParams.proposalThreshold,
-            baseParams.standardParams.quorumNumerator
-        ) = _proposalThresholdAndQuorum(oldStakingVault, oldGovernor);
+        baseParams.standardParams.proposalThreshold = 0.001e18; // 0.1%
+        baseParams.standardParams.quorumNumerator = 0.1e18; // 10%
         // hard-coded long standard governance params to unify across DTFs
 
         // Optimistic whitelists
@@ -273,28 +267,6 @@ contract GovernanceSpell_04_17_2026 {
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = Folio.startRebalance.selector;
         selectorData[0] = IOptimisticSelectorRegistry.SelectorData({ target: address(folio), selectors: selectors });
-    }
-
-    /// @return proposalThreshold D18{1}
-    /// @return quorumNumerator D18{1}
-    function _proposalThresholdAndQuorum(
-        IStakingVault stakingVault,
-        IFolioGovernor governor
-    ) internal view returns (uint256 proposalThreshold, uint256 quorumNumerator) {
-        uint256 pastSupply = stakingVault.getPastTotalSupply(stakingVault.clock() - 1);
-
-        // {tok}
-        uint256 proposalThresholdWithSupply = governor.proposalThreshold();
-
-        // D18{1} = {tok} * D18{1} / {tok}
-        proposalThreshold = (proposalThresholdWithSupply * 1e18 + pastSupply - 1) / pastSupply;
-        require(proposalThreshold >= 0.0001e18 && proposalThreshold <= 0.1e18, UpgradeError(15));
-
-        uint256 quorumDenominator = governor.quorumDenominator();
-
-        // D18{1}
-        quorumNumerator = (governor.quorumNumerator() * 1e18 + quorumDenominator - 1) / quorumDenominator;
-        require(quorumNumerator >= 0.01e18 && quorumNumerator <= 0.25e18, UpgradeError(16));
     }
 
     /// Require `guardians` is a subset of the old timelock's CANCELLER_ROLE members (excl old governor)
