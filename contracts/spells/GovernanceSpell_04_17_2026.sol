@@ -52,8 +52,8 @@ interface IOwnableStakingVault is IStakingVault {
  * Upgrade flow:
  *   1. deploySuccessorStakingVault: Permissionlessly deploy a NEW StakingVault with its own NEW
  *      governor/timelock system, isolated from the old vault. No permissions required.
- *   2. upgradeFolio: Deploy NEW Folio governance system on the successor StakingVault; rotate Folio roles
- *      and fee recipients from old StakingVault to new StakingVault. Wait for new stake before calling.
+ *   2. upgradeFolio: Deploy NEW Folio governance system on the successor StakingVault; rotate Folio roles,
+ *      and rotate fee recipients from old StakingVault to new StakingVault. Wait for new stake before calling.
  *        Caller: old timelock of Folio
  *   3. retireOldStakingVault: After every dependent Folio has completed step 2, permanently seal the
  *      old StakingVault (zero unstaking delay, fast reward handout, renounce ownership).
@@ -159,6 +159,7 @@ contract GovernanceSpell_04_17_2026 {
         address[] calldata guardians,
         bytes32 deploymentNonce
     ) public returns (NewDeployment memory newDeployment) {
+        // included for readability, root of security is folioProxyAdmin + folio role checks
         require(oldFolioGovernor.timelock() == msg.sender, UpgradeError(1));
 
         IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = _baseDeploymentParams(
