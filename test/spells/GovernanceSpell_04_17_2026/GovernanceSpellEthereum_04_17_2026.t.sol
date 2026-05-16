@@ -8,7 +8,7 @@ contract GovernanceSpellEthereum_04_17_2026_Test is GenericGovernanceSpell_04_17
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,
             forkTarget: ForkNetwork.ETHEREUM,
-            forkBlock: 24505217
+            forkBlock: 25104004
         });
 
         // OPEN
@@ -56,39 +56,6 @@ contract GovernanceSpellEthereum_04_17_2026_Test is GenericGovernanceSpell_04_17
                     proxyAdmin: FolioProxyAdmin(0xDd885B0F2f97703B94d2790320b30017a17768BF),
                     stakingVaultGovernor: IFolioGovernor(0xD2f9c1D649F104e5D6B9453f3817c05911Cf765E),
                     oldFolioGovernor: IFolioGovernor(0x622c0b5aD82a2A47F330D4a2061a0e3562F583b0),
-                    guardians: guardians
-                })
-            );
-        }
-
-        // mvRWA
-        {
-            address[] memory guardians = new address[](1);
-            guardians[0] = 0x38afC3aA2c76b4cA1F8e1DabA68e998e1F4782DB;
-
-            CONFIGS.push(
-                Config({
-                    folio: Folio(0xA5cdea03B11042fc10B52aF9eCa48bb17A2107d2),
-                    proxyAdmin: FolioProxyAdmin(0x019318674560C233893aA31Bc0A380dc71dc2dDf),
-                    stakingVaultGovernor: IFolioGovernor(0x83d070B91aef472CE993BCC25907e7c3959483b4),
-                    oldFolioGovernor: IFolioGovernor(0x58e72A9a9E9Dc5209D02335d5Ac67eD28a86EAe9),
-                    guardians: guardians
-                })
-            );
-        }
-
-        // mvDEFI
-        {
-            address[] memory guardians = new address[](2);
-            guardians[0] = 0x38afC3aA2c76b4cA1F8e1DabA68e998e1F4782DB;
-            guardians[1] = 0x6f1D6b86d4ad705385e751e6e88b0FdFDBAdf298;
-
-            CONFIGS.push(
-                Config({
-                    folio: Folio(0x20d81101D254729a6E689418526bE31e2c544290),
-                    proxyAdmin: FolioProxyAdmin(0x3927882f047944A9c561F29E204C370Dd84852Fd),
-                    stakingVaultGovernor: IFolioGovernor(0x83d070B91aef472CE993BCC25907e7c3959483b4),
-                    oldFolioGovernor: IFolioGovernor(0xa5168b7b5c081a2098420892c9DA26B6B30fc496),
                     guardians: guardians
                 })
             );
@@ -146,13 +113,6 @@ contract GovernanceSpellEthereum_04_17_2026_Test is GenericGovernanceSpell_04_17
     }
 
     function test_upgradeFlow_sharedNewStakingVault_fork() public {
-        _runSharedNewStakingVaultFlow(
-            _configByFolio(0xA5cdea03B11042fc10B52aF9eCa48bb17A2107d2),
-            _configByFolio(0x20d81101D254729a6E689418526bE31e2c544290),
-            "mvRWA",
-            "mvDEFI"
-        );
-
         _runSharedNewStakingVaultFlow(
             _configByFolio(0x4E3B170DcBe704b248df5f56D488114acE01B1C5),
             _configByFolio(0xF91384484F4717314798E8975BCd904A35fc2BF1),

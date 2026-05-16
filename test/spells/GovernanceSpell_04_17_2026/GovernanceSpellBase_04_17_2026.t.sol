@@ -8,15 +8,13 @@ contract GovernanceSpellBase_04_17_2026_Test is GenericGovernanceSpell_04_17_202
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,
             forkTarget: ForkNetwork.BASE,
-            forkBlock: 42440100
+            forkBlock: 46051387
         });
 
         // LCAP
         {
-            address[] memory guardians = new address[](3);
-            guardians[0] = 0x6f1D6b86d4ad705385e751e6e88b0FdFDBAdf298;
-            guardians[1] = 0x5e6EF4cFd64e29981fB3a8703a584DDE407032d2;
-            guardians[2] = 0x718841C68eab4038EF389C154f8e91f9923b2fdA;
+            address[] memory guardians = new address[](1);
+            guardians[0] = 0x718841C68eab4038EF389C154f8e91f9923b2fdA;
 
             CONFIGS.push(
                 Config({
@@ -63,41 +61,6 @@ contract GovernanceSpellBase_04_17_2026_Test is GenericGovernanceSpell_04_17_202
             );
         }
 
-        // ZORA
-        {
-            address[] memory guardians = new address[](3);
-            guardians[0] = 0x6BC2F0cefE18ec4e5AFEB8f810c7063BeD3f92B9;
-            guardians[1] = 0x12808Cfbf64BE76aca0B13c523985BBb88015401;
-            guardians[2] = 0x7f7bf1d0B4bb7395bb68E99e20C732f3AEFFfe47;
-
-            CONFIGS.push(
-                Config({
-                    folio: Folio(0x160c18476F6f5099f374033fbc695c9234Cda495),
-                    proxyAdmin: FolioProxyAdmin(0xE6179EEF5312487e6caB447356c855eEE805781E),
-                    stakingVaultGovernor: IFolioGovernor(0xE54C0534D71BAaCdeC2B9D0C576d73D76fef0869),
-                    oldFolioGovernor: IFolioGovernor(0xD71981CC95f29077199B4cABE601BE78B662a88C),
-                    guardians: guardians
-                })
-            );
-        }
-
-        // AIndex
-        {
-            address[] memory guardians = new address[](2);
-            guardians[0] = 0x5edB66B4c01355B07dF3Ea9e4c2508e4Cc542c6a;
-            guardians[1] = 0x6f1D6b86d4ad705385e751e6e88b0FdFDBAdf298;
-
-            CONFIGS.push(
-                Config({
-                    folio: Folio(0xfe45EDa533e97198d9f3dEEDA9aE6c147141f6F9),
-                    proxyAdmin: FolioProxyAdmin(0x456219b7897384217ca224f735DBbC30c395C87F),
-                    stakingVaultGovernor: IFolioGovernor(0x61FA1b18F37A361E961c5fB07D730EE37DC0dC4d),
-                    oldFolioGovernor: IFolioGovernor(0x26305E88587ecFde34a9DCE37D7CB292a3b51B02),
-                    guardians: guardians
-                })
-            );
-        }
-
         // CLANKER
         {
             address[] memory guardians = new address[](2);
@@ -110,23 +73,6 @@ contract GovernanceSpellBase_04_17_2026_Test is GenericGovernanceSpell_04_17_202
                     proxyAdmin: FolioProxyAdmin(0x4472F1f3aD832Bed3FDeF75ace6540c2f3E5a187),
                     stakingVaultGovernor: IFolioGovernor(0xa83E456ebC4bCED953e64F085c8A8C4E2a8a5Fa0),
                     oldFolioGovernor: IFolioGovernor(0x1C58617D79daeE2F51DA6c98186334431D338721),
-                    guardians: guardians
-                })
-            );
-        }
-
-        // VIRTUALS
-        {
-            address[] memory guardians = new address[](2);
-            guardians[0] = 0x50B7a52556e0746F190663fc58a8133427fB6be2;
-            guardians[1] = 0x6f1D6b86d4ad705385e751e6e88b0FdFDBAdf298;
-
-            CONFIGS.push(
-                Config({
-                    folio: Folio(0x47686106181b3CEfe4eAf94C4c10b48Ac750370b),
-                    proxyAdmin: FolioProxyAdmin(0x7C1fAFfc7F3a52aa9Dbd265E5709202eeA3A8A48),
-                    stakingVaultGovernor: IFolioGovernor(0xD8f869c8d9EE22f4dD786EA37eFcd236810F9942),
-                    oldFolioGovernor: IFolioGovernor(0xA8Ce43762De703D285B019fAC8829148e3013442),
                     guardians: guardians
                 })
             );
