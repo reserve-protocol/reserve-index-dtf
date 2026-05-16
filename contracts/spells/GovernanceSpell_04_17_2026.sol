@@ -196,13 +196,9 @@ contract GovernanceSpell_04_17_2026 {
         // rotate Folio fee recipients from old staking vault to new staking vault
         _rotateFeeRecipients(folio, oldFolioGovernor.token(), address(newStakingVault));
 
-        // rotate Folio REBALANCE_MANAGERs
-        {
-            for (uint256 i = folio.getRoleMemberCount(REBALANCE_MANAGER); i > 0; i--) {
-                address rebalanceManager = folio.getRoleMember(REBALANCE_MANAGER, i - 1);
-                folio.revokeRole(REBALANCE_MANAGER, rebalanceManager);
-            }
-        }
+        // rotate Folio REBALANCE_MANAGER
+        require(folio.getRoleMemberCount(REBALANCE_MANAGER) == 1, UpgradeError(7));
+        folio.revokeRole(REBALANCE_MANAGER, folio.getRoleMember(REBALANCE_MANAGER, 0));
         folio.grantRole(REBALANCE_MANAGER, newDeployment.newTimelock);
         require(folio.getRoleMemberCount(REBALANCE_MANAGER) == 1, UpgradeError(7));
         require(folio.getRoleMember(REBALANCE_MANAGER, 0) == newDeployment.newTimelock, UpgradeError(8));
