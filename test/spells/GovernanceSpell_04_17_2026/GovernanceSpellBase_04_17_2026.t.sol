@@ -94,5 +94,39 @@ contract GovernanceSpellBase_04_17_2026_Test is GenericGovernanceSpell_04_17_202
                 })
             );
         }
+
+        // ABX
+        {
+            address[] memory guardians = new address[](2);
+            guardians[0] = 0x9F7f914F53Ee403A7a5725f34fE8E6406A4f84cD;
+            guardians[1] = 0x6f1D6b86d4ad705385e751e6e88b0FdFDBAdf298;
+
+            CONFIGS.push(
+                Config({
+                    folio: Folio(0xeBcda5b80f62DD4DD2A96357b42BB6Facbf30267),
+                    proxyAdmin: FolioProxyAdmin(0xF3345fca866673BfB58b50F00691219a62Dd6Dc8),
+                    stakingVaultGovernor: IFolioGovernor(0xcdd675d848372596E5eCc1B0FE9e88C1CBc609Af),
+                    oldFolioGovernor: IFolioGovernor(0x6dFF5971cc446479450e51b5f939A250b11F5Ef5),
+                    guardians: guardians
+                })
+            );
+        }
+
+        // MVTT10F
+        {
+            address[] memory guardians = new address[](2);
+            guardians[0] = 0xD8B0F4e54a8dac04E0A57392f5A630cEdb99C940;
+            guardians[1] = 0x6f1D6b86d4ad705385e751e6e88b0FdFDBAdf298;
+
+            CONFIGS.push(
+                Config({
+                    folio: Folio(0xe8b46b116D3BdFA787CE9CF3f5aCC78dc7cA380E),
+                    proxyAdmin: FolioProxyAdmin(0xBe278Be45C265A589BD0bf8cDC6C9e5a04B3397D),
+                    stakingVaultGovernor: IFolioGovernor(0xa29D5B7DACf13f417a87F9B5FF7C63d86e48F689),
+                    oldFolioGovernor: IFolioGovernor(0x3d14EE40A64F30F3a3515FCA9Cf6787aCA1925b5),
+                    guardians: guardians
+                })
+            );
+        }
     }
 }
