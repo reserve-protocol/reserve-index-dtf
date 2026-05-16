@@ -198,7 +198,13 @@ contract GovernanceSpell_04_17_2026 {
         require(!folio.hasRole(AUCTION_LAUNCHER, msg.sender), UpgradeError(30));
 
         // rotate Folio fee recipients from old staking vault to new staking vault
-        _rotateFeeRecipients(folio, oldFolioGovernor.token(), address(newStakingVault));
+        _rotateFeeRecipients(
+            folio,
+            oldFolioGovernor.token(),
+            address(newStakingVault),
+            address(oldFolioGovernor),
+            msg.sender
+        );
 
         // rotate Folio REBALANCE_MANAGER
         require(folio.getRoleMemberCount(REBALANCE_MANAGER) == 1, UpgradeError(7));
@@ -294,7 +300,13 @@ contract GovernanceSpell_04_17_2026 {
     }
 
     /// Rotate the fee recipient entry for the old StakingVault to the new StakingVault
-    function _rotateFeeRecipients(Folio folio, address oldStakingVault, address newStakingVault) internal {
+    function _rotateFeeRecipients(
+        Folio folio,
+        address oldStakingVault,
+        address newStakingVault,
+        address oldGovernor,
+        address oldTimelock
+    ) internal {
         IFolio.FeeRecipient[] memory recipients = _feeRecipients(folio);
         uint256 oldStakingVaultRecipientCount;
         uint256 oldStakingVaultRecipientIndex;
@@ -308,6 +320,8 @@ contract GovernanceSpell_04_17_2026 {
             }
 
             require(recipient != newStakingVault, UpgradeError(19));
+            require(recipient != oldGovernor, UpgradeError(31));
+            require(recipient != oldTimelock, UpgradeError(32));
         }
 
         require(oldStakingVaultRecipientCount == 1, UpgradeError(20));
