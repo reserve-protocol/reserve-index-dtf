@@ -19,11 +19,7 @@ import { DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, BRAND_MANAGER, AUCTION_LAUNCHER,
 bytes32 constant VERSION_1_0_0 = keccak256("1.0.0");
 bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
 bytes32 constant VERSION_5_0_0 = keccak256("5.0.0");
-bytes4 constant START_REBALANCE_4_0_0 = bytes4(
-    keccak256(
-        "startRebalance(address[],(uint256,uint256,uint256)[],(uint256,uint256,uint256)[],(uint256,uint256),uint256,uint256)"
-    )
-);
+bytes4 constant START_REBALANCE_4_0_0 = 0x235d7142;
 bytes32 constant CANCELLER_ROLE = keccak256("CANCELLER_ROLE");
 
 interface IFolioGovernor is IGovernor {

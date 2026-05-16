@@ -89,12 +89,7 @@ interface IRewardedStakingVaultLike is IStakingVault {
 
 abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
     bytes32 internal constant FOLIO_VERSION_4_0_0 = keccak256("4.0.0");
-    bytes4 internal constant START_REBALANCE_4_0_0 =
-        bytes4(
-            keccak256(
-                "startRebalance(address[],(uint256,uint256,uint256)[],(uint256,uint256,uint256)[],(uint256,uint256),uint256,uint256)"
-            )
-        );
+    bytes4 internal constant START_REBALANCE_4_0_0 = 0x235d7142;
 
     struct Config {
         Folio folio;
