@@ -11,6 +11,7 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
 import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
+import { IRewardTokenRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IRewardTokenRegistry.sol";
 
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
@@ -32,6 +33,10 @@ interface IVersioned {
 }
 
 interface IStakingVault is IERC5805, IERC4626, IVersioned {}
+
+interface IRewardedStakingVault is IStakingVault {
+    function getAllRewardTokens() external view returns (address[] memory);
+}
 
 // old staking vault model
 interface IOwnableStakingVault is IStakingVault {
@@ -146,8 +151,6 @@ contract GovernanceSpell_04_17_2026 {
     ///      - Self is FolioProxyAdmin owner
     /// @dev IMPORTANT: Do not call until the `newStakingVault` has been sufficiently populated by new stake
     /// @dev New Governance system will use standard 2-3-2 day voting independent of previous voting settings
-    /// @dev It is not verified that the new StakingVault is already configured to handout the Folio as reward token.
-    ///      This is an accepted limitation to reduce the overall number of blocking steps in the upgrade sequence.
     /// @param newStakingVault New staking vault to use for the new governor
     /// @param oldFolioGovernor Governor currently attached to the Folio being upgraded
     /// @param optimisticProposers Use empty set to disable optimistic governance altogether
@@ -168,6 +171,10 @@ contract GovernanceSpell_04_17_2026 {
         bytes32 folioVersion = keccak256(bytes(IVersioned(address(folio)).version()));
         require(folioVersion == VERSION_4_0_0 || folioVersion == VERSION_5_0_0, UpgradeError(28));
 
+        // newStakingVault must not be the old immmutable kind, must be new and upgradeable
+        require(keccak256(bytes(IVersioned(address(newStakingVault)).version())) == VERSION_1_0_0, UpgradeError(3));
+        _validateFolioRewardToken(folio, newStakingVault);
+
         IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = _baseDeploymentParams(
             oldFolioGovernor,
             optimisticParams,
@@ -180,9 +187,6 @@ contract GovernanceSpell_04_17_2026 {
         (newDeployment.newGovernor, newDeployment.newTimelock, newDeployment.newSelectorRegistry) = governorDeployer
             .deployWithExistingStakingVault(baseParams, address(newStakingVault), deploymentNonce);
         require(newDeployment.newTimelock != address(0), UpgradeError(2));
-
-        // newStakingVault must not be the old immmutable kind, must be new and upgradeable
-        require(keccak256(bytes(IVersioned(address(newStakingVault)).version())) == VERSION_1_0_0, UpgradeError(3));
 
         // confirm Folio admins are self + old timelock
         require(folio.getRoleMemberCount(DEFAULT_ADMIN_ROLE) == 2, UpgradeError(4));
@@ -282,6 +286,17 @@ contract GovernanceSpell_04_17_2026 {
         selectors[0] = Folio.startRebalance.selector;
         if (folioVersion == VERSION_4_0_0) selectors[1] = START_REBALANCE_4_0_0;
         selectorData[0] = IOptimisticSelectorRegistry.SelectorData({ target: address(folio), selectors: selectors });
+    }
+
+    function _validateFolioRewardToken(Folio folio, IStakingVault newStakingVault) internal view {
+        require(IRewardTokenRegistry(governorDeployer.rewardTokenRegistry()).isRegistered(address(folio)), UpgradeError(33));
+
+        address[] memory rewardTokens = IRewardedStakingVault(address(newStakingVault)).getAllRewardTokens();
+        for (uint256 i; i < rewardTokens.length; i++) {
+            if (rewardTokens[i] == address(folio)) return;
+        }
+
+        revert UpgradeError(34);
     }
 
     /// Require `guardians` is a subset of the old timelock's CANCELLER_ROLE members (excl old governor)
