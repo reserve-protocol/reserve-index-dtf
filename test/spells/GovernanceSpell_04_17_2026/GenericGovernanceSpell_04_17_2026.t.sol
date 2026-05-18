@@ -18,7 +18,7 @@ import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-go
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
 import { IRoleRegistry as IRewardRoleRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IRoleRegistry.sol";
 import { RewardTokenRegistry } from "@reserve-protocol/reserve-governor/contracts/staking/RewardTokenRegistry.sol";
-import { REBALANCE_MANAGER, BRAND_MANAGER, AUCTION_APPROVER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
+import { REBALANCE_MANAGER, BRAND_MANAGER, AUCTION_LAUNCHER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 
 interface IVersionedLike {
@@ -186,7 +186,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
             cfg.guardians,
             deploymentNonce
         );
-        assertFalse(cfg.folio.hasRole(AUCTION_APPROVER, tradingTimelock), "trading timelock still auction approver");
+        assertFalse(cfg.folio.hasRole(AUCTION_LAUNCHER, tradingTimelock), "trading timelock still auction launcher");
         assertFalse(cfg.folio.hasRole(BRAND_MANAGER, tradingTimelock), "trading timelock still brand manager");
         vm.stopPrank();
     }

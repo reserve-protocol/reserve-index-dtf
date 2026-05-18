@@ -15,7 +15,7 @@ import { IRewardTokenRegistry } from "@reserve-protocol/reserve-governor/contrac
 
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
-import { DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, BRAND_MANAGER, AUCTION_APPROVER, AUCTION_LAUNCHER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
+import { DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, BRAND_MANAGER, AUCTION_LAUNCHER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 
 bytes32 constant VERSION_1_0_0 = keccak256("1.0.0");
 bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
@@ -211,7 +211,7 @@ contract GovernanceSpell_04_17_2026 {
             TimelockController(payable(tradingTimelock)).hasRole(PROPOSER_ROLE, address(tradingGovernor)),
             UpgradeError(34)
         );
-        require(!folio.hasRole(AUCTION_APPROVER, tradingTimelock), UpgradeError(29));
+        require(!folio.hasRole(AUCTION_LAUNCHER, tradingTimelock), UpgradeError(29));
         require(!folio.hasRole(BRAND_MANAGER, tradingTimelock), UpgradeError(30));
 
         // rotate Folio fee recipients from old staking vault to new staking vault
