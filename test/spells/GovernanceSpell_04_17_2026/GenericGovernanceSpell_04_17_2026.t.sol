@@ -18,7 +18,7 @@ import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-go
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
 import { IRoleRegistry as IRewardRoleRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IRoleRegistry.sol";
 import { RewardTokenRegistry } from "@reserve-protocol/reserve-governor/contracts/staking/RewardTokenRegistry.sol";
-import { REBALANCE_MANAGER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
+import { REBALANCE_MANAGER, BRAND_MANAGER, AUCTION_APPROVER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 
 interface IVersionedLike {
@@ -89,6 +89,7 @@ interface IRewardedStakingVaultLike is IStakingVault {
 
 abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
     bytes32 internal constant FOLIO_VERSION_4_0_0 = keccak256("4.0.0");
+    bytes32 internal constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
     bytes4 internal constant START_REBALANCE_4_0_0 = 0x235d7142;
 
     struct Config {
@@ -96,6 +97,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         FolioProxyAdmin proxyAdmin;
         IFolioGovernor stakingVaultGovernor;
         IFolioGovernor oldFolioGovernor;
+        address tradingTimelock;
         address[] guardians;
     }
 
@@ -158,10 +160,19 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         address optimisticProposer,
         bytes32 deploymentNonce
     ) internal returns (GovernanceSpell_04_17_2026.NewDeployment memory dep) {
-        address oldFolioTimelock = cfg.oldFolioGovernor.timelock();
-        assertEq(cfg.proxyAdmin.owner(), oldFolioTimelock, "old folio timelock should own proxy admin");
+        address tradingTimelock = cfg.tradingTimelock;
+        IFolioGovernor tradingGovernor = IFolioGovernor(makeAddr("trading-governor"));
 
-        vm.startPrank(oldFolioTimelock);
+        assertEq(cfg.proxyAdmin.owner(), cfg.oldFolioGovernor.timelock(), "old folio timelock should own proxy admin");
+        assertEq(cfg.folio.getRoleMember(REBALANCE_MANAGER, 0), tradingTimelock, "trading timelock mismatch");
+        vm.mockCall(address(tradingGovernor), abi.encodeWithSignature("timelock()"), abi.encode(tradingTimelock));
+        vm.mockCall(
+            tradingTimelock,
+            abi.encodeWithSignature("hasRole(bytes32,address)", PROPOSER_ROLE, address(tradingGovernor)),
+            abi.encode(true)
+        );
+
+        vm.startPrank(cfg.oldFolioGovernor.timelock());
         cfg.proxyAdmin.transferOwnership(address(spell));
         cfg.folio.grantRole(DEFAULT_ADMIN_ROLE, address(spell));
         dep = spell.upgradeFolio(
@@ -169,11 +180,14 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
             cfg.proxyAdmin,
             newStakingVault,
             cfg.oldFolioGovernor,
+            tradingGovernor,
             _optimisticParams(),
             _singleAddressArray(optimisticProposer),
             cfg.guardians,
             deploymentNonce
         );
+        assertFalse(cfg.folio.hasRole(AUCTION_APPROVER, tradingTimelock), "trading timelock still auction approver");
+        assertFalse(cfg.folio.hasRole(BRAND_MANAGER, tradingTimelock), "trading timelock still brand manager");
         vm.stopPrank();
     }
 

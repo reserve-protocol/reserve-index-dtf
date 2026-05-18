@@ -22,6 +22,7 @@ contract GovernanceSpellBase_04_17_2026_Test is GenericGovernanceSpell_04_17_202
                     proxyAdmin: FolioProxyAdmin(0xf6Db82f6b5F343d74A1D88af9e58fA1d2D89562e),
                     stakingVaultGovernor: IFolioGovernor(0x2DEE428BD8131FAa4288750d707De6F3901AfE3c),
                     oldFolioGovernor: IFolioGovernor(0x719eDEd05c7a6468E44AcFBBD19b2DF2EED7759E),
+                    tradingTimelock: 0xB785A1daC3724ea73A1368d6E0085B6A930e2CCD,
                     guardians: guardians
                 })
             );
@@ -39,6 +40,7 @@ contract GovernanceSpellBase_04_17_2026_Test is GenericGovernanceSpell_04_17_202
                     proxyAdmin: FolioProxyAdmin(0x17747f766e375a73959EBc0dBc623A174D4DB317),
                     stakingVaultGovernor: IFolioGovernor(0x42F72247FeFe2a4702e7E7aa71E3e1784c46f6Ae),
                     oldFolioGovernor: IFolioGovernor(0xA4556436cc4547F07DC3E61474Ae5E839fF3D150),
+                    tradingTimelock: 0xE9CdD5f7CE534D77b96aaB2716EF895afCBf51c3,
                     guardians: guardians
                 })
             );
@@ -56,6 +58,7 @@ contract GovernanceSpellBase_04_17_2026_Test is GenericGovernanceSpell_04_17_202
                     proxyAdmin: FolioProxyAdmin(0x2330a29DE3238b07b4a1Db70a244A25b8f21ab91),
                     stakingVaultGovernor: IFolioGovernor(0xbe8DDD7A3ad097DFa84EaBF4D57a879d0c41a148),
                     oldFolioGovernor: IFolioGovernor(0x858c2C08B4984AD4f045F8Bf6D85B916b723ed5b),
+                    tradingTimelock: 0x3A1f432aD1F1a2012b2CdB2945Aa0DE7C5a26abA,
                     guardians: guardians
                 })
             );
@@ -73,6 +76,7 @@ contract GovernanceSpellBase_04_17_2026_Test is GenericGovernanceSpell_04_17_202
                     proxyAdmin: FolioProxyAdmin(0x4472F1f3aD832Bed3FDeF75ace6540c2f3E5a187),
                     stakingVaultGovernor: IFolioGovernor(0xa83E456ebC4bCED953e64F085c8A8C4E2a8a5Fa0),
                     oldFolioGovernor: IFolioGovernor(0x1C58617D79daeE2F51DA6c98186334431D338721),
+                    tradingTimelock: 0x8F288a46681AF76512353a296edD389945faEeDA,
                     guardians: guardians
                 })
             );
@@ -90,6 +94,7 @@ contract GovernanceSpellBase_04_17_2026_Test is GenericGovernanceSpell_04_17_202
                     proxyAdmin: FolioProxyAdmin(0xF3345fca866673BfB58b50F00691219a62Dd6Dc8),
                     stakingVaultGovernor: IFolioGovernor(0xcdd675d848372596E5eCc1B0FE9e88C1CBc609Af),
                     oldFolioGovernor: IFolioGovernor(0x6dFF5971cc446479450e51b5f939A250b11F5Ef5),
+                    tradingTimelock: 0x271b312cCD6739cEa623677f656F5658C5E18F46,
                     guardians: guardians
                 })
             );
@@ -107,6 +112,7 @@ contract GovernanceSpellBase_04_17_2026_Test is GenericGovernanceSpell_04_17_202
                     proxyAdmin: FolioProxyAdmin(0xBe278Be45C265A589BD0bf8cDC6C9e5a04B3397D),
                     stakingVaultGovernor: IFolioGovernor(0xa29D5B7DACf13f417a87F9B5FF7C63d86e48F689),
                     oldFolioGovernor: IFolioGovernor(0x3d14EE40A64F30F3a3515FCA9Cf6787aCA1925b5),
+                    tradingTimelock: 0x0c98Dd13D07e4A7eaED952c7E6141bA5c82A344d,
                     guardians: guardians
                 })
             );

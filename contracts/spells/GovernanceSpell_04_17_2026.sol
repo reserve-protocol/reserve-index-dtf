@@ -15,12 +15,13 @@ import { IRewardTokenRegistry } from "@reserve-protocol/reserve-governor/contrac
 
 import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
-import { DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, BRAND_MANAGER, AUCTION_LAUNCHER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
+import { DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, BRAND_MANAGER, AUCTION_APPROVER, AUCTION_LAUNCHER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 
 bytes32 constant VERSION_1_0_0 = keccak256("1.0.0");
 bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
 bytes32 constant VERSION_5_0_0 = keccak256("5.0.0");
 bytes4 constant START_REBALANCE_4_0_0 = 0x235d7142;
+bytes32 constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
 bytes32 constant CANCELLER_ROLE = keccak256("CANCELLER_ROLE");
 
 interface IFolioGovernor is IGovernor {
@@ -153,6 +154,7 @@ contract GovernanceSpell_04_17_2026 {
     /// @dev New Governance system will use standard 2-3-2 day voting independent of previous voting settings
     /// @param newStakingVault New staking vault to use for the new governor
     /// @param oldFolioGovernor Governor currently attached to the Folio being upgraded
+    /// @param tradingGovernor Governor currently managing Folio trading operations
     /// @param optimisticProposers Use empty set to disable optimistic governance altogether
     /// @param guardians Must be a subset of the old Folio timelock's CANCELLER_ROLE members
     ///                  The shared Guardian contract will be included as a CANCELLER_ROLE member by default
@@ -161,6 +163,7 @@ contract GovernanceSpell_04_17_2026 {
         FolioProxyAdmin folioProxyAdmin,
         IStakingVault newStakingVault,
         IFolioGovernor oldFolioGovernor,
+        IFolioGovernor tradingGovernor,
         IReserveOptimisticGovernor.OptimisticGovernanceParams calldata optimisticParams,
         address[] calldata optimisticProposers,
         address[] calldata guardians,
@@ -175,40 +178,53 @@ contract GovernanceSpell_04_17_2026 {
         require(keccak256(bytes(IVersioned(address(newStakingVault)).version())) == VERSION_1_0_0, UpgradeError(3));
         _validateFolioRewardToken(folio, newStakingVault);
 
-        IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = _baseDeploymentParams(
-            oldFolioGovernor,
-            optimisticParams,
-            optimisticProposers,
-            guardians
-        );
-        baseParams.selectorData = _startRebalanceSelectorData(folio, folioVersion);
+        {
+            IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = _baseDeploymentParams(
+                oldFolioGovernor,
+                optimisticParams,
+                optimisticProposers,
+                guardians
+            );
+            baseParams.selectorData = _startRebalanceSelectorData(folio, folioVersion);
 
-        newDeployment.stakingVault = address(newStakingVault);
-        (newDeployment.newGovernor, newDeployment.newTimelock, newDeployment.newSelectorRegistry) = governorDeployer
-            .deployWithExistingStakingVault(baseParams, address(newStakingVault), deploymentNonce);
-        require(newDeployment.newTimelock != address(0), UpgradeError(2));
+            newDeployment.stakingVault = address(newStakingVault);
+            (newDeployment.newGovernor, newDeployment.newTimelock, newDeployment.newSelectorRegistry) = governorDeployer
+                .deployWithExistingStakingVault(baseParams, address(newStakingVault), deploymentNonce);
+            require(newDeployment.newTimelock != address(0), UpgradeError(2));
+        }
 
         // confirm Folio admins are self + old timelock
         require(folio.getRoleMemberCount(DEFAULT_ADMIN_ROLE) == 2, UpgradeError(4));
         require(folio.hasRole(DEFAULT_ADMIN_ROLE, address(this)), UpgradeError(5));
         require(folio.hasRole(DEFAULT_ADMIN_ROLE, msg.sender), UpgradeError(6));
 
-        // BRAND_MANAGER/AUCTION_LAUNCHER
+        // main timelock should only be carrying admin ownership
         require(!folio.hasRole(BRAND_MANAGER, msg.sender), UpgradeError(29));
         require(!folio.hasRole(AUCTION_LAUNCHER, msg.sender), UpgradeError(30));
 
-        // rotate Folio fee recipients from old staking vault to new staking vault
-        _rotateFeeRecipients(
-            folio,
-            oldFolioGovernor.token(),
-            address(newStakingVault),
-            address(oldFolioGovernor),
-            msg.sender
+        address tradingTimelock = tradingGovernor.timelock();
+
+        // validate old trading governance
+        require(folio.getRoleMemberCount(REBALANCE_MANAGER) == 1, UpgradeError(7));
+        require(folio.getRoleMember(REBALANCE_MANAGER, 0) == tradingTimelock, UpgradeError(8));
+        require(
+            TimelockController(payable(tradingTimelock)).hasRole(PROPOSER_ROLE, address(tradingGovernor)),
+            UpgradeError(34)
         );
+        require(!folio.hasRole(AUCTION_APPROVER, tradingTimelock), UpgradeError(29));
+        require(!folio.hasRole(BRAND_MANAGER, tradingTimelock), UpgradeError(30));
+
+        // rotate Folio fee recipients from old staking vault to new staking vault
+        address[4] memory invalidFeeRecipients = [
+            address(oldFolioGovernor),
+            msg.sender,
+            address(tradingGovernor),
+            tradingTimelock
+        ];
+        _rotateFeeRecipients(folio, oldFolioGovernor.token(), address(newStakingVault), invalidFeeRecipients);
 
         // rotate Folio REBALANCE_MANAGER
-        require(folio.getRoleMemberCount(REBALANCE_MANAGER) == 1, UpgradeError(7));
-        folio.revokeRole(REBALANCE_MANAGER, folio.getRoleMember(REBALANCE_MANAGER, 0));
+        folio.revokeRole(REBALANCE_MANAGER, tradingTimelock);
         folio.grantRole(REBALANCE_MANAGER, newDeployment.newTimelock);
         require(folio.getRoleMemberCount(REBALANCE_MANAGER) == 1, UpgradeError(7));
         require(folio.getRoleMember(REBALANCE_MANAGER, 0) == newDeployment.newTimelock, UpgradeError(8));
@@ -315,8 +331,7 @@ contract GovernanceSpell_04_17_2026 {
         Folio folio,
         address oldStakingVault,
         address newStakingVault,
-        address oldGovernor,
-        address oldTimelock
+        address[4] memory invalidFeeRecipients
     ) internal {
         IFolio.FeeRecipient[] memory recipients = _feeRecipients(folio);
         uint256 oldStakingVaultRecipientCount;
@@ -331,8 +346,10 @@ contract GovernanceSpell_04_17_2026 {
             }
 
             require(recipient != newStakingVault, UpgradeError(19));
-            require(recipient != oldGovernor, UpgradeError(31));
-            require(recipient != oldTimelock, UpgradeError(32));
+            require(recipient != invalidFeeRecipients[0], UpgradeError(31));
+            require(recipient != invalidFeeRecipients[1], UpgradeError(32));
+            require(recipient != invalidFeeRecipients[2], UpgradeError(35));
+            require(recipient != invalidFeeRecipients[3], UpgradeError(36));
         }
 
         require(oldStakingVaultRecipientCount == 1, UpgradeError(20));
