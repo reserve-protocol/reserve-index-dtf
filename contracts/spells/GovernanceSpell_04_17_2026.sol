@@ -256,6 +256,7 @@ contract GovernanceSpell_04_17_2026 {
     ///      - Spell is owner of `oldStakingVault`
     /// @dev Enumeration of dependent Folios is off-chain: current governance is responsible for confirming
     ///      no Folio governor still uses this StakingVault as its voting token before transferring ownership.
+    /// @dev No new Folios should be added to the old StakingVault after `retireOldStakingVault()` is proposed.
     function retireOldStakingVault(IOwnableStakingVault oldStakingVault) public {
         require(oldStakingVault.owner() == address(this), UpgradeError(13));
 
