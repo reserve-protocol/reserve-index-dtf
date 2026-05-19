@@ -67,6 +67,7 @@ interface IOwnableStakingVault is IStakingVault {
  *   3. retireOldStakingVault: After every dependent Folio has completed step 2, permanently seal the
  *      old StakingVault (zero unstaking delay, fast reward handout, renounce ownership).
  *        Caller: timelock of old StakingVault
+ * 
  */
 contract GovernanceSpell_04_17_2026 {
     error UpgradeError(uint256 code);
@@ -151,6 +152,12 @@ contract GovernanceSpell_04_17_2026 {
     ///      - Self is Folio admin
     ///      - Self is FolioProxyAdmin owner
     /// @dev IMPORTANT: Must atomically grant ownerships to the spell just before calling `upgradeFolio()`
+    /// @dev Assumptions:
+    ///      1. Folio governors SHOULD vote down new staking vaults with proposals in their governor
+    ///      2. The Guardian emergency council SHOULD cancel malicious proposals proposed to new StakingVault
+    ///                  governors while a `upgradeFolio()` proposal is in-flight.
+    ///      3. The Guardian emergency council SHOULD cancel malicious proposals proposed to new Folio
+    ///                  governors directly after `upgradeFolio()` execution, when new stake is still populating.
     /// @dev New Governance system will use standard 2-3-2 day voting independent of previous voting settings
     /// @param newStakingVault New staking vault to use for the new governor
     /// @param oldFolioGovernor Governor currently attached to the Folio being upgraded
