@@ -150,7 +150,7 @@ contract GovernanceSpell_04_17_2026 {
     ///      - Folio is exactly version 4.0.0 or 5.0.0
     ///      - Self is Folio admin
     ///      - Self is FolioProxyAdmin owner
-    /// @dev IMPORTANT: Do not call until the `newStakingVault` has been sufficiently populated by new stake
+    /// @dev IMPORTANT: Must atomically grant ownerships to the spell just before calling `upgradeFolio()`
     /// @dev New Governance system will use standard 2-3-2 day voting independent of previous voting settings
     /// @param newStakingVault New staking vault to use for the new governor
     /// @param oldFolioGovernor Governor currently attached to the Folio being upgraded
@@ -245,9 +245,10 @@ contract GovernanceSpell_04_17_2026 {
     }
 
     /// Permanently retire an old StakingVault after every dependent Folio has upgraded
-    /// @dev IMPORTANT: Current governance must transfer ownership of `oldStakingVault` to this spell contract first
-    /// @dev Enumeration of dependent Folios is off-chain: current governance is responsible for
-    ///      confirming no Folio governor still uses this StakingVault as its voting token.
+    /// @dev Requirements:
+    ///      - Spell is owner of `oldStakingVault`
+    /// @dev Enumeration of dependent Folios is off-chain: current governance is responsible for confirming
+    ///      no Folio governor still uses this StakingVault as its voting token before transferring ownership.
     function retireOldStakingVault(IOwnableStakingVault oldStakingVault) public {
         require(oldStakingVault.owner() == address(this), UpgradeError(13));
 
