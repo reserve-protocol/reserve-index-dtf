@@ -170,6 +170,7 @@ contract GovernanceSpellEthereum_04_17_2026_Test is GenericGovernanceSpell_04_17
             firstCfg,
             IStakingVault(stakingVaultDep.newStakingVault),
             makeAddr(string.concat(firstLabel, "-folio-opt")),
+            address(0),
             keccak256(abi.encode(firstLabel, "folio"))
         );
         assertEq(
@@ -202,6 +203,7 @@ contract GovernanceSpellEthereum_04_17_2026_Test is GenericGovernanceSpell_04_17
             secondCfg,
             IStakingVault(stakingVaultDep.newStakingVault),
             makeAddr(string.concat(secondLabel, "-folio-opt")),
+            address(0),
             keccak256(abi.encode(secondLabel, "folio"))
         );
         assertEq(

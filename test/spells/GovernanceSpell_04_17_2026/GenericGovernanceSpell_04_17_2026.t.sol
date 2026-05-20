@@ -144,6 +144,10 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         }
     }
 
+    function test_upgradeFolio_nonZeroNewFeeRecipient_fork() public {
+        _runUpgradeFolioNonZeroFeeRecipientCase(CONFIGS[0], 0);
+    }
+
     // === Internal ===
 
     function _logFolioSymbol(Folio folio) internal view {
@@ -158,16 +162,21 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         Config memory cfg,
         IStakingVault newStakingVault,
         address optimisticProposer,
+        address newFeeRecipient,
         bytes32 deploymentNonce
     ) internal returns (GovernanceSpell_04_17_2026.NewDeployment memory dep) {
-        address tradingTimelock = cfg.tradingTimelock;
         IFolioGovernor tradingGovernor = IFolioGovernor(makeAddr("trading-governor"));
 
         assertEq(cfg.proxyAdmin.owner(), cfg.oldFolioGovernor.timelock(), "old folio timelock should own proxy admin");
-        assertEq(cfg.folio.getRoleMember(REBALANCE_MANAGER, 0), tradingTimelock, "trading timelock mismatch");
-        vm.mockCall(address(tradingGovernor), abi.encodeWithSignature("timelock()"), abi.encode(tradingTimelock));
+        assertEq(cfg.folio.getRoleMember(REBALANCE_MANAGER, 0), cfg.tradingTimelock, "trading timelock mismatch");
+        assertFalse(
+            cfg.folio.hasRole(AUCTION_LAUNCHER, cfg.tradingTimelock),
+            "trading timelock still auction launcher"
+        );
+        assertFalse(cfg.folio.hasRole(BRAND_MANAGER, cfg.tradingTimelock), "trading timelock still brand manager");
+        vm.mockCall(address(tradingGovernor), abi.encodeWithSignature("timelock()"), abi.encode(cfg.tradingTimelock));
         vm.mockCall(
-            tradingTimelock,
+            cfg.tradingTimelock,
             abi.encodeWithSignature("hasRole(bytes32,address)", PROPOSER_ROLE, address(tradingGovernor)),
             abi.encode(true)
         );
@@ -184,10 +193,9 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
             _optimisticParams(),
             _singleAddressArray(optimisticProposer),
             cfg.guardians,
+            newFeeRecipient,
             deploymentNonce
         );
-        assertFalse(cfg.folio.hasRole(AUCTION_LAUNCHER, tradingTimelock), "trading timelock still auction launcher");
-        assertFalse(cfg.folio.hasRole(BRAND_MANAGER, tradingTimelock), "trading timelock still brand manager");
         vm.stopPrank();
     }
 
@@ -231,6 +239,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
                 cfg,
                 IStakingVault(stakingVaultDep.newStakingVault),
                 folioOptimisticProposer,
+                address(0),
                 keccak256(abi.encode(configIndex, "folio-new"))
             );
 
@@ -262,6 +271,49 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         }
 
         _retireOldStakingVault(oldStakingVault);
+
+        vm.revertToState(snapshot);
+    }
+
+    function _runUpgradeFolioNonZeroFeeRecipientCase(Config memory cfg, uint256 configIndex) internal {
+        uint256 snapshot = vm.snapshotState();
+        SuccessorDeployment memory stakingVaultDep = _deploySuccessorStakingVault(
+            cfg,
+            _singleAddressArray(address(cfg.folio)),
+            keccak256(abi.encode(configIndex, "fee-recipient-vault"))
+        );
+
+        address oldFolioStakingVault = cfg.oldFolioGovernor.token();
+        address newFeeRecipient = makeAddr(string.concat("new-fee-recipient-", vm.toString(configIndex)));
+        address folioOptimisticProposer = makeAddr(string.concat("new-fee-recipient-opt-", vm.toString(configIndex)));
+
+        uint96 oldVaultFeePortionBefore = _feeRecipientPortion(cfg.folio, oldFolioStakingVault);
+        uint96 newVaultFeePortionBefore = _feeRecipientPortion(cfg.folio, stakingVaultDep.newStakingVault);
+        uint96 newFeeRecipientPortionBefore = _feeRecipientPortion(cfg.folio, newFeeRecipient);
+        assertGt(uint256(oldVaultFeePortionBefore), 0, "old vault should receive folio fees");
+        assertEq(newFeeRecipientPortionBefore, 0, "new fee recipient should not already receive fees");
+
+        GovernanceSpell_04_17_2026.NewDeployment memory folioDep = _upgradeFolio(
+            cfg,
+            IStakingVault(stakingVaultDep.newStakingVault),
+            folioOptimisticProposer,
+            newFeeRecipient,
+            keccak256(abi.encode(configIndex, "fee-recipient-folio"))
+        );
+
+        assertEq(folioDep.stakingVault, stakingVaultDep.newStakingVault, "folio upgrade should return new vault");
+        _assertFolioGovernanceInstalled(cfg, folioDep.newTimelock);
+        assertEq(_feeRecipientPortion(cfg.folio, oldFolioStakingVault), 0, "old vault should not receive folio fees");
+        assertEq(
+            _feeRecipientPortion(cfg.folio, stakingVaultDep.newStakingVault),
+            newVaultFeePortionBefore,
+            "new vault fee share should be unchanged"
+        );
+        assertEq(
+            _feeRecipientPortion(cfg.folio, newFeeRecipient),
+            oldVaultFeePortionBefore + newFeeRecipientPortionBefore,
+            "new fee recipient should receive migrated folio fee share"
+        );
 
         vm.revertToState(snapshot);
     }

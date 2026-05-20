@@ -67,7 +67,7 @@ interface IOwnableStakingVault is IStakingVault {
  *   3. retireOldStakingVault: After every dependent Folio has completed step 2, permanently seal the
  *      old StakingVault (zero unstaking delay, fast reward handout, renounce ownership).
  *        Caller: timelock of old StakingVault
- * 
+ *
  */
 contract GovernanceSpell_04_17_2026 {
     error UpgradeError(uint256 code);
@@ -165,6 +165,7 @@ contract GovernanceSpell_04_17_2026 {
     /// @param optimisticProposers Use empty set to disable optimistic governance altogether
     /// @param guardians Must be a subset of the old Folio timelock's CANCELLER_ROLE members
     ///                  The shared Guardian contract will be included as a CANCELLER_ROLE member by default
+    /// @param newFeeRecipient Optional address to intermediate new StakingVault revenue
     function upgradeFolio(
         Folio folio,
         FolioProxyAdmin folioProxyAdmin,
@@ -174,6 +175,7 @@ contract GovernanceSpell_04_17_2026 {
         IReserveOptimisticGovernor.OptimisticGovernanceParams calldata optimisticParams,
         address[] calldata optimisticProposers,
         address[] calldata guardians,
+        address newFeeRecipient,
         bytes32 deploymentNonce
     ) public returns (NewDeployment memory newDeployment) {
         // included for readability, root of security is folioProxyAdmin + folio role checks
@@ -183,7 +185,6 @@ contract GovernanceSpell_04_17_2026 {
 
         // newStakingVault must not be the old immmutable kind, must be new and upgradeable
         require(keccak256(bytes(IVersioned(address(newStakingVault)).version())) == VERSION_1_0_0, UpgradeError(3));
-        _validateFolioRewardToken(folio, newStakingVault);
 
         {
             IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = _baseDeploymentParams(
@@ -209,29 +210,39 @@ contract GovernanceSpell_04_17_2026 {
         require(!folio.hasRole(BRAND_MANAGER, msg.sender), UpgradeError(29));
         require(!folio.hasRole(AUCTION_LAUNCHER, msg.sender), UpgradeError(30));
 
-        address tradingTimelock = tradingGovernor.timelock();
+        {
+            address tradingTimelock = tradingGovernor.timelock();
 
-        // validate old trading governance
-        require(folio.getRoleMemberCount(REBALANCE_MANAGER) == 1, UpgradeError(7));
-        require(folio.getRoleMember(REBALANCE_MANAGER, 0) == tradingTimelock, UpgradeError(8));
-        require(
-            TimelockController(payable(tradingTimelock)).hasRole(PROPOSER_ROLE, address(tradingGovernor)),
-            UpgradeError(34)
-        );
-        require(!folio.hasRole(AUCTION_LAUNCHER, tradingTimelock), UpgradeError(29));
-        require(!folio.hasRole(BRAND_MANAGER, tradingTimelock), UpgradeError(30));
+            // validate old trading governance
+            require(folio.getRoleMemberCount(REBALANCE_MANAGER) == 1, UpgradeError(7));
+            require(folio.getRoleMember(REBALANCE_MANAGER, 0) == tradingTimelock, UpgradeError(8));
+            require(
+                TimelockController(payable(tradingTimelock)).hasRole(PROPOSER_ROLE, address(tradingGovernor)),
+                UpgradeError(34)
+            );
+            require(!folio.hasRole(AUCTION_LAUNCHER, tradingTimelock), UpgradeError(29));
+            require(!folio.hasRole(BRAND_MANAGER, tradingTimelock), UpgradeError(30));
+        }
 
         // rotate Folio fee recipients from old staking vault to new staking vault
         address[4] memory invalidFeeRecipients = [
             address(oldFolioGovernor),
             msg.sender,
             address(tradingGovernor),
-            tradingTimelock
+            tradingGovernor.timelock()
         ];
-        _rotateFeeRecipients(folio, oldFolioGovernor.token(), address(newStakingVault), invalidFeeRecipients);
+
+        // direct revenue directly at Staking Vault if no new fee recipient is provided
+        if (newFeeRecipient == address(0)) {
+            newFeeRecipient = address(newStakingVault);
+
+            _validateFolioRewardToken(folio, newStakingVault);
+        }
+
+        _rotateFeeRecipients(folio, oldFolioGovernor.token(), newFeeRecipient, invalidFeeRecipients);
 
         // rotate Folio REBALANCE_MANAGER
-        folio.revokeRole(REBALANCE_MANAGER, tradingTimelock);
+        folio.revokeRole(REBALANCE_MANAGER, tradingGovernor.timelock());
         folio.grantRole(REBALANCE_MANAGER, newDeployment.newTimelock);
         require(folio.getRoleMemberCount(REBALANCE_MANAGER) == 1, UpgradeError(7));
         require(folio.getRoleMember(REBALANCE_MANAGER, 0) == newDeployment.newTimelock, UpgradeError(8));
@@ -314,7 +325,10 @@ contract GovernanceSpell_04_17_2026 {
     }
 
     function _validateFolioRewardToken(Folio folio, IStakingVault newStakingVault) internal view {
-        require(IRewardTokenRegistry(governorDeployer.rewardTokenRegistry()).isRegistered(address(folio)), UpgradeError(33));
+        require(
+            IRewardTokenRegistry(governorDeployer.rewardTokenRegistry()).isRegistered(address(folio)),
+            UpgradeError(33)
+        );
 
         address[] memory rewardTokens = IRewardedStakingVault(address(newStakingVault)).getAllRewardTokens();
         for (uint256 i; i < rewardTokens.length; i++) {
@@ -335,35 +349,40 @@ contract GovernanceSpell_04_17_2026 {
         }
     }
 
-    /// Rotate the fee recipient entry for the old StakingVault to the new StakingVault
+    /// Rotate the fee recipient entry for the old fee recipient to the new fee recipient
     function _rotateFeeRecipients(
         Folio folio,
-        address oldStakingVault,
-        address newStakingVault,
+        address oldFeeRecipient,
+        address newFeeRecipient,
         address[4] memory invalidFeeRecipients
     ) internal {
+        require(newFeeRecipient != invalidFeeRecipients[0], UpgradeError(37));
+        require(newFeeRecipient != invalidFeeRecipients[1], UpgradeError(38));
+        require(newFeeRecipient != invalidFeeRecipients[2], UpgradeError(39));
+        require(newFeeRecipient != invalidFeeRecipients[3], UpgradeError(40));
+
         IFolio.FeeRecipient[] memory recipients = _feeRecipients(folio);
-        uint256 oldStakingVaultRecipientCount;
-        uint256 oldStakingVaultRecipientIndex;
+        uint256 oldFeeRecipientCount;
+        uint256 oldFeeRecipientIndex;
 
         for (uint256 i; i < recipients.length; i++) {
             address recipient = recipients[i].recipient;
 
-            if (recipient == oldStakingVault) {
-                oldStakingVaultRecipientCount++;
-                oldStakingVaultRecipientIndex = i;
+            if (recipient == oldFeeRecipient) {
+                oldFeeRecipientCount++;
+                oldFeeRecipientIndex = i;
             }
 
-            require(recipient != newStakingVault, UpgradeError(19));
+            require(recipient != newFeeRecipient, UpgradeError(19));
             require(recipient != invalidFeeRecipients[0], UpgradeError(31));
             require(recipient != invalidFeeRecipients[1], UpgradeError(32));
             require(recipient != invalidFeeRecipients[2], UpgradeError(35));
             require(recipient != invalidFeeRecipients[3], UpgradeError(36));
         }
 
-        require(oldStakingVaultRecipientCount == 1, UpgradeError(20));
+        require(oldFeeRecipientCount == 1, UpgradeError(20));
 
-        recipients[oldStakingVaultRecipientIndex].recipient = newStakingVault;
+        recipients[oldFeeRecipientIndex].recipient = newFeeRecipient;
         _sortFeeRecipients(recipients);
         folio.setFeeRecipients(recipients);
     }
