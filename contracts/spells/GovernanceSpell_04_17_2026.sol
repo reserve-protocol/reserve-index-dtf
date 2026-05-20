@@ -114,7 +114,7 @@ contract GovernanceSpell_04_17_2026 {
             memory newStakingVaultParams = IReserveOptimisticGovernorDeployer.NewStakingVaultParams({
                 underlying: IERC20Metadata(newUnderlying),
                 rewardTokens: rewardTokens,
-                rewardHalfLife: 3.5 days,
+                rewardHalfLife: 1 weeks,
                 unstakingDelay: 1 weeks
             });
 
