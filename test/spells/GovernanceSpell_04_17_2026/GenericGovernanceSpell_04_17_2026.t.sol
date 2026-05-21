@@ -54,6 +54,10 @@ contract MockGovernanceVersionRegistry {
 contract GovernanceSpell_04_17_2026_Harness is GovernanceSpell_04_17_2026 {
     constructor(IReserveOptimisticGovernorDeployer governorDeployer) GovernanceSpell_04_17_2026(governorDeployer) {}
 
+    function validateGenericTokenJar(address newFeeRecipient, IStakingVault newStakingVault) external view {
+        _validateGenericTokenJar(newFeeRecipient, newStakingVault);
+    }
+
     function baseDeploymentParams(
         IFolioGovernor oldGovernor,
         IReserveOptimisticGovernor.OptimisticGovernanceParams calldata optimisticParams,
@@ -85,6 +89,24 @@ interface IRetiredStakingVaultLike is IOwnableStakingVault {
 
 interface IRewardedStakingVaultLike is IStakingVault {
     function getAllRewardTokens() external view returns (address[] memory);
+}
+
+contract MockStakingVaultAsset {
+    address public immutable asset;
+
+    constructor(address _asset) {
+        asset = _asset;
+    }
+}
+
+contract MockGenericTokenJar {
+    address public immutable destination;
+    address public immutable token;
+
+    constructor(address _destination, address _token) {
+        destination = _destination;
+        token = _token;
+    }
 }
 
 abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
@@ -146,6 +168,25 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
 
     function test_upgradeFolio_nonZeroNewFeeRecipient_fork() public {
         _runUpgradeFolioNonZeroFeeRecipientCase(CONFIGS[0], 0);
+    }
+
+    function test_validateGenericTokenJar_fork() public {
+        GovernanceSpell_04_17_2026_Harness harness = new GovernanceSpell_04_17_2026_Harness(
+            optimisticGovernanceDeployer
+        );
+        address asset = makeAddr("generic-token-jar-asset");
+        IStakingVault newStakingVault = IStakingVault(address(new MockStakingVaultAsset(asset)));
+
+        address validJar = address(new MockGenericTokenJar(address(newStakingVault), asset));
+        harness.validateGenericTokenJar(validJar, newStakingVault);
+
+        address wrongTokenJar = address(new MockGenericTokenJar(address(newStakingVault), makeAddr("wrong-token")));
+        vm.expectRevert(abi.encodeWithSelector(GovernanceSpell_04_17_2026.UpgradeError.selector, 41));
+        harness.validateGenericTokenJar(wrongTokenJar, newStakingVault);
+
+        address wrongDestinationJar = address(new MockGenericTokenJar(makeAddr("wrong-destination"), asset));
+        vm.expectRevert(abi.encodeWithSelector(GovernanceSpell_04_17_2026.UpgradeError.selector, 42));
+        harness.validateGenericTokenJar(wrongDestinationJar, newStakingVault);
     }
 
     // === Internal ===
@@ -284,7 +325,12 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         );
 
         address oldFolioStakingVault = cfg.oldFolioGovernor.token();
-        address newFeeRecipient = makeAddr(string.concat("new-fee-recipient-", vm.toString(configIndex)));
+        address newFeeRecipient = address(
+            new MockGenericTokenJar(
+                stakingVaultDep.newStakingVault,
+                IStakingVault(stakingVaultDep.newStakingVault).asset()
+            )
+        );
         address folioOptimisticProposer = makeAddr(string.concat("new-fee-recipient-opt-", vm.toString(configIndex)));
 
         uint96 oldVaultFeePortionBefore = _feeRecipientPortion(cfg.folio, oldFolioStakingVault);

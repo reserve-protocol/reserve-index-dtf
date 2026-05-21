@@ -35,6 +35,12 @@ interface IVersioned {
 
 interface IStakingVault is IERC5805, IERC4626, IVersioned {}
 
+// trusted-fillers GenericTokenJar-compatible interface
+interface IGenericTokenJar {
+    function token() external view returns (address);
+    function destination() external view returns (address);
+}
+
 interface IRewardedStakingVault is IStakingVault {
     function getAllRewardTokens() external view returns (address[] memory);
 }
@@ -165,7 +171,7 @@ contract GovernanceSpell_04_17_2026 {
     /// @param optimisticProposers Use empty set to disable optimistic governance altogether
     /// @param guardians Must be a subset of the old Folio timelock's CANCELLER_ROLE members
     ///                  The shared Guardian contract will be included as a CANCELLER_ROLE member by default
-    /// @param newFeeRecipient Optional address to intermediate new StakingVault revenue
+    /// @param newFeeRecipient Optional GenericTokenJar address to intermediate new StakingVault revenue
     function upgradeFolio(
         Folio folio,
         FolioProxyAdmin folioProxyAdmin,
@@ -232,11 +238,13 @@ contract GovernanceSpell_04_17_2026 {
             tradingGovernor.timelock()
         ];
 
-        // direct revenue directly at Staking Vault if no new fee recipient is provided
+        // direct revenue to StakingVault if no GenericTokenJar is provided
         if (newFeeRecipient == address(0)) {
             newFeeRecipient = address(newStakingVault);
 
             _validateFolioRewardToken(folio, newStakingVault);
+        } else {
+            _validateGenericTokenJar(newFeeRecipient, newStakingVault);
         }
 
         _rotateFeeRecipients(folio, oldFolioGovernor.token(), newFeeRecipient, invalidFeeRecipients);
@@ -336,6 +344,13 @@ contract GovernanceSpell_04_17_2026 {
         }
 
         revert UpgradeError(34);
+    }
+
+    function _validateGenericTokenJar(address newFeeRecipient, IStakingVault newStakingVault) internal view {
+        IGenericTokenJar jar = IGenericTokenJar(newFeeRecipient);
+
+        require(jar.token() == newStakingVault.asset(), UpgradeError(41));
+        require(jar.destination() == address(newStakingVault), UpgradeError(42));
     }
 
     /// Require `guardians` is a subset of the old timelock's CANCELLER_ROLE members (excl old governor)
