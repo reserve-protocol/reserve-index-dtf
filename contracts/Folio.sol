@@ -330,6 +330,7 @@ contract Folio is
 
     /// @dev Non-reentrant via distributeFees()
     /// @dev Fee recipients must be unique and sorted by address, and sum to 1e18
+    /// @dev Use folioFeeForSelf to direct a portion of Folio fees to the Folio itself
     /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
     function setFeeRecipients(FeeRecipient[] calldata _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
@@ -548,10 +549,13 @@ contract Folio is
         uint256 daoShares = daoPendingFeeShares + _feeRecipientsPendingFeeShares - feeRecipientsTotal;
 
         (address daoRecipient, , , ) = daoFeeRegistry.getFeeDetails(address(this));
-        _mint(daoRecipient, daoShares);
-        emit ProtocolFeePaid(daoRecipient, daoShares);
 
-        daoPendingFeeShares = 0;
+        if (daoRecipient != address(0) && daoRecipient != address(this)) {
+            _mint(daoRecipient, daoShares);
+            emit ProtocolFeePaid(daoRecipient, daoShares);
+
+            daoPendingFeeShares = 0;
+        }
     }
 
     // ==== Auctions ====

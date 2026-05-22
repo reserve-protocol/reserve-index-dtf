@@ -654,6 +654,36 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
     }
 
+    function test_distributeFees_DoesNotRevertWhenDaoRecipientIsZeroOrFolio() public {
+        uint256 daoFeeNumerator = 0.15e18;
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), daoFeeNumerator);
+
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        vm.roll(block.number + 1000000);
+        assertGt(folio.getPendingFeeShares(), 0, "fees should be pending");
+
+        bytes memory getFeeDetailsCall = abi.encodeWithSelector(bytes4(keccak256("getFeeDetails(address)")), address(folio));
+
+        vm.mockCall(
+            address(daoFeeRegistry),
+            getFeeDetailsCall,
+            abi.encode(address(0), daoFeeNumerator, daoFeeRegistry.FEE_DENOMINATOR(), daoFeeRegistry.defaultFeeFloor())
+        );
+        folio.distributeFees();
+        assertGt(folio.daoPendingFeeShares(), 0, "dao shares should remain pending for zero recipient");
+        assertEq(folio.balanceOf(address(0)), 0, "zero address should not receive fees");
+
+        vm.clearMockedCalls();
+        vm.mockCall(
+            address(daoFeeRegistry),
+            getFeeDetailsCall,
+            abi.encode(address(folio), daoFeeNumerator, daoFeeRegistry.FEE_DENOMINATOR(), daoFeeRegistry.defaultFeeFloor())
+        );
+        folio.distributeFees();
+        assertGt(folio.daoPendingFeeShares(), 0, "dao shares should remain pending for folio recipient");
+        assertEq(folio.balanceOf(address(folio)), 0, "folio should not receive fees");
+    }
+
     function test_noTvlFeeWhenDaoFeeAndTvlFeeAreZero() public {
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 0);
         daoFeeRegistry.setTokenFeeFloor(address(folio), 0);
@@ -977,6 +1007,14 @@ contract FolioTest is BaseTest {
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(address(0), 0.1e18);
+        vm.expectRevert(IFolio.Folio__FeeRecipientInvalidAddress.selector);
+        folio.setFeeRecipients(recipients);
+    }
+
+    function test_setFeeRecipients_InvalidRecipientFolioItself() public {
+        vm.startPrank(owner);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
+        recipients[0] = IFolio.FeeRecipient(address(folio), 1e18);
         vm.expectRevert(IFolio.Folio__FeeRecipientInvalidAddress.selector);
         folio.setFeeRecipients(recipients);
     }
