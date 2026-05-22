@@ -80,6 +80,10 @@ library FolioLib {
         // D18{1/s}
         uint256 _tvlFee = feeFloor > params.tvlFee ? feeFloor : params.tvlFee;
 
+        if (_tvlFee == 0) {
+            return (params.currentDaoPending, params.currentFeeRecipientsPending);
+        }
+
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
         uint256 feeShares = (params.supply * D18) / MathLib.powu(D18 - _tvlFee, params.elapsed) - params.supply;
 
