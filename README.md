@@ -119,7 +119,7 @@ On start rebalance, the `REBALANCE_MANAGER` provides a range of basket limits to
 
 ###### Basket Weights
 
-For each token supplied to the rebalance the `REBALANCE_MANAGER` provides `low`, `spot`, and `high` weight estimates. Similar to the rebalance limits, the `low` point represents the point to buy up to and the `high` the point to sell down to. The `spot` is a constantly-revised point estimate applied in the event of an unrestricted caller. It must always lie between the `low` and `high` points. 
+For each token supplied to the rebalance the `REBALANCE_MANAGER` provides `low`, `spot`, and `high` weight estimates. Similar to the rebalance limits, the `low` point represents the point to buy up to and the `high` the point to sell down to. The `spot` is a constantly-revised point estimate applied in the event of an unrestricted caller. It must always lie between the `low` and `high` points.
 
 If `RebalanceControl.weightControl` is set, the `AUCTION_LAUNCHER` can help define the basket unit as the auctions progress. This is best suited for Folios targeting a particular % breakdown of assets at all times, as opposed to Folios that have single monthly or quarterly targets that can be handled purely by rebalance limits.
 
@@ -254,7 +254,7 @@ Some ERC20s are NOT supported
 
 > While downward-rebasing and upward-rebasing tokens are generally supported, the Folio’s accounting for bought and sold token amounts relies on differences in token balances. Sold and bought token amounts can therefore be misreported if the source for the change in balance is not a transfer of tokens but a rebasing. For this reason it is discouraged to use rebasing tokens with the potential for non-incremental rebasings that lead to outsized deviations in the Folio’s accounting.
 
-> Trusted fillers introduce their own token restrictions. If trusted fillers are enabled, the tokens used in the Folio must also be supported by the external trusted fillers that are whitelisted in the trusted filler registry. 
+> Trusted fillers introduce their own token restrictions. If trusted fillers are enabled, the tokens used in the Folio must also be supported by the external trusted fillers that are whitelisted in the trusted filler registry.
 
 ### Chain Assumptions
 
