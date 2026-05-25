@@ -63,7 +63,6 @@ interface IFolio {
 
     error Folio__EmptyAssets();
     error Folio__BasketModificationFailed();
-    error Folio__BalanceNotRemovable();
 
     error Folio__FeeRecipientInvalidAddress();
     error Folio__FeeRecipientInvalidFeeShare();
