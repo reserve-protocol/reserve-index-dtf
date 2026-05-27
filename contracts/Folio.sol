@@ -189,7 +189,10 @@ contract Folio is
     // === 6.0.0 ===
     bool public tradeAllowlistEnabled;
     EnumerableSet.AddressSet private tradeTokenAllowlist;
+
     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
+
+    uint256 private activeTrustedFillFloorPrice; // D27{buyTok/sellTok}
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -279,25 +282,14 @@ contract Folio is
 
     /// Escape hatch function to be used when tokens get acquired not through an auction but
     /// through any other means and should become part of the Folio without being sold.
-    /// @dev Does not require a token balance, hence can be backrun with removeFromBasket. Token
-    ///      balance is highly recommended.
+    /// @dev Does not require a token balance
     /// @param token The token to add to the basket
     function addToBasket(IERC20 token) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_addToBasket(address(token)), Folio__BasketModificationFailed());
     }
 
-    /// @dev Enables permissionless removal of tokens for 0 balance tokens
-    function removeFromBasket(IERC20 token) external nonReentrant {
-        _closeTrustedFill(false);
-
-        // always allow admin to remove from basket
-        // allow permissionless removal if 0 weight AND 0 balance
-        // known: can be griefed by token donation
-        require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
-                (rebalance.details[address(token)].weights.spot == 0 && IERC20(token).balanceOf(address(this)) == 0),
-            Folio__BalanceNotRemovable()
-        );
+    /// @dev Manual admin removal of tokens from the basket
+    function removeFromBasket(IERC20 token) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
     }
 
@@ -330,6 +322,7 @@ contract Folio is
 
     /// @dev Non-reentrant via distributeFees()
     /// @dev Fee recipients must be unique and sorted by address, and sum to 1e18
+    /// @dev Use folioFeeForSelf to direct a portion of Folio fees to the Folio itself
     /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
     function setFeeRecipients(FeeRecipient[] calldata _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
@@ -548,10 +541,13 @@ contract Folio is
         uint256 daoShares = daoPendingFeeShares + _feeRecipientsPendingFeeShares - feeRecipientsTotal;
 
         (address daoRecipient, , , ) = daoFeeRegistry.getFeeDetails(address(this));
-        _mint(daoRecipient, daoShares);
-        emit ProtocolFeePaid(daoRecipient, daoShares);
 
-        daoPendingFeeShares = 0;
+        if (daoRecipient != address(0) && daoRecipient != address(this)) {
+            _mint(daoRecipient, daoShares);
+            emit ProtocolFeePaid(daoRecipient, daoShares);
+
+            daoPendingFeeShares = 0;
+        }
     }
 
     // ==== Auctions ====
@@ -845,6 +841,9 @@ contract Folio is
         SafeERC20.forceApprove(sellToken, address(filler), sellAmount);
 
         filler.initialize(address(this), sellToken, buyToken, sellAmount, buyAmount);
+
+        // D27{buyTok/sellTok} = {buyTok} * D27 / {sellTok}
+        activeTrustedFillFloorPrice = Math.max(1, Math.mulDiv(buyAmount, D27, sellAmount, Math.Rounding.Floor));
         activeTrustedFill = filler;
 
         emit AuctionTrustedFillCreated(auctionId, address(filler));
@@ -879,6 +878,7 @@ contract Folio is
     }
 
     /// Close fill attempting to claw assets back, but always close fill
+    /// @dev DOES NOT trigger circuit breaker; callers should consider calling setTrustedFillerRegistry(, false)
     /// @dev Callable by ADMIN
     function emergencyCloseTrustedFill() external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         _closeTrustedFill(true);
@@ -1158,12 +1158,38 @@ contract Folio is
     function _closeTrustedFill(bool _emergency) internal {
         if (address(activeTrustedFill) != address(0)) {
             if (!_emergency) {
-                RebalancingLib.closeTrustedFill(auctions[nextAuctionId - 1], activeTrustedFill);
+                (uint256 sold, uint256 bought, bool shouldRemoveFromBasket) = RebalancingLib.closeTrustedFill(
+                    auctions[nextAuctionId - 1],
+                    activeTrustedFill
+                );
+
+                // circuit breaker
+                if (
+                    trustedFillerEnabled &&
+                    sold != 0 &&
+                    Math.mulDiv(bought, D27, sold, Math.Rounding.Ceil) < activeTrustedFillFloorPrice
+                    // round in-favor of no false positives
+                ) {
+                    _setTrustedFillerRegistry(address(trustedFillerRegistry), false);
+
+                    emit TrustedFillCircuitBreakerTriggered(
+                        nextAuctionId - 1,
+                        address(activeTrustedFill),
+                        sold,
+                        bought,
+                        activeTrustedFillFloorPrice
+                    );
+                }
+
+                if (shouldRemoveFromBasket) {
+                    _removeFromBasket(address(activeTrustedFill.sellToken()));
+                }
             } else {
                 activeTrustedFill.emergencyCloseFiller();
             }
 
             delete activeTrustedFill;
+            delete activeTrustedFillFloorPrice;
         }
     }
 

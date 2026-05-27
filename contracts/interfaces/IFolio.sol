@@ -23,6 +23,13 @@ interface IFolio {
     );
     event AuctionClosed(uint256 indexed auctionId);
     event AuctionTrustedFillCreated(uint256 indexed auctionId, address filler);
+    event TrustedFillCircuitBreakerTriggered(
+        uint256 indexed auctionId,
+        address filler,
+        uint256 sold,
+        uint256 bought,
+        uint256 floorPrice
+    );
 
     event FolioFeePaid(address indexed recipient, uint256 amount);
     event ProtocolFeePaid(address indexed recipient, uint256 amount);
@@ -63,7 +70,6 @@ interface IFolio {
 
     error Folio__EmptyAssets();
     error Folio__BasketModificationFailed();
-    error Folio__BalanceNotRemovable();
 
     error Folio__FeeRecipientInvalidAddress();
     error Folio__FeeRecipientInvalidFeeShare();

@@ -76,9 +76,6 @@ library RebalancingLib {
                         params.weight.high <= MAX_WEIGHT,
                     IFolio.Folio__InvalidWeights()
                 );
-
-                // ensure removeFromBasket() cannot be griefed
-                require(params.weight.spot != 0 || params.weight.high == 0, IFolio.Folio__InvalidWeights());
             }
 
             // enforce prices are internally consistent
@@ -339,7 +336,7 @@ library RebalancingLib {
     /// @param bidAmount {buyTok} Bid amount as returned by getBid
     /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
     /// @param data Arbitrary data to pass to the callback
-    /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after
+    /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after the bid
     function bid(
         IFolio.Auction storage auction,
         uint256 auctionId,
@@ -391,7 +388,13 @@ library RebalancingLib {
     /// Close a trusted fill
     /// @param auction The current ongoing auction
     /// @param activeTrustedFill The active trusted fill to close
-    function closeTrustedFill(IFolio.Auction storage auction, IBaseTrustedFiller activeTrustedFill) external {
+    /// @return sold {sellTok} The amount of sell tokens sold by the trusted fill
+    /// @return bought {buyTok} The amount of buy tokens bought by the trusted fill
+    /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after close
+    function closeTrustedFill(
+        IFolio.Auction storage auction,
+        IBaseTrustedFiller activeTrustedFill
+    ) external returns (uint256 sold, uint256 bought, bool shouldRemoveFromBasket) {
         IERC20 sellToken = activeTrustedFill.sellToken();
         IERC20 buyToken = activeTrustedFill.buyToken();
 
@@ -406,17 +409,19 @@ library RebalancingLib {
 
         // {sellTok}
         uint256 sellAmount = activeTrustedFill.sellAmount();
-        uint256 sold = sellAmount > sellReturned ? sellAmount - sellReturned : 0;
+        sold = sellAmount > sellReturned ? sellAmount - sellReturned : 0;
 
         // {buyTok}
         uint256 buyBalAfter = buyToken.balanceOf(address(this));
-        uint256 bought = buyBalAfter > buyBalBefore ? buyBalAfter - buyBalBefore : 0;
+        bought = buyBalAfter > buyBalBefore ? buyBalAfter - buyBalBefore : 0;
 
         // track traded amts
         auction.traded[address(sellToken)] += sold;
         auction.traded[address(buyToken)] += bought;
 
         // no event, cannot rely on executing in same block as fill occurred
+
+        return (sold, bought, sellBalAfter == 0);
     }
 
     // ==== Internal ====
