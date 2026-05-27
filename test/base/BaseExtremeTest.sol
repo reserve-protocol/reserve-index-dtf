@@ -68,7 +68,10 @@ abstract contract BaseExtremeTest is BaseTest {
             address(optimisticGovernanceDeployer)
         );
 
-        CowSwapFiller cowswapFiller = new CowSwapFiller();
+        CowSwapFiller cowswapFiller = new CowSwapFiller(
+            0x9008D19f58AAbD9eD0D60971565AA8510560ab41,
+            0xC92E8bdf79f0507f65a392b0ab4667716BFE0110
+        );
 
         // register version
         versionRegistry.registerVersion(folioDeployer);

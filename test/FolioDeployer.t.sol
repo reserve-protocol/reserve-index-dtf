@@ -5,14 +5,15 @@ import { IGovernor } from "@openzeppelin/contracts/governance/IGovernor.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { IERC5805 } from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import { OPTIMISTIC_PROPOSER_ROLE, PROPOSER_ROLE, EXECUTOR_ROLE, CANCELLER_ROLE } from "@reserve-protocol/reserve-governor/contracts/utils/Constants.sol";
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
 import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
+import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
 
 import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_MINT_FEE } from "@utils/Constants.sol";
-import { FolioDeployer, IFolioDeployer } from "@deployer/FolioDeployer.sol";
-import { FolioProxy, FolioProxyAdmin } from "@folio/FolioProxy.sol";
+import { IFolioDeployer } from "@deployer/FolioDeployer.sol";
 import { AUCTION_LAUNCHER, BRAND_MANAGER, REBALANCE_MANAGER, DEFAULT_ADMIN_ROLE } from "@utils/Constants.sol";
 import "./base/BaseTest.sol";
 
@@ -297,7 +298,7 @@ contract FolioDeployerTest is BaseTest {
             auctionLaunchers,
             new address[](0)
         );
-        _registerGovernedFolioRewardToken(govRoles, bytes32(0));
+        address existingStToken = _deployExistingStToken(guardians);
 
         vm.startPrank(owner);
         USDC.approve(address(folioDeployer), type(uint256).max);
@@ -305,32 +306,33 @@ contract FolioDeployerTest is BaseTest {
 
         {
             // stack-too-deep
-            address _stToken;
             address _folio;
-            address _proxyAdmin;
             address _governor;
             address _timelock;
-            address _selectorRegistry;
 
             vm.startSnapshotGas("deployGovernedFolio");
             vm.recordLogs();
-            (_stToken, _folio, _proxyAdmin, _governor, _timelock, _selectorRegistry) = folioDeployer
-                .deployGovernedFolio(
-                    _basicDetails(),
-                    _additionalDetails(),
-                    _flags(),
-                    _govParams(guardians, address(MEME)),
-                    govRoles,
-                    bytes32(0)
-                );
+            (_folio, ) = folioDeployer.deployGovernedFolio(
+                existingStToken,
+                _basicDetails(),
+                _additionalDetails(),
+                _flags(),
+                _govParams(guardians, _selectorAllowlist(Folio.startRebalance.selector)),
+                govRoles,
+                bytes32(0)
+            );
+            Vm.Log[] memory logs = vm.getRecordedLogs();
+            assertEq(_countGovernanceSystemDeployments(logs), 1, "wrong governance deployment count");
+            (_governor, _timelock) = _assertGovernedFolioEvent(logs, existingStToken, _folio);
+            selectorRegistry = IOptimisticSelectorRegistry(_governanceSelectorRegistry(logs, _governor));
+            assertTrue(selectorRegistry.isAllowed(_folio, Folio.startRebalance.selector), "wrong selector registry");
+            assertFalse(selectorRegistry.isAllowed(_folio, Folio.openAuction.selector), "wrong selector registry");
             vm.stopSnapshotGas("deployGovernedFolio()");
             vm.stopPrank();
-            stToken = IStakingVaultTest(_stToken);
+            stToken = IStakingVaultTest(existingStToken);
             governor = IGovernorTest(_governor);
             timelock = ITimelockTest(_timelock);
-            selectorRegistry = IOptimisticSelectorRegistry(_selectorRegistry);
             folio = Folio(_folio);
-            proxyAdmin = FolioProxyAdmin(_proxyAdmin);
         }
 
         // Check Folio
@@ -391,30 +393,29 @@ contract FolioDeployerTest is BaseTest {
         assertTrue(folio.hasRole(REBALANCE_MANAGER, address(timelock)), "wrong basket manager role");
 
         // Check StakingVault
-        assertTrue(stToken.hasRole(DEFAULT_ADMIN_ROLE, address(timelock)), "wrong staking vault admin role");
+        assertFalse(stToken.hasRole(DEFAULT_ADMIN_ROLE, address(timelock)), "wrong staking vault admin role");
         assertEq(stToken.asset(), address(MEME), "wrong staking vault asset");
 
         address[] memory rewardTokens = IStakingVaultRewards(address(stToken)).getAllRewardTokens();
-        assertEq(rewardTokens.length, 1, "wrong staking vault reward token count");
-        assertEq(rewardTokens[0], address(folio), "wrong staking vault reward token");
+        assertEq(rewardTokens.length, 0, "wrong staking vault reward token count");
     }
 
-    function test_createGovernedFolio_withExistingRebalanceManager() public {
+    function test_createGovernedFolio_withExistingStToken() public {
         address[] memory guardians = new address[](1);
         guardians[0] = user1;
-
-        address[] memory rebalanceManagers = new address[](1);
-        rebalanceManagers[0] = dao;
 
         address[] memory auctionLaunchers = new address[](1);
         auctionLaunchers[0] = auctionLauncher;
 
+        address[] memory existingBasketManagers = new address[](1);
+        existingBasketManagers[0] = dao;
+
         IFolioDeployer.GovRoles memory govRoles = IFolioDeployer.GovRoles(
-            rebalanceManagers,
+            existingBasketManagers,
             auctionLaunchers,
             new address[](0)
         );
-        _registerGovernedFolioRewardToken(govRoles, bytes32(0));
+        address existingStToken = _deployExistingStToken(guardians);
 
         vm.startPrank(owner);
         USDC.approve(address(folioDeployer), type(uint256).max);
@@ -422,31 +423,34 @@ contract FolioDeployerTest is BaseTest {
 
         vm.startSnapshotGas("deployGovernedFolio");
         {
-            address _stToken;
             address _folio;
-            address _proxyAdmin;
             address _governor;
             address _timelock;
-            address _selectorRegistry;
 
-            (_stToken, _folio, _proxyAdmin, _governor, _timelock, _selectorRegistry) = folioDeployer
-                .deployGovernedFolio(
-                    _basicDetails(),
-                    _additionalDetails(),
-                    _flags(),
-                    _govParams(guardians, address(MEME)),
-                    govRoles,
-                    bytes32(0)
-                );
+            vm.recordLogs();
+            (_folio, ) = folioDeployer.deployGovernedFolio(
+                existingStToken,
+                _basicDetails(),
+                _additionalDetails(),
+                _flags(),
+                _govParams(guardians, _selectorAllowlist(Folio.openAuction.selector)),
+                govRoles,
+                bytes32(0)
+            );
+            Vm.Log[] memory logs = vm.getRecordedLogs();
+            assertEq(_countGovernanceSystemDeployments(logs), 1, "wrong governance deployment count");
+            (_governor, _timelock) = _assertGovernedFolioEvent(logs, existingStToken, _folio);
+            selectorRegistry = IOptimisticSelectorRegistry(_governanceSelectorRegistry(logs, _governor));
+            assertFalse(selectorRegistry.isAllowed(_folio, Folio.startRebalance.selector), "wrong selector registry");
+            assertTrue(selectorRegistry.isAllowed(_folio, Folio.openAuction.selector), "wrong selector registry");
             vm.stopSnapshotGas("deployGovernedFolio()");
             vm.stopPrank();
-            stToken = IStakingVaultTest(_stToken);
+            stToken = IStakingVaultTest(existingStToken);
             folio = Folio(_folio);
-            proxyAdmin = FolioProxyAdmin(_proxyAdmin);
             governor = IGovernorTest(_governor);
             timelock = ITimelockTest(_timelock);
-            selectorRegistry = IOptimisticSelectorRegistry(_selectorRegistry);
         }
+        assertEq(address(stToken), existingStToken, "wrong existing staking vault");
 
         // Check owner governor + owner timelock
         vm.startPrank(user1);
@@ -481,14 +485,14 @@ contract FolioDeployerTest is BaseTest {
         assertFalse(timelock.hasRole(OPTIMISTIC_PROPOSER_ROLE, address(governor)), "wrong optimistic proposer role");
 
         // Check rebalance manager is properly set
-        assertTrue(folio.hasRole(REBALANCE_MANAGER, dao), "wrong basket manager role");
+        assertTrue(folio.hasRole(REBALANCE_MANAGER, dao), "wrong existing basket manager role");
+        assertTrue(folio.hasRole(REBALANCE_MANAGER, address(timelock)), "wrong basket manager role");
 
         address[] memory rewardTokens = IStakingVaultRewards(address(stToken)).getAllRewardTokens();
-        assertEq(rewardTokens.length, 1, "wrong staking vault reward token count");
-        assertEq(rewardTokens[0], address(folio), "wrong staking vault reward token");
+        assertEq(rewardTokens.length, 0, "wrong staking vault reward token count");
     }
 
-    function test_createGovernedFolio_requiresRegisteredRewardToken() public {
+    function test_cannotCreateGovernedFolioWithZeroStToken() public {
         address[] memory guardians = new address[](1);
         guardians[0] = user1;
 
@@ -499,12 +503,13 @@ contract FolioDeployerTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
 
-        vm.expectRevert(bytes4(keccak256("Vault__RewardNotRegistered()")));
+        vm.expectRevert(IFolioDeployer.FolioDeployer__InvalidStToken.selector);
         folioDeployer.deployGovernedFolio(
+            address(0),
             _basicDetails(),
             _additionalDetails(),
             _flags(),
-            _govParams(guardians, address(MEME)),
+            _govParams(guardians, _selectorAllowlist(Folio.startRebalance.selector)),
             IFolioDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
             bytes32(0)
         );
@@ -525,18 +530,18 @@ contract FolioDeployerTest is BaseTest {
             new address[](0),
             new address[](0)
         );
+        address existingStToken = _deployExistingStToken(guardians);
 
         for (uint256 i = 0; i < 1000; i++) {
             uint256 snapshot = vm.snapshotState();
 
-            _registerGovernedFolioRewardToken(govRoles, bytes32(i));
-
             vm.prank(owner);
-            (, address _folioAddr, , , , ) = folioDeployer.deployGovernedFolio(
+            (address _folioAddr, ) = folioDeployer.deployGovernedFolio(
+                existingStToken,
                 _basicDetails(),
                 _additionalDetails(),
                 _flags(),
-                _govParams(guardians, address(MEME)),
+                _govParams(guardians, _selectorAllowlist(Folio.startRebalance.selector)),
                 govRoles,
                 bytes32(i)
             );
@@ -554,62 +559,97 @@ contract FolioDeployerTest is BaseTest {
         assertEq(uint160(address(_folio)) >> 152, uint256(uint160(0xff)), "failed to mine salt");
     }
 
-    function _registerGovernedFolioRewardToken(
-        IFolioDeployer.GovRoles memory govRoles,
-        bytes32 deploymentNonce
-    ) internal {
-        _registerRewardToken(_predictGovernedFolioAddress(govRoles, deploymentNonce));
-    }
+    function _deployExistingStToken(address[] memory guardians) internal returns (address existingStToken) {
+        IFolioDeployer.GovParams memory govParams = _govParams(guardians, new bytes4[](0));
+        IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = IReserveOptimisticGovernorDeployer
+            .BaseDeploymentParams({
+                optimisticParams: govParams.optimisticParams,
+                standardParams: govParams.standardParams,
+                selectorData: new IOptimisticSelectorRegistry.SelectorData[](0),
+                optimisticProposers: govParams.optimisticProposers,
+                additionalGuardians: govParams.guardians,
+                timelockDelay: govParams.timelockDelay,
+                proposalThrottleCapacity: govParams.proposalThrottleCapacity
+            });
+        IReserveOptimisticGovernorDeployer.NewStakingVaultParams
+            memory newStakingVaultParams = IReserveOptimisticGovernorDeployer.NewStakingVaultParams({
+                underlying: IERC20Metadata(address(MEME)),
+                rewardTokens: new address[](0),
+                rewardHalfLife: 1 weeks,
+                unstakingDelay: 1 weeks
+            });
 
-    function _predictGovernedFolioAddress(
-        IFolioDeployer.GovRoles memory govRoles,
-        bytes32 deploymentNonce
-    ) internal view returns (address folioAddress) {
-        bytes32 governedDeploymentNonce = keccak256(abi.encode(owner, deploymentNonce));
-        bytes32 folioDeploymentSalt = keccak256(
-            abi.encode(
-                owner,
-                keccak256(
-                    abi.encode(
-                        _basicDetails(),
-                        _additionalDetails(),
-                        _flags(),
-                        address(folioDeployer),
-                        govRoles.existingBasketManagers,
-                        govRoles.auctionLaunchers,
-                        govRoles.brandManagers
-                    )
-                ),
-                governedDeploymentNonce
-            )
-        );
-
-        address proxyAdminAddress = _computeCreate2Address(
-            address(folioDeployer),
-            folioDeploymentSalt,
-            abi.encodePacked(
-                type(FolioProxyAdmin).creationCode,
-                abi.encode(address(folioDeployer), address(versionRegistry))
-            )
-        );
-
-        folioAddress = _computeCreate2Address(
-            address(folioDeployer),
-            folioDeploymentSalt,
-            abi.encodePacked(
-                type(FolioProxy).creationCode,
-                abi.encode(folioDeployer.folioImplementation(), proxyAdminAddress)
-            )
+        (existingStToken, , , ) = optimisticGovernanceDeployer.deployWithNewStakingVault(
+            baseParams,
+            newStakingVaultParams,
+            bytes32(uint256(999))
         );
     }
 
-    function _computeCreate2Address(
-        address deployer,
-        bytes32 salt,
-        bytes memory initCode
-    ) internal pure returns (address) {
-        return
-            address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, keccak256(initCode))))));
+    function _selectorAllowlist(bytes4 selector) internal pure returns (bytes4[] memory selectors) {
+        selectors = new bytes4[](1);
+        selectors[0] = selector;
+    }
+
+    function _countGovernanceSystemDeployments(Vm.Log[] memory logs) internal view returns (uint256 count) {
+        bytes32 eventTopic = keccak256("ReserveOptimisticGovernorSystemDeployed(address,address,address,address)");
+
+        for (uint256 i; i < logs.length; ++i) {
+            if (
+                logs[i].emitter == address(optimisticGovernanceDeployer) &&
+                logs[i].topics.length > 0 &&
+                logs[i].topics[0] == eventTopic
+            ) {
+                ++count;
+            }
+        }
+    }
+
+    function _assertGovernedFolioEvent(
+        Vm.Log[] memory logs,
+        address expectedStToken,
+        address expectedFolio
+    ) internal view returns (address eventGovernor, address eventTimelock) {
+        Vm.Log memory log = logs[logs.length - 1];
+
+        assertEq(log.emitter, address(folioDeployer), "wrong governed folio event emitter");
+        assertEq(
+            log.topics[0],
+            keccak256("GovernedFolioDeployed(address,address,address,address,address,address)"),
+            "wrong governed folio event"
+        );
+        assertEq(address(uint160(uint256(log.topics[1]))), expectedStToken, "wrong event staking vault");
+        assertEq(address(uint160(uint256(log.topics[2]))), expectedFolio, "wrong event folio");
+
+        (address ownerGovernor, address ownerTimelock, address tradingGovernor, address tradingTimelock) = abi.decode(
+            log.data,
+            (address, address, address, address)
+        );
+        assertEq(tradingGovernor, ownerGovernor, "wrong event trading governor");
+        assertEq(tradingTimelock, ownerTimelock, "wrong event trading timelock");
+
+        eventGovernor = ownerGovernor;
+        eventTimelock = ownerTimelock;
+    }
+
+    function _governanceSelectorRegistry(
+        Vm.Log[] memory logs,
+        address expectedGovernor
+    ) internal view returns (address) {
+        bytes32 eventTopic = keccak256("ReserveOptimisticGovernorSystemDeployed(address,address,address,address)");
+
+        for (uint256 i; i < logs.length; ++i) {
+            if (
+                logs[i].emitter == address(optimisticGovernanceDeployer) &&
+                logs[i].topics.length > 2 &&
+                logs[i].topics[0] == eventTopic &&
+                address(uint160(uint256(logs[i].topics[2]))) == expectedGovernor
+            ) {
+                return abi.decode(logs[i].data, (address));
+            }
+        }
+
+        revert("governance selector registry not found");
     }
 
     // === Helpers ===
@@ -660,7 +700,7 @@ contract FolioDeployerTest is BaseTest {
 
     function _govParams(
         address[] memory guardians,
-        address underlying
+        bytes4[] memory optimisticSelectors
     ) internal pure returns (IFolioDeployer.GovParams memory) {
         return
             IFolioDeployer.GovParams({
@@ -676,12 +716,11 @@ contract FolioDeployerTest is BaseTest {
                     proposalThreshold: 0.02e18,
                     quorumNumerator: 0.08e18
                 }),
-                optimisticSelectorData: new IOptimisticSelectorRegistry.SelectorData[](0),
+                optimisticSelectors: optimisticSelectors,
                 optimisticProposers: new address[](0),
                 guardians: guardians,
                 timelockDelay: 2 days,
-                proposalThrottleCapacity: 10,
-                underlying: underlying
+                proposalThrottleCapacity: 10
             });
     }
 }

@@ -3,7 +3,6 @@ pragma solidity 0.8.28;
 
 import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/interfaces/IBaseTrustedFiller.sol";
 import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/GPv2OrderLib.sol";
-import { GPV2_SETTLEMENT } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/Constants.sol";
 import { AUCTION_WARMUP, D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxy } from "contracts/folio/FolioProxy.sol";
@@ -18,6 +17,7 @@ import "./base/BaseTest.sol";
 
 contract FolioTest is BaseTest {
     uint256 internal constant INITIAL_SUPPLY = D18_TOKEN_10K;
+    address internal constant GPV2_SETTLEMENT = 0x9008D19f58AAbD9eD0D60971565AA8510560ab41;
     uint256 internal constant MAX_TVL_FEE_PER_SECOND = 3340960028; // D18{1/s} 10% annually, per second
     uint256 internal constant AUCTION_LAUNCHER_WINDOW = MAX_TTL / 2;
     uint256 internal constant AUCTION_LENGTH = 1800; // {s} 30 min
@@ -1736,7 +1736,7 @@ contract FolioTest is BaseTest {
 
         // deploy a MockEIP712 to the GPV2_SETTLEMENT address
         address mockEIP712 = address(new MockEIP712(domainSeparator));
-        vm.etch(address(GPV2_SETTLEMENT), mockEIP712.code);
+        vm.etch(GPV2_SETTLEMENT, mockEIP712.code);
 
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](4);
         tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);

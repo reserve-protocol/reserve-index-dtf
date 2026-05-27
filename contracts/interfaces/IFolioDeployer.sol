@@ -2,10 +2,10 @@
 pragma solidity 0.8.28;
 
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
-import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
 
 interface IFolioDeployer {
     error FolioDeployer__LengthMismatch();
+    error FolioDeployer__InvalidStToken();
 
     event FolioDeployed(address indexed folioOwner, address indexed folio, address folioAdmin);
     event GovernedFolioDeployed(
@@ -26,12 +26,11 @@ interface IFolioDeployer {
     struct GovParams {
         IReserveOptimisticGovernor.OptimisticGovernanceParams optimisticParams;
         IReserveOptimisticGovernor.StandardGovernanceParams standardParams;
-        IOptimisticSelectorRegistry.SelectorData[] optimisticSelectorData;
+        bytes4[] optimisticSelectors;
         address[] optimisticProposers;
         address[] guardians;
         uint256 timelockDelay;
         uint256 proposalThrottleCapacity;
-        address underlying;
     }
 
     function folioImplementation() external view returns (address);
