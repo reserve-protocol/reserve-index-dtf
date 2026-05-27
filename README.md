@@ -250,7 +250,7 @@ Some ERC20s are NOT supported
 | Missing return values          | ✅    | ✅           |
 | No revert on failure           | ✅    | ✅           |
 
-> While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible. To check for reentrancy, call `stateChangeActive()` and require that both return values are false. The (non-ERC20) Folio mutator calls are all `nonReentrant` and will close async actions as a pre-hook, but for view functions this check is important to perform before relying on any returned data.
+> While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible. To check for reentrancy, call `stateChangeActive()` and require that both return values are false. The non-ERC20 Folio mutator calls are all `nonReentrant`, and accounting-sensitive flows close async actions as a pre-hook, but for view functions this check is important to perform before relying on any returned data.
 
 > While downward-rebasing and upward-rebasing tokens are generally supported, the Folio’s accounting for bought and sold token amounts relies on differences in token balances. Sold and bought token amounts can therefore be misreported if the source for the change in balance is not a transfer of tokens but a rebasing. For this reason it is discouraged to use rebasing tokens with the potential for non-incremental rebasings that lead to outsized deviations in the Folio’s accounting.
 
@@ -262,7 +262,7 @@ The chain is assumed to have block times equal to or under 30s.
 
 ### Governance Guidelines
 
-- If governors plan to remove a token from the basket via `Folio.removeFromBasket()`, users will only have a limited amount of time to redeem before the token becomes inaccessible. Removal should only be used if the reward token has become malicious or otherwise compromised.
+- `Folio.removeFromBasket()` is a manual admin escape hatch that makes a token inaccessible to mint/redeem immediately. Tokens fully sold by auctions or trusted fills are removed automatically; manual removal can be used for dust cleanup or if a token has become malicious or otherwise compromised. Manual removal does not close an outstanding trusted fill, which may settle after removal.
 - If a rebalance becomes dangerous due to excessive price movement in excess of what trading governors expected, it is the duty of the `AUCTION_LAUNCHER` to end the rebalance before loss can occur.
 
 ### Releases

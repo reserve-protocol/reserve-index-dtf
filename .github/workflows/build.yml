@@ -83,4 +83,4 @@ jobs:
 
       - name: Contract Size Check
         run: |
-          pnpm size contracts/
+          pnpm size

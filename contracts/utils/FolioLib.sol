@@ -39,6 +39,7 @@ library FolioLib {
         uint256 total;
 
         for (uint256 i; i < len; i++) {
+            require(_feeRecipients[i].recipient != address(this), IFolio.Folio__FeeRecipientInvalidAddress());
             require(_feeRecipients[i].recipient > previousRecipient, IFolio.Folio__FeeRecipientInvalidAddress());
             require(_feeRecipients[i].portion != 0, IFolio.Folio__FeeRecipientInvalidFeeShare());
 
@@ -79,6 +80,10 @@ library FolioLib {
 
         // D18{1/s}
         uint256 _tvlFee = feeFloor > params.tvlFee ? feeFloor : params.tvlFee;
+
+        if (_tvlFee == 0) {
+            return (params.currentDaoPending, params.currentFeeRecipientsPending);
+        }
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
         uint256 feeShares = (params.supply * D18) / MathLib.powu(D18 - _tvlFee, params.elapsed) - params.supply;

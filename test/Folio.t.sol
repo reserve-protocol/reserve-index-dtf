@@ -560,35 +560,40 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_removeFromBasket() public {
+    function test_cannotRemoveFromBasketIfNotAdmin() public {
         (address[] memory _assets, ) = folio.totalAssets();
         assertEq(_assets.length, 3, "wrong assets length");
         assertEq(_assets[0], address(USDC), "wrong first asset");
         assertEq(_assets[1], address(DAI), "wrong second asset");
         assertEq(_assets[2], address(MEME), "wrong third asset");
 
-        // should not be able to remove from basket when balance is nonzero
-
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
         vm.prank(user1);
-        vm.expectRevert(IFolio.Folio__BalanceNotRemovable.selector);
-        folio.removeFromBasket(MEME);
-        MockERC20(address(MEME)).burn(address(folio), MEME.balanceOf(address(folio)) - 1);
-        vm.expectRevert(IFolio.Folio__BalanceNotRemovable.selector);
         folio.removeFromBasket(MEME);
 
-        // should be able to remove at 0 balance
+        MockERC20(address(MEME)).burn(address(folio), MEME.balanceOf(address(folio)));
 
-        MockERC20(address(MEME)).burn(address(folio), 1);
-
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                user1,
+                folio.DEFAULT_ADMIN_ROLE()
+            )
+        );
         vm.prank(user1);
-        vm.expectEmit(true, true, false, true);
-        emit IFolio.BasketTokenRemoved(address(MEME));
         folio.removeFromBasket(MEME);
 
         (_assets, ) = folio.totalAssets();
-        assertEq(_assets.length, 2, "wrong assets length");
+        assertEq(_assets.length, 3, "wrong assets length");
         assertEq(_assets[0], address(USDC), "wrong first asset");
         assertEq(_assets[1], address(DAI), "wrong second asset");
+        assertEq(_assets[2], address(MEME), "wrong third asset");
     }
 
     function test_removeFromBasketByOwner() public {
@@ -652,6 +657,76 @@ contract FolioTest is BaseTest {
             "wrong owner shares"
         );
         assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
+    }
+
+    function test_distributeFees_DoesNotRevertWhenDaoRecipientIsZeroOrFolio() public {
+        uint256 daoFeeNumerator = 0.15e18;
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), daoFeeNumerator);
+
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        vm.roll(block.number + 1000000);
+        assertGt(folio.getPendingFeeShares(), 0, "fees should be pending");
+
+        bytes memory getFeeDetailsCall = abi.encodeWithSelector(
+            bytes4(keccak256("getFeeDetails(address)")),
+            address(folio)
+        );
+
+        vm.mockCall(
+            address(daoFeeRegistry),
+            getFeeDetailsCall,
+            abi.encode(address(0), daoFeeNumerator, daoFeeRegistry.FEE_DENOMINATOR(), daoFeeRegistry.defaultFeeFloor())
+        );
+        folio.distributeFees();
+        assertGt(folio.daoPendingFeeShares(), 0, "dao shares should remain pending for zero recipient");
+        assertEq(folio.balanceOf(address(0)), 0, "zero address should not receive fees");
+
+        vm.clearMockedCalls();
+        vm.mockCall(
+            address(daoFeeRegistry),
+            getFeeDetailsCall,
+            abi.encode(
+                address(folio),
+                daoFeeNumerator,
+                daoFeeRegistry.FEE_DENOMINATOR(),
+                daoFeeRegistry.defaultFeeFloor()
+            )
+        );
+        folio.distributeFees();
+        assertGt(folio.daoPendingFeeShares(), 0, "dao shares should remain pending for folio recipient");
+        assertEq(folio.balanceOf(address(folio)), 0, "folio should not receive fees");
+    }
+
+    function test_noTvlFeeWhenDaoFeeAndTvlFeeAreZero() public {
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), 0);
+        daoFeeRegistry.setTokenFeeFloor(address(folio), 0);
+
+        vm.prank(owner);
+        folio.setTVLFee(0);
+
+        (, uint256 daoFeeNumerator, , uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(address(folio));
+        assertEq(daoFeeNumerator, 0, "wrong dao fee numerator");
+        assertEq(daoFeeFloor, 0, "wrong dao fee floor");
+        assertEq(folio.tvlFee(), 0, "wrong tvl fee");
+
+        uint256 totalSupplyBefore = folio.totalSupply();
+        uint256 ownerBalanceBefore = folio.balanceOf(owner);
+        uint256 daoBalanceBefore = folio.balanceOf(dao);
+        uint256 feeReceiverBalanceBefore = folio.balanceOf(feeReceiver);
+
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        vm.roll(block.number + 1000000);
+
+        assertEq(folio.getPendingFeeShares(), 0, "wrong pending fee shares");
+
+        folio.distributeFees();
+
+        assertEq(folio.totalSupply(), totalSupplyBefore, "wrong total supply");
+        assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
+        assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
+        assertEq(folio.balanceOf(owner), ownerBalanceBefore, "wrong owner balance");
+        assertEq(folio.balanceOf(dao), daoBalanceBefore, "wrong dao balance");
+        assertEq(folio.balanceOf(feeReceiver), feeReceiverBalanceBefore, "wrong fee receiver balance");
     }
 
     function test_setFeeRecipients() public {
@@ -945,6 +1020,14 @@ contract FolioTest is BaseTest {
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(address(0), 0.1e18);
+        vm.expectRevert(IFolio.Folio__FeeRecipientInvalidAddress.selector);
+        folio.setFeeRecipients(recipients);
+    }
+
+    function test_setFeeRecipients_InvalidRecipientFolioItself() public {
+        vm.startPrank(owner);
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
+        recipients[0] = IFolio.FeeRecipient(address(folio), 1e18);
         vm.expectRevert(IFolio.Folio__FeeRecipientInvalidAddress.selector);
         folio.setFeeRecipients(recipients);
     }
@@ -1717,6 +1800,8 @@ contract FolioTest is BaseTest {
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong usdc balance");
 
         // anyone should be able to close, even though it's ideal this happens in the cowswap post-hook
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.BasketTokenRemoved(address(USDC));
         folio.poke();
         assertEq(USDC.balanceOf(address(swap2)), 0, "wrong usdc balance");
         assertEq(USDT.balanceOf(address(swap2)), 0, "wrong usdt balance");
@@ -1724,6 +1809,178 @@ contract FolioTest is BaseTest {
         // Folio should have balances
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong folio usdc balance");
         assertEq(USDT.balanceOf(address(folio)), amt * 50 + amt / 200, "wrong folio usdt balance");
+
+        (address[] memory basketTokens, ) = folio.totalAssets();
+        bool foundUSDC = false;
+        for (uint256 i; i < basketTokens.length; i++) {
+            if (basketTokens[i] == address(USDC)) {
+                foundUSDC = true;
+                break;
+            }
+        }
+        assertEq(basketTokens.length, 3, "wrong basket length");
+        assertEq(foundUSDC, false, "removed sell token still in basket");
+    }
+
+    function test_governanceCanFrontrunCloseTrustedFillRemoval() public {
+        uint256 amt = D6_TOKEN_10K;
+
+        // Sell USDC
+        weights[0] = SELL;
+
+        // Add USDT to buy
+        assets.push(address(USDT));
+        weights.push(BUY);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](4);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+        tokens[3] = IFolio.TokenRebalanceParams(assets[3], weights[3], prices[3], type(uint256).max, true);
+
+        vm.prank(dao);
+        folio.startRebalance(tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
+
+        IBaseTrustedFiller fill = folio.createTrustedFill(
+            0,
+            USDC,
+            IERC20(address(USDT)),
+            cowswapFiller,
+            bytes32(block.timestamp)
+        );
+        MockERC20(address(USDC)).burn(address(fill), amt);
+        MockERC20(address(USDT)).mint(address(fill), amt * 100);
+
+        assertEq(USDC.balanceOf(address(folio)), 0, "wrong folio usdc balance before remove");
+        assertEq(USDT.balanceOf(address(fill)), amt * 100, "wrong fill usdt balance before close");
+        assertEq(USDT.balanceOf(address(folio)), 0, "wrong folio usdt balance before close");
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit IFolio.BasketTokenRemoved(address(USDC));
+        folio.removeFromBasket(USDC);
+
+        (address[] memory basketTokens, ) = folio.totalAssets();
+        bool foundUSDC = false;
+        for (uint256 i; i < basketTokens.length; i++) {
+            if (basketTokens[i] == address(USDC)) {
+                foundUSDC = true;
+                break;
+            }
+        }
+        assertEq(basketTokens.length, 3, "wrong basket length before close");
+        assertEq(foundUSDC, false, "removed sell token still in basket before close");
+
+        folio.poke();
+
+        assertEq(USDC.balanceOf(address(fill)), 0, "wrong fill usdc balance after close");
+        assertEq(USDT.balanceOf(address(fill)), 0, "wrong fill usdt balance after close");
+        assertEq(USDC.balanceOf(address(folio)), 0, "wrong folio usdc balance after close");
+        assertEq(USDT.balanceOf(address(folio)), amt * 100, "wrong folio usdt balance after close");
+    }
+
+    function test_trustedFillCircuitBreakerDisablesTrustedFillsButBidsContinue() public {
+        uint256 amt = D6_TOKEN_10K;
+
+        _openTrustedFillAuction();
+
+        (uint256 fillSellAmount, uint256 fillBuyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), amt);
+
+        IBaseTrustedFiller fill = folio.createTrustedFill(
+            0,
+            USDC,
+            IERC20(address(USDT)),
+            cowswapFiller,
+            bytes32(block.timestamp)
+        );
+
+        uint256 sold = fillSellAmount / 2;
+        uint256 bought = Math.mulDiv(sold, fillBuyAmount, fillSellAmount, Math.Rounding.Ceil) - 1;
+        uint256 floorPrice = Math.mulDiv(fillBuyAmount, D27, fillSellAmount, Math.Rounding.Ceil);
+
+        MockERC20(address(USDC)).burn(address(fill), sold);
+        MockERC20(address(USDT)).mint(address(fill), bought);
+
+        vm.roll(block.number + 1);
+
+        vm.expectEmit(false, false, false, true, address(folio));
+        emit IFolio.TrustedFillerRegistrySet(address(trustedFillerRegistry), false);
+        vm.expectEmit(true, true, true, true, address(folio));
+        emit IFolio.TrustedFillCircuitBreakerTriggered(0, address(fill), sold, bought, floorPrice);
+        folio.poke();
+
+        assertFalse(folio.trustedFillerEnabled(), "trusted fills should be disabled");
+
+        vm.expectRevert(IFolio.Folio__TrustedFillerRegistryNotEnabled.selector);
+        folio.createTrustedFill(0, USDC, IERC20(address(USDT)), cowswapFiller, bytes32(block.timestamp + 1));
+
+        (uint256 bidSellAmount, uint256 bidBuyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), amt);
+        assertGt(bidSellAmount, 0, "expected remaining sell amount");
+
+        USDT.approve(address(folio), bidBuyAmount);
+        assertEq(
+            folio.bid(0, USDC, IERC20(address(USDT)), bidSellAmount, bidBuyAmount, false, bytes("")),
+            bidBuyAmount,
+            "bid should still succeed"
+        );
+    }
+
+    function test_trustedFillAtFloorDoesNotTriggerCircuitBreaker() public {
+        uint256 amt = D6_TOKEN_10K;
+
+        _openTrustedFillAuction();
+
+        (uint256 fillSellAmount, uint256 fillBuyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), amt);
+
+        IBaseTrustedFiller fill = folio.createTrustedFill(
+            0,
+            USDC,
+            IERC20(address(USDT)),
+            cowswapFiller,
+            bytes32(block.timestamp)
+        );
+
+        uint256 sold = fillSellAmount / 2;
+        uint256 minBought = Math.mulDiv(sold, fillBuyAmount, fillSellAmount, Math.Rounding.Ceil);
+
+        MockERC20(address(USDC)).burn(address(fill), sold);
+        MockERC20(address(USDT)).mint(address(fill), minBought);
+
+        vm.roll(block.number + 1);
+        folio.poke();
+
+        assertTrue(folio.trustedFillerEnabled(), "trusted fills should remain enabled");
+
+        fill = folio.createTrustedFill(0, USDC, IERC20(address(USDT)), cowswapFiller, bytes32(block.timestamp + 1));
+        assertNotEq(address(fill), address(0), "trusted fill should still be creatable");
+    }
+
+    function _openTrustedFillAuction() internal {
+        // Sell USDC
+        weights[0] = SELL;
+
+        // Add USDT to buy
+        assets.push(address(USDT));
+        weights.push(BUY);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        uint256 len = assets.length;
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](len);
+        for (uint256 i; i < len; i++) {
+            tokens[i] = IFolio.TokenRebalanceParams(assets[i], weights[i], prices[i], type(uint256).max, true);
+        }
+
+        vm.prank(dao);
+        folio.startRebalance(tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
     }
 
     function test_auctionIsValidSignature() public {
@@ -4168,6 +4425,36 @@ contract FolioTest is BaseTest {
             block.timestamp + AUCTION_WARMUP + AUCTION_LENGTH
         );
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
+    }
+
+    function test_weightControlAllowsZeroSpotWithPositiveHigh() public {
+        vm.prank(owner);
+        folio.setRebalanceControl(
+            IFolio.RebalanceControl({ weightControl: true, priceControl: IFolio.PriceControl.NONE })
+        );
+
+        weights[0] = IFolio.WeightRange({ low: 0, spot: 0, high: WEIGHTS_6.high / 2 });
+        weights[1] = BUY;
+
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        vm.prank(dao);
+        folio.startRebalance(tokens, NATIVE_LIMITS, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        (, , IFolio.TokenRebalanceParams[] memory rebalanceTokens, , , ) = folio.getRebalance();
+        assertEq(rebalanceTokens[0].weight.low, 0, "wrong low weight");
+        assertEq(rebalanceTokens[0].weight.spot, 0, "wrong spot weight");
+        assertEq(rebalanceTokens[0].weight.high, WEIGHTS_6.high / 2, "wrong high weight");
+
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
+
+        (uint256 sellAmount, , ) = folio.getBid(0, USDC, DAI, type(uint256).max);
+        assertEq(sellAmount, D6_TOKEN_10K / 2, "wrong sell amount");
     }
 
     function test_cannotStartRebalanceInvalidArrays() public {
