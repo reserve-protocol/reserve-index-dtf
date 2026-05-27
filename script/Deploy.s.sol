@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { Script, console2 } from "forge-std/Script.sol";
 
 import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
+import { ReserveOptimisticGovernorDeployerDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorDeployerDeployer.sol";
 
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
@@ -154,6 +155,20 @@ contract DeployScript is Script {
             deployParams.trustedFillerRegistry = address(new TrustedFillerRegistry(deployParams.roleRegistry));
 
             // CowSwapFiller must be deployed manually and added to TrustedFillerRegistry by the RoleRegistry
+        }
+
+        if (deployParams.optimisticGovernorDeployer == address(0)) {
+            require(block.chainid == 31337, "undefined optimistic deployer. deploy from reserve-governor repo");
+            deployParams.optimisticGovernorDeployer = ReserveOptimisticGovernorDeployerDeployer.deploy(
+                deployParams.folioVersionRegistry,
+                deployParams.folioFeeRegistry,
+                walletAddress,
+                address(4),
+                address(5),
+                address(6),
+                address(7),
+                bytes32(uint256(8))
+            );
         }
 
         vm.stopBroadcast();
