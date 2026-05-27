@@ -27,7 +27,7 @@ struct DeploymentParams {
     // Trusted Filler Stuff
     address trustedFillerRegistry;
     // Reserve Optimistic Deployer (from reserve-governor repo)
-    address optimisticDeployer;
+    address optimisticGovernorDeployer;
 }
 
 enum DeploymentMode {
@@ -58,7 +58,7 @@ contract DeployScript is Script {
                 feeRecipient: address(1), // Burn fees for Local Networks
                 folioVersionRegistry: address(0),
                 trustedFillerRegistry: address(0),
-                optimisticDeployer: address(0) // TODO: deploy ReserveOptimisticDeployer
+                optimisticGovernorDeployer: address(0)
             });
         }
 
@@ -72,7 +72,7 @@ contract DeployScript is Script {
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
                 trustedFillerRegistry: 0x72DB5f49D0599C314E2f2FEDf6Fe33E1bA6C7A18,
-                optimisticDeployer: address(0) // TODO: deploy ReserveOptimisticDeployer
+                optimisticGovernorDeployer: address(0x9257a1307a72603B7916d0c97fCABC6351C3482E) // TODO: finalize
             });
 
             // Ethereum Mainnet - Canonical Parameters
@@ -82,7 +82,7 @@ contract DeployScript is Script {
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
                 trustedFillerRegistry: 0x279ccF56441fC74f1aAC39E7faC165Dec5A88B3A,
-                optimisticDeployer: address(0) // TODO: deploy ReserveOptimisticDeployer
+                optimisticGovernorDeployer: address(0x92DC80242f6AABA9DCe1B8FFB88427560E77E5F3) // TODO: finalize
             });
 
             // BNB Smart Chain Mainnet - Canonical Parameters
@@ -92,7 +92,7 @@ contract DeployScript is Script {
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0x79A4E963378AE34fC6c796a24c764322fC6c9390,
                 trustedFillerRegistry: 0x08424d7C52bf9edd4070701591Ea3FE6dca6449B,
-                optimisticDeployer: address(0) // TODO: deploy ReserveOptimisticDeployer
+                optimisticGovernorDeployer: address(0xd3025304C6487FC5c39010bEA0B46cc0690ab229) // TODO: finalize
             });
         } else {
             // Base Mainnet - Testing Parameters
@@ -102,7 +102,7 @@ contract DeployScript is Script {
                 feeRecipient: 0xD4fda2C612dDc8822206446C81927936A63368E5,
                 folioVersionRegistry: 0x135437333990f799293F6AD19fE45032Ba68285e,
                 trustedFillerRegistry: 0x279ccF56441fC74f1aAC39E7faC165Dec5A88B3A,
-                optimisticDeployer: address(0) // TODO: deploy ReserveOptimisticDeployer
+                optimisticGovernorDeployer: address(0x9257a1307a72603B7916d0c97fCABC6351C3482E) // TODO: finalize
             });
 
             // BNB Smart Chain Mainnet - Testing Parameters
@@ -112,7 +112,7 @@ contract DeployScript is Script {
                 feeRecipient: 0xD4fda2C612dDc8822206446C81927936A63368E5,
                 folioVersionRegistry: 0xA29A30307ff1ff2a071E74Ba7d07c59a37b46D56,
                 trustedFillerRegistry: 0xdBd9C5a83A3684E80D51fd1c00Af4A1fbfE03D14,
-                optimisticDeployer: address(0) // TODO: deploy ReserveOptimisticDeployer
+                optimisticGovernorDeployer: address(0xd3025304C6487FC5c39010bEA0B46cc0690ab229) // TODO: finalize
             });
         }
     }
@@ -152,6 +152,8 @@ contract DeployScript is Script {
 
         if (deployParams.trustedFillerRegistry == address(0)) {
             deployParams.trustedFillerRegistry = address(new TrustedFillerRegistry(deployParams.roleRegistry));
+
+            // CowSwapFiller must be deployed manually and added to TrustedFillerRegistry by the RoleRegistry
         }
 
         vm.stopBroadcast();
@@ -159,6 +161,7 @@ contract DeployScript is Script {
         console2.log("Folio Fee Registry: %s", address(deployParams.folioFeeRegistry));
         console2.log("Folio Version Registry: %s", address(deployParams.folioVersionRegistry));
         console2.log("Trusted Filler Registry: %s", address(deployParams.trustedFillerRegistry));
+        console2.log("Optimistic Deployer: %s", address(deployParams.optimisticGovernorDeployer));
 
         require(
             address(FolioDAOFeeRegistry(deployParams.folioFeeRegistry).roleRegistry()) == deployParams.roleRegistry,
@@ -181,6 +184,7 @@ contract DeployScript is Script {
         require(deployParams.folioFeeRegistry != address(0), "undefined dao fee registry");
         require(deployParams.folioVersionRegistry != address(0), "undefined version registry");
         require(deployParams.trustedFillerRegistry != address(0), "undefined trusted filler registry");
+        require(deployParams.optimisticGovernorDeployer != address(0), "undefined optimistic deployer");
 
         vm.startBroadcast(privateKey);
 
@@ -188,26 +192,34 @@ contract DeployScript is Script {
             deployParams.folioFeeRegistry,
             deployParams.folioVersionRegistry,
             deployParams.trustedFillerRegistry,
-            deployParams.optimisticDeployer
+            deployParams.optimisticGovernorDeployer
         );
-
-        CowSwapFiller cowSwapFiller = new CowSwapFiller();
 
         FolioLens folioLens = new FolioLens();
 
+        console2.log("Folio Deployer: %s", address(folioDeployer));
+        console2.log("Folio Lens: %s", address(folioLens));
+
         if (deploymentMode == DeploymentMode.Testing && block.chainid != 31337) {
+            CowSwapFiller cowSwapFiller = new CowSwapFiller(
+                0x9008D19f58AAbD9eD0D60971565AA8510560ab41, // GPV2_SETTLEMENT
+                0xC92E8bdf79f0507f65a392b0ab4667716BFE0110 // GPV2_VAULT_RELAYER
+            );
+
             // For testing, we can set the filler in the registry directly
             TrustedFillerRegistry(deployParams.trustedFillerRegistry).addTrustedFiller(cowSwapFiller);
+
+            console2.log("CowSwap Filler: %s", address(cowSwapFiller));
         }
 
         vm.stopBroadcast();
 
-        console2.log("Folio Deployer: %s", address(folioDeployer));
-        console2.log("CowSwap Filler: %s", address(cowSwapFiller));
-        console2.log("Folio Lens: %s", address(folioLens));
-
         require(folioDeployer.daoFeeRegistry() == deployParams.folioFeeRegistry, "wrong dao fee registry");
         require(folioDeployer.versionRegistry() == deployParams.folioVersionRegistry, "wrong version registry");
         require(folioDeployer.trustedFillerRegistry() == deployParams.trustedFillerRegistry, "wrong filler registry");
+        require(
+            folioDeployer.optimisticGovernorDeployer() == deployParams.optimisticGovernorDeployer,
+            "wrong optimistic deployer"
+        );
     }
 }
