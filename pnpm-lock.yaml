@@ -21,8 +21,8 @@ importers:
         specifier: github:reserve-protocol/reserve-governor#dc27a68463cec356ff18bbdd3d8edfe9b2534372
         version: https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/dc27a68463cec356ff18bbdd3d8edfe9b2534372
       '@reserve-protocol/trusted-fillers':
-        specifier: github:reserve-protocol/trusted-fillers#3cbd2ba56b742b28906d81824e2380ea61ba475f
-        version: https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/3cbd2ba56b742b28906d81824e2380ea61ba475f(@openzeppelin/merkle-tree@1.0.8)(ajv@8.17.1)(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)
+        specifier: github:reserve-protocol/trusted-fillers#303e0a56948b602365a1ed0024ed473f683aeb0f
+        version: https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/303e0a56948b602365a1ed0024ed473f683aeb0f(@openzeppelin/merkle-tree@1.0.8)(ajv@8.17.1)(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)
       forge-std:
         specifier: github:foundry-rs/forge-std#v1.14.0
         version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/1801b0541f4fda118a10798fd3486bb7051c5dd6
@@ -499,8 +499,8 @@ packages:
     resolution: {tarball: https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/dc27a68463cec356ff18bbdd3d8edfe9b2534372}
     version: 0.1.0
 
-  '@reserve-protocol/trusted-fillers@https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/3cbd2ba56b742b28906d81824e2380ea61ba475f':
-    resolution: {tarball: https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/3cbd2ba56b742b28906d81824e2380ea61ba475f}
+  '@reserve-protocol/trusted-fillers@https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/303e0a56948b602365a1ed0024ed473f683aeb0f':
+    resolution: {tarball: https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/303e0a56948b602365a1ed0024ed473f683aeb0f}
     version: 0.1.0
 
   '@scure/base@1.1.9':
@@ -2061,7 +2061,7 @@ snapshots:
       '@prb/math': 4.1.0
       forge-std: https://codeload.github.com/foundry-rs/forge-std/tar.gz/1801b0541f4fda118a10798fd3486bb7051c5dd6
 
-  '@reserve-protocol/trusted-fillers@https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/3cbd2ba56b742b28906d81824e2380ea61ba475f(@openzeppelin/merkle-tree@1.0.8)(ajv@8.17.1)(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)':
+  '@reserve-protocol/trusted-fillers@https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/303e0a56948b602365a1ed0024ed473f683aeb0f(@openzeppelin/merkle-tree@1.0.8)(ajv@8.17.1)(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)(typescript@5.9.3)':
     dependencies:
       '@cowprotocol/app-data': 3.3.1(cross-fetch@3.2.0)(ethers@5.8.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)
       '@cowprotocol/cow-sdk': 8.1.0(@openzeppelin/merkle-tree@1.0.8)(ajv@8.17.1)(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(multiformats@9.9.0)
