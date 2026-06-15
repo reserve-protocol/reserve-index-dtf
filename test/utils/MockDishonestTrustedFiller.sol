@@ -19,13 +19,7 @@ contract MockDishonestTrustedFiller is IBaseTrustedFiller {
         _;
     }
 
-    function initialize(
-        address _creator,
-        IERC20 _sellToken,
-        IERC20 _buyToken,
-        uint256 _sellAmount,
-        uint256
-    ) external {
+    function initialize(address _creator, IERC20 _sellToken, IERC20 _buyToken, uint256 _sellAmount, uint256) external {
         require(fillCreator == address(0), "already initialized");
 
         fillCreator = _creator;
