@@ -104,6 +104,7 @@ interface IFolio {
     error Folio__TrustedFillerRegistryAlreadySet();
     error Folio__InvalidTTL();
     error Folio__NotRebalancing();
+    error Folio__InvalidRebalanceNonce();
     error Folio__MixedAtomicSwaps();
     error Folio__PermissionlessBidsDisabled();
     error Folio__EmptyRebalance();

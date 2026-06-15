@@ -301,4 +301,21 @@ abstract contract BaseTest is Script, Test {
 
         _proxyAdmin = FolioProxyAdmin(_proxyAdmin2);
     }
+
+    function nextRebalanceNonce(Folio _folio) internal view returns (uint256) {
+        (uint256 nonce, , , , , ) = _folio.getRebalance();
+        return nonce + 1;
+    }
+
+    function startRebalance(
+        Folio _folio,
+        IFolio.TokenRebalanceParams[] memory tokens,
+        IFolio.RebalanceLimits memory limits,
+        uint256 auctionLauncherWindow,
+        uint256 ttl
+    ) internal {
+        uint256 rebalanceNonce = nextRebalanceNonce(_folio);
+        vm.prank(dao);
+        _folio.startRebalance(rebalanceNonce, tokens, limits, auctionLauncherWindow, ttl);
+    }
 }

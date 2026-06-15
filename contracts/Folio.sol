@@ -620,6 +620,7 @@ contract Folio is
     /// Start a new rebalance, ending the currently running auction
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
+    /// @param rebalanceNonce The expected nonce after this rebalance starts
     /// @param tokens The rebalance parameters for each token in the rebalance
     /// @param tokens.token MUST be unique
     /// @param tokens.weight D27{tok/BU} Basket weight ranges; cannot be empty [0, 1e54]
@@ -630,6 +631,7 @@ contract Folio is
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
     /// @param ttl {s} The amount of time the rebalance is valid for
     function startRebalance(
+        uint256 rebalanceNonce,
         TokenRebalanceParams[] calldata tokens,
         RebalanceLimits calldata limits,
         uint256 auctionLauncherWindow,
@@ -651,6 +653,7 @@ contract Folio is
             basket.values(),
             rebalanceControl,
             rebalance,
+            rebalanceNonce,
             tokens,
             limits,
             auctionLauncherWindow,
