@@ -192,8 +192,12 @@ contract Folio is
 
     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
 
-    uint256 private activeTrustedFillFloorPrice; // D27{buyTok/sellTok}
-    uint256 private activeTrustedFillSellAmount; // {sellTok}
+    struct ActiveTrustedFillInfo {
+        uint256 floorPrice; // D27{buyTok/sellTok}
+        uint256 sellAmount; // {sellTok}
+    }
+
+    ActiveTrustedFillInfo private activeTrustedFillInfo;
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -844,8 +848,8 @@ contract Folio is
         filler.initialize(address(this), sellToken, buyToken, sellAmount, buyAmount);
 
         // D27{buyTok/sellTok} = {buyTok} * D27 / {sellTok}
-        activeTrustedFillFloorPrice = Math.max(1, Math.mulDiv(buyAmount, D27, sellAmount, Math.Rounding.Floor));
-        activeTrustedFillSellAmount = sellAmount;
+        activeTrustedFillInfo.floorPrice = Math.max(1, Math.mulDiv(buyAmount, D27, sellAmount, Math.Rounding.Floor));
+        activeTrustedFillInfo.sellAmount = sellAmount;
         activeTrustedFill = filler;
 
         emit AuctionTrustedFillCreated(auctionId, address(filler));
@@ -1163,14 +1167,14 @@ contract Folio is
                 (uint256 sold, uint256 bought, bool shouldRemoveFromBasket) = RebalancingLib.closeTrustedFill(
                     auctions[nextAuctionId - 1],
                     activeTrustedFill,
-                    activeTrustedFillSellAmount
+                    activeTrustedFillInfo.sellAmount
                 );
 
                 // circuit breaker
                 if (
                     trustedFillerEnabled &&
                     sold != 0 &&
-                    Math.mulDiv(bought, D27, sold, Math.Rounding.Ceil) < activeTrustedFillFloorPrice
+                    Math.mulDiv(bought, D27, sold, Math.Rounding.Ceil) < activeTrustedFillInfo.floorPrice
                     // round in-favor of no false positives
                 ) {
                     _setTrustedFillerRegistry(address(trustedFillerRegistry), false);
@@ -1180,7 +1184,7 @@ contract Folio is
                         address(activeTrustedFill),
                         sold,
                         bought,
-                        activeTrustedFillFloorPrice
+                        activeTrustedFillInfo.floorPrice
                     );
                 }
 
@@ -1192,8 +1196,7 @@ contract Folio is
             }
 
             delete activeTrustedFill;
-            delete activeTrustedFillFloorPrice;
-            delete activeTrustedFillSellAmount;
+            delete activeTrustedFillInfo;
         }
     }
 
