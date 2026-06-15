@@ -221,7 +221,7 @@ contract Folio is
         __AccessControl_init();
         __ReentrancyGuard_init();
 
-        FolioLib.setInitialFeeRecipients(
+        FolioLib.setFeeRecipients(
             feeRecipients,
             _additionalDetails.feeRecipients,
             irrevocableFeeRecipients,

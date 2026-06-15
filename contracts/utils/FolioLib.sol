@@ -14,7 +14,7 @@ import { MathLib } from "@utils/MathLib.sol";
  */
 library FolioLib {
     /// @dev Warning: Empty mutable and irrevocable fee recipients tables will result in all fees being sent to DAO
-    function setInitialFeeRecipients(
+    function setFeeRecipients(
         IFolio.FeeRecipient[] storage feeRecipients,
         IFolio.FeeRecipient[] calldata _feeRecipients,
         IFolio.FeeRecipient[] storage irrevocableFeeRecipients,
