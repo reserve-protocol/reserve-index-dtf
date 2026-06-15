@@ -388,12 +388,14 @@ library RebalancingLib {
     /// Close a trusted fill
     /// @param auction The current ongoing auction
     /// @param activeTrustedFill The active trusted fill to close
+    /// @param activeTrustedFillSellAmount The sell amount recorded by Folio when the fill was created
     /// @return sold {sellTok} The amount of sell tokens sold by the trusted fill
     /// @return bought {buyTok} The amount of buy tokens bought by the trusted fill
     /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after close
     function closeTrustedFill(
         IFolio.Auction storage auction,
-        IBaseTrustedFiller activeTrustedFill
+        IBaseTrustedFiller activeTrustedFill,
+        uint256 activeTrustedFillSellAmount
     ) external returns (uint256 sold, uint256 bought, bool shouldRemoveFromBasket) {
         IERC20 sellToken = activeTrustedFill.sellToken();
         IERC20 buyToken = activeTrustedFill.buyToken();
@@ -407,9 +409,7 @@ library RebalancingLib {
         uint256 sellBalAfter = sellToken.balanceOf(address(this));
         uint256 sellReturned = sellBalAfter > sellBalBefore ? sellBalAfter - sellBalBefore : 0;
 
-        // {sellTok}
-        uint256 sellAmount = activeTrustedFill.sellAmount();
-        sold = sellAmount > sellReturned ? sellAmount - sellReturned : 0;
+        sold = activeTrustedFillSellAmount > sellReturned ? activeTrustedFillSellAmount - sellReturned : 0;
 
         // {buyTok}
         uint256 buyBalAfter = buyToken.balanceOf(address(this));

@@ -193,6 +193,7 @@ contract Folio is
     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
 
     uint256 private activeTrustedFillFloorPrice; // D27{buyTok/sellTok}
+    uint256 private activeTrustedFillSellAmount; // {sellTok}
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -844,6 +845,7 @@ contract Folio is
 
         // D27{buyTok/sellTok} = {buyTok} * D27 / {sellTok}
         activeTrustedFillFloorPrice = Math.max(1, Math.mulDiv(buyAmount, D27, sellAmount, Math.Rounding.Floor));
+        activeTrustedFillSellAmount = sellAmount;
         activeTrustedFill = filler;
 
         emit AuctionTrustedFillCreated(auctionId, address(filler));
@@ -1160,7 +1162,8 @@ contract Folio is
             if (!_emergency) {
                 (uint256 sold, uint256 bought, bool shouldRemoveFromBasket) = RebalancingLib.closeTrustedFill(
                     auctions[nextAuctionId - 1],
-                    activeTrustedFill
+                    activeTrustedFill,
+                    activeTrustedFillSellAmount
                 );
 
                 // circuit breaker
@@ -1190,6 +1193,7 @@ contract Folio is
 
             delete activeTrustedFill;
             delete activeTrustedFillFloorPrice;
+            delete activeTrustedFillSellAmount;
         }
     }
 

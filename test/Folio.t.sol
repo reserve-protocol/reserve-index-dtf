@@ -15,6 +15,7 @@ import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/tran
 import { FolioDeployerV2 } from "test/utils/upgrades/FolioDeployerV2.sol";
 import { MockEIP712 } from "test/utils/MockEIP712.sol";
 import { MockDonatingBidder } from "test/utils/MockDonatingBidder.sol";
+import { MockDishonestTrustedFiller } from "utils/MockDishonestTrustedFiller.sol";
 import { MockBidder } from "utils/MockBidder.sol";
 import "./base/BaseTest.sol";
 
@@ -1928,6 +1929,43 @@ contract FolioTest is BaseTest {
             bidBuyAmount,
             "bid should still succeed"
         );
+    }
+
+    function test_trustedFillCircuitBreakerUsesStoredSellAmount() public {
+        uint256 amt = D6_TOKEN_10K;
+
+        _openTrustedFillAuction();
+
+        MockDishonestTrustedFiller dishonestFiller = new MockDishonestTrustedFiller();
+        trustedFillerRegistry.addTrustedFiller(dishonestFiller);
+
+        (uint256 fillSellAmount, uint256 fillBuyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), amt);
+
+        IBaseTrustedFiller fill = folio.createTrustedFill(
+            0,
+            USDC,
+            IERC20(address(USDT)),
+            address(dishonestFiller),
+            bytes32(block.timestamp)
+        );
+        assertEq(fill.sellAmount(), 0, "dishonest filler should report zero sell amount");
+
+        uint256 sold = fillSellAmount / 2;
+        uint256 bought = Math.mulDiv(sold, fillBuyAmount, fillSellAmount, Math.Rounding.Ceil) - 1;
+        uint256 floorPrice = Math.mulDiv(fillBuyAmount, D27, fillSellAmount, Math.Rounding.Ceil);
+
+        MockERC20(address(USDC)).burn(address(fill), sold);
+        MockERC20(address(USDT)).mint(address(fill), bought);
+
+        vm.roll(block.number + 1);
+
+        vm.expectEmit(false, false, false, true, address(folio));
+        emit IFolio.TrustedFillerRegistrySet(address(trustedFillerRegistry), false);
+        vm.expectEmit(true, true, true, true, address(folio));
+        emit IFolio.TrustedFillCircuitBreakerTriggered(0, address(fill), sold, bought, floorPrice);
+        folio.poke();
+
+        assertFalse(folio.trustedFillerEnabled(), "trusted fills should be disabled");
     }
 
     function test_trustedFillAtFloorDoesNotTriggerCircuitBreaker() public {
