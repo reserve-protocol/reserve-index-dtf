@@ -1909,10 +1909,10 @@ contract FolioTest is BaseTest {
 
         vm.roll(block.number + 1);
 
-        vm.expectEmit(false, false, false, true, address(folio));
-        emit IFolio.TrustedFillerRegistrySet(address(trustedFillerRegistry), false);
         vm.expectEmit(true, true, true, true, address(folio));
         emit IFolio.TrustedFillCircuitBreakerTriggered(0, address(fill), sold, bought, floorPrice);
+        vm.expectEmit(false, false, false, true, address(folio));
+        emit IFolio.TrustedFillerRegistrySet(address(trustedFillerRegistry), false);
         folio.poke();
 
         assertFalse(folio.trustedFillerEnabled(), "trusted fills should be disabled");
@@ -1959,10 +1959,10 @@ contract FolioTest is BaseTest {
 
         vm.roll(block.number + 1);
 
-        vm.expectEmit(false, false, false, true, address(folio));
-        emit IFolio.TrustedFillerRegistrySet(address(trustedFillerRegistry), false);
         vm.expectEmit(true, true, true, true, address(folio));
         emit IFolio.TrustedFillCircuitBreakerTriggered(0, address(fill), sold, bought, floorPrice);
+        vm.expectEmit(false, false, false, true, address(folio));
+        emit IFolio.TrustedFillerRegistrySet(address(trustedFillerRegistry), false);
         folio.poke();
 
         assertFalse(folio.trustedFillerEnabled(), "trusted fills should be disabled");

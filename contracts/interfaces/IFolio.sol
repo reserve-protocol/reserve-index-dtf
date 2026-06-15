@@ -213,6 +213,12 @@ interface IFolio {
         mapping(address token => uint256) traded; // {tok}
     }
 
+    /// Active trusted fill details (storage)
+    struct ActiveTrustedFillInfo {
+        uint256 floorPrice; // D27{buyTok/sellTok}
+        uint256 sellAmount; // {sellTok}
+    }
+
     /// Used to mark old storage slots now deprecated
     struct DeprecatedStruct {
         bytes32 EMPTY;

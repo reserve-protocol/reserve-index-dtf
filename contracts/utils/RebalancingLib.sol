@@ -387,41 +387,66 @@ library RebalancingLib {
 
     /// Close a trusted fill
     /// @param auction The current ongoing auction
+    /// @param auctionId The current ongoing auction id
     /// @param activeTrustedFill The active trusted fill to close
-    /// @param activeTrustedFillSellAmount The sell amount recorded by Folio when the fill was created
-    /// @return sold {sellTok} The amount of sell tokens sold by the trusted fill
-    /// @return bought {buyTok} The amount of buy tokens bought by the trusted fill
+    /// @param activeTrustedFillInfo The trusted fill metadata recorded by Folio when the fill was created
+    /// @param trustedFillerEnabled Whether the trusted filler registry is currently enabled
     /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after close
+    /// @return shouldDisableTrustedFillerRegistry If true, the trusted filler registry should be disabled
     function closeTrustedFill(
         IFolio.Auction storage auction,
+        uint256 auctionId,
         IBaseTrustedFiller activeTrustedFill,
-        uint256 activeTrustedFillSellAmount
-    ) external returns (uint256 sold, uint256 bought, bool shouldRemoveFromBasket) {
+        IFolio.ActiveTrustedFillInfo storage activeTrustedFillInfo,
+        bool trustedFillerEnabled
+    ) external returns (bool shouldRemoveFromBasket, bool shouldDisableTrustedFillerRegistry) {
         IERC20 sellToken = activeTrustedFill.sellToken();
         IERC20 buyToken = activeTrustedFill.buyToken();
 
-        uint256 sellBalBefore = sellToken.balanceOf(address(this)); // {sellTok}
-        uint256 buyBalBefore = buyToken.balanceOf(address(this)); // {buyTok}
+        uint256 sellBalAfter;
+        uint256 sold;
+        uint256 bought;
 
-        activeTrustedFill.closeFiller();
+        {
+            uint256 sellBalBefore = sellToken.balanceOf(address(this)); // {sellTok}
+            uint256 buyBalBefore = buyToken.balanceOf(address(this)); // {buyTok}
 
-        // {sellTok}
-        uint256 sellBalAfter = sellToken.balanceOf(address(this));
-        uint256 sellReturned = sellBalAfter > sellBalBefore ? sellBalAfter - sellBalBefore : 0;
+            activeTrustedFill.closeFiller();
 
-        sold = activeTrustedFillSellAmount > sellReturned ? activeTrustedFillSellAmount - sellReturned : 0;
+            // {sellTok}
+            sellBalAfter = sellToken.balanceOf(address(this));
+            uint256 sellReturned = sellBalAfter > sellBalBefore ? sellBalAfter - sellBalBefore : 0;
 
-        // {buyTok}
-        uint256 buyBalAfter = buyToken.balanceOf(address(this));
-        bought = buyBalAfter > buyBalBefore ? buyBalAfter - buyBalBefore : 0;
+            sold = activeTrustedFillInfo.sellAmount > sellReturned
+                ? activeTrustedFillInfo.sellAmount - sellReturned
+                : 0;
+
+            // {buyTok}
+            uint256 buyBalAfter = buyToken.balanceOf(address(this));
+            bought = buyBalAfter > buyBalBefore ? buyBalAfter - buyBalBefore : 0;
+        }
 
         // track traded amts
         auction.traded[address(sellToken)] += sold;
         auction.traded[address(buyToken)] += bought;
 
-        // no event, cannot rely on executing in same block as fill occurred
+        // no AuctionBid event, cannot rely on executing in same block as fill occurred
 
-        return (sold, bought, sellBalAfter == 0);
+        shouldDisableTrustedFillerRegistry =
+            trustedFillerEnabled &&
+            sold != 0 &&
+            Math.mulDiv(bought, D27, sold, Math.Rounding.Ceil) < activeTrustedFillInfo.floorPrice;
+        if (shouldDisableTrustedFillerRegistry) {
+            emit IFolio.TrustedFillCircuitBreakerTriggered(
+                auctionId,
+                address(activeTrustedFill),
+                sold,
+                bought,
+                activeTrustedFillInfo.floorPrice
+            );
+        }
+
+        return (sellBalAfter == 0, shouldDisableTrustedFillerRegistry);
     }
 
     // ==== Internal ====

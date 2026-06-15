@@ -192,11 +192,6 @@ contract Folio is
 
     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
 
-    struct ActiveTrustedFillInfo {
-        uint256 floorPrice; // D27{buyTok/sellTok}
-        uint256 sellAmount; // {sellTok}
-    }
-
     ActiveTrustedFillInfo private activeTrustedFillInfo;
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
@@ -1164,28 +1159,17 @@ contract Folio is
     function _closeTrustedFill(bool _emergency) internal {
         if (address(activeTrustedFill) != address(0)) {
             if (!_emergency) {
-                (uint256 sold, uint256 bought, bool shouldRemoveFromBasket) = RebalancingLib.closeTrustedFill(
-                    auctions[nextAuctionId - 1],
-                    activeTrustedFill,
-                    activeTrustedFillInfo.sellAmount
-                );
-
-                // circuit breaker
-                if (
-                    trustedFillerEnabled &&
-                    sold != 0 &&
-                    Math.mulDiv(bought, D27, sold, Math.Rounding.Ceil) < activeTrustedFillInfo.floorPrice
-                    // round in-favor of no false positives
-                ) {
-                    _setTrustedFillerRegistry(address(trustedFillerRegistry), false);
-
-                    emit TrustedFillCircuitBreakerTriggered(
+                (bool shouldRemoveFromBasket, bool shouldDisableTrustedFillerRegistry) = RebalancingLib
+                    .closeTrustedFill(
+                        auctions[nextAuctionId - 1],
                         nextAuctionId - 1,
-                        address(activeTrustedFill),
-                        sold,
-                        bought,
-                        activeTrustedFillInfo.floorPrice
+                        activeTrustedFill,
+                        activeTrustedFillInfo,
+                        trustedFillerEnabled
                     );
+
+                if (shouldDisableTrustedFillerRegistry) {
+                    _setTrustedFillerRegistry(address(trustedFillerRegistry), false);
                 }
 
                 if (shouldRemoveFromBasket) {
