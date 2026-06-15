@@ -194,6 +194,8 @@ contract Folio is
 
     uint256 private activeTrustedFillFloorPrice; // D27{buyTok/sellTok}
 
+    FeeRecipient[] public irrevocableFeeRecipients;
+
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
         _poke();
@@ -219,7 +221,12 @@ contract Folio is
         __AccessControl_init();
         __ReentrancyGuard_init();
 
-        FolioLib.setFeeRecipients(feeRecipients, _additionalDetails.feeRecipients);
+        FolioLib.setInitialFeeRecipients(
+            feeRecipients,
+            _additionalDetails.feeRecipients,
+            irrevocableFeeRecipients,
+            _additionalDetails.irrevocableFeeRecipients
+        );
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
         _setFolioSelfFee(_additionalDetails.folioFeeForSelf);
@@ -321,13 +328,13 @@ contract Folio is
     }
 
     /// @dev Non-reentrant via distributeFees()
-    /// @dev Fee recipients must be unique and sorted by address, and sum to 1e18
+    /// @dev Mutable and irrevocable fee recipients must merge into a unique, sorted table that sums to 1e18
     /// @dev Use folioFeeForSelf to direct a portion of Folio fees to the Folio itself
-    /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
+    /// @dev Warning: Empty mutable and irrevocable fee recipient tables will result in all fees being sent to DAO
     function setFeeRecipients(FeeRecipient[] calldata _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
-        FolioLib.setFeeRecipients(feeRecipients, _newRecipients);
+        FolioLib.setFeeRecipients(feeRecipients, _newRecipients, irrevocableFeeRecipients);
     }
 
     /// @param _newLength {s} Length of an auction
@@ -524,15 +531,16 @@ contract Folio is
         feeRecipientsPendingFeeShares = 0;
         uint256 feeRecipientsTotal;
 
-        uint256 len = feeRecipients.length;
+        FeeRecipient[] memory recipients = FolioLib.mergeFeeRecipients(feeRecipients, irrevocableFeeRecipients);
+        uint256 len = recipients.length;
         for (uint256 i; i < len; i++) {
             // {share} = {share} * D18{1} / D18
-            uint256 shares = (_feeRecipientsPendingFeeShares * feeRecipients[i].portion) / D18;
+            uint256 shares = (_feeRecipientsPendingFeeShares * recipients[i].portion) / D18;
             feeRecipientsTotal += shares;
 
-            _mint(feeRecipients[i].recipient, shares);
+            _mint(recipients[i].recipient, shares);
 
-            emit FolioFeePaid(feeRecipients[i].recipient, shares);
+            emit FolioFeePaid(recipients[i].recipient, shares);
         }
 
         // === DAO ===

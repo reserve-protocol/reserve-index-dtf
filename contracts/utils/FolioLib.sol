@@ -13,13 +13,37 @@ import { MathLib } from "@utils/MathLib.sol";
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 library FolioLib {
-    /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
+    /// @dev Warning: Empty mutable and irrevocable fee recipients tables will result in all fees being sent to DAO
+    function setInitialFeeRecipients(
+        IFolio.FeeRecipient[] storage feeRecipients,
+        IFolio.FeeRecipient[] calldata _feeRecipients,
+        IFolio.FeeRecipient[] storage irrevocableFeeRecipients,
+        IFolio.FeeRecipient[] calldata _irrevocableFeeRecipients
+    ) external {
+        emit IFolio.FeeRecipientsSet(_feeRecipients);
+        emit IFolio.IrrevocableFeeRecipientsSet(_irrevocableFeeRecipients);
+
+        _setFeeRecipients(feeRecipients, _feeRecipients);
+        _setFeeRecipients(irrevocableFeeRecipients, _irrevocableFeeRecipients);
+        _validateFeeRecipients(mergeFeeRecipients(feeRecipients, irrevocableFeeRecipients));
+    }
+
+    /// @dev Warning: Empty mutable and irrevocable fee recipients tables will result in all fees being sent to DAO
     function setFeeRecipients(
         IFolio.FeeRecipient[] storage feeRecipients,
-        IFolio.FeeRecipient[] calldata _feeRecipients
+        IFolio.FeeRecipient[] calldata _feeRecipients,
+        IFolio.FeeRecipient[] storage irrevocableFeeRecipients
     ) external {
         emit IFolio.FeeRecipientsSet(_feeRecipients);
 
+        _setFeeRecipients(feeRecipients, _feeRecipients);
+        _validateFeeRecipients(mergeFeeRecipients(feeRecipients, irrevocableFeeRecipients));
+    }
+
+    function _setFeeRecipients(
+        IFolio.FeeRecipient[] storage feeRecipients,
+        IFolio.FeeRecipient[] calldata _feeRecipients
+    ) private {
         // Clear existing fee table
         uint256 len = feeRecipients.length;
         for (uint256 i; i < len; i++) {
@@ -36,20 +60,72 @@ library FolioLib {
         require(len <= MAX_FEE_RECIPIENTS, IFolio.Folio__TooManyFeeRecipients());
 
         address previousRecipient;
-        uint256 total;
 
         for (uint256 i; i < len; i++) {
             require(_feeRecipients[i].recipient != address(this), IFolio.Folio__FeeRecipientInvalidAddress());
             require(_feeRecipients[i].recipient > previousRecipient, IFolio.Folio__FeeRecipientInvalidAddress());
             require(_feeRecipients[i].portion != 0, IFolio.Folio__FeeRecipientInvalidFeeShare());
 
-            total += _feeRecipients[i].portion;
             previousRecipient = _feeRecipients[i].recipient;
             feeRecipients.push(_feeRecipients[i]);
+        }
+    }
+
+    function _validateFeeRecipients(IFolio.FeeRecipient[] memory recipients) private pure {
+        uint256 len = recipients.length;
+
+        if (len == 0) {
+            return;
+        }
+
+        require(len <= MAX_FEE_RECIPIENTS, IFolio.Folio__TooManyFeeRecipients());
+
+        uint256 total;
+        for (uint256 i; i < len; i++) {
+            total += recipients[i].portion;
         }
 
         // ensure table adds up to 100%
         require(total == D18, IFolio.Folio__BadFeeTotal());
+    }
+
+    function mergeFeeRecipients(
+        IFolio.FeeRecipient[] storage feeRecipients,
+        IFolio.FeeRecipient[] storage irrevocableFeeRecipients
+    ) internal view returns (IFolio.FeeRecipient[] memory recipients) {
+        uint256 mutableLen = feeRecipients.length;
+        uint256 irrevocableLen = irrevocableFeeRecipients.length;
+        recipients = new IFolio.FeeRecipient[](mutableLen + irrevocableLen);
+
+        uint256 i;
+        uint256 j;
+        uint256 k;
+
+        while (i < mutableLen || j < irrevocableLen) {
+            IFolio.FeeRecipient memory next;
+
+            if (
+                j == irrevocableLen ||
+                (i < mutableLen && feeRecipients[i].recipient < irrevocableFeeRecipients[j].recipient)
+            ) {
+                next = feeRecipients[i++];
+            } else if (i == mutableLen || irrevocableFeeRecipients[j].recipient < feeRecipients[i].recipient) {
+                next = irrevocableFeeRecipients[j++];
+            } else {
+                next = IFolio.FeeRecipient({
+                    recipient: feeRecipients[i].recipient,
+                    portion: feeRecipients[i].portion + irrevocableFeeRecipients[j].portion
+                });
+                i++;
+                j++;
+            }
+
+            recipients[k++] = next;
+        }
+
+        assembly {
+            mstore(recipients, k)
+        }
     }
 
     /// @dev stack-too-deep

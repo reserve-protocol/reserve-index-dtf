@@ -313,6 +313,7 @@ contract FolioDeployerTest is BaseTest {
                 IFolio.FolioAdditionalDetails({
                     maxAuctionLength: MAX_AUCTION_LENGTH,
                     feeRecipients: recipients,
+                    irrevocableFeeRecipients: new IFolio.FeeRecipient[](0),
                     tvlFee: MAX_TVL_FEE,
                     mintFee: MAX_MINT_FEE,
                     folioFeeForSelf: 0,
@@ -484,6 +485,7 @@ contract FolioDeployerTest is BaseTest {
             IFolio.FolioAdditionalDetails({
                 maxAuctionLength: MAX_AUCTION_LENGTH,
                 feeRecipients: recipients,
+                irrevocableFeeRecipients: new IFolio.FeeRecipient[](0),
                 tvlFee: MAX_TVL_FEE,
                 mintFee: MAX_MINT_FEE,
                 folioFeeForSelf: 0,
@@ -601,6 +603,7 @@ contract FolioDeployerTest is BaseTest {
                 IFolio.FolioAdditionalDetails({
                     maxAuctionLength: MAX_AUCTION_LENGTH,
                     feeRecipients: recipients,
+                    irrevocableFeeRecipients: new IFolio.FeeRecipient[](0),
                     tvlFee: MAX_TVL_FEE,
                     mintFee: MAX_MINT_FEE,
                     folioFeeForSelf: 0,

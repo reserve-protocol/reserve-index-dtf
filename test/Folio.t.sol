@@ -152,6 +152,7 @@ contract FolioTest is BaseTest {
         IFolio.FolioAdditionalDetails memory additionalDetails = IFolio.FolioAdditionalDetails({
             maxAuctionLength: AUCTION_LENGTH,
             feeRecipients: recipients,
+            irrevocableFeeRecipients: new IFolio.FeeRecipient[](0),
             tvlFee: MAX_TVL_FEE,
             mintFee: 0,
             folioFeeForSelf: 0,
@@ -1081,6 +1082,143 @@ contract FolioTest is BaseTest {
 
         vm.expectRevert(IFolio.Folio__TooManyFeeRecipients.selector);
         folio.setFeeRecipients(recipients);
+    }
+
+    function test_irrevocableFeeRecipients_DistributeWithMutableRecipients() public {
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.7e18);
+        recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
+
+        IFolio.FeeRecipient[] memory irrevocableRecipients = new IFolio.FeeRecipient[](1);
+        irrevocableRecipients[0] = IFolio.FeeRecipient(feeReceiver, 0.2e18);
+
+        Folio newFolio = _deployFolioWithIrrevocableFeeRecipients(recipients, irrevocableRecipients);
+
+        (address irrevocableRecipient, uint96 irrevocablePortion) = newFolio.irrevocableFeeRecipients(0);
+        assertEq(irrevocableRecipient, feeReceiver, "wrong irrevocable recipient");
+        assertEq(irrevocablePortion, 0.2e18, "wrong irrevocable portion");
+
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        vm.roll(block.number + 1000000);
+        newFolio.poke();
+
+        uint256 recipientPending = newFolio.feeRecipientsPendingFeeShares();
+        uint256 daoPending = newFolio.daoPendingFeeShares();
+        uint256 initialOwnerShares = newFolio.balanceOf(owner);
+        uint256 initialFeeReceiverShares = newFolio.balanceOf(feeReceiver);
+        uint256 initialDaoShares = newFolio.balanceOf(dao);
+
+        newFolio.distributeFees();
+
+        assertEq(
+            newFolio.balanceOf(owner),
+            initialOwnerShares + (recipientPending * 0.7e18) / 1e18,
+            "wrong owner shares"
+        );
+        assertEq(
+            newFolio.balanceOf(feeReceiver),
+            initialFeeReceiverShares + (recipientPending * 0.3e18) / 1e18,
+            "wrong fee receiver shares"
+        );
+        assertEq(
+            newFolio.balanceOf(dao),
+            initialDaoShares +
+                daoPending +
+                recipientPending -
+                (recipientPending * 0.7e18) /
+                1e18 -
+                (recipientPending * 0.3e18) /
+                1e18,
+            "wrong dao shares"
+        );
+    }
+
+    function test_irrevocableFeeRecipients_CannotBeRemovedByMutableFeeRecipientUpdate() public {
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
+
+        IFolio.FeeRecipient[] memory irrevocableRecipients = new IFolio.FeeRecipient[](1);
+        irrevocableRecipients[0] = IFolio.FeeRecipient(feeReceiver, 0.2e18);
+
+        Folio newFolio = _deployFolioWithIrrevocableFeeRecipients(recipients, irrevocableRecipients);
+
+        vm.startPrank(owner);
+
+        IFolio.FeeRecipient[] memory invalidRecipients = new IFolio.FeeRecipient[](1);
+        invalidRecipients[0] = IFolio.FeeRecipient(owner, 1e18);
+        vm.expectRevert(IFolio.Folio__BadFeeTotal.selector);
+        newFolio.setFeeRecipients(invalidRecipients);
+
+        invalidRecipients = new IFolio.FeeRecipient[](0);
+        vm.expectRevert(IFolio.Folio__BadFeeTotal.selector);
+        newFolio.setFeeRecipients(invalidRecipients);
+
+        IFolio.FeeRecipient[] memory validRecipients = new IFolio.FeeRecipient[](1);
+        validRecipients[0] = IFolio.FeeRecipient(user1, 0.8e18);
+        newFolio.setFeeRecipients(validRecipients);
+
+        vm.stopPrank();
+
+        (address recipient, uint96 portion) = newFolio.irrevocableFeeRecipients(0);
+        assertEq(recipient, feeReceiver, "wrong irrevocable recipient");
+        assertEq(portion, 0.2e18, "wrong irrevocable portion");
+    }
+
+    function _deployFolioWithIrrevocableFeeRecipients(
+        IFolio.FeeRecipient[] memory recipients,
+        IFolio.FeeRecipient[] memory irrevocableRecipients
+    ) internal returns (Folio newFolio) {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(DAI);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = D6_TOKEN_10K;
+        amounts[1] = D18_TOKEN_10K;
+
+        address[] memory basketManagers = new address[](1);
+        basketManagers[0] = dao;
+        address[] memory auctionLaunchers = new address[](1);
+        auctionLaunchers[0] = auctionLauncher;
+        address[] memory brandManagers = new address[](1);
+        brandManagers[0] = owner;
+
+        vm.startPrank(owner);
+        USDC.approve(address(folioDeployer), type(uint256).max);
+        DAI.approve(address(folioDeployer), type(uint256).max);
+
+        (newFolio, ) = folioDeployer.deployFolio(
+            IFolio.FolioBasicDetails({
+                name: "Test Folio",
+                symbol: "TFOLIO",
+                assets: tokens,
+                amounts: amounts,
+                initialShares: INITIAL_SUPPLY
+            }),
+            IFolio.FolioAdditionalDetails({
+                maxAuctionLength: MAX_AUCTION_LENGTH,
+                feeRecipients: recipients,
+                irrevocableFeeRecipients: irrevocableRecipients,
+                tvlFee: MAX_TVL_FEE,
+                mintFee: 0,
+                folioFeeForSelf: 0,
+                mandate: "mandate"
+            }),
+            IFolio.FolioFlags({
+                trustedFillerEnabled: true,
+                rebalanceControl: IFolio.RebalanceControl({
+                    weightControl: false,
+                    priceControl: IFolio.PriceControl.NONE
+                }),
+                bidsEnabled: true
+            }),
+            owner,
+            basketManagers,
+            auctionLaunchers,
+            brandManagers,
+            bytes32(uint256(1))
+        );
+        vm.stopPrank();
     }
 
     function test_setFolioDAOFeeRegistry() public {
