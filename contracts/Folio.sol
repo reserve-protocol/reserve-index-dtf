@@ -194,7 +194,7 @@ contract Folio is
 
     uint256 private activeTrustedFillFloorPrice; // D27{buyTok/sellTok}
 
-    FeeRecipient[] public irrevocableFeeRecipients;
+    FeeRecipient[] public immutableFeeRecipients;
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -221,11 +221,11 @@ contract Folio is
         __AccessControl_init();
         __ReentrancyGuard_init();
 
-        FolioLib.setInitialFeeRecipients(
+        FolioLib.setFeeRecipients(
             feeRecipients,
+            immutableFeeRecipients,
             _additionalDetails.feeRecipients,
-            irrevocableFeeRecipients,
-            _additionalDetails.irrevocableFeeRecipients
+            _additionalDetails.immutableFeeRecipients
         );
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
@@ -328,13 +328,13 @@ contract Folio is
     }
 
     /// @dev Non-reentrant via distributeFees()
-    /// @dev Mutable and irrevocable fee recipients must merge into a unique, sorted table that sums to 1e18
+    /// @dev Mutable and immutable fee recipients must merge into a unique, sorted table that sums to 1e18
     /// @dev Use folioFeeForSelf to direct a portion of Folio fees to the Folio itself
-    /// @dev Warning: Empty mutable and irrevocable fee recipient tables will result in all fees being sent to DAO
+    /// @dev Warning: Empty mutable and immutable fee recipient tables will result in all fees being sent to DAO
     function setFeeRecipients(FeeRecipient[] calldata _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
-        FolioLib.setFeeRecipients(feeRecipients, _newRecipients, irrevocableFeeRecipients);
+        FolioLib.setFeeRecipients(feeRecipients, immutableFeeRecipients, _newRecipients, new FeeRecipient[](0));
     }
 
     /// @param _newLength {s} Length of an auction
@@ -531,7 +531,7 @@ contract Folio is
         feeRecipientsPendingFeeShares = 0;
         uint256 feeRecipientsTotal;
 
-        FeeRecipient[] memory recipients = FolioLib.mergeFeeRecipients(feeRecipients, irrevocableFeeRecipients);
+        FeeRecipient[] memory recipients = FolioLib.mergeFeeRecipients(feeRecipients, immutableFeeRecipients);
         uint256 len = recipients.length;
         for (uint256 i; i < len; i++) {
             // {share} = {share} * D18{1} / D18

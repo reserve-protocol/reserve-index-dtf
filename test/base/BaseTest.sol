@@ -274,7 +274,7 @@ abstract contract BaseTest is Script, Test {
         IFolio.FolioAdditionalDetails memory _additionalDetails = IFolio.FolioAdditionalDetails({
             maxAuctionLength: _maxAuctionLength,
             feeRecipients: _feeRecipients,
-            irrevocableFeeRecipients: new IFolio.FeeRecipient[](0),
+            immutableFeeRecipients: new IFolio.FeeRecipient[](0),
             tvlFee: _tvlFee,
             mintFee: _mintFee,
             folioFeeForSelf: 0,
