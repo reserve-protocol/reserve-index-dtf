@@ -13,31 +13,21 @@ import { MathLib } from "@utils/MathLib.sol";
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 library FolioLib {
-    /// @dev Warning: Empty mutable and irrevocable fee recipients tables will result in all fees being sent to DAO
+    /// @dev Warning: Empty mutable and immutable fee recipients tables will result in all fees being sent to DAO
     function setFeeRecipients(
         IFolio.FeeRecipient[] storage feeRecipients,
+        IFolio.FeeRecipient[] storage immutableFeeRecipients,
         IFolio.FeeRecipient[] calldata _feeRecipients,
-        IFolio.FeeRecipient[] storage irrevocableFeeRecipients,
-        IFolio.FeeRecipient[] calldata _irrevocableFeeRecipients
-    ) external {
-        emit IFolio.FeeRecipientsSet(_feeRecipients);
-        emit IFolio.IrrevocableFeeRecipientsSet(_irrevocableFeeRecipients);
-
-        _setFeeRecipients(feeRecipients, _feeRecipients);
-        _setFeeRecipients(irrevocableFeeRecipients, _irrevocableFeeRecipients);
-        _validateFeeRecipients(mergeFeeRecipients(feeRecipients, irrevocableFeeRecipients));
-    }
-
-    /// @dev Warning: Empty mutable and irrevocable fee recipients tables will result in all fees being sent to DAO
-    function setFeeRecipients(
-        IFolio.FeeRecipient[] storage feeRecipients,
-        IFolio.FeeRecipient[] calldata _feeRecipients,
-        IFolio.FeeRecipient[] storage irrevocableFeeRecipients
+        IFolio.FeeRecipient[] calldata _immutableFeeRecipients
     ) external {
         emit IFolio.FeeRecipientsSet(_feeRecipients);
 
         _setFeeRecipients(feeRecipients, _feeRecipients);
-        _validateFeeRecipients(mergeFeeRecipients(feeRecipients, irrevocableFeeRecipients));
+        if (_immutableFeeRecipients.length != 0) {
+            emit IFolio.ImmutableFeeRecipientsSet(_immutableFeeRecipients);
+            _setFeeRecipients(immutableFeeRecipients, _immutableFeeRecipients);
+        }
+        _validateFeeRecipients(mergeFeeRecipients(feeRecipients, immutableFeeRecipients));
     }
 
     function _setFeeRecipients(
@@ -91,40 +81,38 @@ library FolioLib {
 
     function mergeFeeRecipients(
         IFolio.FeeRecipient[] storage feeRecipients,
-        IFolio.FeeRecipient[] storage irrevocableFeeRecipients
+        IFolio.FeeRecipient[] storage immutableFeeRecipients
     ) internal view returns (IFolio.FeeRecipient[] memory recipients) {
         uint256 mutableLen = feeRecipients.length;
-        uint256 irrevocableLen = irrevocableFeeRecipients.length;
-        recipients = new IFolio.FeeRecipient[](mutableLen + irrevocableLen);
+        uint256 immutableLen = immutableFeeRecipients.length;
+        recipients = new IFolio.FeeRecipient[](mutableLen + immutableLen);
 
-        uint256 i;
-        uint256 j;
+        uint256 immutableIndex;
         uint256 k;
 
-        while (i < mutableLen || j < irrevocableLen) {
-            IFolio.FeeRecipient memory next;
+        for (uint256 i; i < mutableLen; i++) {
+            IFolio.FeeRecipient memory mutableRecipient = feeRecipients[i];
 
-            if (
-                j == irrevocableLen ||
-                (i < mutableLen && feeRecipients[i].recipient < irrevocableFeeRecipients[j].recipient)
+            for (
+                ;
+                immutableIndex < immutableLen &&
+                    immutableFeeRecipients[immutableIndex].recipient < mutableRecipient.recipient;
+                immutableIndex++
             ) {
-                next = feeRecipients[i++];
-            } else if (i == mutableLen || irrevocableFeeRecipients[j].recipient < feeRecipients[i].recipient) {
-                next = irrevocableFeeRecipients[j++];
-            } else {
-                next = IFolio.FeeRecipient({
-                    recipient: feeRecipients[i].recipient,
-                    portion: feeRecipients[i].portion + irrevocableFeeRecipients[j].portion
-                });
-                i++;
-                j++;
+                recipients[k++] = immutableFeeRecipients[immutableIndex];
             }
 
-            recipients[k++] = next;
+            require(
+                immutableIndex == immutableLen ||
+                    immutableFeeRecipients[immutableIndex].recipient != mutableRecipient.recipient,
+                IFolio.Folio__FeeRecipientInvalidAddress()
+            );
+
+            recipients[k++] = mutableRecipient;
         }
 
-        assembly {
-            mstore(recipients, k)
+        for (; immutableIndex < immutableLen; immutableIndex++) {
+            recipients[k++] = immutableFeeRecipients[immutableIndex];
         }
     }
 

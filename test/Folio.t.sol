@@ -152,7 +152,7 @@ contract FolioTest is BaseTest {
         IFolio.FolioAdditionalDetails memory additionalDetails = IFolio.FolioAdditionalDetails({
             maxAuctionLength: AUCTION_LENGTH,
             feeRecipients: recipients,
-            irrevocableFeeRecipients: new IFolio.FeeRecipient[](0),
+            immutableFeeRecipients: new IFolio.FeeRecipient[](0),
             tvlFee: MAX_TVL_FEE,
             mintFee: 0,
             folioFeeForSelf: 0,
@@ -1084,19 +1084,19 @@ contract FolioTest is BaseTest {
         folio.setFeeRecipients(recipients);
     }
 
-    function test_irrevocableFeeRecipients_DistributeWithMutableRecipients() public {
+    function test_immutableFeeRecipients_DistributeWithMutableRecipients() public {
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
         recipients[0] = IFolio.FeeRecipient(owner, 0.7e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
-        IFolio.FeeRecipient[] memory irrevocableRecipients = new IFolio.FeeRecipient[](1);
-        irrevocableRecipients[0] = IFolio.FeeRecipient(feeReceiver, 0.2e18);
+        IFolio.FeeRecipient[] memory immutableRecipients = new IFolio.FeeRecipient[](1);
+        immutableRecipients[0] = IFolio.FeeRecipient(user1, 0.2e18);
 
-        Folio newFolio = _deployFolioWithIrrevocableFeeRecipients(recipients, irrevocableRecipients);
+        Folio newFolio = _deployFolioWithImmutableFeeRecipients(recipients, immutableRecipients);
 
-        (address irrevocableRecipient, uint96 irrevocablePortion) = newFolio.irrevocableFeeRecipients(0);
-        assertEq(irrevocableRecipient, feeReceiver, "wrong irrevocable recipient");
-        assertEq(irrevocablePortion, 0.2e18, "wrong irrevocable portion");
+        (address immutableRecipient, uint96 immutablePortion) = newFolio.immutableFeeRecipients(0);
+        assertEq(immutableRecipient, user1, "wrong immutable recipient");
+        assertEq(immutablePortion, 0.2e18, "wrong immutable portion");
 
         vm.warp(block.timestamp + YEAR_IN_SECONDS);
         vm.roll(block.number + 1000000);
@@ -1117,9 +1117,10 @@ contract FolioTest is BaseTest {
         );
         assertEq(
             newFolio.balanceOf(feeReceiver),
-            initialFeeReceiverShares + (recipientPending * 0.3e18) / 1e18,
+            initialFeeReceiverShares + (recipientPending * 0.1e18) / 1e18,
             "wrong fee receiver shares"
         );
+        assertEq(newFolio.balanceOf(user1), (recipientPending * 0.2e18) / 1e18, "wrong immutable shares");
         assertEq(
             newFolio.balanceOf(dao),
             initialDaoShares +
@@ -1127,20 +1128,22 @@ contract FolioTest is BaseTest {
                 recipientPending -
                 (recipientPending * 0.7e18) /
                 1e18 -
-                (recipientPending * 0.3e18) /
+                (recipientPending * 0.1e18) /
+                1e18 -
+                (recipientPending * 0.2e18) /
                 1e18,
             "wrong dao shares"
         );
     }
 
-    function test_irrevocableFeeRecipients_CannotBeRemovedByMutableFeeRecipientUpdate() public {
+    function test_immutableFeeRecipients_CannotBeRemovedByMutableFeeRecipientUpdate() public {
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
         recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
 
-        IFolio.FeeRecipient[] memory irrevocableRecipients = new IFolio.FeeRecipient[](1);
-        irrevocableRecipients[0] = IFolio.FeeRecipient(feeReceiver, 0.2e18);
+        IFolio.FeeRecipient[] memory immutableRecipients = new IFolio.FeeRecipient[](1);
+        immutableRecipients[0] = IFolio.FeeRecipient(feeReceiver, 0.2e18);
 
-        Folio newFolio = _deployFolioWithIrrevocableFeeRecipients(recipients, irrevocableRecipients);
+        Folio newFolio = _deployFolioWithImmutableFeeRecipients(recipients, immutableRecipients);
 
         vm.startPrank(owner);
 
@@ -1159,14 +1162,14 @@ contract FolioTest is BaseTest {
 
         vm.stopPrank();
 
-        (address recipient, uint96 portion) = newFolio.irrevocableFeeRecipients(0);
-        assertEq(recipient, feeReceiver, "wrong irrevocable recipient");
-        assertEq(portion, 0.2e18, "wrong irrevocable portion");
+        (address recipient, uint96 portion) = newFolio.immutableFeeRecipients(0);
+        assertEq(recipient, feeReceiver, "wrong immutable recipient");
+        assertEq(portion, 0.2e18, "wrong immutable portion");
     }
 
-    function _deployFolioWithIrrevocableFeeRecipients(
+    function _deployFolioWithImmutableFeeRecipients(
         IFolio.FeeRecipient[] memory recipients,
-        IFolio.FeeRecipient[] memory irrevocableRecipients
+        IFolio.FeeRecipient[] memory immutableRecipients
     ) internal returns (Folio newFolio) {
         address[] memory tokens = new address[](2);
         tokens[0] = address(USDC);
@@ -1198,7 +1201,7 @@ contract FolioTest is BaseTest {
             IFolio.FolioAdditionalDetails({
                 maxAuctionLength: MAX_AUCTION_LENGTH,
                 feeRecipients: recipients,
-                irrevocableFeeRecipients: irrevocableRecipients,
+                immutableFeeRecipients: immutableRecipients,
                 tvlFee: MAX_TVL_FEE,
                 mintFee: 0,
                 folioFeeForSelf: 0,
