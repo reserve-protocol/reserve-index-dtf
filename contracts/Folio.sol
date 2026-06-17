@@ -328,13 +328,16 @@ contract Folio is
     }
 
     /// @dev Non-reentrant via distributeFees()
-    /// @dev Mutable and immutable fee recipients must merge into a unique, sorted table that sums to 1e18
+    /// @dev Mutable and immutable fee recipient tables must each be unique and sorted, and together sum to 1e18
     /// @dev Use folioFeeForSelf to direct a portion of Folio fees to the Folio itself
     /// @dev Warning: Empty mutable and immutable fee recipient tables will result in all fees being sent to DAO
-    function setFeeRecipients(FeeRecipient[] calldata _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFeeRecipients(
+        FeeRecipient[] calldata _newRecipients,
+        FeeRecipient[] calldata _immutableRecipients
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
-        FolioLib.setFeeRecipients(feeRecipients, immutableFeeRecipients, _newRecipients, new FeeRecipient[](0));
+        FolioLib.setFeeRecipients(feeRecipients, immutableFeeRecipients, _newRecipients, _immutableRecipients);
     }
 
     /// @param _newLength {s} Length of an auction

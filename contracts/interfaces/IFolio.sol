@@ -74,6 +74,7 @@ interface IFolio {
 
     error Folio__FeeRecipientInvalidAddress();
     error Folio__FeeRecipientInvalidFeeShare();
+    error Folio__ImmutableFeeRecipientRemoved();
     error Folio__BadFeeTotal();
     error Folio__TVLFeeTooHigh();
     error Folio__TVLFeeTooLow();
@@ -230,4 +231,9 @@ interface IFolio {
     }
 
     function distributeFees() external;
+
+    function setFeeRecipients(
+        FeeRecipient[] calldata _newRecipients,
+        FeeRecipient[] calldata _immutableRecipients
+    ) external;
 }

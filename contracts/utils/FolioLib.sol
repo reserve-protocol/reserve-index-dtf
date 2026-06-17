@@ -20,14 +20,16 @@ library FolioLib {
         IFolio.FeeRecipient[] calldata _feeRecipients,
         IFolio.FeeRecipient[] calldata _immutableFeeRecipients
     ) external {
+        _validateFeeRecipientList(_feeRecipients);
+        _validateFeeRecipientList(_immutableFeeRecipients);
+        _validateFeeRecipients(_feeRecipients, _immutableFeeRecipients);
+        _requireImmutableFeeRecipientsPreserved(immutableFeeRecipients, _immutableFeeRecipients);
+
         emit IFolio.FeeRecipientsSet(_feeRecipients);
+        emit IFolio.ImmutableFeeRecipientsSet(_immutableFeeRecipients);
 
         _setFeeRecipients(feeRecipients, _feeRecipients);
-        if (_immutableFeeRecipients.length != 0) {
-            emit IFolio.ImmutableFeeRecipientsSet(_immutableFeeRecipients);
-            _setFeeRecipients(immutableFeeRecipients, _immutableFeeRecipients);
-        }
-        _validateFeeRecipients(mergeFeeRecipients(feeRecipients, immutableFeeRecipients));
+        _setFeeRecipients(immutableFeeRecipients, _immutableFeeRecipients);
     }
 
     function _setFeeRecipients(
@@ -42,26 +44,12 @@ library FolioLib {
 
         // Add new items to the fee table
         len = _feeRecipients.length;
-
-        if (len == 0) {
-            return;
-        }
-
-        require(len <= MAX_FEE_RECIPIENTS, IFolio.Folio__TooManyFeeRecipients());
-
-        address previousRecipient;
-
         for (uint256 i; i < len; i++) {
-            require(_feeRecipients[i].recipient != address(this), IFolio.Folio__FeeRecipientInvalidAddress());
-            require(_feeRecipients[i].recipient > previousRecipient, IFolio.Folio__FeeRecipientInvalidAddress());
-            require(_feeRecipients[i].portion != 0, IFolio.Folio__FeeRecipientInvalidFeeShare());
-
-            previousRecipient = _feeRecipients[i].recipient;
             feeRecipients.push(_feeRecipients[i]);
         }
     }
 
-    function _validateFeeRecipients(IFolio.FeeRecipient[] memory recipients) private pure {
+    function _validateFeeRecipientList(IFolio.FeeRecipient[] calldata recipients) private view {
         uint256 len = recipients.length;
 
         if (len == 0) {
@@ -70,13 +58,69 @@ library FolioLib {
 
         require(len <= MAX_FEE_RECIPIENTS, IFolio.Folio__TooManyFeeRecipients());
 
-        uint256 total;
+        address previousRecipient;
         for (uint256 i; i < len; i++) {
-            total += recipients[i].portion;
+            require(recipients[i].recipient != address(this), IFolio.Folio__FeeRecipientInvalidAddress());
+            require(recipients[i].recipient > previousRecipient, IFolio.Folio__FeeRecipientInvalidAddress());
+            require(recipients[i].portion != 0, IFolio.Folio__FeeRecipientInvalidFeeShare());
+
+            previousRecipient = recipients[i].recipient;
+        }
+    }
+
+    function _validateFeeRecipients(
+        IFolio.FeeRecipient[] calldata feeRecipients,
+        IFolio.FeeRecipient[] calldata immutableFeeRecipients
+    ) private pure {
+        uint256 mutableLen = feeRecipients.length;
+        uint256 immutableLen = immutableFeeRecipients.length;
+        uint256 len = mutableLen + immutableLen;
+
+        if (len == 0) {
+            return;
         }
 
-        // ensure table adds up to 100%
+        require(len <= MAX_FEE_RECIPIENTS, IFolio.Folio__TooManyFeeRecipients());
+
+        uint256 total;
+        for (uint256 i; i < mutableLen; i++) {
+            total += feeRecipients[i].portion;
+        }
+        for (uint256 i; i < immutableLen; i++) {
+            total += immutableFeeRecipients[i].portion;
+        }
+
+        // ensure tables add up to 100%
         require(total == D18, IFolio.Folio__BadFeeTotal());
+    }
+
+    function _requireImmutableFeeRecipientsPreserved(
+        IFolio.FeeRecipient[] storage immutableFeeRecipients,
+        IFolio.FeeRecipient[] calldata _immutableFeeRecipients
+    ) private view {
+        uint256 immutableLen = immutableFeeRecipients.length;
+        uint256 newImmutableLen = _immutableFeeRecipients.length;
+        uint256 newImmutableIndex;
+
+        for (uint256 i; i < immutableLen; i++) {
+            IFolio.FeeRecipient memory recipient = immutableFeeRecipients[i];
+
+            while (
+                newImmutableIndex < newImmutableLen &&
+                _immutableFeeRecipients[newImmutableIndex].recipient < recipient.recipient
+            ) {
+                newImmutableIndex++;
+            }
+
+            require(
+                newImmutableIndex < newImmutableLen &&
+                    _immutableFeeRecipients[newImmutableIndex].recipient == recipient.recipient &&
+                    _immutableFeeRecipients[newImmutableIndex].portion == recipient.portion,
+                IFolio.Folio__ImmutableFeeRecipientRemoved()
+            );
+
+            newImmutableIndex++;
+        }
     }
 
     function mergeFeeRecipients(
@@ -87,32 +131,12 @@ library FolioLib {
         uint256 immutableLen = immutableFeeRecipients.length;
         recipients = new IFolio.FeeRecipient[](mutableLen + immutableLen);
 
-        uint256 immutableIndex;
-        uint256 k;
-
         for (uint256 i; i < mutableLen; i++) {
-            IFolio.FeeRecipient memory mutableRecipient = feeRecipients[i];
-
-            for (
-                ;
-                immutableIndex < immutableLen &&
-                    immutableFeeRecipients[immutableIndex].recipient < mutableRecipient.recipient;
-                immutableIndex++
-            ) {
-                recipients[k++] = immutableFeeRecipients[immutableIndex];
-            }
-
-            require(
-                immutableIndex == immutableLen ||
-                    immutableFeeRecipients[immutableIndex].recipient != mutableRecipient.recipient,
-                IFolio.Folio__FeeRecipientInvalidAddress()
-            );
-
-            recipients[k++] = mutableRecipient;
+            recipients[i] = feeRecipients[i];
         }
 
-        for (; immutableIndex < immutableLen; immutableIndex++) {
-            recipients[k++] = immutableFeeRecipients[immutableIndex];
+        for (uint256 i; i < immutableLen; i++) {
+            recipients[mutableLen + i] = immutableFeeRecipients[i];
         }
     }
 
