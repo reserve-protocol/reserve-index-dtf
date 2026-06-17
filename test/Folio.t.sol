@@ -1167,6 +1167,36 @@ contract FolioTest is BaseTest {
         assertEq(portion, 0.2e18, "wrong immutable portion");
     }
 
+    function test_immutableFeeRecipients_CanAddLowerAddressRecipient() public {
+        address lowerRecipient = address(uint160(feeReceiver) - 1);
+        vm.assume(lowerRecipient != address(0));
+
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
+
+        IFolio.FeeRecipient[] memory immutableRecipients = new IFolio.FeeRecipient[](1);
+        immutableRecipients[0] = IFolio.FeeRecipient(feeReceiver, 0.2e18);
+
+        Folio newFolio = _deployFolioWithImmutableFeeRecipients(recipients, immutableRecipients);
+
+        recipients[0] = IFolio.FeeRecipient(owner, 0.7e18);
+
+        IFolio.FeeRecipient[] memory updatedImmutableRecipients = new IFolio.FeeRecipient[](2);
+        updatedImmutableRecipients[0] = IFolio.FeeRecipient(lowerRecipient, 0.1e18);
+        updatedImmutableRecipients[1] = IFolio.FeeRecipient(feeReceiver, 0.2e18);
+
+        vm.prank(owner);
+        newFolio.setFeeRecipients(recipients, updatedImmutableRecipients);
+
+        (address newRecipient, uint96 newPortion) = newFolio.immutableFeeRecipients(0);
+        assertEq(newRecipient, lowerRecipient, "wrong new immutable recipient");
+        assertEq(newPortion, 0.1e18, "wrong new immutable portion");
+
+        (address preservedRecipient, uint96 preservedPortion) = newFolio.immutableFeeRecipients(1);
+        assertEq(preservedRecipient, feeReceiver, "wrong preserved immutable recipient");
+        assertEq(preservedPortion, 0.2e18, "wrong preserved immutable portion");
+    }
+
     function test_immutableFeeRecipients_CanOverlapMutableRecipients() public {
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
         recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);

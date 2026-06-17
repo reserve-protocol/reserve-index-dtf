@@ -195,6 +195,8 @@ contract Folio is
     uint256 private activeTrustedFillFloorPrice; // D27{buyTok/sellTok}
 
     FeeRecipient[] public immutableFeeRecipients;
+    EnumerableSet.AddressSet private immutableFeeRecipientAddresses;
+    mapping(address recipient => uint96 portion) private immutableFeeRecipientPortions;
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -224,6 +226,8 @@ contract Folio is
         FolioLib.setFeeRecipients(
             feeRecipients,
             immutableFeeRecipients,
+            immutableFeeRecipientAddresses,
+            immutableFeeRecipientPortions,
             _additionalDetails.feeRecipients,
             _additionalDetails.immutableFeeRecipients
         );
@@ -337,7 +341,14 @@ contract Folio is
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
-        FolioLib.setFeeRecipients(feeRecipients, immutableFeeRecipients, _newRecipients, _immutableRecipients);
+        FolioLib.setFeeRecipients(
+            feeRecipients,
+            immutableFeeRecipients,
+            immutableFeeRecipientAddresses,
+            immutableFeeRecipientPortions,
+            _newRecipients,
+            _immutableRecipients
+        );
     }
 
     /// @param _newLength {s} Length of an auction
