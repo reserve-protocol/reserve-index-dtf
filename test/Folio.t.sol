@@ -738,7 +738,7 @@ contract FolioTest is BaseTest {
         recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
         vm.expectEmit(true, true, false, true);
         emit IFolio.FeeRecipientsSet(recipients);
-        folio.setFeeRecipients(recipients);
+        folio.setFeeRecipients(recipients, new IFolio.FeeRecipient[](0));
 
         (address r1, uint256 bps1) = folio.feeRecipients(0);
         assertEq(r1, owner, "wrong first recipient");
@@ -764,7 +764,7 @@ contract FolioTest is BaseTest {
                 folio.DEFAULT_ADMIN_ROLE()
             )
         );
-        folio.setFeeRecipients(recipients);
+        folio.setFeeRecipients(recipients, new IFolio.FeeRecipient[](0));
     }
 
     function test_setFeeRecipients_DistributesFees() public {
@@ -783,7 +783,7 @@ contract FolioTest is BaseTest {
         recipients[2] = IFolio.FeeRecipient(user1, 0.15e18);
         vm.expectEmit(true, true, false, true);
         emit IFolio.FeeRecipientsSet(recipients);
-        folio.setFeeRecipients(recipients);
+        folio.setFeeRecipients(recipients, new IFolio.FeeRecipient[](0));
 
         assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
@@ -1022,7 +1022,7 @@ contract FolioTest is BaseTest {
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(address(0), 0.1e18);
         vm.expectRevert(IFolio.Folio__FeeRecipientInvalidAddress.selector);
-        folio.setFeeRecipients(recipients);
+        folio.setFeeRecipients(recipients, new IFolio.FeeRecipient[](0));
     }
 
     function test_setFeeRecipients_InvalidRecipientFolioItself() public {
@@ -1030,7 +1030,7 @@ contract FolioTest is BaseTest {
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
         recipients[0] = IFolio.FeeRecipient(address(folio), 1e18);
         vm.expectRevert(IFolio.Folio__FeeRecipientInvalidAddress.selector);
-        folio.setFeeRecipients(recipients);
+        folio.setFeeRecipients(recipients, new IFolio.FeeRecipient[](0));
     }
 
     function test_setFeeRecipients_InvalidBps() public {
@@ -1039,7 +1039,7 @@ contract FolioTest is BaseTest {
         //    recipients[0] = IFolio.FeeRecipient(owner, 0.1e18);
         recipients[0] = IFolio.FeeRecipient(feeReceiver, 0);
         vm.expectRevert(IFolio.Folio__FeeRecipientInvalidFeeShare.selector);
-        folio.setFeeRecipients(recipients);
+        folio.setFeeRecipients(recipients, new IFolio.FeeRecipient[](0));
     }
 
     function test_setFeeRecipients_InvalidTotal() public {
@@ -1048,14 +1048,14 @@ contract FolioTest is BaseTest {
         recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
         recipients[1] = IFolio.FeeRecipient(feeReceiver, 0.0999e18);
         vm.expectRevert(IFolio.Folio__BadFeeTotal.selector);
-        folio.setFeeRecipients(recipients);
+        folio.setFeeRecipients(recipients, new IFolio.FeeRecipient[](0));
     }
 
     function test_setFeeRecipients_EmptyList() public {
         vm.startPrank(owner);
         vm.expectEmit(true, true, false, true);
         emit IFolio.FeeRecipientsSet(new IFolio.FeeRecipient[](0));
-        folio.setFeeRecipients(new IFolio.FeeRecipient[](0));
+        folio.setFeeRecipients(new IFolio.FeeRecipient[](0), new IFolio.FeeRecipient[](0));
         vm.stopPrank();
 
         vm.expectRevert();
@@ -1081,7 +1081,7 @@ contract FolioTest is BaseTest {
         }
 
         vm.expectRevert(IFolio.Folio__TooManyFeeRecipients.selector);
-        folio.setFeeRecipients(recipients);
+        folio.setFeeRecipients(recipients, new IFolio.FeeRecipient[](0));
     }
 
     function test_immutableFeeRecipients_DistributeWithMutableRecipients() public {
@@ -1149,22 +1149,80 @@ contract FolioTest is BaseTest {
 
         IFolio.FeeRecipient[] memory invalidRecipients = new IFolio.FeeRecipient[](1);
         invalidRecipients[0] = IFolio.FeeRecipient(owner, 1e18);
-        vm.expectRevert(IFolio.Folio__BadFeeTotal.selector);
-        newFolio.setFeeRecipients(invalidRecipients);
+        vm.expectRevert(IFolio.Folio__ImmutableFeeRecipientRemoved.selector);
+        newFolio.setFeeRecipients(invalidRecipients, new IFolio.FeeRecipient[](0));
 
         invalidRecipients = new IFolio.FeeRecipient[](0);
-        vm.expectRevert(IFolio.Folio__BadFeeTotal.selector);
-        newFolio.setFeeRecipients(invalidRecipients);
+        vm.expectRevert(IFolio.Folio__ImmutableFeeRecipientRemoved.selector);
+        newFolio.setFeeRecipients(invalidRecipients, new IFolio.FeeRecipient[](0));
 
         IFolio.FeeRecipient[] memory validRecipients = new IFolio.FeeRecipient[](1);
         validRecipients[0] = IFolio.FeeRecipient(user1, 0.8e18);
-        newFolio.setFeeRecipients(validRecipients);
+        newFolio.setFeeRecipients(validRecipients, immutableRecipients);
 
         vm.stopPrank();
 
         (address recipient, uint96 portion) = newFolio.immutableFeeRecipients(0);
         assertEq(recipient, feeReceiver, "wrong immutable recipient");
         assertEq(portion, 0.2e18, "wrong immutable portion");
+    }
+
+    function test_immutableFeeRecipients_CanOverlapMutableRecipients() public {
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
+
+        IFolio.FeeRecipient[] memory immutableRecipients = new IFolio.FeeRecipient[](1);
+        immutableRecipients[0] = IFolio.FeeRecipient(feeReceiver, 0.2e18);
+
+        Folio newFolio = _deployFolioWithImmutableFeeRecipients(recipients, immutableRecipients);
+
+        recipients[0] = IFolio.FeeRecipient(feeReceiver, 0.8e18);
+
+        vm.prank(owner);
+        newFolio.setFeeRecipients(recipients, immutableRecipients);
+
+        (address mutableRecipient, uint96 mutablePortion) = newFolio.feeRecipients(0);
+        assertEq(mutableRecipient, feeReceiver, "wrong mutable recipient");
+        assertEq(mutablePortion, 0.8e18, "wrong mutable portion");
+
+        (address immutableRecipient, uint96 immutablePortion) = newFolio.immutableFeeRecipients(0);
+        assertEq(immutableRecipient, feeReceiver, "wrong immutable recipient");
+        assertEq(immutablePortion, 0.2e18, "wrong immutable portion");
+    }
+
+    function test_setFeeRecipients_DuplicateMutableRecipient() public {
+        vm.startPrank(owner);
+
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](2);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.5e18);
+        recipients[1] = IFolio.FeeRecipient(owner, 0.5e18);
+
+        vm.expectRevert(IFolio.Folio__FeeRecipientInvalidAddress.selector);
+        folio.setFeeRecipients(recipients, new IFolio.FeeRecipient[](0));
+    }
+
+    function test_setFeeRecipients_DuplicateImmutableRecipient() public {
+        vm.startPrank(owner);
+
+        IFolio.FeeRecipient[] memory immutableRecipients = new IFolio.FeeRecipient[](2);
+        immutableRecipients[0] = IFolio.FeeRecipient(feeReceiver, 0.5e18);
+        immutableRecipients[1] = IFolio.FeeRecipient(feeReceiver, 0.5e18);
+
+        vm.expectRevert(IFolio.Folio__FeeRecipientInvalidAddress.selector);
+        folio.setFeeRecipients(new IFolio.FeeRecipient[](0), immutableRecipients);
+    }
+
+    function test_setFeeRecipients_InvalidCombinedTotal() public {
+        vm.startPrank(owner);
+
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
+
+        IFolio.FeeRecipient[] memory immutableRecipients = new IFolio.FeeRecipient[](1);
+        immutableRecipients[0] = IFolio.FeeRecipient(feeReceiver, 0.1999e18);
+
+        vm.expectRevert(IFolio.Folio__BadFeeTotal.selector);
+        folio.setFeeRecipients(recipients, immutableRecipients);
     }
 
     function _deployFolioWithImmutableFeeRecipients(
@@ -5228,7 +5286,7 @@ contract FolioTest is BaseTest {
     function test_emptyFeeRecipientsWithFolioFeeForSelf() public {
         vm.startPrank(owner);
         folio.setFolioSelfFee(0.5e18);
-        folio.setFeeRecipients(new IFolio.FeeRecipient[](0));
+        folio.setFeeRecipients(new IFolio.FeeRecipient[](0), new IFolio.FeeRecipient[](0));
         vm.stopPrank();
 
         // fast forward
