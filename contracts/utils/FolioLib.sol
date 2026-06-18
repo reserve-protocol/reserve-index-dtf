@@ -56,8 +56,6 @@ library FolioLib {
             return;
         }
 
-        require(len <= MAX_FEE_RECIPIENTS, IFolio.Folio__TooManyFeeRecipients());
-
         address previousRecipient;
         for (uint256 i; i < len; i++) {
             require(recipients[i].recipient != address(this), IFolio.Folio__FeeRecipientInvalidAddress());

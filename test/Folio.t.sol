@@ -1075,9 +1075,8 @@ contract FolioTest is BaseTest {
     function test_setFeeRecipients_TooManyRecipients() public {
         vm.startPrank(owner);
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](MAX_FEE_RECIPIENTS + 1);
-        // for loop from 0 to MAX_FEE_RECIPIENTS, setup recipient[i] with 1e27 / 64 for each
         for (uint256 i; i < MAX_FEE_RECIPIENTS + 1; i++) {
-            recipients[i] = IFolio.FeeRecipient(feeReceiver, uint96(1e27) / uint96(MAX_FEE_RECIPIENTS + 1));
+            recipients[i] = IFolio.FeeRecipient(address(uint160(i + 1)), uint96(1e18) / uint96(MAX_FEE_RECIPIENTS + 1));
         }
 
         vm.expectRevert(IFolio.Folio__TooManyFeeRecipients.selector);
