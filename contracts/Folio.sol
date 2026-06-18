@@ -189,10 +189,7 @@ contract Folio is
     // === 6.0.0 ===
     bool public tradeAllowlistEnabled;
     EnumerableSet.AddressSet private tradeTokenAllowlist;
-
     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
-
-    uint256 private activeTrustedFillFloorPrice; // D27{buyTok/sellTok}
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -841,9 +838,6 @@ contract Folio is
         SafeERC20.forceApprove(sellToken, address(filler), sellAmount);
 
         filler.initialize(address(this), sellToken, buyToken, sellAmount, buyAmount);
-
-        // D27{buyTok/sellTok} = {buyTok} * D27 / {sellTok}
-        activeTrustedFillFloorPrice = Math.max(1, Math.mulDiv(buyAmount, D27, sellAmount, Math.Rounding.Floor));
         activeTrustedFill = filler;
 
         emit AuctionTrustedFillCreated(auctionId, address(filler));
@@ -878,7 +872,6 @@ contract Folio is
     }
 
     /// Close fill attempting to claw assets back, but always close fill
-    /// @dev DOES NOT trigger circuit breaker; callers should consider calling setTrustedFillerRegistry(, false)
     /// @dev Callable by ADMIN
     function emergencyCloseTrustedFill() external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         _closeTrustedFill(true);
@@ -1158,38 +1151,15 @@ contract Folio is
     function _closeTrustedFill(bool _emergency) internal {
         if (address(activeTrustedFill) != address(0)) {
             if (!_emergency) {
-                (uint256 sold, uint256 bought, bool shouldRemoveFromBasket) = RebalancingLib.closeTrustedFill(
-                    auctions[nextAuctionId - 1],
-                    activeTrustedFill
-                );
-
-                // circuit breaker
-                if (
-                    trustedFillerEnabled &&
-                    sold != 0 &&
-                    Math.mulDiv(bought, D27, sold, Math.Rounding.Ceil) < activeTrustedFillFloorPrice
-                    // round in-favor of no false positives
-                ) {
-                    _setTrustedFillerRegistry(address(trustedFillerRegistry), false);
-
-                    emit TrustedFillCircuitBreakerTriggered(
-                        nextAuctionId - 1,
-                        address(activeTrustedFill),
-                        sold,
-                        bought,
-                        activeTrustedFillFloorPrice
-                    );
-                }
-
-                if (shouldRemoveFromBasket) {
-                    _removeFromBasket(address(activeTrustedFill.sellToken()));
+                address sellToken = address(activeTrustedFill.sellToken());
+                if (RebalancingLib.closeTrustedFill(auctions[nextAuctionId - 1], activeTrustedFill)) {
+                    _removeFromBasket(sellToken);
                 }
             } else {
                 activeTrustedFill.emergencyCloseFiller();
             }
 
             delete activeTrustedFill;
-            delete activeTrustedFillFloorPrice;
         }
     }
 
