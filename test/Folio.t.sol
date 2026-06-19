@@ -15,6 +15,7 @@ import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/tran
 import { FolioDeployerV2 } from "test/utils/upgrades/FolioDeployerV2.sol";
 import { MockEIP712 } from "test/utils/MockEIP712.sol";
 import { MockDonatingBidder } from "test/utils/MockDonatingBidder.sol";
+import { MockDishonestTrustedFiller } from "utils/MockDishonestTrustedFiller.sol";
 import { MockBidder } from "utils/MockBidder.sol";
 import "./base/BaseTest.sol";
 
@@ -1882,6 +1883,174 @@ contract FolioTest is BaseTest {
         assertEq(USDT.balanceOf(address(fill)), 0, "wrong fill usdt balance after close");
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong folio usdc balance after close");
         assertEq(USDT.balanceOf(address(folio)), amt * 100, "wrong folio usdt balance after close");
+    }
+
+    function test_trustedFillCircuitBreakerUsesCachedMetadata() public {
+        _openTrustedFillAuction();
+
+        MockDishonestTrustedFiller dishonestFiller = new MockDishonestTrustedFiller();
+        trustedFillerRegistry.addTrustedFiller(dishonestFiller);
+
+        (uint256 fillSellAmount, uint256 fillBuyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), D6_TOKEN_10K);
+        IBaseTrustedFiller fill = folio.createTrustedFill(
+            0,
+            USDC,
+            IERC20(address(USDT)),
+            address(dishonestFiller),
+            bytes32(block.timestamp)
+        );
+
+        (, bool asyncStateChangeActive) = folio.stateChangeActive();
+        assertTrue(asyncStateChangeActive, "trusted fill should be active");
+
+        // Cached token addresses must be used while the filler view functions revert.
+        folio.totalAssets();
+
+        uint256 sold = fillSellAmount / 2;
+        uint256 bought = Math.mulDiv(sold, fillBuyAmount, fillSellAmount, Math.Rounding.Ceil) - 1;
+        MockERC20(address(USDC)).burn(address(fill), sold);
+        MockERC20(address(USDT)).mint(address(fill), bought);
+
+        vm.expectEmit(false, false, false, true, address(folio));
+        emit IFolio.TrustedFillerRegistrySet(address(trustedFillerRegistry), false);
+        folio.poke();
+
+        assertFalse(folio.trustedFillerEnabled(), "trusted fills should be disabled");
+        (, asyncStateChangeActive) = folio.stateChangeActive();
+        assertFalse(asyncStateChangeActive, "trusted fill should be cleared");
+    }
+
+    function test_trustedFillAtFloorDoesNotTriggerCircuitBreaker() public {
+        _openTrustedFillAuction();
+
+        (uint256 fillSellAmount, uint256 fillBuyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), D6_TOKEN_10K);
+        IBaseTrustedFiller fill = folio.createTrustedFill(
+            0,
+            USDC,
+            IERC20(address(USDT)),
+            cowswapFiller,
+            bytes32(block.timestamp)
+        );
+
+        uint256 sold = fillSellAmount / 2;
+        uint256 bought = Math.mulDiv(sold, fillBuyAmount, fillSellAmount, Math.Rounding.Ceil);
+        MockERC20(address(USDC)).burn(address(fill), sold);
+        MockERC20(address(USDT)).mint(address(fill), bought);
+
+        folio.poke();
+
+        assertTrue(folio.trustedFillerEnabled(), "trusted fills should remain enabled");
+    }
+
+    function test_trustedFillAboveFloorDoesNotTriggerCircuitBreaker() public {
+        _openTrustedFillAuction();
+
+        (uint256 fillSellAmount, uint256 fillBuyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), D6_TOKEN_10K);
+        IBaseTrustedFiller fill = folio.createTrustedFill(
+            0,
+            USDC,
+            IERC20(address(USDT)),
+            cowswapFiller,
+            bytes32(block.timestamp)
+        );
+
+        uint256 sold = fillSellAmount / 2;
+        uint256 bought = Math.mulDiv(sold, fillBuyAmount, fillSellAmount, Math.Rounding.Ceil) + 1;
+        MockERC20(address(USDC)).burn(address(fill), sold);
+        MockERC20(address(USDT)).mint(address(fill), bought);
+
+        folio.poke();
+
+        assertTrue(folio.trustedFillerEnabled(), "trusted fills should remain enabled");
+    }
+
+    function test_trustedFillWithZeroSoldDoesNotTriggerCircuitBreaker() public {
+        _openTrustedFillAuction();
+
+        folio.createTrustedFill(0, USDC, IERC20(address(USDT)), cowswapFiller, bytes32(block.timestamp));
+        folio.poke();
+
+        assertTrue(folio.trustedFillerEnabled(), "trusted fills should remain enabled");
+    }
+
+    function test_stateChangeActiveUntilTrustedFillIsClosed() public {
+        _openTrustedFillAuction();
+
+        folio.createTrustedFill(0, USDC, IERC20(address(USDT)), cowswapFiller, bytes32(block.timestamp));
+
+        vm.roll(block.number + 1);
+        (, bool asyncStateChangeActive) = folio.stateChangeActive();
+        assertTrue(asyncStateChangeActive, "trusted fill should remain active across blocks");
+
+        folio.poke();
+        (, asyncStateChangeActive) = folio.stateChangeActive();
+        assertFalse(asyncStateChangeActive, "trusted fill should be cleared");
+    }
+
+    function test_emergencyCloseTrustedFillCatchesRevert() public {
+        _openTrustedFillAuction();
+
+        MockDishonestTrustedFiller dishonestFiller = new MockDishonestTrustedFiller();
+        trustedFillerRegistry.addTrustedFiller(dishonestFiller);
+
+        IBaseTrustedFiller fill = folio.createTrustedFill(
+            0,
+            USDC,
+            IERC20(address(USDT)),
+            address(dishonestFiller),
+            bytes32(block.timestamp)
+        );
+        MockDishonestTrustedFiller(address(fill)).setEmergencyCloseShouldRevert(true);
+
+        vm.prank(owner);
+        folio.emergencyCloseTrustedFill();
+
+        (, bool asyncStateChangeActive) = folio.stateChangeActive();
+        assertFalse(asyncStateChangeActive, "trusted fill should be cleared");
+        assertTrue(folio.trustedFillerEnabled(), "trusted fills should remain enabled");
+        assertGt(USDC.balanceOf(address(fill)), 0, "failed emergency close should leave filler funds in place");
+    }
+
+    function test_emergencyCloseTrustedFillSuccessLeavesRegistryEnabled() public {
+        _openTrustedFillAuction();
+
+        IBaseTrustedFiller fill = folio.createTrustedFill(
+            0,
+            USDC,
+            IERC20(address(USDT)),
+            cowswapFiller,
+            bytes32(block.timestamp)
+        );
+
+        vm.roll(block.number + 1);
+        vm.prank(owner);
+        folio.emergencyCloseTrustedFill();
+
+        (, bool asyncStateChangeActive) = folio.stateChangeActive();
+        assertFalse(asyncStateChangeActive, "trusted fill should be cleared");
+        assertTrue(folio.trustedFillerEnabled(), "trusted fills should remain enabled");
+        assertEq(USDC.balanceOf(address(fill)), 0, "sell tokens should return to the Folio");
+    }
+
+    function _openTrustedFillAuction() internal {
+        weights[0] = SELL;
+
+        assets.push(address(USDT));
+        weights.push(BUY);
+        prices.push(FULL_PRICE_RANGE_6);
+
+        uint256 len = assets.length;
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](len);
+        for (uint256 i; i < len; i++) {
+            tokens[i] = IFolio.TokenRebalanceParams(assets[i], weights[i], prices[i], type(uint256).max, true);
+        }
+
+        vm.prank(dao);
+        folio.startRebalance(tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
     }
 
     function test_auctionIsValidSignature() public {

@@ -388,13 +388,16 @@ library RebalancingLib {
     /// Close a trusted fill
     /// @param auction The current ongoing auction
     /// @param activeTrustedFill The active trusted fill to close
+    /// @param activeTrustedFillInfo The trusted fill metadata recorded by Folio when the fill was created
     /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after close
+    /// @return shouldDisableTrustedFillerRegistry If true, the trusted filler registry should be disabled
     function closeTrustedFill(
         IFolio.Auction storage auction,
-        IBaseTrustedFiller activeTrustedFill
-    ) external returns (bool shouldRemoveFromBasket) {
-        IERC20 sellToken = activeTrustedFill.sellToken();
-        IERC20 buyToken = activeTrustedFill.buyToken();
+        IBaseTrustedFiller activeTrustedFill,
+        IFolio.ActiveTrustedFillInfo storage activeTrustedFillInfo
+    ) external returns (bool shouldRemoveFromBasket, bool shouldDisableTrustedFillerRegistry) {
+        IERC20 sellToken = IERC20(activeTrustedFillInfo.sellToken);
+        IERC20 buyToken = IERC20(activeTrustedFillInfo.buyToken);
 
         uint256 sellBalBefore = sellToken.balanceOf(address(this)); // {sellTok}
         uint256 buyBalBefore = buyToken.balanceOf(address(this)); // {buyTok}
@@ -406,8 +409,9 @@ library RebalancingLib {
         uint256 sellReturned = sellBalAfter > sellBalBefore ? sellBalAfter - sellBalBefore : 0;
 
         // {sellTok}
-        uint256 sellAmount = activeTrustedFill.sellAmount();
-        uint256 sold = sellAmount > sellReturned ? sellAmount - sellReturned : 0;
+        uint256 sold = activeTrustedFillInfo.sellAmount > sellReturned
+            ? activeTrustedFillInfo.sellAmount - sellReturned
+            : 0;
 
         // {buyTok}
         uint256 buyBalAfter = buyToken.balanceOf(address(this));
@@ -417,9 +421,14 @@ library RebalancingLib {
         auction.traded[address(sellToken)] += sold;
         auction.traded[address(buyToken)] += bought;
 
-        // no event, cannot rely on executing in same block as fill occurred
+        // no AuctionBid event, cannot rely on executing in same block as fill occurred
 
-        return sellBalAfter == 0;
+        // Round in favor of no false positives. Known this permits tiny price violations.
+        shouldDisableTrustedFillerRegistry =
+            sold != 0 &&
+            Math.mulDiv(bought, D27, sold, Math.Rounding.Ceil) < activeTrustedFillInfo.floorPrice;
+
+        return (sellBalAfter == 0, shouldDisableTrustedFillerRegistry);
     }
 
     // ==== Internal ====
