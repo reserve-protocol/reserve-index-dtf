@@ -12,8 +12,9 @@ import { Versioned } from "@utils/Versioned.sol";
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  * @notice FolioVersionRegistry tracks Folio deployments by their version string
  * @dev Operationally, old Folio versions should be deprecated as new versions are registered.
- *      Keeping only one non-deprecated version live at a time reduces the risk of governance
- *      intentionally or accidentally deploying new Folios on stale implementations.
+ *      Keeping only one non-deprecated version live at a time limits downgrade paths and reduces
+ *      the chance that governance or callers select stale Folio implementations, unless a rollout
+ *      intentionally overlaps versions.
  */
 contract FolioVersionRegistry is IFolioVersionRegistry {
     IRoleRegistry public immutable roleRegistry;
