@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-
 import { IFolio } from "@interfaces/IFolio.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 
@@ -15,36 +13,23 @@ import { MathLib } from "@utils/MathLib.sol";
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 library FolioLib {
-    using EnumerableSet for EnumerableSet.AddressSet;
-
     /// @dev Warning: Empty mutable and immutable fee recipients tables will result in all fees being sent to DAO
     function setFeeRecipients(
         IFolio.FeeRecipient[] storage feeRecipients,
         IFolio.FeeRecipient[] storage immutableFeeRecipients,
-        EnumerableSet.AddressSet storage immutableFeeRecipientAddresses,
-        mapping(address recipient => uint96 portion) storage immutableFeeRecipientPortions,
         IFolio.FeeRecipient[] calldata _feeRecipients,
         IFolio.FeeRecipient[] calldata _immutableFeeRecipients
     ) internal {
         _validateFeeRecipientList(_feeRecipients);
         _validateFeeRecipientList(_immutableFeeRecipients);
         _validateFeeRecipients(_feeRecipients, _immutableFeeRecipients);
-        _requireImmutableFeeRecipientsPreserved(
-            immutableFeeRecipientAddresses,
-            immutableFeeRecipientPortions,
-            _immutableFeeRecipients
-        );
+        _requireImmutableFeeRecipientsPreserved(immutableFeeRecipients, _immutableFeeRecipients);
 
         emit IFolio.FeeRecipientsSet(_feeRecipients);
         emit IFolio.ImmutableFeeRecipientsSet(_immutableFeeRecipients);
 
         _setFeeRecipients(feeRecipients, _feeRecipients);
-        _setImmutableFeeRecipients(
-            immutableFeeRecipients,
-            immutableFeeRecipientAddresses,
-            immutableFeeRecipientPortions,
-            _immutableFeeRecipients
-        );
+        _setImmutableFeeRecipients(immutableFeeRecipients, _immutableFeeRecipients);
     }
 
     function _setFeeRecipients(
@@ -66,29 +51,18 @@ library FolioLib {
 
     function _setImmutableFeeRecipients(
         IFolio.FeeRecipient[] storage immutableFeeRecipients,
-        EnumerableSet.AddressSet storage immutableFeeRecipientAddresses,
-        mapping(address recipient => uint96 portion) storage immutableFeeRecipientPortions,
         IFolio.FeeRecipient[] calldata _immutableFeeRecipients
     ) private {
-        // Clear existing immutable recipient indexes
-        while (immutableFeeRecipientAddresses.length() != 0) {
-            address recipient = immutableFeeRecipientAddresses.at(immutableFeeRecipientAddresses.length() - 1);
-            immutableFeeRecipientAddresses.remove(recipient);
-            delete immutableFeeRecipientPortions[recipient];
-        }
-
         // Clear existing fee table
         uint256 len = immutableFeeRecipients.length;
         for (uint256 i; i < len; i++) {
             immutableFeeRecipients.pop();
         }
 
-        // Add new items to the fee table and indexes
+        // Add new items to the fee table
         len = _immutableFeeRecipients.length;
         for (uint256 i; i < len; i++) {
             immutableFeeRecipients.push(_immutableFeeRecipients[i]);
-            immutableFeeRecipientAddresses.add(_immutableFeeRecipients[i].recipient);
-            immutableFeeRecipientPortions[_immutableFeeRecipients[i].recipient] = _immutableFeeRecipients[i].portion;
         }
     }
 
@@ -98,8 +72,6 @@ library FolioLib {
         if (len == 0) {
             return;
         }
-
-        require(len <= MAX_FEE_RECIPIENTS, IFolio.Folio__TooManyFeeRecipients());
 
         address previousRecipient;
         for (uint256 i; i < len; i++) {
@@ -138,26 +110,31 @@ library FolioLib {
     }
 
     function _requireImmutableFeeRecipientsPreserved(
-        EnumerableSet.AddressSet storage immutableFeeRecipientAddresses,
-        mapping(address recipient => uint96 portion) storage immutableFeeRecipientPortions,
+        IFolio.FeeRecipient[] storage immutableFeeRecipients,
         IFolio.FeeRecipient[] calldata _immutableFeeRecipients
     ) private view {
-        uint256 immutableLen = immutableFeeRecipientAddresses.length();
+        uint256 immutableLen = immutableFeeRecipients.length;
         uint256 newImmutableLen = _immutableFeeRecipients.length;
-        uint256 preservedLen;
+        uint256 oldIndex;
 
-        for (uint256 i; i < newImmutableLen; i++) {
-            address recipient = _immutableFeeRecipients[i].recipient;
-            if (immutableFeeRecipientAddresses.contains(recipient)) {
-                require(
-                    immutableFeeRecipientPortions[recipient] == _immutableFeeRecipients[i].portion,
-                    IFolio.Folio__ImmutableFeeRecipientRemoved()
-                );
-                preservedLen++;
+        for (uint256 newIndex; newIndex < newImmutableLen && oldIndex < immutableLen; newIndex++) {
+            IFolio.FeeRecipient storage oldRecipient = immutableFeeRecipients[oldIndex];
+            address newRecipient = _immutableFeeRecipients[newIndex].recipient;
+
+            if (newRecipient < oldRecipient.recipient) {
+                continue;
             }
+
+            require(newRecipient == oldRecipient.recipient, IFolio.Folio__ImmutableFeeRecipientRemoved());
+            require(
+                _immutableFeeRecipients[newIndex].portion == oldRecipient.portion,
+                IFolio.Folio__ImmutableFeeRecipientRemoved()
+            );
+
+            oldIndex++;
         }
 
-        require(preservedLen == immutableLen, IFolio.Folio__ImmutableFeeRecipientRemoved());
+        require(oldIndex == immutableLen, IFolio.Folio__ImmutableFeeRecipientRemoved());
     }
 
     function mergeFeeRecipients(
