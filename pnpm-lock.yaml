@@ -499,14 +499,14 @@ packages:
     resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
 
   '@reserve-protocol/reserve-governor@https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/c2b17012567bafcb99b03d20f31d516fd5482f93':
-    resolution: {tarball: https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/c2b17012567bafcb99b03d20f31d516fd5482f93}
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/c2b17012567bafcb99b03d20f31d516fd5482f93}
     version: 0.1.0
 
   '@reserve-protocol/reserve-index-dtf@file:':
     resolution: {directory: '', type: directory}
 
   '@reserve-protocol/trusted-fillers@https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/b6b9b1e4f1ce706ddf6ee23de10d201300d0024b':
-    resolution: {tarball: https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/b6b9b1e4f1ce706ddf6ee23de10d201300d0024b}
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/b6b9b1e4f1ce706ddf6ee23de10d201300d0024b}
     version: 0.1.0
 
   '@scure/base@1.1.9':
@@ -789,11 +789,11 @@ packages:
     engines: {node: '>=8'}
 
   forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398}
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398}
     version: 1.15.0
 
   forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/1801b0541f4fda118a10798fd3486bb7051c5dd6:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/1801b0541f4fda118a10798fd3486bb7051c5dd6}
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/1801b0541f4fda118a10798fd3486bb7051c5dd6}
     version: 1.14.0
 
   form-data-encoder@2.1.4:
