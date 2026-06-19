@@ -22,10 +22,10 @@ import { MathLib } from "@utils/MathLib.sol";
  */
 library RebalancingLib {
     function startRebalance(
+        uint256 rebalanceNonce,
         address[] calldata oldTokens,
         IFolio.RebalanceControl storage rebalanceControl,
         IFolio.Rebalance storage rebalance,
-        uint256 rebalanceNonce,
         IFolio.TokenRebalanceParams[] calldata tokens,
         IFolio.RebalanceLimits calldata limits,
         uint256 auctionLauncherWindow,

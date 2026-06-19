@@ -650,10 +650,10 @@ contract Folio is
         }
 
         RebalancingLib.startRebalance(
+            rebalanceNonce,
             basket.values(),
             rebalanceControl,
             rebalance,
-            rebalanceNonce,
             tokens,
             limits,
             auctionLauncherWindow,
