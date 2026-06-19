@@ -231,9 +231,4 @@ interface IFolio {
     }
 
     function distributeFees() external;
-
-    function setFeeRecipients(
-        FeeRecipient[] calldata _newRecipients,
-        FeeRecipient[] calldata _immutableRecipients
-    ) external;
 }
