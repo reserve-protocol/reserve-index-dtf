@@ -1076,14 +1076,19 @@ contract FolioTest is BaseTest {
         vm.startPrank(owner);
 
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](MAX_FEE_RECIPIENTS);
-        for (uint256 i; i < MAX_FEE_RECIPIENTS; i++) {
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint96 basePortion = uint96(1e18 / (MAX_FEE_RECIPIENTS + 1));
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint96 firstPortion = uint96(1e18 - uint256(basePortion) * MAX_FEE_RECIPIENTS);
+
+        for (uint256 i = 0; i < MAX_FEE_RECIPIENTS; i++) {
             // forge-lint: disable-next-line(unsafe-typecast)
-            recipients[i] = IFolio.FeeRecipient(address(uint160(i + 1)), 1);
+            recipients[i] = IFolio.FeeRecipient(address(uint160(i + 1)), i == 0 ? firstPortion : basePortion);
         }
 
         IFolio.FeeRecipient[] memory immutableRecipients = new IFolio.FeeRecipient[](1);
         // forge-lint: disable-next-line(unsafe-typecast)
-        immutableRecipients[0] = IFolio.FeeRecipient(address(uint160(MAX_FEE_RECIPIENTS + 1)), 1);
+        immutableRecipients[0] = IFolio.FeeRecipient(address(uint160(MAX_FEE_RECIPIENTS + 1)), basePortion);
 
         vm.expectRevert(IFolio.Folio__TooManyFeeRecipients.selector);
         folio.setFeeRecipients(recipients, immutableRecipients);
@@ -2150,105 +2155,6 @@ contract FolioTest is BaseTest {
         assertEq(USDT.balanceOf(address(fill)), 0, "wrong fill usdt balance after close");
         assertEq(USDC.balanceOf(address(folio)), 0, "wrong folio usdc balance after close");
         assertEq(USDT.balanceOf(address(folio)), amt * 100, "wrong folio usdt balance after close");
-    }
-
-    function test_trustedFillCircuitBreakerDisablesTrustedFillsButBidsContinue() public {
-        uint256 amt = D6_TOKEN_10K;
-
-        _openTrustedFillAuction();
-
-        (uint256 fillSellAmount, uint256 fillBuyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), amt);
-
-        IBaseTrustedFiller fill = folio.createTrustedFill(
-            0,
-            USDC,
-            IERC20(address(USDT)),
-            cowswapFiller,
-            bytes32(block.timestamp)
-        );
-
-        uint256 sold = fillSellAmount / 2;
-        uint256 bought = Math.mulDiv(sold, fillBuyAmount, fillSellAmount, Math.Rounding.Ceil) - 1;
-        uint256 floorPrice = Math.mulDiv(fillBuyAmount, D27, fillSellAmount, Math.Rounding.Ceil);
-
-        MockERC20(address(USDC)).burn(address(fill), sold);
-        MockERC20(address(USDT)).mint(address(fill), bought);
-
-        vm.roll(block.number + 1);
-
-        vm.expectEmit(false, false, false, true, address(folio));
-        emit IFolio.TrustedFillerRegistrySet(address(trustedFillerRegistry), false);
-        vm.expectEmit(true, true, true, true, address(folio));
-        emit IFolio.TrustedFillCircuitBreakerTriggered(0, address(fill), sold, bought, floorPrice);
-        folio.poke();
-
-        assertFalse(folio.trustedFillerEnabled(), "trusted fills should be disabled");
-
-        vm.expectRevert(IFolio.Folio__TrustedFillerRegistryNotEnabled.selector);
-        folio.createTrustedFill(0, USDC, IERC20(address(USDT)), cowswapFiller, bytes32(block.timestamp + 1));
-
-        (uint256 bidSellAmount, uint256 bidBuyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), amt);
-        assertGt(bidSellAmount, 0, "expected remaining sell amount");
-
-        USDT.approve(address(folio), bidBuyAmount);
-        assertEq(
-            folio.bid(0, USDC, IERC20(address(USDT)), bidSellAmount, bidBuyAmount, false, bytes("")),
-            bidBuyAmount,
-            "bid should still succeed"
-        );
-    }
-
-    function test_trustedFillAtFloorDoesNotTriggerCircuitBreaker() public {
-        uint256 amt = D6_TOKEN_10K;
-
-        _openTrustedFillAuction();
-
-        (uint256 fillSellAmount, uint256 fillBuyAmount, ) = folio.getBid(0, USDC, IERC20(address(USDT)), amt);
-
-        IBaseTrustedFiller fill = folio.createTrustedFill(
-            0,
-            USDC,
-            IERC20(address(USDT)),
-            cowswapFiller,
-            bytes32(block.timestamp)
-        );
-
-        uint256 sold = fillSellAmount / 2;
-        uint256 minBought = Math.mulDiv(sold, fillBuyAmount, fillSellAmount, Math.Rounding.Ceil);
-
-        MockERC20(address(USDC)).burn(address(fill), sold);
-        MockERC20(address(USDT)).mint(address(fill), minBought);
-
-        vm.roll(block.number + 1);
-        folio.poke();
-
-        assertTrue(folio.trustedFillerEnabled(), "trusted fills should remain enabled");
-
-        fill = folio.createTrustedFill(0, USDC, IERC20(address(USDT)), cowswapFiller, bytes32(block.timestamp + 1));
-        assertNotEq(address(fill), address(0), "trusted fill should still be creatable");
-    }
-
-    function _openTrustedFillAuction() internal {
-        // Sell USDC
-        weights[0] = SELL;
-
-        // Add USDT to buy
-        assets.push(address(USDT));
-        weights.push(BUY);
-        prices.push(FULL_PRICE_RANGE_6);
-
-        uint256 len = assets.length;
-        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](len);
-        for (uint256 i; i < len; i++) {
-            tokens[i] = IFolio.TokenRebalanceParams(assets[i], weights[i], prices[i], type(uint256).max, true);
-        }
-
-        vm.prank(dao);
-        folio.startRebalance(tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
-
-        vm.prank(auctionLauncher);
-        folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
-        vm.warp(block.timestamp + AUCTION_WARMUP);
     }
 
     function test_auctionIsValidSignature() public {

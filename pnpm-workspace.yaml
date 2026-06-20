@@ -1,2 +1,8 @@
+allowBuilds:
+  esbuild: false
+  protobufjs: false
+
+blockExoticSubdeps: false
+
 overrides:
   "@reserve-protocol/reserve-index-dtf": "file:./"
