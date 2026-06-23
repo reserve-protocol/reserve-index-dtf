@@ -39,13 +39,13 @@ library FolioLib {
     ) private {
         // Clear existing fee table
         uint256 len = feeRecipients.length;
-        for (uint256 i = 0; i < len; i++) {
+        for (uint256 i; i < len; i++) {
             feeRecipients.pop();
         }
 
         // Add new items to the fee table
         len = _feeRecipients.length;
-        for (uint256 i = 0; i < len; i++) {
+        for (uint256 i; i < len; i++) {
             feeRecipients.push(_feeRecipients[i]);
         }
 
@@ -58,13 +58,13 @@ library FolioLib {
     ) private {
         // Clear existing fee table
         uint256 len = immutableFeeRecipients.length;
-        for (uint256 i = 0; i < len; i++) {
+        for (uint256 i; i < len; i++) {
             immutableFeeRecipients.pop();
         }
 
         // Add new items to the fee table
         len = _immutableFeeRecipients.length;
-        for (uint256 i = 0; i < len; i++) {
+        for (uint256 i; i < len; i++) {
             immutableFeeRecipients.push(_immutableFeeRecipients[i]);
         }
 
@@ -75,7 +75,7 @@ library FolioLib {
         uint256 len = recipients.length;
 
         address previousRecipient;
-        for (uint256 i = 0; i < len; i++) {
+        for (uint256 i; i < len; i++) {
             require(recipients[i].recipient != address(this), IFolio.Folio__FeeRecipientInvalidAddress());
             require(recipients[i].recipient > previousRecipient, IFolio.Folio__FeeRecipientInvalidAddress());
             require(recipients[i].portion != 0, IFolio.Folio__FeeRecipientInvalidFeeShare());
@@ -99,10 +99,10 @@ library FolioLib {
         require(len <= MAX_FEE_RECIPIENTS, IFolio.Folio__TooManyFeeRecipients());
 
         uint256 total;
-        for (uint256 i = 0; i < mutableLen; i++) {
+        for (uint256 i; i < mutableLen; i++) {
             total += feeRecipients[i].portion;
         }
-        for (uint256 i = 0; i < immutableLen; i++) {
+        for (uint256 i; i < immutableLen; i++) {
             total += immutableFeeRecipients[i].portion;
         }
 
@@ -143,11 +143,11 @@ library FolioLib {
         uint256 immutableLen = immutableFeeRecipients.length;
         recipients = new IFolio.FeeRecipient[](mutableLen + immutableLen);
 
-        for (uint256 i = 0; i < mutableLen; i++) {
+        for (uint256 i; i < mutableLen; i++) {
             recipients[i] = feeRecipients[i];
         }
 
-        for (uint256 i = 0; i < immutableLen; i++) {
+        for (uint256 i; i < immutableLen; i++) {
             recipients[mutableLen + i] = immutableFeeRecipients[i];
         }
     }
