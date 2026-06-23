@@ -68,7 +68,7 @@ abstract contract BaseExtremeTest is BaseTest {
             governanceDeployer
         );
 
-        CowSwapFiller cowswapFiller = new CowSwapFiller();
+        CowSwapFiller cowswapFiller = new CowSwapFiller(GPV2_SETTLEMENT, GPV2_VAULT_RELAYER);
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
