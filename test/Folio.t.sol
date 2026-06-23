@@ -1577,7 +1577,7 @@ contract FolioTest is BaseTest {
         // make sure USDC is still in basket
         (address[] memory basketTokens, ) = folio.totalAssets();
         bool found = false;
-        for (uint256 i; i < basketTokens.length; i++) {
+        for (uint256 i = 0; i < basketTokens.length; i++) {
             if (basketTokens[i] == address(USDC)) {
                 found = true;
                 break;
@@ -2085,7 +2085,7 @@ contract FolioTest is BaseTest {
 
         (address[] memory basketTokens, ) = folio.totalAssets();
         bool foundUSDC = false;
-        for (uint256 i; i < basketTokens.length; i++) {
+        for (uint256 i = 0; i < basketTokens.length; i++) {
             if (basketTokens[i] == address(USDC)) {
                 foundUSDC = true;
                 break;
@@ -2140,7 +2140,7 @@ contract FolioTest is BaseTest {
 
         (address[] memory basketTokens, ) = folio.totalAssets();
         bool foundUSDC = false;
-        for (uint256 i; i < basketTokens.length; i++) {
+        for (uint256 i = 0; i < basketTokens.length; i++) {
             if (basketTokens[i] == address(USDC)) {
                 foundUSDC = true;
                 break;
@@ -2769,7 +2769,7 @@ contract FolioTest is BaseTest {
         tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
         tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
 
-        for (uint256 i; i < controls.length; i++) {
+        for (uint256 i = 0; i < controls.length; i++) {
             vm.prank(owner);
             folio.setRebalanceControl(IFolio.RebalanceControl({ weightControl: false, priceControl: controls[i] }));
 

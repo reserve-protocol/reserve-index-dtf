@@ -32,7 +32,7 @@ library RebalancingLib {
         bool bidsEnabled
     ) external {
         // remove old tokens from rebalance while keeping them in the basket
-        for (uint256 i; i < oldTokens.length; i++) {
+        for (uint256 i = 0; i < oldTokens.length; i++) {
             delete rebalance.details[oldTokens[i]];
         }
 
@@ -50,7 +50,7 @@ library RebalancingLib {
         require(len > 1, IFolio.Folio__EmptyRebalance());
 
         // set new rebalance details and prices
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             IFolio.TokenRebalanceParams calldata params = tokens[i];
             require(params.inRebalance, IFolio.Folo__NotInRebalance());
 

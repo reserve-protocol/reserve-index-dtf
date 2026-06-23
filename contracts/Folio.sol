@@ -241,7 +241,7 @@ contract Folio is
         uint256 assetLength = _basicDetails.assets.length;
         require(assetLength != 0, Folio__EmptyAssets());
 
-        for (uint256 i; i < assetLength; i++) {
+        for (uint256 i = 0; i < assetLength; i++) {
             require(_basicDetails.assets[i] != address(0), Folio__InvalidAsset());
 
             uint256 assetBalance = IERC20(_basicDetails.assets[i]).balanceOf(address(this));
@@ -379,7 +379,7 @@ contract Folio is
     /// @param tokens The tokens to add to the allowlist
     function addToAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 len = tokens.length;
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             if (tradeTokenAllowlist.add(tokens[i])) {
                 emit TradeAllowlistTokenAdded(tokens[i]);
             }
@@ -390,7 +390,7 @@ contract Folio is
     /// @param tokens The tokens to remove from the allowlist
     function removeFromAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 len = tokens.length;
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             if (tradeTokenAllowlist.remove(tokens[i])) {
                 emit TradeAllowlistTokenRemoved(tokens[i]);
             }
@@ -460,7 +460,7 @@ contract Folio is
         (_assets, _amounts) = _toAssets(shares, Math.Rounding.Ceil);
 
         uint256 assetLength = _assets.length;
-        for (uint256 i; i < assetLength; i++) {
+        for (uint256 i = 0; i < assetLength; i++) {
             if (_amounts[i] != 0) {
                 SafeERC20.safeTransferFrom(IERC20(_assets[i]), msg.sender, address(this), _amounts[i]);
             }
@@ -500,7 +500,7 @@ contract Folio is
         require(len == assets.length && len == minAmountsOut.length, Folio__InvalidArrayLengths());
 
         if (receiver != address(this)) {
-            for (uint256 i; i < len; i++) {
+            for (uint256 i = 0; i < len; i++) {
                 require(_assets[i] == assets[i], Folio__InvalidAsset());
                 require(_amounts[i] >= minAmountsOut[i], Folio__InvalidAssetAmount(_assets[i]));
 
@@ -533,7 +533,7 @@ contract Folio is
 
         FeeRecipient[] memory recipients = FolioLib.mergeFeeRecipients(feeRecipients, immutableFeeRecipients);
         uint256 len = recipients.length;
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             // {share} = {share} * D18{1} / D18
             uint256 shares = (_feeRecipientsPendingFeeShares * recipients[i].portion) / D18;
             feeRecipientsTotal += shares;
@@ -601,7 +601,7 @@ contract Folio is
 
         tokens = new TokenRebalanceParams[](len);
 
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             address token = basketTokens[i];
             RebalanceDetails storage details = rebalance.details[token];
 
@@ -645,7 +645,7 @@ contract Folio is
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
         // enforce token allowlist: non-allowlisted tokens can only be traded out (zero weights)
         if (tradeAllowlistEnabled) {
-            for (uint256 i; i < tokens.length; i++) {
+            for (uint256 i = 0; i < tokens.length; i++) {
                 if (!tradeTokenAllowlist.contains(tokens[i].token)) {
                     require(
                         tokens[i].weight.low == 0 && tokens[i].weight.spot == 0 && tokens[i].weight.high == 0,
@@ -667,7 +667,7 @@ contract Folio is
         );
 
         // add new tokens to basket
-        for (uint256 i; i < tokens.length; i++) {
+        for (uint256 i = 0; i < tokens.length; i++) {
             _addToBasket(tokens[i].token);
         }
     }
@@ -699,7 +699,7 @@ contract Folio is
 
         // require tokens are in the rebalance
         uint256 len = tokens.length;
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             require(rebalance.details[tokens[i]].inRebalance, Folio__InvalidAsset());
         }
 
@@ -727,7 +727,7 @@ contract Folio is
 
         // count tokens in rebalance
         uint256 count;
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             if (rebalance.details[basketTokens[i]].inRebalance) {
                 count++;
             }
@@ -739,7 +739,7 @@ contract Folio is
 
         // use spot weights and initialPrices, collapsing high/low weight range
         count = 0;
-        for (uint256 i; i < len; i++) {
+        for (uint256 i = 0; i < len; i++) {
             RebalanceDetails storage rebalanceDetails = rebalance.details[basketTokens[i]];
 
             if (rebalanceDetails.inRebalance) {
@@ -911,7 +911,7 @@ contract Folio is
         (_assets, _amounts) = _totalAssets();
 
         uint256 assetLen = _assets.length;
-        for (uint256 i; i < assetLen; i++) {
+        for (uint256 i = 0; i < assetLen; i++) {
             // {tok} = {share} * {tok} / {share}
             _amounts[i] = Math.mulDiv(shares, _amounts[i], _totalSupply, rounding);
         }
@@ -924,7 +924,7 @@ contract Folio is
 
         uint256 assetLength = _assets.length;
         _amounts = new uint256[](assetLength);
-        for (uint256 i; i < assetLength; i++) {
+        for (uint256 i = 0; i < assetLength; i++) {
             _amounts[i] = _balanceOfToken(IERC20(_assets[i]));
         }
     }
