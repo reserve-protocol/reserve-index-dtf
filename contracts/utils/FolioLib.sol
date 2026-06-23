@@ -20,21 +20,16 @@ library FolioLib {
         IFolio.FeeRecipient[] calldata _feeRecipients,
         IFolio.FeeRecipient[] calldata _immutableFeeRecipients
     ) external {
-        // Validate mutable recipient table ordering and entries before combining tables.
+        // Validate recipient table ordering and entries before combined checks.
         _validateFeeRecipientList(_feeRecipients);
-        // Validate immutable recipient table ordering and entries before preservation checks.
         _validateFeeRecipientList(_immutableFeeRecipients);
-        // Validate the combined recipient count and total fee share.
+
         _validateFeeRecipients(_feeRecipients, _immutableFeeRecipients);
-        // Ensure existing immutable recipients remain present with unchanged portions.
+
         _requireImmutableFeeRecipientsPreserved(immutableFeeRecipients, _immutableFeeRecipients);
 
-        emit IFolio.FeeRecipientsSet(_feeRecipients);
-        emit IFolio.ImmutableFeeRecipientsSet(_immutableFeeRecipients);
-
-        // Replace mutable recipient storage.
+        // Replace mutable and immutable recipient storage.
         _setFeeRecipients(feeRecipients, _feeRecipients);
-        // Replace immutable recipient storage.
         _setImmutableFeeRecipients(immutableFeeRecipients, _immutableFeeRecipients);
     }
 
@@ -53,6 +48,8 @@ library FolioLib {
         for (uint256 i = 0; i < len; i++) {
             feeRecipients.push(_feeRecipients[i]);
         }
+
+        emit IFolio.FeeRecipientsSet(_feeRecipients);
     }
 
     function _setImmutableFeeRecipients(
@@ -70,6 +67,8 @@ library FolioLib {
         for (uint256 i = 0; i < len; i++) {
             immutableFeeRecipients.push(_immutableFeeRecipients[i]);
         }
+
+        emit IFolio.ImmutableFeeRecipientsSet(_immutableFeeRecipients);
     }
 
     function _validateFeeRecipientList(IFolio.FeeRecipient[] calldata recipients) private view {
@@ -115,35 +114,25 @@ library FolioLib {
         IFolio.FeeRecipient[] storage immutableFeeRecipients,
         IFolio.FeeRecipient[] calldata _immutableFeeRecipients
     ) private view {
-        uint256 currentImmutableLen = immutableFeeRecipients.length;
-        uint256 incomingImmutableLen = _immutableFeeRecipients.length;
-        uint256 currentIndex = 0;
+        uint256 oldImmutableLen = immutableFeeRecipients.length;
+        uint256 newImmutableLen = _immutableFeeRecipients.length;
+        uint256 oldIndex = 0;
 
-        for (
-            uint256 incomingIndex = 0;
-            incomingIndex < incomingImmutableLen && currentIndex < currentImmutableLen;
-            incomingIndex++
-        ) {
-            IFolio.FeeRecipient storage currentRecipient = immutableFeeRecipients[currentIndex];
-            IFolio.FeeRecipient calldata incomingRecipient = _immutableFeeRecipients[incomingIndex];
+        for (uint256 newIndex = 0; newIndex < newImmutableLen && oldIndex < oldImmutableLen; newIndex++) {
+            IFolio.FeeRecipient storage oldRecipient = immutableFeeRecipients[oldIndex];
+            IFolio.FeeRecipient calldata newRecipient = _immutableFeeRecipients[newIndex];
 
-            if (incomingRecipient.recipient < currentRecipient.recipient) {
+            if (newRecipient.recipient < oldRecipient.recipient) {
                 continue;
             }
 
-            require(
-                incomingRecipient.recipient == currentRecipient.recipient,
-                IFolio.Folio__ImmutableFeeRecipientRemoved()
-            );
-            require(
-                incomingRecipient.portion == currentRecipient.portion,
-                IFolio.Folio__ImmutableFeeRecipientRemoved()
-            );
+            require(newRecipient.recipient == oldRecipient.recipient, IFolio.Folio__ImmutableFeeRecipientRemoved());
+            require(newRecipient.portion == oldRecipient.portion, IFolio.Folio__ImmutableFeeRecipientRemoved());
 
-            currentIndex++;
+            oldIndex++;
         }
 
-        require(currentIndex == currentImmutableLen, IFolio.Folio__ImmutableFeeRecipientRemoved());
+        require(oldIndex == oldImmutableLen, IFolio.Folio__ImmutableFeeRecipientRemoved());
     }
 
     function mergeFeeRecipients(
