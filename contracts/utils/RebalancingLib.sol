@@ -22,6 +22,7 @@ import { MathLib } from "@utils/MathLib.sol";
  */
 library RebalancingLib {
     function startRebalance(
+        uint256 rebalanceNonce,
         address[] calldata oldTokens,
         IFolio.RebalanceControl storage rebalanceControl,
         IFolio.Rebalance storage rebalance,
@@ -31,6 +32,9 @@ library RebalancingLib {
         uint256 ttl,
         bool bidsEnabled
     ) external {
+        uint256 nextRebalanceNonce = rebalance.nonce + 1;
+        require(rebalanceNonce == nextRebalanceNonce, IFolio.Folio__InvalidRebalanceNonce());
+
         // remove old tokens from rebalance while keeping them in the basket
         for (uint256 i; i < oldTokens.length; i++) {
             delete rebalance.details[oldTokens[i]];
@@ -95,7 +99,7 @@ library RebalancingLib {
             });
         }
 
-        rebalance.nonce++;
+        rebalance.nonce = nextRebalanceNonce;
         rebalance.limits = limits;
         rebalance.startedAt = block.timestamp;
         rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
