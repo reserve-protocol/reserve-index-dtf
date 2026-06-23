@@ -520,7 +520,8 @@ contract Folio is
     }
 
     /// Distribute all pending fee shares
-    /// @dev Recipients: DAO and fee recipients; if feeRecipients are empty, the DAO gets all the fees
+    /// @dev Recipients: DAO, mutable fee recipients, and immutable fee recipients; if both fee recipient tables are
+    /// empty, the DAO gets all the fees
     /// @dev Pending fee shares are already reflected in the total supply, this function only concretizes balances
     function distributeFees() public nonReentrant sync {
         // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
