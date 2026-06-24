@@ -127,7 +127,7 @@ library FolioLib {
             }
 
             require(newRecipient.recipient == oldRecipient.recipient, IFolio.Folio__ImmutableFeeRecipientRemoved());
-            require(newRecipient.portion == oldRecipient.portion, IFolio.Folio__ImmutableFeeRecipientRemoved());
+            require(newRecipient.portion >= oldRecipient.portion, IFolio.Folio__ImmutableFeeRecipientRemoved());
 
             oldIndex++;
         }
