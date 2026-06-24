@@ -116,9 +116,9 @@ library FolioLib {
     ) private view {
         uint256 oldImmutableLen = immutableFeeRecipients.length;
         uint256 newImmutableLen = _immutableFeeRecipients.length;
-        uint256 oldIndex = 0;
+        uint256 oldIndex;
 
-        for (uint256 newIndex = 0; newIndex < newImmutableLen && oldIndex < oldImmutableLen; newIndex++) {
+        for (uint256 newIndex; newIndex < newImmutableLen && oldIndex < oldImmutableLen; newIndex++) {
             IFolio.FeeRecipient storage oldRecipient = immutableFeeRecipients[oldIndex];
             IFolio.FeeRecipient calldata newRecipient = _immutableFeeRecipients[newIndex];
 
