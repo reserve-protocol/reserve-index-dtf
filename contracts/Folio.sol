@@ -189,7 +189,10 @@ contract Folio is
     // === 6.0.0 ===
     bool public tradeAllowlistEnabled;
     EnumerableSet.AddressSet private tradeTokenAllowlist;
+
     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
+
+    ActiveTrustedFillInfo private activeTrustedFillInfo;
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -256,10 +259,10 @@ contract Folio is
     /// Check if the Folio state can be relied upon to be complete
     /// @dev Safety check for consuming protocols to check for synchronous and asynchronous state changes
     /// @dev Consuming protocols SHOULD call this function and ensure it returns (false, false) before
-    ///      strongly relying on the Folio state. The asyncStateChangeActive check can be DoS'd for the current block.
+    ///      strongly relying on the Folio state. The async flag remains set until the active trusted fill is closed.
     function stateChangeActive() external view returns (bool syncStateChangeActive, bool asyncStateChangeActive) {
         syncStateChangeActive = _reentrancyGuardEntered();
-        asyncStateChangeActive = address(activeTrustedFill) != address(0) && activeTrustedFill.swapActive();
+        asyncStateChangeActive = address(activeTrustedFill) != address(0);
     }
 
     // ==== Allowlist ====
@@ -841,6 +844,13 @@ contract Folio is
         SafeERC20.forceApprove(sellToken, address(filler), sellAmount);
 
         filler.initialize(address(this), sellToken, buyToken, sellAmount, buyAmount);
+
+        activeTrustedFillInfo.sellToken = address(sellToken);
+        activeTrustedFillInfo.buyToken = address(buyToken);
+        activeTrustedFillInfo.sellAmount = sellAmount;
+
+        // D27{buyTok/sellTok} = {buyTok} * D27 / {sellTok}
+        activeTrustedFillInfo.floorPrice = Math.max(1, Math.mulDiv(buyAmount, D27, sellAmount, Math.Rounding.Floor));
         activeTrustedFill = filler;
 
         emit AuctionTrustedFillCreated(auctionId, address(filler));
@@ -927,7 +937,7 @@ contract Folio is
 
         if (
             address(activeTrustedFill) != address(0) &&
-            (activeTrustedFill.sellToken() == token || activeTrustedFill.buyToken() == token)
+            (activeTrustedFillInfo.sellToken == address(token) || activeTrustedFillInfo.buyToken == address(token))
         ) {
             amount += token.balanceOf(address(activeTrustedFill));
         }
@@ -1154,15 +1164,24 @@ contract Folio is
     function _closeTrustedFill(bool _emergency) internal {
         if (address(activeTrustedFill) != address(0)) {
             if (!_emergency) {
-                address sellToken = address(activeTrustedFill.sellToken());
-                if (RebalancingLib.closeTrustedFill(auctions[nextAuctionId - 1], activeTrustedFill)) {
-                    _removeFromBasket(sellToken);
+                (bool shouldRemoveFromBasket, bool shouldDisableTrustedFillerRegistry) = RebalancingLib
+                    .closeTrustedFill(auctions[nextAuctionId - 1], activeTrustedFill, activeTrustedFillInfo);
+
+                if (trustedFillerEnabled && shouldDisableTrustedFillerRegistry) {
+                    _setTrustedFillerRegistry(address(trustedFillerRegistry), false);
+                }
+
+                if (shouldRemoveFromBasket) {
+                    _removeFromBasket(activeTrustedFillInfo.sellToken);
                 }
             } else {
-                activeTrustedFill.emergencyCloseFiller();
+                try activeTrustedFill.emergencyCloseFiller() {} catch {
+                    // do not risk bricking Folio
+                }
             }
 
             delete activeTrustedFill;
+            delete activeTrustedFillInfo;
         }
     }
 

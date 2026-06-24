@@ -207,6 +207,14 @@ interface IFolio {
         mapping(address token => uint256) traded; // {tok}
     }
 
+    /// Active trusted fill details cached by the Folio (storage)
+    struct ActiveTrustedFillInfo {
+        address sellToken;
+        address buyToken;
+        uint256 sellAmount; // {sellTok}
+        uint256 floorPrice; // D27{buyTok/sellTok}
+    }
+
     /// Used to mark old storage slots now deprecated
     struct DeprecatedStruct {
         bytes32 EMPTY;
