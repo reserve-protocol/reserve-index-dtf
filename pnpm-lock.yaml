@@ -20,13 +20,13 @@ importers:
       '@prb/math':
         specifier: 4.1.0
         version: 4.1.0
-    devDependencies:
       '@reserve-protocol/reserve-governor':
         specifier: github:reserve-protocol/reserve-governor#93720334e1944e15e2865f52176407a1910f62b7
         version: https://codeload.github.com/reserve-protocol/reserve-governor/tar.gz/93720334e1944e15e2865f52176407a1910f62b7
       '@reserve-protocol/trusted-fillers':
         specifier: github:reserve-protocol/trusted-fillers#5ca2633ca3943a3a86e80820ccdfd8edf86af4f2
         version: https://codeload.github.com/reserve-protocol/trusted-fillers/tar.gz/5ca2633ca3943a3a86e80820ccdfd8edf86af4f2(@openzeppelin/merkle-tree@1.0.8)(ajv@8.17.1)(cross-fetch@3.2.0)(ipfs-only-hash@4.0.0)(typescript@5.9.3)
+    devDependencies:
       forge-std:
         specifier: github:foundry-rs/forge-std#v1.14.0
         version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/1801b0541f4fda118a10798fd3486bb7051c5dd6
