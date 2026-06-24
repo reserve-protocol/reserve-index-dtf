@@ -33,6 +33,7 @@ interface IFolio {
     event MintFeeSet(uint256 newFee);
     event FolioFeeSet(uint256 newFolioFee);
     event FeeRecipientsSet(FeeRecipient[] recipients);
+    event ImmutableFeeRecipientsSet(FeeRecipient[] recipients);
     event MaxAuctionLengthSet(uint256 newMaxAuctionLength);
     event MandateSet(string newMandate);
     event TrustedFillerRegistrySet(address trustedFillerRegistry, bool isEnabled);
@@ -66,6 +67,7 @@ interface IFolio {
 
     error Folio__FeeRecipientInvalidAddress();
     error Folio__FeeRecipientInvalidFeeShare();
+    error Folio__ImmutableFeeRecipientRemoved();
     error Folio__BadFeeTotal();
     error Folio__TVLFeeTooHigh();
     error Folio__TVLFeeTooLow();
@@ -124,6 +126,7 @@ interface IFolio {
     struct FolioAdditionalDetails {
         uint256 maxAuctionLength; // {s}
         FeeRecipient[] feeRecipients;
+        FeeRecipient[] immutableFeeRecipients;
         uint256 tvlFee; // D18{1/s}
         uint256 mintFee; // D18{1}
         uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
