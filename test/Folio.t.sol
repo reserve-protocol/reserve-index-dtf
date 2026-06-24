@@ -1176,7 +1176,7 @@ contract FolioTest is BaseTest {
         assertEq(portion, 0.2e18, "wrong immutable portion");
     }
 
-    function test_immutableFeeRecipients_CannotChangePortion() public {
+    function test_immutableFeeRecipients_CanIncreasePortion() public {
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
         recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
 
@@ -1187,6 +1187,26 @@ contract FolioTest is BaseTest {
 
         recipients[0] = IFolio.FeeRecipient(owner, 0.7e18);
         immutableRecipients[0] = IFolio.FeeRecipient(feeReceiver, 0.3e18);
+
+        vm.prank(owner);
+        newFolio.setFeeRecipients(recipients, immutableRecipients);
+
+        (address recipient, uint96 portion) = newFolio.immutableFeeRecipients(0);
+        assertEq(recipient, feeReceiver, "wrong immutable recipient");
+        assertEq(portion, 0.3e18, "wrong immutable portion");
+    }
+
+    function test_immutableFeeRecipients_CannotDecreasePortion() public {
+        IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](1);
+        recipients[0] = IFolio.FeeRecipient(owner, 0.8e18);
+
+        IFolio.FeeRecipient[] memory immutableRecipients = new IFolio.FeeRecipient[](1);
+        immutableRecipients[0] = IFolio.FeeRecipient(feeReceiver, 0.2e18);
+
+        Folio newFolio = _deployFolioWithImmutableFeeRecipients(recipients, immutableRecipients);
+
+        recipients[0] = IFolio.FeeRecipient(owner, 0.9e18);
+        immutableRecipients[0] = IFolio.FeeRecipient(feeReceiver, 0.1e18);
 
         vm.prank(owner);
         vm.expectRevert(IFolio.Folio__ImmutableFeeRecipientRemoved.selector);
