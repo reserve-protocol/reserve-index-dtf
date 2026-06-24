@@ -13,7 +13,6 @@ import { FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
 import { FolioDeployer, IERC20, IFolio } from "@deployer/FolioDeployer.sol";
 import { GovernanceDeployer, IGovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
-import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
 import { FolioGovernor } from "@gov/FolioGovernor.sol";
 import { StakingVault } from "@staking/StakingVault.sol";
 import { FolioLens } from "@periphery/FolioLens.sol";
@@ -198,20 +197,12 @@ contract DeployScript is Script {
             governanceDeployer
         );
 
-        CowSwapFiller cowSwapFiller = new CowSwapFiller(gpv2Settlement, gpv2VaultRelayer);
-
         FolioLens folioLens = new FolioLens();
-
-        if (deploymentMode == DeploymentMode.Testing && block.chainid != 31337) {
-            // For testing, we can set the filler in the registry directly
-            TrustedFillerRegistry(deployParams.trustedFillerRegistry).addTrustedFiller(cowSwapFiller);
-        }
 
         vm.stopBroadcast();
 
         console2.log("Governance Deployer: %s", address(governanceDeployer));
         console2.log("Folio Deployer: %s", address(folioDeployer));
-        console2.log("CowSwap Filler: %s", address(cowSwapFiller));
         console2.log("Folio Lens: %s", address(folioLens));
 
         require(folioDeployer.daoFeeRegistry() == deployParams.folioFeeRegistry, "wrong dao fee registry");

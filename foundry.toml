@@ -21,9 +21,9 @@ via_ir = false
 fs_permissions = [{access = "read-write", path = "./"}]
 
 [rpc_endpoints]
-base = "https://base-rpc.publicnode.com"
-bsc = "https://bsc-rpc.publicnode.com"
-mainnet = "https://ethereum-rpc.publicnode.com"
+base = "https://base.gateway.tenderly.co"
+bsc = "https://bsc-dataseed.bnbchain.org"
+mainnet = "https://mainnet.gateway.tenderly.co"
 
 [etherscan]
 base = {key = "${ETHERSCAN_KEY}"}
