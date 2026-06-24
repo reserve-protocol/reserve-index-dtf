@@ -19,6 +19,8 @@ import { StakingVault } from "@staking/StakingVault.sol";
 import { FolioLens } from "@periphery/FolioLens.sol";
 
 string constant junkSeedPhrase = "test test test test test test test test test test test junk";
+address constant gpv2Settlement = 0x9008D19f58AAbD9eD0D60971565AA8510560ab41;
+address constant gpv2VaultRelayer = 0xC92E8bdf79f0507f65a392b0ab4667716BFE0110;
 
 struct DeploymentParams {
     // Role Registry Stuff
@@ -196,7 +198,7 @@ contract DeployScript is Script {
             governanceDeployer
         );
 
-        CowSwapFiller cowSwapFiller = new CowSwapFiller();
+        CowSwapFiller cowSwapFiller = new CowSwapFiller(gpv2Settlement, gpv2VaultRelayer);
 
         FolioLens folioLens = new FolioLens();
 

@@ -30,7 +30,10 @@ library FolioLib {
 
         // Replace mutable and immutable recipient storage.
         _setFeeRecipients(feeRecipients, _feeRecipients);
-        _setImmutableFeeRecipients(immutableFeeRecipients, _immutableFeeRecipients);
+        emit IFolio.FeeRecipientsSet(_feeRecipients);
+
+        _setFeeRecipients(immutableFeeRecipients, _immutableFeeRecipients);
+        emit IFolio.ImmutableFeeRecipientsSet(_immutableFeeRecipients);
     }
 
     function _setFeeRecipients(
@@ -48,27 +51,6 @@ library FolioLib {
         for (uint256 i; i < len; i++) {
             feeRecipients.push(_feeRecipients[i]);
         }
-
-        emit IFolio.FeeRecipientsSet(_feeRecipients);
-    }
-
-    function _setImmutableFeeRecipients(
-        IFolio.FeeRecipient[] storage immutableFeeRecipients,
-        IFolio.FeeRecipient[] calldata _immutableFeeRecipients
-    ) private {
-        // Clear existing fee table
-        uint256 len = immutableFeeRecipients.length;
-        for (uint256 i; i < len; i++) {
-            immutableFeeRecipients.pop();
-        }
-
-        // Add new items to the fee table
-        len = _immutableFeeRecipients.length;
-        for (uint256 i; i < len; i++) {
-            immutableFeeRecipients.push(_immutableFeeRecipients[i]);
-        }
-
-        emit IFolio.ImmutableFeeRecipientsSet(_immutableFeeRecipients);
     }
 
     function _validateFeeRecipientList(IFolio.FeeRecipient[] calldata recipients) private view {

@@ -48,6 +48,9 @@ abstract contract BaseTest is Script, Test {
 
     uint256 constant YEAR_IN_SECONDS = 31536000;
 
+    address constant GPV2_SETTLEMENT = 0x9008D19f58AAbD9eD0D60971565AA8510560ab41;
+    address constant GPV2_VAULT_RELAYER = 0xC92E8bdf79f0507f65a392b0ab4667716BFE0110;
+
     address auctionLauncher = 0x00000000000000000000000000000000000000cc; // has AUCTION_LAUNCHER
     address dao = 0xDA00000000000000000000000000000000000000; // has REBALANCE_MANAGER
     address owner = 0xCc00000000000000000000000000000000000000; // has DEFAULT_ADMIN_ROLE
@@ -145,7 +148,7 @@ abstract contract BaseTest is Script, Test {
             governanceDeployer
         );
 
-        cowswapFiller = address(new CowSwapFiller());
+        cowswapFiller = address(new CowSwapFiller(GPV2_SETTLEMENT, GPV2_VAULT_RELAYER));
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
