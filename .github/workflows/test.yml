@@ -37,7 +37,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Start Local Node
-        run: anvil --chain-id 31337 --prune-history &
+        run: pnpm anvil &
 
       - name: Deployment
         run: pnpm run deploy --rpc-url http://localhost:8545
