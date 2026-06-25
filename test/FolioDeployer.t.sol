@@ -306,7 +306,7 @@ contract FolioDeployerTest is BaseTest {
 
         {
             // stack-too-deep
-            address _folio;
+            Folio _folio;
             address _governor;
             address _timelock;
 
@@ -323,16 +323,22 @@ contract FolioDeployerTest is BaseTest {
             );
             Vm.Log[] memory logs = vm.getRecordedLogs();
             assertEq(_countGovernanceSystemDeployments(logs), 1, "wrong governance deployment count");
-            (_governor, _timelock) = _assertGovernedFolioEvent(logs, existingStToken, _folio);
+            (_governor, _timelock) = _assertGovernedFolioEvent(logs, existingStToken, address(_folio));
             selectorRegistry = IOptimisticSelectorRegistry(_governanceSelectorRegistry(logs, _governor));
-            assertTrue(selectorRegistry.isAllowed(_folio, Folio.startRebalance.selector), "wrong selector registry");
-            assertFalse(selectorRegistry.isAllowed(_folio, Folio.openAuction.selector), "wrong selector registry");
+            assertTrue(
+                selectorRegistry.isAllowed(address(_folio), Folio.startRebalance.selector),
+                "wrong selector registry"
+            );
+            assertFalse(
+                selectorRegistry.isAllowed(address(_folio), Folio.openAuction.selector),
+                "wrong selector registry"
+            );
             vm.stopSnapshotGas("deployGovernedFolio()");
             vm.stopPrank();
             stToken = IStakingVaultTest(existingStToken);
             governor = IGovernorTest(_governor);
             timelock = ITimelockTest(_timelock);
-            folio = Folio(_folio);
+            folio = _folio;
         }
 
         // Check Folio
@@ -423,7 +429,7 @@ contract FolioDeployerTest is BaseTest {
 
         vm.startSnapshotGas("deployGovernedFolio");
         {
-            address _folio;
+            Folio _folio;
             address _governor;
             address _timelock;
 
@@ -439,14 +445,20 @@ contract FolioDeployerTest is BaseTest {
             );
             Vm.Log[] memory logs = vm.getRecordedLogs();
             assertEq(_countGovernanceSystemDeployments(logs), 1, "wrong governance deployment count");
-            (_governor, _timelock) = _assertGovernedFolioEvent(logs, existingStToken, _folio);
+            (_governor, _timelock) = _assertGovernedFolioEvent(logs, existingStToken, address(_folio));
             selectorRegistry = IOptimisticSelectorRegistry(_governanceSelectorRegistry(logs, _governor));
-            assertFalse(selectorRegistry.isAllowed(_folio, Folio.startRebalance.selector), "wrong selector registry");
-            assertTrue(selectorRegistry.isAllowed(_folio, Folio.openAuction.selector), "wrong selector registry");
+            assertFalse(
+                selectorRegistry.isAllowed(address(_folio), Folio.startRebalance.selector),
+                "wrong selector registry"
+            );
+            assertTrue(
+                selectorRegistry.isAllowed(address(_folio), Folio.openAuction.selector),
+                "wrong selector registry"
+            );
             vm.stopSnapshotGas("deployGovernedFolio()");
             vm.stopPrank();
             stToken = IStakingVaultTest(existingStToken);
-            folio = Folio(_folio);
+            folio = _folio;
             governor = IGovernorTest(_governor);
             timelock = ITimelockTest(_timelock);
         }
@@ -536,7 +548,7 @@ contract FolioDeployerTest is BaseTest {
             uint256 snapshot = vm.snapshotState();
 
             vm.prank(owner);
-            (address _folioAddr, ) = folioDeployer.deployGovernedFolio(
+            (_folio, ) = folioDeployer.deployGovernedFolio(
                 existingStToken,
                 _basicDetails(),
                 _additionalDetails(),
@@ -545,7 +557,6 @@ contract FolioDeployerTest is BaseTest {
                 govRoles,
                 bytes32(i)
             );
-            _folio = Folio(_folioAddr);
 
             // get first byte
             // 152 = 160 - 8 (one byte)

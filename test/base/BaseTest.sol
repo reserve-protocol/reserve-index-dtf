@@ -265,15 +265,11 @@ abstract contract BaseTest is Script, Test {
         }
     }
 
-    function _registerRewardToken(address rewardToken) internal {
-        if (rewardToken == address(0) || rewardTokenRegistry.isRegistered(rewardToken)) return;
-
-        rewardTokenRegistry.registerRewardToken(rewardToken);
-    }
-
     function _registerRewardTokens(address[] memory rewardTokens) internal {
         for (uint256 i = 0; i < rewardTokens.length; i++) {
-            _registerRewardToken(rewardTokens[i]);
+            if (!rewardTokenRegistry.isRegistered(rewardTokens[i])) {
+                rewardTokenRegistry.registerRewardToken(rewardTokens[i]);
+            }
         }
     }
 
@@ -297,7 +293,7 @@ abstract contract BaseTest is Script, Test {
         address _owner,
         address _basketManager,
         address _auctionLauncher
-    ) internal returns (Folio, FolioProxyAdmin) {
+    ) internal returns (Folio _folio, FolioProxyAdmin _proxyAdmin) {
         IFolio.FolioBasicDetails memory _basicDetails = IFolio.FolioBasicDetails({
             name: "Test Folio",
             symbol: "TFOLIO",
@@ -323,8 +319,8 @@ abstract contract BaseTest is Script, Test {
         address[] memory _brandManagers = new address[](1);
         _brandManagers[0] = _owner;
 
-        address[] memory returnAddrs = new address[](2);
-        (returnAddrs[0], returnAddrs[1]) = folioDeployer.deployFolio(
+        address _proxyAdmin2;
+        (_folio, _proxyAdmin2) = folioDeployer.deployFolio(
             _basicDetails,
             _additionalDetails,
             _folioFlags,
@@ -335,7 +331,7 @@ abstract contract BaseTest is Script, Test {
             bytes32(0)
         );
 
-        return (Folio(returnAddrs[0]), FolioProxyAdmin(returnAddrs[1]));
+        _proxyAdmin = FolioProxyAdmin(_proxyAdmin2);
     }
 
     function nextRebalanceNonce(Folio _folio) internal view returns (uint256) {

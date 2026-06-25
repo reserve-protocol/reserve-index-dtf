@@ -1341,8 +1341,7 @@ contract FolioTest is BaseTest {
         USDC.approve(address(folioDeployer), type(uint256).max);
         DAI.approve(address(folioDeployer), type(uint256).max);
 
-        address newFolioAddr;
-        (newFolioAddr, ) = folioDeployer.deployFolio(
+        (newFolio, ) = folioDeployer.deployFolio(
             IFolio.FolioBasicDetails({
                 name: "Test Folio",
                 symbol: "TFOLIO",
@@ -1373,7 +1372,6 @@ contract FolioTest is BaseTest {
             brandManagers,
             bytes32(uint256(1))
         );
-        newFolio = Folio(newFolioAddr);
         vm.stopPrank();
     }
 

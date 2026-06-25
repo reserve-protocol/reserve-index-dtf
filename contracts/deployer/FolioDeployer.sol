@@ -50,7 +50,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         address[] memory auctionLaunchers,
         address[] memory brandManagers,
         bytes32 deploymentNonce
-    ) public returns (address folio, address proxyAdmin) {
+    ) public returns (Folio folio, address proxyAdmin) {
         require(basicDetails.assets.length == basicDetails.amounts.length, FolioDeployer__LengthMismatch());
 
         bytes32 deploymentSalt = keccak256(
@@ -73,7 +73,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         // Deploy Folio
         proxyAdmin = address(new FolioProxyAdmin{ salt: deploymentSalt }(owner, versionRegistry));
-        folio = address(new FolioProxy{ salt: deploymentSalt }(folioImplementation, proxyAdmin));
+        folio = Folio(address(new FolioProxy{ salt: deploymentSalt }(folioImplementation, proxyAdmin)));
 
         for (uint256 i; i < basicDetails.assets.length; i++) {
             SafeERC20.safeTransferFrom(
@@ -84,7 +84,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             );
         }
 
-        Folio(folio).initialize(
+        folio.initialize(
             basicDetails,
             additionalDetails,
             IFolio.FolioRegistryIndex({ daoFeeRegistry: daoFeeRegistry, trustedFillerRegistry: trustedFillerRegistry }),
@@ -93,24 +93,24 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         );
 
         // Setup Roles
-        Folio(folio).grantRole(DEFAULT_ADMIN_ROLE, owner);
+        folio.grantRole(DEFAULT_ADMIN_ROLE, owner);
 
         for (uint256 i; i < basketManagers.length; i++) {
-            Folio(folio).grantRole(REBALANCE_MANAGER, basketManagers[i]);
+            folio.grantRole(REBALANCE_MANAGER, basketManagers[i]);
         }
         for (uint256 i; i < auctionLaunchers.length; i++) {
-            Folio(folio).grantRole(AUCTION_LAUNCHER, auctionLaunchers[i]);
+            folio.grantRole(AUCTION_LAUNCHER, auctionLaunchers[i]);
         }
         for (uint256 i; i < brandManagers.length; i++) {
-            Folio(folio).grantRole(BRAND_MANAGER, brandManagers[i]);
+            folio.grantRole(BRAND_MANAGER, brandManagers[i]);
         }
 
         // Renounce Ownership
         if (owner != address(this)) {
-            Folio(folio).renounceRole(DEFAULT_ADMIN_ROLE, address(this));
+            folio.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
         }
 
-        emit FolioDeployed(owner, folio, proxyAdmin);
+        emit FolioDeployed(owner, address(folio), proxyAdmin);
     }
 
     /// Deploy a Folio instance with new Folio governance using an existing StakingVault
@@ -127,7 +127,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         GovParams calldata govParams,
         GovRoles calldata govRoles,
         bytes32 deploymentNonce
-    ) external returns (address folio, address proxyAdmin) {
+    ) external returns (Folio folio, address proxyAdmin) {
         require(stToken != address(0), FolioDeployer__InvalidStToken());
 
         bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
@@ -148,7 +148,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             .BaseDeploymentParams({
                 optimisticParams: govParams.optimisticParams,
                 standardParams: govParams.standardParams,
-                selectorData: _folioSelectorData(folio, govParams.optimisticSelectors),
+                selectorData: _folioSelectorData(address(folio), govParams.optimisticSelectors),
                 optimisticProposers: govParams.optimisticProposers,
                 additionalGuardians: govParams.guardians,
                 timelockDelay: govParams.timelockDelay,
@@ -159,16 +159,16 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             .deployWithExistingStakingVault(baseParams, stToken, deploymentSalt);
 
         // Configure Folio governance as REBALANCE_MANAGER
-        Folio(folio).grantRole(REBALANCE_MANAGER, timelock);
+        folio.grantRole(REBALANCE_MANAGER, timelock);
 
         // Swap Folio owner
-        Folio(folio).grantRole(DEFAULT_ADMIN_ROLE, timelock);
-        Folio(folio).renounceRole(DEFAULT_ADMIN_ROLE, address(this));
+        folio.grantRole(DEFAULT_ADMIN_ROLE, timelock);
+        folio.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
 
         // Swap proxyAdmin owner
         FolioProxyAdmin(proxyAdmin).transferOwnership(timelock);
 
-        emit GovernedFolioDeployed(stToken, folio, governor, timelock, governor, timelock);
+        emit GovernedFolioDeployed(stToken, address(folio), governor, timelock, governor, timelock);
     }
 
     function _folioSelectorData(
