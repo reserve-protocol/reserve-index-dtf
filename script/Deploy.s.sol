@@ -5,7 +5,15 @@ pragma solidity 0.8.28;
 import { Script, console2 } from "forge-std/Script.sol";
 
 import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
+import { StakingVaultDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/StakingVaultDeployer.sol";
+import { ReserveOptimisticGovernorDeployer as ReserveOptimisticGovernorImplDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorDeployer.sol";
+import { TimelockControllerOptimisticDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/TimelockControllerOptimisticDeployer.sol";
+import { OptimisticSelectorRegistryDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/OptimisticSelectorRegistryDeployer.sol";
 import { ReserveOptimisticGovernorDeployerDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorDeployerDeployer.sol";
+import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
+import { IRoleRegistry as IRewardRoleRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IRoleRegistry.sol";
+import { RewardTokenRegistry } from "@reserve-protocol/reserve-governor/contracts/staking/RewardTokenRegistry.sol";
+import { ReserveOptimisticGovernanceVersionRegistry } from "@reserve-protocol/reserve-governor/contracts/VersionRegistry.sol";
 
 import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
@@ -16,6 +24,30 @@ import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fille
 import { FolioLens } from "@periphery/FolioLens.sol";
 
 string constant junkSeedPhrase = "test test test test test test test test test test test junk";
+
+contract LocalReserveGovernorArtifactsDeployer {
+    function deploy(
+        address versionRegistry,
+        address rewardTokenRegistry,
+        address guardian
+    ) external returns (address optimisticGovernorDeployer) {
+        address stakingVaultImpl = StakingVaultDeployer.deploy(bytes32(uint256(1)));
+        address governorImpl = ReserveOptimisticGovernorImplDeployer.deploy(bytes32(uint256(2)));
+        address timelockImpl = TimelockControllerOptimisticDeployer.deploy(bytes32(uint256(3)));
+        address selectorRegistryImpl = OptimisticSelectorRegistryDeployer.deploy(bytes32(uint256(4)));
+
+        optimisticGovernorDeployer = ReserveOptimisticGovernorDeployerDeployer.deploy(
+            versionRegistry,
+            rewardTokenRegistry,
+            guardian,
+            stakingVaultImpl,
+            governorImpl,
+            timelockImpl,
+            selectorRegistryImpl,
+            bytes32(uint256(5))
+        );
+    }
+}
 
 struct DeploymentParams {
     // Role Registry Stuff
@@ -54,7 +86,7 @@ contract DeployScript is Script {
 
         if (block.chainid == 31337) {
             deploymentParams[31337] = DeploymentParams({
-                roleRegistry: address(new MockRoleRegistry()), // Mock Registry for Local Networks
+                roleRegistry: address(new MockRoleRegistry(walletAddress)), // Mock Registry for Local Networks
                 folioFeeRegistry: address(0),
                 feeRecipient: address(1), // Burn fees for Local Networks
                 folioVersionRegistry: address(0),
@@ -159,20 +191,29 @@ contract DeployScript is Script {
 
         if (deployParams.optimisticGovernorDeployer == address(0)) {
             require(block.chainid == 31337, "undefined optimistic deployer. deploy from reserve-governor repo");
-            deployParams.optimisticGovernorDeployer = ReserveOptimisticGovernorDeployerDeployer.deploy(
-                deployParams.folioVersionRegistry,
-                deployParams.folioFeeRegistry,
-                walletAddress,
-                address(4),
-                address(5),
-                address(6),
-                address(7),
-                bytes32(uint256(8))
+
+            ReserveOptimisticGovernanceVersionRegistry optimisticGovernanceVersionRegistry = new ReserveOptimisticGovernanceVersionRegistry(
+                    IRewardRoleRegistry(deployParams.roleRegistry)
+                );
+            RewardTokenRegistry rewardTokenRegistry = new RewardTokenRegistry(
+                IRewardRoleRegistry(deployParams.roleRegistry)
+            );
+
+            LocalReserveGovernorArtifactsDeployer artifactsDeployer = new LocalReserveGovernorArtifactsDeployer();
+            deployParams.optimisticGovernorDeployer = artifactsDeployer.deploy(
+                address(optimisticGovernanceVersionRegistry),
+                address(rewardTokenRegistry),
+                walletAddress
+            );
+
+            optimisticGovernanceVersionRegistry.registerVersion(
+                IReserveOptimisticGovernorDeployer(deployParams.optimisticGovernorDeployer)
             );
         }
 
         vm.stopBroadcast();
 
+        console2.log("Role Registry: %s", address(deployParams.roleRegistry));
         console2.log("Folio Fee Registry: %s", address(deployParams.folioFeeRegistry));
         console2.log("Folio Version Registry: %s", address(deployParams.folioVersionRegistry));
         console2.log("Trusted Filler Registry: %s", address(deployParams.trustedFillerRegistry));

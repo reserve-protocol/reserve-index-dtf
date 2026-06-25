@@ -133,7 +133,7 @@ abstract contract BaseTest is Script, Test {
     function _coreSetup() public {}
 
     function _testSetupBefore() public virtual {
-        roleRegistry = new MockRoleRegistry();
+        roleRegistry = new MockRoleRegistry(address(this));
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
         trustedFillerRegistry = new TrustedFillerRegistry(address(roleRegistry));

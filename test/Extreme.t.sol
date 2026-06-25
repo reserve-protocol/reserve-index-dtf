@@ -466,7 +466,7 @@ contract ExtremeTest is BaseExtremeTest {
 
     function _mockGovernanceDependencies() internal returns (RewardTokenRegistry rewardTokenRegistry_) {
         MockGovernanceVersionRegistry versionRegistry_ = new MockGovernanceVersionRegistry();
-        MockRoleRegistry rewardRoleRegistry_ = new MockRoleRegistry();
+        MockRoleRegistry rewardRoleRegistry_ = new MockRoleRegistry(address(this));
         rewardTokenRegistry_ = new RewardTokenRegistry(IRewardRoleRegistry(address(rewardRoleRegistry_)));
 
         vm.mockCall(

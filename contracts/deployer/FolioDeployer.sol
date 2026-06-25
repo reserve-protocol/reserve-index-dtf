@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
+import { IOptimisticVotes } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticVotes.sol";
 import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
 import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
 
@@ -129,6 +130,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         bytes32 deploymentNonce
     ) external returns (Folio folio, address proxyAdmin) {
         require(stToken != address(0), FolioDeployer__InvalidStToken());
+        IOptimisticVotes(stToken).getPastOptimisticVotes(address(0), block.timestamp - 1);
 
         bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
 

@@ -15,6 +15,7 @@ import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-go
 import { MAX_AUCTION_LENGTH, MAX_TVL_FEE, MAX_MINT_FEE } from "@utils/Constants.sol";
 import { IFolioDeployer } from "@deployer/FolioDeployer.sol";
 import { AUCTION_LAUNCHER, BRAND_MANAGER, REBALANCE_MANAGER, DEFAULT_ADMIN_ROLE } from "@utils/Constants.sol";
+import { MockERC20Votes } from "utils/MockERC20Votes.sol";
 import "./base/BaseTest.sol";
 
 /// @dev Extended interfaces for testing - includes methods not in the base interfaces
@@ -518,6 +519,31 @@ contract FolioDeployerTest is BaseTest {
         vm.expectRevert(IFolioDeployer.FolioDeployer__InvalidStToken.selector);
         folioDeployer.deployGovernedFolio(
             address(0),
+            _basicDetails(),
+            _additionalDetails(),
+            _flags(),
+            _govParams(guardians, _selectorAllowlist(Folio.startRebalance.selector)),
+            IFolioDeployer.GovRoles(new address[](0), auctionLaunchers, new address[](0)),
+            bytes32(0)
+        );
+    }
+
+    function test_cannotCreateGovernedFolioWithIncompatibleStToken() public {
+        address[] memory guardians = new address[](1);
+        guardians[0] = user1;
+
+        address[] memory auctionLaunchers = new address[](1);
+        auctionLaunchers[0] = auctionLauncher;
+
+        MockERC20Votes incompatibleStToken = new MockERC20Votes("Legacy Staking Token", "LST");
+
+        vm.startPrank(owner);
+        USDC.approve(address(folioDeployer), type(uint256).max);
+        DAI.approve(address(folioDeployer), type(uint256).max);
+
+        vm.expectRevert();
+        folioDeployer.deployGovernedFolio(
+            address(incompatibleStToken),
             _basicDetails(),
             _additionalDetails(),
             _flags(),
