@@ -73,7 +73,7 @@ contract DeployScript is Script {
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
                 trustedFillerRegistry: 0x72DB5f49D0599C314E2f2FEDf6Fe33E1bA6C7A18,
-                optimisticGovernorDeployer: address(0x9257a1307a72603B7916d0c97fCABC6351C3482E) // TODO: finalize
+                optimisticGovernorDeployer: address(0x604D70D128B11019c10b45a789148Ec362fDA040)
             });
 
             // Ethereum Mainnet - Canonical Parameters
@@ -83,7 +83,7 @@ contract DeployScript is Script {
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
                 trustedFillerRegistry: 0x279ccF56441fC74f1aAC39E7faC165Dec5A88B3A,
-                optimisticGovernorDeployer: address(0x92DC80242f6AABA9DCe1B8FFB88427560E77E5F3) // TODO: finalize
+                optimisticGovernorDeployer: address(0x2ACC45e12776579f40Ae3419764EEf7022763735)
             });
 
             // BNB Smart Chain Mainnet - Canonical Parameters
@@ -93,7 +93,7 @@ contract DeployScript is Script {
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0x79A4E963378AE34fC6c796a24c764322fC6c9390,
                 trustedFillerRegistry: 0x08424d7C52bf9edd4070701591Ea3FE6dca6449B,
-                optimisticGovernorDeployer: address(0xd3025304C6487FC5c39010bEA0B46cc0690ab229) // TODO: finalize
+                optimisticGovernorDeployer: address(0x1C10E68B0fbFd0da41969120bF499e8d39D66495)
             });
         } else {
             // Base Mainnet - Testing Parameters
@@ -103,7 +103,7 @@ contract DeployScript is Script {
                 feeRecipient: 0xD4fda2C612dDc8822206446C81927936A63368E5,
                 folioVersionRegistry: 0x135437333990f799293F6AD19fE45032Ba68285e,
                 trustedFillerRegistry: 0x279ccF56441fC74f1aAC39E7faC165Dec5A88B3A,
-                optimisticGovernorDeployer: address(0x9257a1307a72603B7916d0c97fCABC6351C3482E) // TODO: finalize
+                optimisticGovernorDeployer: address(0x604D70D128B11019c10b45a789148Ec362fDA040)
             });
 
             // BNB Smart Chain Mainnet - Testing Parameters
@@ -113,7 +113,7 @@ contract DeployScript is Script {
                 feeRecipient: 0xD4fda2C612dDc8822206446C81927936A63368E5,
                 folioVersionRegistry: 0xA29A30307ff1ff2a071E74Ba7d07c59a37b46D56,
                 trustedFillerRegistry: 0xdBd9C5a83A3684E80D51fd1c00Af4A1fbfE03D14,
-                optimisticGovernorDeployer: address(0xd3025304C6487FC5c39010bEA0B46cc0690ab229) // TODO: finalize
+                optimisticGovernorDeployer: address(0x1C10E68B0fbFd0da41969120bF499e8d39D66495)
             });
         }
     }
