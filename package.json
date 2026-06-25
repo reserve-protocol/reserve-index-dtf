@@ -9,10 +9,10 @@
     "@openzeppelin/contracts-upgradeable": "5.1.0",
     "@prb/math": "4.1.0",
     "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#303e0a56948b602365a1ed0024ed473f683aeb0f",
-    "@reserve-protocol/reserve-governor": "github:reserve-protocol/reserve-governor#dc27a68463cec356ff18bbdd3d8edfe9b2534372",
-    "forge-std": "github:foundry-rs/forge-std#v1.14.0"
+    "@reserve-protocol/reserve-governor": "github:reserve-protocol/reserve-governor#dc27a68463cec356ff18bbdd3d8edfe9b2534372"
   },
   "devDependencies": {
+    "forge-std": "github:foundry-rs/forge-std#v1.14.0",
     "prettier": "^3.5.3",
     "prettier-plugin-solidity": "^1.4.3",
     "solhint": "^5.1.0",
@@ -26,7 +26,9 @@
     "lint": "solhint --fix 'contracts/**/*.sol' 'script/**/*.sol'",
     "lint:check": "solhint 'contracts/**/*.sol' 'script/**/*.sol'",
     "compile": "forge compile",
-    "test": "forge test --no-match-test extreme",
+    "test": "pnpm run test:core && pnpm run test:fork",
+    "test:core": "forge test --no-match-test extreme --no-match-path 'test/**/*Fork*.t.sol'",
+    "test:fork": "forge test --no-match-test extreme --match-path 'test/**/*Fork*.t.sol'",
     "test:extreme": "forge test --match-test extreme",
     "test:all": "forge test",
     "size": "forge compile contracts/ --sizes",
@@ -38,5 +40,5 @@
     "anvil": "anvil --fork-url https://ethereum-rpc.publicnode.com --chain-id 31337 --prune-history",
     "export": "tsx script/export.ts"
   },
-  "packageManager": "pnpm@10.28.2"
+  "packageManager": "pnpm@11.8.0+sha512.c1f5e7c4cb241c8f174b743851d82f42b802324afc8b0f116b96adb15aa06664948dde36960a3ba1079ba5b4b29dd0140135b94b5b5f5263592249d68e555f26"
 }

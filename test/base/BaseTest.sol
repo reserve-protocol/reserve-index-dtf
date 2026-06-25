@@ -40,6 +40,10 @@ abstract contract BaseTest is Script, Test {
     // === Auth roles ===
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
+    // CoW v2 settlement and vault relayer addresses used for filler deployment
+    address constant GPV2_SETTLEMENT = address(0x9008D19f58AAbD9eD0D60971565AA8510560ab41);
+    address constant GPV2_VAULT_RELAYER = address(0xC92E8bdf79f0507f65a392b0ab4667716BFE0110);
+
     uint256 constant D6_TOKEN_1 = 1e6;
     uint256 constant D6_TOKEN_10K = 1e10; // 1e4 = 10K tokens with 6 decimals
     uint256 constant D6_TOKEN_100K = 1e11; // 1e5 = 100K tokens with 6 decimals
@@ -163,9 +167,7 @@ abstract contract BaseTest is Script, Test {
             address(optimisticGovernanceDeployer)
         );
 
-        cowswapFiller = address(
-            new CowSwapFiller(0x9008D19f58AAbD9eD0D60971565AA8510560ab41, 0xC92E8bdf79f0507f65a392b0ab4667716BFE0110)
-        );
+        cowswapFiller = address(new CowSwapFiller(GPV2_SETTLEMENT, GPV2_VAULT_RELAYER));
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
@@ -307,6 +309,7 @@ abstract contract BaseTest is Script, Test {
         IFolio.FolioAdditionalDetails memory _additionalDetails = IFolio.FolioAdditionalDetails({
             maxAuctionLength: _maxAuctionLength,
             feeRecipients: _feeRecipients,
+            immutableFeeRecipients: new IFolio.FeeRecipient[](0),
             tvlFee: _tvlFee,
             mintFee: _mintFee,
             folioFeeForSelf: 0,
@@ -333,5 +336,22 @@ abstract contract BaseTest is Script, Test {
         );
 
         return (Folio(returnAddrs[0]), FolioProxyAdmin(returnAddrs[1]));
+    }
+
+    function nextRebalanceNonce(Folio _folio) internal view returns (uint256) {
+        (uint256 nonce, , , , , ) = _folio.getRebalance();
+        return nonce + 1;
+    }
+
+    function startRebalance(
+        Folio _folio,
+        IFolio.TokenRebalanceParams[] memory tokens,
+        IFolio.RebalanceLimits memory limits,
+        uint256 auctionLauncherWindow,
+        uint256 ttl
+    ) internal {
+        uint256 rebalanceNonce = nextRebalanceNonce(_folio);
+        vm.prank(dao);
+        _folio.startRebalance(rebalanceNonce, tokens, limits, auctionLauncherWindow, ttl);
     }
 }

@@ -22,6 +22,7 @@ import { MathLib } from "@utils/MathLib.sol";
  */
 library RebalancingLib {
     function startRebalance(
+        uint256 rebalanceNonce,
         address[] calldata oldTokens,
         IFolio.RebalanceControl storage rebalanceControl,
         IFolio.Rebalance storage rebalance,
@@ -31,6 +32,9 @@ library RebalancingLib {
         uint256 ttl,
         bool bidsEnabled
     ) external {
+        uint256 nextRebalanceNonce = rebalance.nonce + 1;
+        require(rebalanceNonce == nextRebalanceNonce, IFolio.Folio__InvalidRebalanceNonce());
+
         // remove old tokens from rebalance while keeping them in the basket
         for (uint256 i; i < oldTokens.length; i++) {
             delete rebalance.details[oldTokens[i]];
@@ -95,7 +99,7 @@ library RebalancingLib {
             });
         }
 
-        rebalance.nonce++;
+        rebalance.nonce = nextRebalanceNonce;
         rebalance.limits = limits;
         rebalance.startedAt = block.timestamp;
         rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
@@ -388,13 +392,11 @@ library RebalancingLib {
     /// Close a trusted fill
     /// @param auction The current ongoing auction
     /// @param activeTrustedFill The active trusted fill to close
-    /// @return sold {sellTok} The amount of sell tokens sold by the trusted fill
-    /// @return bought {buyTok} The amount of buy tokens bought by the trusted fill
     /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after close
     function closeTrustedFill(
         IFolio.Auction storage auction,
         IBaseTrustedFiller activeTrustedFill
-    ) external returns (uint256 sold, uint256 bought, bool shouldRemoveFromBasket) {
+    ) external returns (bool shouldRemoveFromBasket) {
         IERC20 sellToken = activeTrustedFill.sellToken();
         IERC20 buyToken = activeTrustedFill.buyToken();
 
@@ -409,11 +411,11 @@ library RebalancingLib {
 
         // {sellTok}
         uint256 sellAmount = activeTrustedFill.sellAmount();
-        sold = sellAmount > sellReturned ? sellAmount - sellReturned : 0;
+        uint256 sold = sellAmount > sellReturned ? sellAmount - sellReturned : 0;
 
         // {buyTok}
         uint256 buyBalAfter = buyToken.balanceOf(address(this));
-        bought = buyBalAfter > buyBalBefore ? buyBalAfter - buyBalBefore : 0;
+        uint256 bought = buyBalAfter > buyBalBefore ? buyBalAfter - buyBalBefore : 0;
 
         // track traded amts
         auction.traded[address(sellToken)] += sold;
@@ -421,7 +423,7 @@ library RebalancingLib {
 
         // no event, cannot rely on executing in same block as fill occurred
 
-        return (sold, bought, sellBalAfter == 0);
+        return sellBalAfter == 0;
     }
 
     // ==== Internal ====

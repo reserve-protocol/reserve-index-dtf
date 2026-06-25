@@ -14,7 +14,7 @@ import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/tr
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
 import { FolioLib } from "@utils/FolioLib.sol";
-import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_MINT_FEE, MAX_FOLIO_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_MINT_FEE, MAX_FOLIO_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
@@ -189,10 +189,9 @@ contract Folio is
     // === 6.0.0 ===
     bool public tradeAllowlistEnabled;
     EnumerableSet.AddressSet private tradeTokenAllowlist;
-
     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
 
-    uint256 private activeTrustedFillFloorPrice; // D27{buyTok/sellTok}
+    FeeRecipient[] public immutableFeeRecipients;
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -219,7 +218,12 @@ contract Folio is
         __AccessControl_init();
         __ReentrancyGuard_init();
 
-        FolioLib.setFeeRecipients(feeRecipients, _additionalDetails.feeRecipients);
+        FolioLib.setFeeRecipients(
+            feeRecipients,
+            immutableFeeRecipients,
+            _additionalDetails.feeRecipients,
+            _additionalDetails.immutableFeeRecipients
+        );
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
         _setFolioSelfFee(_additionalDetails.folioFeeForSelf);
@@ -321,13 +325,16 @@ contract Folio is
     }
 
     /// @dev Non-reentrant via distributeFees()
-    /// @dev Fee recipients must be unique and sorted by address, and sum to 1e18
+    /// @dev Mutable and immutable fee recipient tables must each be unique and sorted, and together sum to 1e18
     /// @dev Use folioFeeForSelf to direct a portion of Folio fees to the Folio itself
-    /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
-    function setFeeRecipients(FeeRecipient[] calldata _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    /// @dev Warning: Empty mutable and immutable fee recipient tables will result in all fees being sent to DAO
+    function setFeeRecipients(
+        FeeRecipient[] calldata _newRecipients,
+        FeeRecipient[] calldata _immutableRecipients
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
-        FolioLib.setFeeRecipients(feeRecipients, _newRecipients);
+        FolioLib.setFeeRecipients(feeRecipients, immutableFeeRecipients, _newRecipients, _immutableRecipients);
     }
 
     /// @param _newLength {s} Length of an auction
@@ -513,7 +520,8 @@ contract Folio is
     }
 
     /// Distribute all pending fee shares
-    /// @dev Recipients: DAO and fee recipients; if feeRecipients are empty, the DAO gets all the fees
+    /// @dev Recipients: DAO, mutable fee recipients, and immutable fee recipients; if both fee recipient tables are
+    /// empty, the DAO gets all the fees
     /// @dev Pending fee shares are already reflected in the total supply, this function only concretizes balances
     function distributeFees() public nonReentrant sync {
         // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
@@ -524,15 +532,16 @@ contract Folio is
         feeRecipientsPendingFeeShares = 0;
         uint256 feeRecipientsTotal;
 
-        uint256 len = feeRecipients.length;
+        FeeRecipient[] memory recipients = FolioLib.mergeFeeRecipients(feeRecipients, immutableFeeRecipients);
+        uint256 len = recipients.length;
         for (uint256 i; i < len; i++) {
             // {share} = {share} * D18{1} / D18
-            uint256 shares = (_feeRecipientsPendingFeeShares * feeRecipients[i].portion) / D18;
+            uint256 shares = (_feeRecipientsPendingFeeShares * recipients[i].portion) / D18;
             feeRecipientsTotal += shares;
 
-            _mint(feeRecipients[i].recipient, shares);
+            _mint(recipients[i].recipient, shares);
 
-            emit FolioFeePaid(feeRecipients[i].recipient, shares);
+            emit FolioFeePaid(recipients[i].recipient, shares);
         }
 
         // === DAO ===
@@ -620,6 +629,7 @@ contract Folio is
     /// Start a new rebalance, ending the currently running auction
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
+    /// @param rebalanceNonce The expected nonce after this rebalance starts
     /// @param tokens The rebalance parameters for each token in the rebalance
     /// @param tokens.token MUST be unique
     /// @param tokens.weight D27{tok/BU} Basket weight ranges; cannot be empty [0, 1e54]
@@ -630,6 +640,7 @@ contract Folio is
     /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
     /// @param ttl {s} The amount of time the rebalance is valid for
     function startRebalance(
+        uint256 rebalanceNonce,
         TokenRebalanceParams[] calldata tokens,
         RebalanceLimits calldata limits,
         uint256 auctionLauncherWindow,
@@ -648,6 +659,7 @@ contract Folio is
         }
 
         RebalancingLib.startRebalance(
+            rebalanceNonce,
             basket.values(),
             rebalanceControl,
             rebalance,
@@ -841,9 +853,6 @@ contract Folio is
         SafeERC20.forceApprove(sellToken, address(filler), sellAmount);
 
         filler.initialize(address(this), sellToken, buyToken, sellAmount, buyAmount);
-
-        // D27{buyTok/sellTok} = {buyTok} * D27 / {sellTok}
-        activeTrustedFillFloorPrice = Math.max(1, Math.mulDiv(buyAmount, D27, sellAmount, Math.Rounding.Floor));
         activeTrustedFill = filler;
 
         emit AuctionTrustedFillCreated(auctionId, address(filler));
@@ -878,7 +887,6 @@ contract Folio is
     }
 
     /// Close fill attempting to claw assets back, but always close fill
-    /// @dev DOES NOT trigger circuit breaker; callers should consider calling setTrustedFillerRegistry(, false)
     /// @dev Callable by ADMIN
     function emergencyCloseTrustedFill() external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         _closeTrustedFill(true);
@@ -1158,38 +1166,15 @@ contract Folio is
     function _closeTrustedFill(bool _emergency) internal {
         if (address(activeTrustedFill) != address(0)) {
             if (!_emergency) {
-                (uint256 sold, uint256 bought, bool shouldRemoveFromBasket) = RebalancingLib.closeTrustedFill(
-                    auctions[nextAuctionId - 1],
-                    activeTrustedFill
-                );
-
-                // circuit breaker
-                if (
-                    trustedFillerEnabled &&
-                    sold != 0 &&
-                    Math.mulDiv(bought, D27, sold, Math.Rounding.Ceil) < activeTrustedFillFloorPrice
-                    // round in-favor of no false positives
-                ) {
-                    _setTrustedFillerRegistry(address(trustedFillerRegistry), false);
-
-                    emit TrustedFillCircuitBreakerTriggered(
-                        nextAuctionId - 1,
-                        address(activeTrustedFill),
-                        sold,
-                        bought,
-                        activeTrustedFillFloorPrice
-                    );
-                }
-
-                if (shouldRemoveFromBasket) {
-                    _removeFromBasket(address(activeTrustedFill.sellToken()));
+                address sellToken = address(activeTrustedFill.sellToken());
+                if (RebalancingLib.closeTrustedFill(auctions[nextAuctionId - 1], activeTrustedFill)) {
+                    _removeFromBasket(sellToken);
                 }
             } else {
                 activeTrustedFill.emergencyCloseFiller();
             }
 
             delete activeTrustedFill;
-            delete activeTrustedFillFloorPrice;
         }
     }
 

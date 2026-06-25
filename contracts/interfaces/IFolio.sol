@@ -23,13 +23,6 @@ interface IFolio {
     );
     event AuctionClosed(uint256 indexed auctionId);
     event AuctionTrustedFillCreated(uint256 indexed auctionId, address filler);
-    event TrustedFillCircuitBreakerTriggered(
-        uint256 indexed auctionId,
-        address filler,
-        uint256 sold,
-        uint256 bought,
-        uint256 floorPrice
-    );
 
     event FolioFeePaid(address indexed recipient, uint256 amount);
     event ProtocolFeePaid(address indexed recipient, uint256 amount);
@@ -40,6 +33,7 @@ interface IFolio {
     event MintFeeSet(uint256 newFee);
     event FolioFeeSet(uint256 newFolioFee);
     event FeeRecipientsSet(FeeRecipient[] recipients);
+    event ImmutableFeeRecipientsSet(FeeRecipient[] recipients);
     event MaxAuctionLengthSet(uint256 newMaxAuctionLength);
     event MandateSet(string newMandate);
     event TrustedFillerRegistrySet(address trustedFillerRegistry, bool isEnabled);
@@ -73,6 +67,7 @@ interface IFolio {
 
     error Folio__FeeRecipientInvalidAddress();
     error Folio__FeeRecipientInvalidFeeShare();
+    error Folio__ImmutableFeeRecipientRemoved();
     error Folio__BadFeeTotal();
     error Folio__TVLFeeTooHigh();
     error Folio__TVLFeeTooLow();
@@ -104,6 +99,7 @@ interface IFolio {
     error Folio__TrustedFillerRegistryAlreadySet();
     error Folio__InvalidTTL();
     error Folio__NotRebalancing();
+    error Folio__InvalidRebalanceNonce();
     error Folio__MixedAtomicSwaps();
     error Folio__PermissionlessBidsDisabled();
     error Folio__EmptyRebalance();
@@ -130,6 +126,7 @@ interface IFolio {
     struct FolioAdditionalDetails {
         uint256 maxAuctionLength; // {s}
         FeeRecipient[] feeRecipients;
+        FeeRecipient[] immutableFeeRecipients;
         uint256 tvlFee; // D18{1/s}
         uint256 mintFee; // D18{1}
         uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn

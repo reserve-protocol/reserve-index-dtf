@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+// solhint-disable no-console
 pragma solidity 0.8.28;
 
 import { Script, console2 } from "forge-std/Script.sol";
@@ -6,12 +7,11 @@ import { Script, console2 } from "forge-std/Script.sol";
 import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
 import { ReserveOptimisticGovernorDeployerDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorDeployerDeployer.sol";
 
-import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 import { FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
-import { FolioDeployer, IERC20, IFolio } from "@deployer/FolioDeployer.sol";
+import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
 import { FolioLens } from "@periphery/FolioLens.sol";
 

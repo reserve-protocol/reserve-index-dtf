@@ -304,7 +304,7 @@ contract ExtremeTest is BaseExtremeTest {
             tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
 
             vm.prank(dao);
-            folio.startRebalance(tokens, limits, 0, MAX_TTL);
+            startRebalance(folio, tokens, limits, 0, MAX_TTL);
         }
 
         // openAuctionUnrestricted
