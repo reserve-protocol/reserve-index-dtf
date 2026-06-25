@@ -86,7 +86,7 @@ contract DeployScript is Script {
 
         if (block.chainid == 31337) {
             deploymentParams[31337] = DeploymentParams({
-                roleRegistry: address(new MockRoleRegistry(walletAddress)), // Mock Registry for Local Networks
+                roleRegistry: address(0), // deployed during broadcast for local networks
                 folioFeeRegistry: address(0),
                 feeRecipient: address(1), // Burn fees for Local Networks
                 folioVersionRegistry: address(0),
@@ -153,7 +153,10 @@ contract DeployScript is Script {
     function run() external {
         DeploymentParams memory params = deploymentParams[block.chainid];
 
-        require(address(params.roleRegistry) != address(0), "Deployer: Role Registry Required");
+        require(
+            address(params.roleRegistry) != address(0) || block.chainid == 31337,
+            "Deployer: Role Registry Required"
+        );
         require(address(params.feeRecipient) != address(0), "Deployer: Fee Recipient Required");
 
         runGenesisDeployment(params);
@@ -165,6 +168,11 @@ contract DeployScript is Script {
 
         console2.log("Running Genesis Deployment...");
         vm.startBroadcast(privateKey);
+
+        if (deployParams.roleRegistry == address(0)) {
+            require(block.chainid == 31337, "undefined role registry");
+            deployParams.roleRegistry = address(new MockRoleRegistry(walletAddress));
+        }
 
         if (deployParams.folioFeeRegistry == address(0)) {
             deployParams.folioFeeRegistry = address(
