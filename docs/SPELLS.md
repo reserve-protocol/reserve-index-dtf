@@ -1,6 +1,6 @@
 # Archived Spells
 
-Spells and spell tests were removed from the repository.  
+Spells and spell tests were removed from the repository.
 Use the links below to view the exact files at commit `62a9942fb91b6af46740a40dc085b0cbe9ad4ee0`.
 
 ## Spell Contracts

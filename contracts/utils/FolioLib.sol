@@ -13,7 +13,7 @@ import { MathLib } from "@utils/MathLib.sol";
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 library FolioLib {
-    /// @dev Warning: Empty mutable and immutable fee recipients tables will result in all fees being sent to DAO
+    /// @dev Warning: Empty fee recipient tables send all non-self fees to DAO
     function setFeeRecipients(
         IFolio.FeeRecipient[] storage feeRecipients,
         IFolio.FeeRecipient[] storage immutableFeeRecipients,

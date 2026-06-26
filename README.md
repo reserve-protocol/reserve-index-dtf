@@ -31,12 +31,12 @@ While not included directly, `FolioVersionRegistry` and `FolioDAOFeeRegistry` al
 
 #### 2. **Governance**
 
-- **FolioGovernor.sol**: Canonical governor in the system, time-based.
-- **GovernanceDeployer.sol**: Deploys staking tokens and governing systems.
+- **FolioDeployer.sol**: Deploys governed Folios using `@reserve-protocol/reserve-governor` optimistic governance.
+- **FolioGovernor.sol**: Legacy time-based governor contract retained for compatibility; new 6.0.0 deployments use external reserve-governor contracts.
 
 #### 3. **Staking**
 
-- **StakingVault.sol**: A vault contract that holds staked tokens and allows users to earn rewards simultaneously in multiple reward tokens. Central voting token for all types of governance.
+- Staking vaults are provided by `@reserve-protocol/reserve-governor` and used as optimistic-governance voting tokens.
 
 ### Roles
 
@@ -45,23 +45,16 @@ While not included directly, `FolioVersionRegistry` and `FolioDAOFeeRegistry` al
 A Folio has 3 roles:
 
 1. `DEFAULT_ADMIN_ROLE`
-   - Expected: Timelock of Slow Folio Governor
+   - Expected: Folio governance timelock
    - Can add/remove assets, set fees, configure auction length, set the auction delay, and closeout auctions
    - Can configure the `REBALANCE_MANAGER`/ `AUCTION_LAUNCHER`
    - Primary owner of the Folio
 2. `REBALANCE_MANAGER`
-   - Expected: Timelock of Fast Folio Governor
+   - Expected: Folio governance timelock and/or approved basket managers
    - Can start rebalances, end rebalances/auctions
 3. `AUCTION_LAUNCHER`
    - Expected: EOA or multisig
    - Can start and end auctions, optionally setting parameters of the auction within the approved ranges
-
-##### StakingVault
-
-The staking vault has ONLY a single owner:
-
-- Expected: Timelock of Community Governor
-- Can add/remove reward tokens, set reward half-life, and set unstaking delay
 
 ### Rebalancing
 
@@ -220,10 +213,10 @@ Example:
 
 Tokens are assumed to be within the following ranges:
 
-|              | Folio | Folio Collateral | StakingVault | StakingVault underlying/rewards |
-| ------------ | ----- | ---------------- | ------------ | ------------------------------- |
-| **Supply**   | 1e36  | 1e36             | 1e36         | 1e36                            |
-| **Decimals** |       | 27               |              | 21                              |
+|              | Folio | Folio Collateral |
+| ------------ | ----- | ---------------- |
+| **Supply**   | 1e36  | 1e36             |
+| **Decimals** |       | 27               |
 
 It is the job of governance to ensure the Folio supply does not grow beyond 1e36 supply.
 
@@ -237,18 +230,18 @@ UoA (nanoUSD) Prices for individual tokens are permitted to be up to 1e45, and a
 
 Some ERC20s are NOT supported
 
-| Weirdness                      | Folio | StakingVault |
-| ------------------------------ | ----- | ------------ |
-| Multiple Entrypoints           | ❌    | ❌           |
-| Pausable / Blocklist           | ❌    | ❌           |
-| Fee-on-transfer                | ❌    | ❌           |
-| ERC777 / Callback              | ❌    | ❌           |
-| Upward-rebasing                | ✅    | ❌           |
-| Downward-rebasing              | ✅    | ❌           |
-| Revert on zero-value transfers | ✅    | ✅           |
-| Flash mint                     | ✅    | ✅           |
-| Missing return values          | ✅    | ✅           |
-| No revert on failure           | ✅    | ✅           |
+| Weirdness                      | Folio |
+| ------------------------------ | ----- |
+| Multiple Entrypoints           | ❌    |
+| Pausable / Blocklist           | ❌    |
+| Fee-on-transfer                | ❌    |
+| ERC777 / Callback              | ❌    |
+| Upward-rebasing                | ✅    |
+| Downward-rebasing              | ✅    |
+| Revert on zero-value transfers | ✅    |
+| Flash mint                     | ✅    |
+| Missing return values          | ✅    |
+| No revert on failure           | ✅    |
 
 > While the Folio itself is not susceptible to reentrancy, read-only reentrancy on the part of a consuming protocol is still possible. To check for reentrancy, call `stateChangeActive()` and require that both return values are false. The non-ERC20 Folio mutator calls are all `nonReentrant`, and accounting-sensitive flows close async actions as a pre-hook, but for view functions this check is important to perform before relying on any returned data.
 
@@ -271,6 +264,8 @@ The chain is assumed to have block times equal to or under 30s.
 - [2.0.0](https://github.com/reserve-protocol/reserve-index-dtf/releases/tag/r2.0.0): Repeatable pairwise auctions
 - 3.0.0 (skipped; never deployed): Pairwise auctions around a rebalance
 - 4.0.0: Basket auctions around a rebalance
+- [5.0.0](https://github.com/reserve-protocol/reserve-index-dtf/releases/tag/r5.0.0): Max auction sizes, restricted permissionless bids, and brand/name controls
+- 6.0.0: Optimistic governance, token allowlist controls, Folio self-fee, immutable fee recipients, custom auction lengths, and rebalance nonce validation
 
 ### Future Work / Not Implemented Yet
 
@@ -283,15 +278,16 @@ The chain is assumed to have block times equal to or under 30s.
 
 1. Required Tools:
    - Foundry
-   - Node v20+
-   - Yarn
-2. Install Dependencies: `yarn install`
-3. Build: `yarn compile`
+   - Node v24+
+   - pnpm
+2. Install Dependencies: `pnpm install`
+3. Build: `pnpm compile`
 4. Testing:
-   - Basic Tests: `yarn test`
-   - Extreme Tests: `yarn test:extreme`
-   - All Tests: `yarn test:all`
+   - Basic Tests: `pnpm test:core`
+   - Fork Tests: `pnpm test:fork`
+   - Extreme Tests: `pnpm test:extreme`
+   - All Tests: `pnpm test:all`
    - Coverage: `forge coverage`
 5. Deployment:
-   - Deployment: `yarn deploy --rpc-url <RPC_URL> --verify --verifier etherscan`
-     Set ETHERSCAN_API_KEY env var to the API key for whichever network you're targeting (basescan, etherscan, arbiscan, etc)
+   - Deployment: `pnpm deploy --rpc-url <RPC_URL> --verify --verifier etherscan`
+     Set `ETHERSCAN_KEY` env var to the API key for whichever network you're targeting (basescan, etherscan, bscscan, etc)
