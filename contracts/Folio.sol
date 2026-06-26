@@ -327,7 +327,7 @@ contract Folio is
     /// @dev Non-reentrant via distributeFees()
     /// @dev Mutable and immutable fee recipient tables must each be unique and sorted, and together sum to 1e18
     /// @dev Use folioFeeForSelf to direct a portion of Folio fees to the Folio itself
-    /// @dev Warning: Empty mutable and immutable fee recipient tables will result in all fees being sent to DAO
+    /// @dev Warning: Empty fee recipient tables send all non-self fees to DAO
     function setFeeRecipients(
         FeeRecipient[] calldata _newRecipients,
         FeeRecipient[] calldata _immutableRecipients
@@ -521,7 +521,7 @@ contract Folio is
 
     /// Distribute all pending fee shares
     /// @dev Recipients: DAO, mutable fee recipients, and immutable fee recipients; if both fee recipient tables are
-    /// empty, the DAO gets all the fees
+    /// empty, the DAO gets all non-self fees
     /// @dev Pending fee shares are already reflected in the total supply, this function only concretizes balances
     function distributeFees() public nonReentrant sync {
         // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date

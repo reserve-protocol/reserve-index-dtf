@@ -55,7 +55,7 @@ generate_proposal "<SYMBOL>" "<CHAIN_ID>" \
 **Finding the addresses:**
 
 - **Folio** — the DTF token contract
-- **Owner Governor** — the FolioGovernor that controls the Folio's admin role
+- **Owner Governor** — the governor that controls the Folio's admin role
 - **Owner Timelock** — `governor.timelock()`
 - **Trading Timelock** — the address holding `REBALANCE_MANAGER` (or `"none"` if not applicable)
 - **ProxyAdmin** — read from the ERC1967 admin storage slot:
