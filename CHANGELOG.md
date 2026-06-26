@@ -1,3 +1,13 @@
+## Release 6.0.0
+
+- Add optimistic governance
+- Add token allowlist controls for rebalancing (`DEFAULT_ADMIN_ROLE`)
+- Add Folio self-fee (`DEFAULT_ADMIN_ROLE`)
+- Add Folio immutable fee recipients (`DEFAULT_ADMIN_ROLE`)
+- Add per-auction custom auction lengths (`REBALANCE_MANAGER`)
+- Add explicit rebalance nonce validation
+- Add trusted-fill cleanup and emergency-close improvements
+
 ## Release 5.0.0
 
 - Allow full weight range in startRebalance() (`REBALANCE_MANAGER`)

@@ -56,7 +56,7 @@ abstract contract BaseExtremeTest is BaseTest {
     StakingRewardsTestParams[] internal stkRewardsTestParams;
 
     function _testSetupBefore() public override {
-        roleRegistry = new MockRoleRegistry();
+        roleRegistry = new MockRoleRegistry(address(this));
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
         trustedFillerRegistry = new TrustedFillerRegistry(address(roleRegistry));
@@ -65,7 +65,7 @@ abstract contract BaseExtremeTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
 
         CowSwapFiller cowswapFiller = new CowSwapFiller(GPV2_SETTLEMENT, GPV2_VAULT_RELAYER);

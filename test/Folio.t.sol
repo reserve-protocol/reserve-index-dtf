@@ -7,7 +7,7 @@ import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
 import { AUCTION_WARMUP, D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { FolioProxyAdmin, FolioProxy } from "contracts/folio/FolioProxy.sol";
+import { FolioProxy } from "contracts/folio/FolioProxy.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ITransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
@@ -2188,7 +2188,7 @@ contract FolioTest is BaseTest {
 
         // deploy a MockEIP712 to the GPV2_SETTLEMENT address
         address mockEIP712 = address(new MockEIP712(domainSeparator));
-        vm.etch(address(GPV2_SETTLEMENT), mockEIP712.code);
+        vm.etch(GPV2_SETTLEMENT, mockEIP712.code);
 
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](4);
         tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
@@ -3375,7 +3375,7 @@ contract FolioTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -3412,7 +3412,7 @@ contract FolioTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -3437,7 +3437,7 @@ contract FolioTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         versionRegistry.registerVersion(newDeployerV2);
 
@@ -3460,7 +3460,7 @@ contract FolioTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         versionRegistry.registerVersion(newDeployerV2);
 

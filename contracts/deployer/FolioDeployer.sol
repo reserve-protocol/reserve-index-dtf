@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { SafeERC20, IERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
-import { IGovernanceDeployer } from "@interfaces/IGovernanceDeployer.sol";
+import { IOptimisticVotes } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticVotes.sol";
+import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
+import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
 
 import { Folio, IFolio } from "@src/Folio.sol";
 import { FolioProxyAdmin, FolioProxy } from "@folio/FolioProxy.sol";
@@ -17,26 +18,25 @@ import { Versioned } from "@utils/Versioned.sol";
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 contract FolioDeployer is IFolioDeployer, Versioned {
-    address public immutable versionRegistry;
     address public immutable daoFeeRegistry;
+    address public immutable versionRegistry;
     address public immutable trustedFillerRegistry;
+    address public immutable optimisticGovernorDeployer;
 
     address public immutable folioImplementation;
-
-    IGovernanceDeployer public immutable governanceDeployer;
 
     constructor(
         address _daoFeeRegistry,
         address _versionRegistry,
         address _trustedFillerRegistry,
-        IGovernanceDeployer _governanceDeployer
+        address _optimisticGovernorDeployer
     ) {
         daoFeeRegistry = _daoFeeRegistry;
         versionRegistry = _versionRegistry;
         trustedFillerRegistry = _trustedFillerRegistry;
+        optimisticGovernorDeployer = _optimisticGovernorDeployer;
 
         folioImplementation = address(new Folio());
-        governanceDeployer = _governanceDeployer;
     }
 
     /// Deploy a raw Folio instance with previously defined roles
@@ -94,7 +94,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         );
 
         // Setup Roles
-        folio.grantRole(folio.DEFAULT_ADMIN_ROLE(), owner);
+        folio.grantRole(DEFAULT_ADMIN_ROLE, owner);
 
         for (uint256 i; i < basketManagers.length; i++) {
             folio.grantRole(REBALANCE_MANAGER, basketManagers[i]);
@@ -108,34 +108,30 @@ contract FolioDeployer is IFolioDeployer, Versioned {
 
         // Renounce Ownership
         if (owner != address(this)) {
-            folio.renounceRole(folio.DEFAULT_ADMIN_ROLE(), address(this));
+            folio.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
         }
 
         emit FolioDeployed(owner, address(folio), proxyAdmin);
     }
 
-    // internal-only struct for stack-too-deep
-    struct GovernancePair {
-        address governor;
-        address timelock;
-    }
-
-    /// Deploy a Folio instance with brand new owner + trading governors
-    /// @param stToken The staking vault for the staking token, pass address(0) to self-govern
-    /// @param ownerGovParams Re-used for stToken when self-governed
-    /// @param govRoles.existingBasketManagers Pass empty array to deploy a trading governor
+    /// Deploy a Folio instance with new Folio governance using an existing StakingVault
+    /// @param stToken Existing StakingVault to use as governance token
+    /// @param govRoles.existingBasketManagers Additional accounts to grant REBALANCE_MANAGER on the deployed Folio
+    /// @param govParams.optimisticSelectors Selectors to allow optimistically on the deployed Folio
     /// @return folio The deployed Folio instance
     /// @return proxyAdmin The deployed FolioProxyAdmin instance
     function deployGovernedFolio(
-        IVotes stToken,
+        address stToken,
         IFolio.FolioBasicDetails calldata basicDetails,
         IFolio.FolioAdditionalDetails calldata additionalDetails,
         IFolio.FolioFlags calldata folioFlags,
-        IGovernanceDeployer.GovParams calldata ownerGovParams,
-        IGovernanceDeployer.GovParams calldata tradingGovParams,
+        GovParams calldata govParams,
         GovRoles calldata govRoles,
         bytes32 deploymentNonce
     ) external returns (Folio folio, address proxyAdmin) {
+        require(stToken != address(0), FolioDeployer__InvalidStToken());
+        IOptimisticVotes(stToken).getPastOptimisticVotes(address(0), block.timestamp - 1);
+
         bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
 
         // Deploy Folio
@@ -150,54 +146,43 @@ contract FolioDeployer is IFolioDeployer, Versioned {
             deploymentSalt
         );
 
-        GovernancePair[] memory govPairs = new GovernancePair[](2);
-        // govPairs[0] is owner governor
-        // govPairs[1] is trading governor
+        IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = IReserveOptimisticGovernorDeployer
+            .BaseDeploymentParams({
+                optimisticParams: govParams.optimisticParams,
+                standardParams: govParams.standardParams,
+                selectorData: _folioSelectorData(address(folio), govParams.optimisticSelectors),
+                optimisticProposers: govParams.optimisticProposers,
+                additionalGuardians: govParams.guardians,
+                timelockDelay: govParams.timelockDelay,
+                proposalThrottleCapacity: govParams.proposalThrottleCapacity
+            });
 
-        if (address(stToken) == address(0)) {
-            // Self-govern
-            (stToken, govPairs[0].governor, govPairs[0].timelock) = governanceDeployer.deployGovernedStakingToken(
-                string(abi.encodePacked("Vote-Locked ", basicDetails.name)),
-                string(abi.encodePacked("VL", basicDetails.symbol)),
-                folio,
-                ownerGovParams,
-                deploymentSalt
-            );
-        } else {
-            // Deploy separate owner governance
-            (govPairs[0].governor, govPairs[0].timelock) = governanceDeployer.deployGovernanceWithTimelock(
-                ownerGovParams,
-                stToken,
-                deploymentSalt
-            );
-        }
+        (address governor, address timelock, ) = IReserveOptimisticGovernorDeployer(optimisticGovernorDeployer)
+            .deployWithExistingStakingVault(baseParams, stToken, deploymentSalt);
 
-        // Deploy trading Governance if basket managers are not provided
-        if (govRoles.existingBasketManagers.length == 0) {
-            // Invert deployment nonce to avoid timelock/governor collisions
-            (govPairs[1].governor, govPairs[1].timelock) = governanceDeployer.deployGovernanceWithTimelock(
-                tradingGovParams,
-                stToken,
-                ~deploymentSalt
-            );
-
-            folio.grantRole(REBALANCE_MANAGER, govPairs[1].timelock);
-        }
+        // Configure Folio governance as REBALANCE_MANAGER
+        folio.grantRole(REBALANCE_MANAGER, timelock);
 
         // Swap Folio owner
-        folio.grantRole(DEFAULT_ADMIN_ROLE, govPairs[0].timelock);
+        folio.grantRole(DEFAULT_ADMIN_ROLE, timelock);
         folio.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
 
         // Swap proxyAdmin owner
-        FolioProxyAdmin(payable(proxyAdmin)).transferOwnership(govPairs[0].timelock);
+        FolioProxyAdmin(proxyAdmin).transferOwnership(timelock);
 
-        emit GovernedFolioDeployed(
-            address(stToken),
-            address(folio),
-            govPairs[0].governor,
-            govPairs[0].timelock,
-            govPairs[1].governor,
-            govPairs[1].timelock
-        );
+        emit GovernedFolioDeployed(stToken, address(folio), governor, timelock, governor, timelock);
+    }
+
+    function _folioSelectorData(
+        address folio,
+        bytes4[] calldata selectors
+    ) private pure returns (IOptimisticSelectorRegistry.SelectorData[] memory selectorData) {
+        bytes4[] memory optimisticSelectors = new bytes4[](selectors.length);
+        for (uint256 i; i < selectors.length; ++i) {
+            optimisticSelectors[i] = selectors[i];
+        }
+
+        selectorData = new IOptimisticSelectorRegistry.SelectorData[](1);
+        selectorData[0] = IOptimisticSelectorRegistry.SelectorData({ target: folio, selectors: optimisticSelectors });
     }
 }
