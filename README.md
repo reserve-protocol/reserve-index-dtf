@@ -31,8 +31,7 @@ While not included directly, `FolioVersionRegistry` and `FolioDAOFeeRegistry` al
 
 #### 2. **Governance**
 
-- **FolioDeployer.sol**: Deploys governed Folios using `@reserve-protocol/reserve-governor` optimistic governance.
-- **FolioGovernor.sol**: Legacy time-based governor contract retained for compatibility; new 6.0.0 deployments use external reserve-governor contracts.
+- Governed Folios use `@reserve-protocol/reserve-governor` optimistic governance.
 
 #### 3. **Staking**
 

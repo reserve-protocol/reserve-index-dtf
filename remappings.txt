@@ -11,6 +11,5 @@ utils/=test/utils/
 @interfaces/=contracts/interfaces/
 
 @folio/=contracts/folio/
-@gov/=contracts/governance/
 @deployer/=contracts/deployer/
 @periphery/=contracts/periphery/
