@@ -217,11 +217,7 @@ contract ExtremeTest is BaseExtremeTest {
         vm.stopSnapshotGas(redeemGasTag);
 
         // check balances
-        assertEq(
-            folio.balanceOf(user1),
-            mintAmount / 2 - (mintAmount * MAX_FEE_FLOOR) / 1e18,
-            "wrong user1 balance"
-        );
+        assertEq(folio.balanceOf(user1), mintAmount / 2 - (mintAmount * MAX_FEE_FLOOR) / 1e18, "wrong user1 balance");
         for (uint256 j = 0; j < tokens.length; j++) {
             IERC20 _token = IERC20(tokens[j]);
 
