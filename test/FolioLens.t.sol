@@ -69,6 +69,30 @@ contract FolioLensTest is BaseTest {
         assertEq(deficits[1], 0);
     }
 
+    function test_surplusesAndDeficits_skipsTokensNotInRebalance() public {
+        IFolio.WeightRange[] memory weights = _balancedWeights();
+        IFolio.PriceRange[] memory prices = _prices();
+
+        IFolio.TokenRebalanceParams[] memory rebalanceTokens = new IFolio.TokenRebalanceParams[](3);
+        rebalanceTokens[0] = IFolio.TokenRebalanceParams(address(USDC), weights[0], prices[0], type(uint256).max, true);
+        rebalanceTokens[1] = IFolio.TokenRebalanceParams(address(DAI), weights[1], prices[1], type(uint256).max, true);
+        rebalanceTokens[2] = IFolio.TokenRebalanceParams(address(USDT), weights[0], prices[0], type(uint256).max, true);
+        startRebalance(folio, rebalanceTokens, _limits(), 0, MAX_TTL);
+        _startBalancedRebalance();
+
+        (address[] memory tokens, uint256[] memory surpluses, uint256[] memory deficits) = lens.surplusesAndDeficits(
+            folio,
+            D18,
+            D18
+        );
+
+        assertEq(tokens[0], address(USDC));
+        assertEq(tokens[1], address(DAI));
+        assertEq(tokens[2], address(0));
+        assertEq(surpluses[2], 0);
+        assertEq(deficits[2], 0);
+    }
+
     function test_getAllBids() public {
         _startSellUsdcRebalance();
 

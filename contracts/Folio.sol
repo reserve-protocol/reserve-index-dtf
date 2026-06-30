@@ -576,6 +576,7 @@ contract Folio is
 
     /// Get the currently ongoing rebalance
     /// @dev Nonzero return values do not imply a rebalance is ongoing; check `rebalance.availableUntil`
+    /// @dev Tokens for which inRebalance is false will contain zero weights, prices, and maxAuctionSize
     /// @return nonce The current rebalance nonce
     /// @return priceControl How much price control the AUCTION_LAUNCHER has: [NONE, PARTIAL, ATOMIC_SWAP]
     /// @return tokens The rebalance parameters for each token in the basket
