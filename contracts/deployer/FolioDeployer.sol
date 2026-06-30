@@ -14,8 +14,9 @@ import { AUCTION_LAUNCHER, BRAND_MANAGER, DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER 
 import { Versioned } from "@utils/Versioned.sol";
 
 /**
- * @title Folio Deployer
+ * @title FolioDeployer
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
+ * @notice Deploys Folio proxies and optionally deploys optimistic governance around them.
  */
 contract FolioDeployer is IFolioDeployer, Versioned {
     address public immutable daoFeeRegistry;
@@ -39,7 +40,12 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         folioImplementation = address(new Folio());
     }
 
-    /// Deploy a raw Folio instance with previously defined roles
+    /// Deploy a raw Folio instance with provided role assignments
+    /// @param owner Initial DEFAULT_ADMIN_ROLE holder and ProxyAdmin owner
+    /// @param basketManagers Accounts to grant REBALANCE_MANAGER
+    /// @param auctionLaunchers Accounts to grant AUCTION_LAUNCHER
+    /// @param brandManagers Accounts to grant BRAND_MANAGER for off-chain use
+    /// @param deploymentNonce Caller-provided nonce included in CREATE2 salts
     /// @return folio The deployed Folio instance
     /// @return proxyAdmin The deployed FolioProxyAdmin instance
     function deployFolio(
@@ -114,9 +120,11 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         emit FolioDeployed(owner, address(folio), proxyAdmin);
     }
 
-    /// Deploy a Folio instance with new Folio governance using an existing StakingVault
+    /// Deploy a Folio instance with new optimistic governance using an existing StakingVault
     /// @param stToken Existing StakingVault to use as governance token
     /// @param govRoles.existingBasketManagers Additional accounts to grant REBALANCE_MANAGER on the deployed Folio
+    /// @param govRoles.auctionLaunchers Accounts to grant AUCTION_LAUNCHER on the deployed Folio
+    /// @param govRoles.brandManagers Accounts to grant BRAND_MANAGER for off-chain use
     /// @param govParams.optimisticSelectors Selectors to allow optimistically on the deployed Folio
     /// @return folio The deployed Folio instance
     /// @return proxyAdmin The deployed FolioProxyAdmin instance
@@ -160,14 +168,14 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         (address governor, address timelock, ) = IReserveOptimisticGovernorDeployer(optimisticGovernorDeployer)
             .deployWithExistingStakingVault(baseParams, stToken, deploymentSalt);
 
-        // Configure Folio governance as REBALANCE_MANAGER
+        // Configure optimistic governance timelock as REBALANCE_MANAGER
         folio.grantRole(REBALANCE_MANAGER, timelock);
 
-        // Swap Folio owner
+        // Transfer Folio admin role to the optimistic governance timelock
         folio.grantRole(DEFAULT_ADMIN_ROLE, timelock);
         folio.renounceRole(DEFAULT_ADMIN_ROLE, address(this));
 
-        // Swap proxyAdmin owner
+        // Transfer ProxyAdmin ownership to the optimistic governance timelock
         FolioProxyAdmin(proxyAdmin).transferOwnership(timelock);
 
         emit GovernedFolioDeployed(stToken, address(folio), governor, timelock, governor, timelock);

@@ -201,15 +201,6 @@ library FolioLib {
         emit IFolio.TVLFeeSet(_tvlFee, _newFeeAnnually);
     }
 
-    /// Compute mint fee shares for DAO and fee recipients
-    /// @param shares {share} Amount of shares being minted
-    /// @param _mintFee D18{1} Fee on mint
-    /// @param _folioFee D18{1} Fraction of fee-recipient shares to burn
-    /// @param minSharesOut {share} Minimum shares the caller must receive
-    /// @param daoFeeRegistry The DAO fee registry to query fee details from
-    /// @return sharesOut {share} Shares to mint for the receiver
-    /// @return daoFeeShares {share} Shares owed to the DAO
-    /// @return feeRecipientFeeShares {share} Shares owed to fee recipients (excludes self-fee shares)
     /// @dev stack-too-deep
     struct MintFeeParams {
         uint256 shares; // {share}
@@ -218,6 +209,12 @@ library FolioLib {
         uint256 minSharesOut; // {share}
     }
 
+    /// Compute mint fee shares for DAO and fee recipients
+    /// @param params Mint fee parameters
+    /// @param daoFeeRegistry The DAO fee registry to query fee details from
+    /// @return sharesOut {share} Shares to mint for the receiver
+    /// @return daoFeeShares {share} Shares owed to the DAO
+    /// @return feeRecipientFeeShares {share} Shares owed to fee recipients (excludes self-fee shares)
     function computeMintFees(
         MintFeeParams calldata params,
         IFolioDAOFeeRegistry daoFeeRegistry
