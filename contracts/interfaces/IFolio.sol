@@ -127,7 +127,7 @@ interface IFolio {
         uint256 maxAuctionLength; // {s}
         FeeRecipient[] feeRecipients;
         FeeRecipient[] immutableFeeRecipients;
-        uint256 tvlFee; // D18{1/s}
+        uint256 tvlFee; // D18{1/year} annual fee input; stored on Folio as D18{1/s}
         uint256 mintFee; // D18{1}
         uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
         string mandate;

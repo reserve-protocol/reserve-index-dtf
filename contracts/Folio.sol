@@ -29,7 +29,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * A Folio is backed by a flexible number of ERC20 tokens of any denomination/price (within assumed ranges, see README)
  *   All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
  *
- * There are 3 main roles:
+ * There are 3 main operational roles:
  *   1. DEFAULT_ADMIN_ROLE: can set ERC20 assets, fees, max auction length, close auctions/rebalances, and deprecateFolio
  *   2. REBALANCE_MANAGER: can start/end rebalances, and end individual auctions
  *   3. AUCTION_LAUNCHER: can open auctions and end rebalances/auctions
@@ -42,7 +42,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   - SHOULD end the ongoing rebalance when prices have moved outside the initially-provided price ranges
  *   - if weightControl=true: SHOULD progressively narrow weight ranges to maintain the original rebalance intent
  *   - if priceControl=PARTIAL: SHOULD provide narrowed price ranges that still include the current clearing price
- *        priceControl=ATOMIC_SWAP: SHOULD fill auction atomically directly after opening AND end rebalance after
+ *   - if priceControl=ATOMIC_SWAP: SHOULD fill auction atomically directly after opening AND end rebalance afterwards
  *
  * Rebalance lifecycle:
  *   startRebalance() -> openAuction()/openAuctionUnrestricted() -> bid()/createTrustedFill() -> [optional] closeAuction()
@@ -54,18 +54,18 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   - Individual token price ranges: can be a subset of the initially-provided range, if priceControl!=NONE
  *   - Rebalance limits: can progressively tighten the BU limits, without backtracking
  *
- * The AUCTION_LAUNCHER can run as many auctions as they need to. If they are close to the end of their restricted
- *   period the period will be extended automatically until a period of non-use occurs. However, they cannot extend the
- *   period indefinitely past the rebalance's end time. The final auction may extend past the rebalance's endTime, however.
+ * The AUCTION_LAUNCHER can run as many auctions as they need to. When they open an auction, the restricted period is
+ *   extended to cover the auction, warmup, and restricted-auction buffer. However, new auctions cannot be opened after
+ *   the rebalance's availableUntil timestamp. The final auction may extend past availableUntil.
  *
  * After the AUCTION_LAUNCHER's restricted period is over, anyone can open auctions until the rebalance expires. The
- *   AUCTION_LAUNCHER can always deny the unrestricted period by ending the rebalance when they are done.
+ *   AUCTION_LAUNCHER can end the rebalance when they are done to prevent further unrestricted auctions.
  *
  * The unrestricted period exists primarily to avoid strong reliance on the AUCTION_LAUNCHER. The maxAuctionLength should be
  *   long enough to support the price ranges provided by REBALANCE_MANAGER without excessive loss due to block precision
  *   in the case the AUCTION_LAUNCHER is not active.
  *
- * Auctions have a 30s delay at-start before bidding begins in order to ensure competition from the first block. This delay
+ * Auctions have a 30s delay after opening before bidding begins in order to ensure competition from the first block. This delay
  *   is bypassed in the priceControl=ATOMIC_SWAP case when startPrices are equal to endPrices.
  *
  * An auction for a set of tokens runs in parallel on all possible pairs simultaneously. The current price for each
@@ -84,7 +84,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   - Mint fee: fee on mint. Max 5%. Does not cause supply inflation.
  *
  * After fees have been applied, the DAO takes a cut based on the configuration of the FolioDAOFeeRegistry including
- *   a minimum fee floor of 15bps. The remaining portion above 15bps is distributed to the Folio's fee recipients.
+ *   a chain-specific minimum fee floor. The remaining portion above the floor is distributed to the Folio's fee recipients.
  *   Note that this means it is possible for the fee recipients to receive nothing despite configuring a nonzero fee.
  */
 contract Folio is
@@ -164,7 +164,7 @@ contract Folio is
      *   - There can be any number of auctions within a rebalance, but only one live at a time
      *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil, with possible extensions
      *   - Auctions cannot be launched after availableUntil, though their start/end times may extend past it
-     *   - Each auction the AUCTION_LAUNCHER provides: (i) basket limits; (i) weight ranges; and (iii) prices
+     *   - Each auction the AUCTION_LAUNCHER provides: (i) basket limits; (ii) weight ranges; and (iii) prices
      *   - Depending on RebalanceControl.weightControl, the AUCTION_LAUNCHER may be able to narrow weight ranges within the initial range
      *   - Depending on RebalanceControl.priceControl, the AUCTION_LAUNCHER may be able to narrow prices within the initial range
      *   - At any time the rebalance can be stopped or a new one can be started. In the stopping case, any ongoing auction
@@ -633,7 +633,7 @@ contract Folio is
     /// @param tokens The rebalance parameters for each token in the rebalance
     /// @param tokens.token MUST be unique
     /// @param tokens.weight D27{tok/BU} Basket weight ranges; low <= spot <= high <= 1e54
-    /// @param tokens.price D27{UoA/tok} Prices for each token; cannot be empty (0, 1e45]
+    /// @param tokens.price D27{UoA/tok} Initial price ranges for each token; low < high <= 1e45
     /// @param tokens.maxAuctionSize {tok} Max amount to sell in any single auction
     /// @param tokens.inRebalance MUST be true
     /// @param limits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e27]
@@ -680,7 +680,7 @@ contract Folio is
     /// @param rebalanceNonce The nonce of the rebalance being targeted
     /// @param tokens The tokens from the rebalance to include in the auction; must be unique
     /// @param newWeights D27{tok/BU} New basket weight ranges for BU definition; must always be provided
-    /// @param newPrices D27{UoA/tok} New price ranges; must always be provided and obey PriceControl setting
+    /// @param newPrices D27{UoA/tok} Auction price ranges; must always be provided and obey PriceControl setting
     /// @param newLimits D18{BU/share} New BU limits; must be within range
     /// @param auctionLength {s} Desired length for this auction, subject to PriceControl and maxAuctionLength
     /// @return auctionId The newly created auctionId
@@ -719,7 +719,7 @@ contract Folio is
     }
 
     /// Open an auction without caller restrictions, on all tokens in the rebalance on spot values and initial prices
-    /// @dev Callable only after the auction launcher window passes, and when no other auction is ongoing
+    /// @dev Callable only after the restricted window passes, after the 120 second start buffer, and when no other auction is ongoing
     /// @return auctionId The newly created auctionId
     function openAuctionUnrestricted(
         uint256 rebalanceNonce

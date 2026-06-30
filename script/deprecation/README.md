@@ -99,7 +99,7 @@ The `data` field is an ABI-encoded `propose(address[],uint256[],bytes[],string)`
 
 If a proposal expires (missed the voting deadline), append a suffix to the description (e.g., `"(2)"`) to generate a different proposal ID hash. The Governor rejects duplicate proposal IDs.
 
-## Verifying On-Chain
+## Verifying Onchain
 
 After execution, verify the deprecation state:
 
@@ -121,7 +121,7 @@ cast call <governor> "state(uint256)(uint8)" <proposal_id> --rpc-url <rpc>
 
 ## Fork Tests
 
-Two test suites validate the deprecation flow against live on-chain state:
+Two test suites validate the deprecation flow against live onchain state:
 
 ### Direct Simulation (`test/DeprecationFork.t.sol`)
 
@@ -132,9 +132,9 @@ FORK_RPC_MAINNET="<archive_rpc>" FORK_RPC_BASE="<archive_rpc>" \
   forge test --match-contract DeprecationForkTest --evm-version cancun -vv
 ```
 
-### On-Chain Proposal Execution (`test/DeprecationProposalFork.t.sol`)
+### Onchain Proposal Execution (`test/DeprecationProposalFork.t.sol`)
 
-Retrieves an actual queued proposal on-chain, warps past the timelock ETA, and executes it through the Governor.
+Retrieves an actual queued proposal onchain, warps past the timelock ETA, and executes it through the Governor.
 
 ```bash
 FORK_RPC_MAINNET="<archive_rpc>" \
