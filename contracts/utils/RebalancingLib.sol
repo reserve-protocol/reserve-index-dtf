@@ -56,7 +56,7 @@ library RebalancingLib {
         // set new rebalance details and prices
         for (uint256 i; i < len; i++) {
             IFolio.TokenRebalanceParams calldata params = tokens[i];
-            require(params.inRebalance, IFolio.Folo__NotInRebalance());
+            require(params.inRebalance, IFolio.Folio__NotInRebalance());
 
             // enforce valid token
             require(params.token != address(0) && params.token != address(this), IFolio.Folio__InvalidAsset());
@@ -261,7 +261,7 @@ library RebalancingLib {
     /// Get bid parameters for an ongoing auction at the current timestamp
     /// @return sellAmount {sellTok} The actual sell amount in the bid
     /// @return bidAmount {buyTok} The corresponding buy amount
-    /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
+    /// @return price D27{buyTok/sellTok} The price in the current block as a 27-decimal fixed point
     function getBid(
         IFolio.Rebalance storage rebalance,
         IFolio.Auction storage auction,

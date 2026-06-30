@@ -165,8 +165,8 @@ contract Folio is
      *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil, with possible extensions
      *   - Auctions cannot be launched after availableUntil, though their start/end times may extend past it
      *   - Each auction the AUCTION_LAUNCHER provides: (i) basket limits; (i) weight ranges; and (iii) prices
-     *   - Depending on the WeightControl, the AUCTION_LAUNCHER may be able to narrow weight ranges within the initial range
-     *   - Depending on the PriceControl, the AUCTION_LAUNCHER may be able to narrow prices within the initial range
+     *   - Depending on RebalanceControl.weightControl, the AUCTION_LAUNCHER may be able to narrow weight ranges within the initial range
+     *   - Depending on RebalanceControl.priceControl, the AUCTION_LAUNCHER may be able to narrow prices within the initial range
      *   - At anytime the rebalance can be stopped or a new one can be started. In the stopping case, any ongoing auction
      *     is able to continue completion, but in the restart case the ongoing auction is closed.
      */
@@ -299,7 +299,7 @@ contract Folio is
 
     /// An annual tvl fee below the DAO fee floor will result in the entirety of the fee being sent to the DAO
     /// @dev Non-reentrant via distributeFees()
-    /// @param _newFee D18{1/s} Fee per second on AUM
+    /// @param _newFee D18{1/year} Annual fee on AUM
     function setTVLFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
@@ -632,12 +632,12 @@ contract Folio is
     /// @param rebalanceNonce The expected nonce after this rebalance starts
     /// @param tokens The rebalance parameters for each token in the rebalance
     /// @param tokens.token MUST be unique
-    /// @param tokens.weight D27{tok/BU} Basket weight ranges; cannot be empty [0, 1e54]
+    /// @param tokens.weight D27{tok/BU} Basket weight ranges; low <= spot <= high <= 1e54
     /// @param tokens.price D27{UoA/tok} Prices for each token; cannot be empty (0, 1e45]
     /// @param tokens.maxAuctionSize {tok} Max amount to sell in any single auction
     /// @param tokens.inRebalance MUST be true
     /// @param limits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e27]
-    /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
+    /// @param auctionLauncherWindow {s} Initial amount of time only the AUCTION_LAUNCHER can open auctions
     /// @param ttl {s} The amount of time the rebalance is valid for
     function startRebalance(
         uint256 rebalanceNonce,
@@ -782,9 +782,9 @@ contract Folio is
     /// @param sellToken The token to sell
     /// @param buyToken The token to buy
     /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder is willing to buy
-    /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
+    /// @return sellAmount {sellTok} The amount of sell token on sale in the auction in the current block
     /// @return bidAmount {buyTok} The amount of buy tokens required to bid for the full sell amount
-    /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
+    /// @return price D27{buyTok/sellTok} The price in the current block as a 27-decimal fixed point
     function getBid(
         uint256 auctionId,
         IERC20 sellToken,
@@ -859,7 +859,7 @@ contract Folio is
     }
 
     /// Close an auction
-    /// A auction can be closed from anywhere in its lifecycle
+    /// An auction can be closed from anywhere in its lifecycle
     /// If you close an auction before startTime, it would break the invariant that endTime > startTime.
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function closeAuction(uint256 auctionId) external nonReentrant {
@@ -995,9 +995,9 @@ contract Folio is
     /// @param sellToken The token to sell
     /// @param buyToken The token to buy
     /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder is willing to buy
-    /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at the given timestamp
+    /// @return sellAmount {sellTok} The amount of sell token on sale in the auction in the current block
     /// @return bidAmount {buyTok} The amount of buy tokens required to bid for the full sell amount
-    /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
+    /// @return price D27{buyTok/sellTok} The price in the current block as a 27-decimal fixed point
     function _getBid(
         Auction storage auction,
         IERC20 sellToken,

@@ -6,11 +6,11 @@ Reserve Folio is a protocol for creating and managing portfolios of ERC20-compli
 
 To change their composition, Folios support a rebalancing process during which either the `AUCTION_LAUNCHER` (or anyone else, after a delay) can run dutch auctions to rebalance the Folio. Each dutch auction manifests as an exponential decay between two price extremes under the assumption that the ideal clearing price (incl slippage) lies in between the price bounds. The size of each auction is defined by surpluses and deficits relative to progressively narrowing token-to-share ratios (monotonically increasing in the deficit case; monotonically decreasing in the surplus case).
 
-The `AUCTION_LAUNCHER` is trusted to provide additional input to the rebalance process: (i) what tokens to include in the auction; (ii) adjustments to the basket limits that are used to determine surplus/deficit; (iii) adjustments to the individual token weights in the basket unit, if `PriceControl.weightControl` is set; and (iv) prices, if `PriceControl.priceControl` is set. In all cases, the `AUCTION_LAUNCHER` is bound to act within the bounds set by the `REBALANCE_MANAGER`. If an auction is opened permissionlessly instead of by the `AUCTION_LAUNCHER`, the caller has no sway over any details of the auction, and it is always for all tokens in the rebalance based on the latest spot estimates.
+The `AUCTION_LAUNCHER` is trusted to provide additional input to the rebalance process: (i) what tokens to include in the auction; (ii) adjustments to the basket limits that are used to determine surplus/deficit; (iii) adjustments to the individual token weights in the basket unit, if `RebalanceControl.weightControl` is set; and (iv) prices, if `RebalanceControl.priceControl` is set. In all cases, the `AUCTION_LAUNCHER` is bound to act within the bounds set by the `REBALANCE_MANAGER`. If an auction is opened permissionlessly instead of by the `AUCTION_LAUNCHER`, the caller has no sway over any details of the auction, and it is always for all tokens in the rebalance based on latest spot weight and limit estimates, using the initially approved prices.
 
 `REBALANCE_MANAGER` is expected to be the timelock of the rebalancing governor associated with the Folio. A major design goal of a Folio is to be able to achieve high fidelity asset management and rebalancing even when acting under a timelock delay.
 
-`AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig. They can open auctions within the bounds set by governance, hopefully adding basket and pricing precision. If they are offline the auction can be opened through the permissonless route instead. If the `AUCTION_LAUNCHER` is not just offline but actively evil, at-best they can maximally deviate the final portfolio within the governance-granted range, or prevent a Folio from rebalancing entirely. In the case that `RebalanceControl.priceControl == PriceControl.PARTIAL`, they can additionally cause value leakage but cannot guarantee they themselves are the beneficiary; in the case that `RebalanceControl.priceControl == PriceControl.ATOMIC_SWAP`, they can cause value leakage AND make themselves the beneficiary.
+`AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig. They can open auctions within the bounds set by governance, hopefully adding basket and pricing precision. If they are offline the auction can be opened through the permissionless route instead. If the `AUCTION_LAUNCHER` is not just offline but actively evil, at-best they can maximally deviate the final portfolio within the governance-granted range, or prevent a Folio from rebalancing entirely. In the case that `RebalanceControl.priceControl == PriceControl.PARTIAL`, they can additionally cause value leakage but cannot guarantee they themselves are the beneficiary; in the case that `RebalanceControl.priceControl == PriceControl.ATOMIC_SWAP`, they can cause value leakage AND make themselves the beneficiary.
 
 There is no limit to how many auctions can be opened during a rebalance except for the rebalance's TTL. The `AUCTION_LAUNCHER` always has the opportunity to open another auction or close the rebalance before the permissionless (unrestricted) period begins.
 
@@ -45,7 +45,7 @@ A Folio has 3 roles:
 
 1. `DEFAULT_ADMIN_ROLE`
    - Expected: Folio governance timelock
-   - Can add/remove assets, set fees, configure auction length, set the auction delay, and closeout auctions
+   - Can add/remove assets, set fees, configure max auction length, close auctions/rebalances, and deprecate the Folio
    - Can configure the `REBALANCE_MANAGER`/ `AUCTION_LAUNCHER`
    - Primary owner of the Folio
 2. `REBALANCE_MANAGER`
@@ -53,7 +53,7 @@ A Folio has 3 roles:
    - Can start rebalances, end rebalances/auctions
 3. `AUCTION_LAUNCHER`
    - Expected: EOA or multisig
-   - Can start and end auctions, optionally setting parameters of the auction within the approved ranges
+   - Can open and close auctions, end rebalances, and optionally set auction parameters within the approved ranges
 
 ### Rebalancing
 
@@ -62,7 +62,7 @@ A Folio has 3 roles:
 1. A rebalance is started by the `REBALANCE_MANAGER`, specifying ranges for all variables (tokens, rebalance limits, token weights, and prices)
 2. An auction is opened within a subset of the initially-provided ranges
    a. ...either by the auction launcher (optionally tweaking rebalance limits, weights, or prices)
-   b. ...or permissionlessly (after the restricted period passes, and without any changes from the original configuration)
+   b. ...or permissionlessly (after the restricted period passes, using spot weights/limits and initially approved prices)
 3. Bids occur on any token pairs included in the auction at nonzero size
 4. Auction expires
 
@@ -76,7 +76,7 @@ Rebalances first pass through a restricted period where only the `AUCTION_LAUNCH
 
 ###### TTL
 
-Rebalances have a time-to-live (TTL) that controls how long the rebalance can run. Any number of auctions can be opened during this time, and it can be extended by the `AUCTION_LAUNCHER` if they are near the end. Note: an auction can be opened at `ttl - 1` and run beyond the rebalance's TTL.
+Rebalances have a time-to-live (TTL) that controls how long the rebalance can run. Any number of auctions can be opened during this time, but the TTL itself is fixed once the rebalance starts. The `AUCTION_LAUNCHER` can extend the restricted auction-launcher window within the TTL by opening auctions near the end of that window. Note: an auction can be opened at `ttl - 1` and run beyond the rebalance's TTL.
 
 ##### Rebalance Targeting
 
@@ -135,7 +135,7 @@ Note: The first block may not have a price of exactly `startPrice` if it does no
 
 ###### Lot Sizing
 
-Auctions are sized by the difference between current balances and what balance the Folio would need at the given basket `limit * weight`. Surpluses are defined relative to `RebalanceLimits.high`, while deficits are defined relative to `RebalanceLimits.low`. Each auction, the `AUCTION_LAUNCHER` is able to progressively narrow this range, until eventually an auction is run where `RebalanceLimits.high == RebalanceLimits.low` is true. Rebalancing is also informed by the spot weight at the invidiual token level.
+Auctions are sized by the difference between current balances and what balance the Folio would need at the given basket `limit * weight`. Surpluses are defined relative to `RebalanceLimits.high`, while deficits are defined relative to `RebalanceLimits.low`. Each auction, the `AUCTION_LAUNCHER` is able to progressively narrow this range, until eventually an auction is run where `RebalanceLimits.high == RebalanceLimits.low` is true. Rebalancing is also informed by the spot weight at the individual token level.
 
 The auction `sellAmount` represents the single largest quantity of sell token that can be transacted without violating the `limits` of either tokens in the pair.
 
@@ -149,14 +149,13 @@ In general it is possible for the `sellAmount` to either increase or decrease ov
 Anyone can bid in any auction up to and including the `sellAmount` size, as long as the `price` exchange rate is met.
 
 ```
-/// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
+/// @return sellAmount {sellTok} The amount of sell token on sale in the auction in the current block
 /// @return bidAmount {buyTok} The amount of buy tokens required to bid for the full sell amount
-/// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
+/// @return price D27{buyTok/sellTok} The price in the current block as a 27-decimal fixed point
 function getBid(
    uint256 auctionId,
    IERC20 sellToken,
    IERC20 buyToken,
-   uint256 timestamp,
    uint256 maxSellAmount
 ) external view returns (uint256 sellAmount, uint256 bidAmount, uint256 price);
 ```
@@ -169,21 +168,21 @@ Folios support 2 types of fees. Both have a DAO portion that work the same under
 
 **Per-unit time fee on AUM**
 
-The DAO takes a cut with a minimum floor of 15 bps. A consequence of this is that the Folio always inflates at least 15 bps annually. If the tvl fee is set to 15 bps, then 100% of this inflation goes towards the DAO.
+The DAO takes a cut with a chain-specific minimum floor. The default floor is 15 bps annually on Ethereum and Base, and 10 bps annually on BNB Smart Chain. A consequence of this is that the Folio inflates at least by the applicable floor while it is nonzero. If the tvl fee is set at or below the floor, then 100% of this inflation goes towards the DAO.
 
-Max: 10% annualy
+Max: 10% annually
 
 ##### `mintFee`
 
 **Fee on mints**
 
-The DAO takes a cut with a minimum floor of 15 bps. The DAO always receives at least 15 bps of the value of the mint. If the mint fee is set to 15 bps, then 100% of the mint fee is taken by the DAO.
+The DAO takes a cut with a chain-specific minimum floor. The DAO always receives at least the applicable floor of the value of the mint. If the mint fee is set at or below the floor, then 100% of the mint fee is taken by the DAO.
 
 Max: 5%
 
 #### Fee Floor
 
-The universal 15 bps fee floor can be lowered by the DAO, as well as set (only lower) on a per Folio basis.
+The chain-specific fee floor can be lowered by the DAO, as well as set (only lower) on a per Folio basis.
 
 ### Units
 
@@ -259,7 +258,7 @@ The chain is assumed to have block times equal to or under 30s.
 
 ### Releases
 
-- [1.0.0](https://github.com/reserve-protocol/reserve-index-dtf/releases/tag/r1.0.0): Intial release: Non-repeatable pairwise auctions
+- [1.0.0](https://github.com/reserve-protocol/reserve-index-dtf/releases/tag/r1.0.0): Initial release: Non-repeatable pairwise auctions
 - [2.0.0](https://github.com/reserve-protocol/reserve-index-dtf/releases/tag/r2.0.0): Repeatable pairwise auctions
 - 3.0.0 (skipped; never deployed): Pairwise auctions around a rebalance
 - 4.0.0: Basket auctions around a rebalance
