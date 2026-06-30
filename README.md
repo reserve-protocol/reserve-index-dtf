@@ -10,7 +10,7 @@ The `AUCTION_LAUNCHER` is trusted to provide additional input to the rebalance p
 
 `REBALANCE_MANAGER` is expected to be the timelock of the rebalancing governor associated with the Folio. A major design goal of a Folio is to be able to achieve high fidelity asset management and rebalancing even when acting under a timelock delay.
 
-`AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig. They can open auctions within the bounds set by governance, hopefully adding basket and pricing precision. If they are offline the auction can be opened through the permissionless route instead. If the `AUCTION_LAUNCHER` is not just offline but actively evil, at-best they can maximally deviate the final portfolio within the governance-granted range, or prevent a Folio from rebalancing entirely. In the case that `RebalanceControl.priceControl == PriceControl.PARTIAL`, they can additionally cause value leakage but cannot guarantee they themselves are the beneficiary; in the case that `RebalanceControl.priceControl == PriceControl.ATOMIC_SWAP`, they can cause value leakage AND make themselves the beneficiary.
+`AUCTION_LAUNCHER` is expected to be a semi-trusted EOA or multisig. They can open auctions within the bounds set by governance, adding basket and pricing precision. If they are offline the auction can be opened through the permissionless route instead. If the `AUCTION_LAUNCHER` is actively malicious, they can maximally deviate the final portfolio within the governance-granted range or prevent a Folio from rebalancing entirely. In the case that `RebalanceControl.priceControl == PriceControl.PARTIAL`, they can additionally cause value leakage but cannot guarantee they themselves are the beneficiary; in the case that `RebalanceControl.priceControl == PriceControl.ATOMIC_SWAP`, they can cause value leakage AND make themselves the beneficiary.
 
 There is no limit to how many auctions can be opened during a rebalance except for the rebalance's TTL. The `AUCTION_LAUNCHER` always has the opportunity to open another auction or close the rebalance before the permissionless (unrestricted) period begins.
 
@@ -66,7 +66,7 @@ A Folio has 3 roles:
 3. Bids occur on any token pairs included in the auction at nonzero size
 4. Auction expires
 
-A rebalance can only have 1 auction run at a time. The `AUCTION_LAUNCHER` can always overwrite the existing auction, but an unpermissioned caller must wait for an ongoing auction to close before opening a new one. At anytime the current auction can be closed or a new rebalance can be started, which also closes the running auction.
+A rebalance can only have 1 auction run at a time. The `AUCTION_LAUNCHER` can always overwrite the existing auction, but an unpermissioned caller must wait for an ongoing auction to close before opening a new one. At any time the current auction can be closed or a new rebalance can be started, which also closes the running auction.
 
 ##### Rebalance Usage
 
@@ -117,7 +117,7 @@ If `RebalanceControl.weightControl` is set, the `AUCTION_LAUNCHER` can help defi
 
 ###### Price
 
-For each token supplied to the rebalance the `REBALANCE_MANAGER` must provide a `low` and `high` price estimate. These should be set such that in the vast vast majority of scenarios, the asset's price later on secondary markets will lie within the provided range even after any timelock delays. The slippage from block-to-block price imprecision must also not be too large. The maximum allowable price range for a token is `1e2`, so the largest an auction can be is over 4 magnitudes. This is an extreme case and not the typical usage for a non-degen Folio that wishes to maintain optimal execution.
+For each token supplied to the rebalance the `REBALANCE_MANAGER` must provide a `low` and `high` price estimate. These should be set such that in almost all expected scenarios, the asset's price later on secondary markets will lie within the provided range even after any timelock delays. The slippage from block-to-block price imprecision must also not be too large. The maximum allowable price range for a token is `1e2`, so the largest pairwise auction price range can span 4 orders of magnitude. This is an extreme case and not the typical usage for a Folio that wishes to maintain optimal execution.
 
 Note: if the price of an asset goes outside its approved range, this can result in loss of value for Folio holders with value going to MEV searchers. In this case it is the job of the `AUCTION_LAUNCHER` to end the rebalance before loss can occur.
 
@@ -131,7 +131,7 @@ If `RebalanceControl.priceControl == PriceControl.ATOMIC_SWAP`, the `AUCTION_LAU
 
 ![alt text](auction.png "Auction Curve")
 
-Note: The first block may not have a price of exactly `startPrice` if it does not occur on the `start` timestamp. Similarly, the `endPrice` may not be exactly `endPrice` in the final block if it does not occur on the `end` timestamp.
+Note: The first block may not have a price of exactly `startPrice` if it does not occur on the `start` timestamp. Similarly, the final block may not have a price of exactly `endPrice` if it does not occur on the `end` timestamp.
 
 ###### Lot Sizing
 
@@ -168,7 +168,7 @@ Folios support 2 types of fees. Both have a DAO portion that work the same under
 
 **Per-unit time fee on AUM**
 
-The DAO takes a cut with a chain-specific minimum floor. The default floor is 15 bps annually on Ethereum and Base, and 10 bps annually on BNB Smart Chain. A consequence of this is that the Folio inflates at least by the applicable floor while it is nonzero. If the tvl fee is set at or below the floor, then 100% of this inflation goes towards the DAO.
+The DAO takes a cut with a chain-specific minimum floor. The default floor is 15 bps annually on Ethereum and Base, and 10 bps annually on BNB Smart Chain. A consequence of this is that the Folio inflates by at least the applicable floor while the floor is nonzero. If the TVL fee is set at or below the floor, then 100% of this inflation goes towards the DAO.
 
 Max: 10% annually
 
@@ -218,7 +218,7 @@ Tokens are assumed to be within the following ranges:
 
 It is the job of governance to ensure the Folio supply does not grow beyond 1e36 supply.
 
-Exchange rates for rebalance limits are permitted to be up to 1e36, and are 18 decimal fixed point numbers.
+Rebalance limits are permitted to be up to 1e27, and are 18 decimal fixed point numbers.
 
 Basket weights for each token are permitted to be up to 1e54, and are 27 decimal fixed point numbers.
 
@@ -268,9 +268,9 @@ The chain is assumed to have block times equal to or under 30s.
 ### Future Work / Not Implemented Yet
 
 1. **`delegatecall` functionality / way to claim rewards**
-   currently there is no way to claim rewards, for example to claim AERO as a result of holding a staked Aerodrome position. An autocompounding layer such as beefy or yearn would be required in order to put this kind of position into a Folio
-2. **alternative community governance systems**
-   we would like to add alternatives in the future such as (i) NFT-based governance; and (ii) an ERC20 fair launch system
+   Currently there is no way to claim rewards, for example to claim AERO as a result of holding a staked Aerodrome position. An autocompounding layer such as Beefy or Yearn would be required in order to put this kind of position into a Folio.
+2. **Alternative community governance systems**
+   Future governance options could include NFT-based governance and ERC20 fair-launch systems.
 
 ### Development
 

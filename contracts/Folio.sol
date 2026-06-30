@@ -30,7 +30,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
  *
  * There are 3 main roles:
- *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, close auctions/rebalances, and deprecateFolio
+ *   1. DEFAULT_ADMIN_ROLE: can set ERC20 assets, fees, max auction length, close auctions/rebalances, and deprecateFolio
  *   2. REBALANCE_MANAGER: can start/end rebalances, and end individual auctions
  *   3. AUCTION_LAUNCHER: can open auctions and end rebalances/auctions
  *
@@ -167,7 +167,7 @@ contract Folio is
      *   - Each auction the AUCTION_LAUNCHER provides: (i) basket limits; (i) weight ranges; and (iii) prices
      *   - Depending on RebalanceControl.weightControl, the AUCTION_LAUNCHER may be able to narrow weight ranges within the initial range
      *   - Depending on RebalanceControl.priceControl, the AUCTION_LAUNCHER may be able to narrow prices within the initial range
-     *   - At anytime the rebalance can be stopped or a new one can be started. In the stopping case, any ongoing auction
+     *   - At any time the rebalance can be stopped or a new one can be started. In the stopping case, any ongoing auction
      *     is able to continue completion, but in the restart case the ongoing auction is closed.
      */
     Rebalance private rebalance;
@@ -297,7 +297,7 @@ contract Folio is
         require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
     }
 
-    /// An annual tvl fee below the DAO fee floor will result in the entirety of the fee being sent to the DAO
+    /// An annual TVL fee below the DAO fee floor will result in the entirety of the fee being sent to the DAO
     /// @dev Non-reentrant via distributeFees()
     /// @param _newFee D18{1/year} Annual fee on AUM
     function setTVLFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -342,7 +342,7 @@ contract Folio is
         _setMaxAuctionLength(_newLength);
     }
 
-    /// @param _newMandate New mandate, a schelling point to guide governance
+    /// @param _newMandate New mandate, a Schelling point to guide governance
     function setMandate(string calldata _newMandate) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setMandate(_newMandate);
     }
@@ -398,7 +398,7 @@ contract Folio is
     }
 
     /// Deprecate the Folio, callable only by the admin
-    /// @dev Folio cannot be minted and auctions cannot be approved, opened, or bid on
+    /// @dev Folio cannot be minted, rebalanced, opened for auction, or bid on
     function deprecateFolio() external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         isDeprecated = true;
 

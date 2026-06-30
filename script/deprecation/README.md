@@ -4,7 +4,7 @@ Full deprecation of an Index DTF renders it permanently in **redemption-only mod
 
 ## Deprecation Actions
 
-A single governance proposal performs all of the following atomically:
+A single governance proposal should perform all of the following actions:
 
 1. **`deprecateFolio()`** — sets `isDeprecated = true`, blocking minting, auctions, and rebalancing
 2. **`revokeRole(REBALANCE_MANAGER, tradingTimelock)`** — removes basket management capability
@@ -12,11 +12,11 @@ A single governance proposal performs all of the following atomically:
 4. **`revokeRole(DEFAULT_ADMIN_ROLE, ownerTimelock)`** — removes governance control from the Folio
 5. **`renounceOwnership()`** on `FolioProxyAdmin` — permanently prevents contract upgrades
 
-The admin role revocation must come before the ProxyAdmin renounce, so the timelock still has permission to execute all prior calls.
+The admin role revocation must come after all Folio calls that require admin permissions. The ProxyAdmin renounce is separate from Folio role checks, but it should still be the final action because it permanently removes the upgrade path.
 
 ### Post-Deprecation State
 
-- `isDeprecated = true` — minting, auctions, rebalancing all blocked
+- `isDeprecated = true` — minting, auctions, and rebalancing all blocked
 - All roles revoked — no address holds `DEFAULT_ADMIN_ROLE`, `REBALANCE_MANAGER`, or `AUCTION_LAUNCHER`
 - ProxyAdmin owner is `address(0)` — no further upgrades possible
 - **Redeem still works** — holders can always redeem shares for underlying basket tokens
@@ -84,7 +84,7 @@ Each JSON follows the [Safe Transaction Builder](https://help.safe.global/en/art
 }
 ```
 
-The `data` field is an ABI-encoded `propose(address[],uint256[],bytes[],string)` call containing all deprecation actions.
+The `data` field is an ABI-encoded `propose(address[],uint256[],bytes[],string)` call containing the deprecation actions.
 
 ## Submitting Proposals
 

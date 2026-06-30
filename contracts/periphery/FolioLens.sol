@@ -13,9 +13,9 @@ import { D18, D27 } from "@utils/Constants.sol";
 /**
  * @title FolioLens
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
- * @notice Read-only interface for Folio summary info
+ * @notice Read-only helper for Folio summary info
  *
- * Not intended for onchain use; only for offchain analysis
+ * Not intended for on-chain integrations; only for off-chain analysis
  */
 contract FolioLens is Versioned {
     constructor() {}
