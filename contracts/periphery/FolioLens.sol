@@ -13,9 +13,9 @@ import { D18, D27 } from "@utils/Constants.sol";
 /**
  * @title FolioLens
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
- * @notice Read-only interface for Folio summary info
+ * @notice Read-only helper for Folio summary info
  *
- * Not intended for onchain use; only for offchain analysis
+ * Not intended for onchain integrations; only for off-chain analysis
  */
 contract FolioLens is Versioned {
     constructor() {}
@@ -49,7 +49,7 @@ contract FolioLens is Versioned {
     }
 
     /// Get bids for all pairs at once for the current block
-    /// Many entries will be 0 to indicate an invalid token pair
+    /// Invalid token pairs are skipped; returned entries contain only nonzero bids
     function getAllBids(Folio folio, uint256 auctionId) external view returns (SingleBid[] memory bids) {
         (uint256 nonce, , IFolio.TokenRebalanceParams[] memory tokenParams, , , ) = folio.getRebalance();
 
