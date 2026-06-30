@@ -171,7 +171,7 @@ Folios support two types of fees. Both have a DAO portion that works the same un
 
 **Per-unit time fee on AUM**
 
-The DAO takes a cut with a chain-specific minimum floor. The default floor is 15 bps annually on Ethereum and Base, and 10 bps annually on BNB Smart Chain. A consequence of this is that the Folio inflates by at least the applicable floor while the floor is nonzero. If the TVL fee is set at or below the floor, then 100% of this inflation goes towards the DAO.
+The DAO takes a cut with a minimum floor of 10 bps annually. A consequence of this is that the Folio inflates by at least the floor while the floor is nonzero. If the TVL fee is set at or below the floor, then 100% of this inflation goes towards the DAO.
 
 Max: 10% annually
 
@@ -179,13 +179,13 @@ Max: 10% annually
 
 **Fee on mints**
 
-The DAO takes a cut with a chain-specific minimum floor. The DAO always receives at least the applicable floor of the value of the mint. If the mint fee is set at or below the floor, then 100% of the mint fee is taken by the DAO.
+The DAO takes a cut with a minimum floor of 10 bps. The DAO always receives at least the floor of the value of the mint. If the mint fee is set at or below the floor, then 100% of the mint fee is taken by the DAO.
 
 Max: 5%
 
 #### Fee Floor
 
-The chain-specific default fee floor is capped by the DAO. Per-Folio fee floors can also be set, but they cannot exceed the default floor.
+The default 10 bps fee floor is capped by the DAO. Per-Folio fee floors can also be set, but they cannot exceed the default floor.
 
 ### Units
 

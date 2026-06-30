@@ -34,8 +34,8 @@ abstract contract BaseTest is Script, Test {
     string public constant VERSION = "6.0.0";
     // === Constants per-chain ===
 
-    uint256 internal constant MAX_DAO_FEE = 0.5e18;
-    uint256 internal constant MAX_FEE_FLOOR = 0.0015e18;
+    uint256 internal constant MAX_DAO_FEE = 1e18 / uint256(3);
+    uint256 internal constant MAX_FEE_FLOOR = 0.001e18;
 
     // === Auth roles ===
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;

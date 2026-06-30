@@ -13,9 +13,9 @@ import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
  *         The fee floor is a lower bound on what can be charged to Folio users, in case
  *         the Folio has set its own top-level fees too low.
  *
- *         For example, if the DAO fee is 50%, and the fee floor is 0.15%, then any TVL fee
- *         that is less than 0.30% will result in the DAO receiving 0.15% and the folio beneficiaries receiving
- *         the TVL fee minus 0.15%. At <=0.15% TVL fee, the DAO receives 0.15% and Folio beneficiaries receive 0%
+ *         For example, if the DAO fee is 33.33%, and the fee floor is 0.10%, then any TVL fee
+ *         that is less than 0.30% will result in the DAO receiving 0.10% and the Folio beneficiaries receiving
+ *         the TVL fee minus 0.10%. At <=0.10% TVL fee, the DAO receives 0.10% and Folio beneficiaries receive 0%
  */
 contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     uint256 public constant FEE_DENOMINATOR = 1e18;
@@ -137,26 +137,10 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
         emit TokenFeeFloorSet(fToken, feeFloor, isActive);
     }
 
-    /// Chain-specific maximum fees
+    /// Maximum fees
     /// @return daoFee D18{1} Maximum DAO fee (platform fee)
     /// @return feeFloor D18{1} Maximum fee floor
-    function _getMaxFee() internal view returns (uint256 daoFee, uint256 feeFloor) {
-        // Mainnet: 50%, 15 bps
-        if (block.chainid == 1) {
-            return (0.5e18, 0.0015e18);
-        }
-
-        // Base: 50%, 15 bps
-        if (block.chainid == 8453) {
-            return (0.5e18, 0.0015e18);
-        }
-
-        // BNB Smart Chain: 33.33%, 10 bps
-        if (block.chainid == 56) {
-            return (1e18 / uint256(3), 0.001e18);
-        }
-
-        // default: 50%, 15 bps
-        return (0.5e18, 0.0015e18);
+    function _getMaxFee() internal pure returns (uint256 daoFee, uint256 feeFloor) {
+        return (1e18 / uint256(3), 0.001e18);
     }
 }
