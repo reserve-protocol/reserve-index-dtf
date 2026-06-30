@@ -84,7 +84,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   - Mint fee: fee on mint. Max 5%. Does not cause supply inflation.
  *
  * After fees have been applied, the DAO takes a cut based on the configuration of the FolioDAOFeeRegistry including
- *   a chain-specific minimum fee floor. The remaining portion above the floor is distributed to the Folio's fee recipients.
+ *   a minimum fee floor. The remaining portion above the floor is distributed to the Folio's fee recipients.
  *   Note that this means it is possible for the fee recipients to receive nothing despite configuring a nonzero fee.
  */
 contract Folio is
