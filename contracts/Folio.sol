@@ -387,6 +387,7 @@ contract Folio is
     }
 
     /// Remove tokens from the allowlist
+    /// @dev Does not impact ongoing rebalances. Consider calling endRebalance()
     /// @param tokens The tokens to remove from the allowlist
     function removeFromAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 len = tokens.length;
@@ -576,6 +577,7 @@ contract Folio is
 
     /// Get the currently ongoing rebalance
     /// @dev Nonzero return values do not imply a rebalance is ongoing; check `rebalance.availableUntil`
+    /// @dev Tokens for which inRebalance is false will contain zero weights, prices, and maxAuctionSize
     /// @return nonce The current rebalance nonce
     /// @return priceControl How much price control the AUCTION_LAUNCHER has: [NONE, PARTIAL, ATOMIC_SWAP]
     /// @return tokens The rebalance parameters for each token in the basket
@@ -888,6 +890,7 @@ contract Folio is
 
     /// Close fill attempting to claw assets back, but always close fill
     /// @dev Callable by ADMIN
+    /// @dev Clawed-back token balances will not be reflected in maxAuctionSize tracking
     function emergencyCloseTrustedFill() external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         _closeTrustedFill(true);
     }

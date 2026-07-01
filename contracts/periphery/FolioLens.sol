@@ -97,7 +97,7 @@ contract FolioLens is Versioned {
         }
     }
 
-    /// Get all surplus and deficit balances at the given sell and buy limits
+    /// Get all surplus and deficit balances at the given sell and buy limits for the current rebalance
     /// @param sellLimit D18{BU/share} A sell limit of the rebalance
     /// @param buyLimit D18{BU/share} A buy limit of the rebalance
     function surplusesAndDeficits(
@@ -117,6 +117,10 @@ contract FolioLens is Versioned {
         deficits = new uint256[](len);
 
         for (uint256 i = 0; i < len; i++) {
+            if (!tokenParams[i].inRebalance) {
+                continue;
+            }
+
             address token = tokenParams[i].token;
 
             tokens[i] = token;
