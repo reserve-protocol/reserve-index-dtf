@@ -387,6 +387,7 @@ contract Folio is
     }
 
     /// Remove tokens from the allowlist
+    /// @dev Does not impact ongoing rebalances. Consider calling endRebalance()
     /// @param tokens The tokens to remove from the allowlist
     function removeFromAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 len = tokens.length;
