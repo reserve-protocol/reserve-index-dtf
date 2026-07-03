@@ -11,11 +11,11 @@ interface IFolioDAOFeeRegistry {
 
     event FeeRecipientSet(address indexed feeRecipient);
     event DefaultFeeNumeratorSet(uint256 defaultFeeNumerator);
-    event TokenFeeFloorSet(address indexed rToken, uint256 feeFloor, bool isActive);
-    event TokenFeeNumeratorSet(address indexed rToken, uint256 feeNumerator, bool isActive);
+    event TokenFeeFloorSet(address indexed folio, uint256 feeFloor, bool isActive);
+    event TokenFeeNumeratorSet(address indexed folio, uint256 feeNumerator, bool isActive);
     event DefaultFeeFloorSet(uint256 feeFloor);
 
     function getFeeDetails(
-        address rToken
+        address folio
     ) external view returns (address recipient, uint256 feeNumerator, uint256 feeDenominator, uint256 feeFloor);
 }

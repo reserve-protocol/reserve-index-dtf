@@ -8,18 +8,16 @@ library MathLib {
     /// @param x 18 decimal fixed point
     /// @param y 18 decimal fixed point
     /// @return z 18 decimal fixed point
-    function pow(uint256 x, uint256 y) external pure returns (uint256 z) {
+    function pow(uint256 x, uint256 y) internal pure returns (uint256 z) {
         return UD_pow(UD60x18.wrap(x), UD60x18.wrap(y)).unwrap();
     }
 
     /// @param x 18 decimal fixed point
     /// @param y whole number exponent
     /// @return z 18 decimal fixed point
-    function powu(uint256 x, uint256 y) external pure returns (uint256 z) {
+    function powu(uint256 x, uint256 y) internal pure returns (uint256 z) {
         return UD_powu(UD60x18.wrap(x), y).unwrap();
     }
-
-    // ==== Internal ====
 
     /// @param x 18 decimal fixed point
     /// @return z 18 decimal fixed point

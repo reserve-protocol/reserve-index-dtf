@@ -6,16 +6,16 @@ import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
 
 /**
- * @title Folio
+ * @title FolioDAOFeeRegistry
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  * @notice FolioDAOFeeRegistry tracks the DAO fees that should be applied to each Folio
- *         The DAO fee is the % of the Folio fees should go to the DAO.
- *         The fee floor is a lower-bound on what can be charged to Folio users, in case
+ *         The DAO fee is the percentage of Folio fees that should go to the DAO.
+ *         The fee floor is a lower bound on what can be charged to Folio users, in case
  *         the Folio has set its own top-level fees too low.
  *
- *         For example, if the DAO fee is 50%, and the fee floor is 0.15%, then any tvl fee
- *         that is less than 0.30% will result in the DAO receiving 0.15% and the folio beneficiaries receiving
- *         the tvl fee minus 0.15%. At <=0.15% tvl fee, the DAO receives 0.15% and folio beneficiaries receive 0%
+ *         For example, if the DAO fee is 33.33%, and the fee floor is 0.10%, then any TVL fee
+ *         that is less than 0.30% will result in the DAO receiving 0.10% and the Folio beneficiaries receiving
+ *         the TVL fee minus 0.10%. At <=0.10% TVL fee, the DAO receives 0.10% and Folio beneficiaries receive 0%
  */
 contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     uint256 public constant FEE_DENOMINATOR = 1e18;
@@ -63,7 +63,7 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
         emit FeeRecipientSet(feeRecipient_);
     }
 
-    /// @param feeNumerator_ {1} New default fee numerator
+    /// @param feeNumerator_ D18{1} New default DAO fee share
     function setDefaultFeeNumerator(uint256 feeNumerator_) external onlyOwner {
         require(feeNumerator_ <= MAX_DAO_FEE, FolioDAOFeeRegistry__InvalidFeeNumerator());
 
@@ -71,12 +71,15 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
         emit DefaultFeeNumeratorSet(feeNumerator_);
     }
 
+    /// @param fToken Folio token to configure
+    /// @param feeNumerator_ D18{1} DAO fee share for this Folio
     function setTokenFeeNumerator(address fToken, uint256 feeNumerator_) external onlyOwner {
         require(feeNumerator_ <= MAX_DAO_FEE, FolioDAOFeeRegistry__InvalidFeeNumerator());
 
         _setTokenFee(fToken, feeNumerator_, true);
     }
 
+    /// @param _defaultFeeFloor D18{1} New default fee floor
     function setDefaultFeeFloor(uint256 _defaultFeeFloor) external onlyOwner {
         require(_defaultFeeFloor <= MAX_FEE_FLOOR, FolioDAOFeeRegistry__InvalidFeeFloor());
 
@@ -84,19 +87,23 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
         emit DefaultFeeFloorSet(defaultFeeFloor);
     }
 
+    /// @param fToken Folio token to configure
+    /// @param _feeFloor D18{1} Fee floor for this Folio; cannot exceed the default fee floor
     function setTokenFeeFloor(address fToken, uint256 _feeFloor) external onlyOwner {
         require(_feeFloor <= defaultFeeFloor, FolioDAOFeeRegistry__InvalidFeeFloor());
 
         _setTokenFeeFloor(fToken, _feeFloor, true);
     }
 
+    /// @param fToken Folio token whose fee overrides should be cleared
     function resetTokenFees(address fToken) external onlyOwner {
         _setTokenFee(fToken, 0, false);
         _setTokenFeeFloor(fToken, 0, false);
     }
 
-    /// @return recipient
-    /// @return feeNumerator D18{1}
+    /// @param fToken Folio token to query
+    /// @return recipient DAO fee recipient
+    /// @return feeNumerator D18{1} DAO fee share
     /// @return feeDenominator D18{1}
     /// @return feeFloor D18{1}
     function getFeeDetails(
@@ -130,26 +137,10 @@ contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
         emit TokenFeeFloorSet(fToken, feeFloor, isActive);
     }
 
-    /// Chain-specific maximum fees
+    /// Maximum fees
     /// @return daoFee D18{1} Maximum DAO fee (platform fee)
     /// @return feeFloor D18{1} Maximum fee floor
-    function _getMaxFee() internal view returns (uint256 daoFee, uint256 feeFloor) {
-        // Mainnet: 50%, 15 bps
-        if (block.chainid == 1) {
-            return (0.5e18, 0.0015e18);
-        }
-
-        // Base: 50%, 15 bps
-        if (block.chainid == 8453) {
-            return (0.5e18, 0.0015e18);
-        }
-
-        // BNB Smart Chain: 33.33%, 10 bps
-        if (block.chainid == 56) {
-            return (1e18 / uint256(3), 0.001e18);
-        }
-
-        // default: 50%, 15 bps
-        return (0.5e18, 0.0015e18);
+    function _getMaxFee() internal pure returns (uint256 daoFee, uint256 feeFloor) {
+        return (1e18 / uint256(3), 0.001e18);
     }
 }

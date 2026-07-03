@@ -5,33 +5,44 @@ import "forge-std/Script.sol";
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 
-import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { MockERC20 } from "utils/MockERC20.sol";
-import { MockERC20 } from "utils/MockERC20.sol";
-import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
 
-import { IFolio, Folio } from "@src/Folio.sol";
-import { FolioDeployer } from "@deployer/FolioDeployer.sol";
-import { FolioGovernor } from "@gov/FolioGovernor.sol";
-import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
-import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
-import { GovernanceDeployer } from "@deployer/GovernanceDeployer.sol";
-import { StakingVault } from "@staking/StakingVault.sol";
-import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
 import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
 import { CowSwapFiller } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/CowSwapFiller.sol";
 
+import { StakingVaultDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/StakingVaultDeployer.sol";
+import { ReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorDeployer.sol";
+import { TimelockControllerOptimisticDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/TimelockControllerOptimisticDeployer.sol";
+import { OptimisticSelectorRegistryDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/OptimisticSelectorRegistryDeployer.sol";
+import { ReserveOptimisticGovernorDeployerDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorDeployerDeployer.sol";
+import { IReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/interfaces/IDeployer.sol";
+import { IRoleRegistry as IRewardRoleRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IRoleRegistry.sol";
+import { RewardTokenRegistry } from "@reserve-protocol/reserve-governor/contracts/staking/RewardTokenRegistry.sol";
+
+import { IFolio, Folio } from "@src/Folio.sol";
+import { FolioDeployer } from "@deployer/FolioDeployer.sol";
+import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
+import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
+import { IRoleRegistry, FolioDAOFeeRegistry } from "@folio/FolioDAOFeeRegistry.sol";
+
+import { MockERC20 } from "utils/MockERC20.sol";
+import { MockGovernanceVersionRegistry } from "utils/MockGovernanceVersionRegistry.sol";
+import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
+
 abstract contract BaseTest is Script, Test {
-    string public constant VERSION = "5.0.0";
+    string public constant VERSION = "6.0.0";
     // === Constants per-chain ===
 
-    uint256 internal constant MAX_DAO_FEE = 0.5e18;
-    uint256 internal constant MAX_FEE_FLOOR = 0.0015e18;
+    uint256 internal constant MAX_DAO_FEE = 1e18 / uint256(3);
+    uint256 internal constant MAX_FEE_FLOOR = 0.001e18;
 
     // === Auth roles ===
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
+
+    // CoW v2 settlement and vault relayer addresses used for filler deployment
+    address constant GPV2_SETTLEMENT = address(0x9008D19f58AAbD9eD0D60971565AA8510560ab41);
+    address constant GPV2_VAULT_RELAYER = address(0xC92E8bdf79f0507f65a392b0ab4667716BFE0110);
 
     uint256 constant D6_TOKEN_1 = 1e6;
     uint256 constant D6_TOKEN_10K = 1e10; // 1e4 = 10K tokens with 6 decimals
@@ -64,15 +75,12 @@ abstract contract BaseTest is Script, Test {
     FolioDAOFeeRegistry daoFeeRegistry;
     FolioVersionRegistry versionRegistry;
     TrustedFillerRegistry trustedFillerRegistry;
+    MockGovernanceVersionRegistry optimisticGovernanceVersionRegistry;
+    RewardTokenRegistry rewardTokenRegistry;
+    IReserveOptimisticGovernorDeployer optimisticGovernanceDeployer;
 
     FolioProxyAdmin proxyAdmin;
     MockRoleRegistry roleRegistry;
-
-    GovernanceDeployer governanceDeployer;
-
-    address governorImplementation;
-    address timelockImplementation;
-    address stakingVaultImplementation;
 
     address cowswapFiller;
 
@@ -125,31 +133,46 @@ abstract contract BaseTest is Script, Test {
     function _coreSetup() public {}
 
     function _testSetupBefore() public virtual {
-        roleRegistry = new MockRoleRegistry();
+        roleRegistry = new MockRoleRegistry(address(this));
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
         trustedFillerRegistry = new TrustedFillerRegistry(address(roleRegistry));
+        optimisticGovernanceVersionRegistry = new MockGovernanceVersionRegistry();
+        rewardTokenRegistry = new RewardTokenRegistry(IRewardRoleRegistry(address(roleRegistry)));
 
-        governorImplementation = address(new FolioGovernor());
-        timelockImplementation = address(new TimelockControllerUpgradeable());
-        stakingVaultImplementation = address(new StakingVault());
-        governanceDeployer = new GovernanceDeployer(
-            governorImplementation,
-            timelockImplementation,
-            stakingVaultImplementation
+        // Deploy implementations via artifacts
+        address stakingVaultImpl = StakingVaultDeployer.deploy(bytes32(uint256(1)));
+        address governorImpl = ReserveOptimisticGovernorDeployer.deploy(bytes32(uint256(2)));
+        address timelockImpl = TimelockControllerOptimisticDeployer.deploy(bytes32(uint256(3)));
+        address selectorRegistryImpl = OptimisticSelectorRegistryDeployer.deploy(bytes32(uint256(4)));
+
+        // Deploy the factory via artifact
+        optimisticGovernanceDeployer = IReserveOptimisticGovernorDeployer(
+            ReserveOptimisticGovernorDeployerDeployer.deploy(
+                address(optimisticGovernanceVersionRegistry),
+                address(rewardTokenRegistry),
+                user1,
+                stakingVaultImpl,
+                governorImpl,
+                timelockImpl,
+                selectorRegistryImpl,
+                bytes32(uint256(5))
+            )
         );
+
         folioDeployer = new FolioDeployer(
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
 
-        cowswapFiller = address(new CowSwapFiller());
+        cowswapFiller = address(new CowSwapFiller(GPV2_SETTLEMENT, GPV2_VAULT_RELAYER));
 
         // register version
         versionRegistry.registerVersion(folioDeployer);
         trustedFillerRegistry.addTrustedFiller(CowSwapFiller(cowswapFiller));
+        optimisticGovernanceVersionRegistry.registerVersion(optimisticGovernanceDeployer);
 
         deployCoins();
         mintTokens();
@@ -242,6 +265,14 @@ abstract contract BaseTest is Script, Test {
         }
     }
 
+    function _registerRewardTokens(address[] memory rewardTokens) internal {
+        for (uint256 i = 0; i < rewardTokens.length; i++) {
+            if (!rewardTokenRegistry.isRegistered(rewardTokens[i])) {
+                rewardTokenRegistry.registerRewardToken(rewardTokens[i]);
+            }
+        }
+    }
+
     // === Internal ===
 
     IFolio.FolioFlags _folioFlags =
@@ -274,6 +305,7 @@ abstract contract BaseTest is Script, Test {
         IFolio.FolioAdditionalDetails memory _additionalDetails = IFolio.FolioAdditionalDetails({
             maxAuctionLength: _maxAuctionLength,
             feeRecipients: _feeRecipients,
+            immutableFeeRecipients: new IFolio.FeeRecipient[](0),
             tvlFee: _tvlFee,
             mintFee: _mintFee,
             folioFeeForSelf: 0,
@@ -300,5 +332,22 @@ abstract contract BaseTest is Script, Test {
         );
 
         _proxyAdmin = FolioProxyAdmin(_proxyAdmin2);
+    }
+
+    function nextRebalanceNonce(Folio _folio) internal view returns (uint256) {
+        (uint256 nonce, , , , , ) = _folio.getRebalance();
+        return nonce + 1;
+    }
+
+    function startRebalance(
+        Folio _folio,
+        IFolio.TokenRebalanceParams[] memory tokens,
+        IFolio.RebalanceLimits memory limits,
+        uint256 auctionLauncherWindow,
+        uint256 ttl
+    ) internal {
+        uint256 rebalanceNonce = nextRebalanceNonce(_folio);
+        vm.prank(dao);
+        _folio.startRebalance(rebalanceNonce, tokens, limits, auctionLauncherWindow, ttl);
     }
 }

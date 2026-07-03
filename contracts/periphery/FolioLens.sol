@@ -13,9 +13,9 @@ import { D18, D27 } from "@utils/Constants.sol";
 /**
  * @title FolioLens
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
- * @notice Read-only interface for Folio summary info
+ * @notice Read-only helper for Folio summary info
  *
- * Not intended for onchain use; only for offchain analysis
+ * Not intended for onchain integrations; only for off-chain analysis
  */
 contract FolioLens is Versioned {
     constructor() {}
@@ -49,7 +49,7 @@ contract FolioLens is Versioned {
     }
 
     /// Get bids for all pairs at once for the current block
-    /// Many entries will be 0 to indicate an invalid token pair
+    /// Invalid token pairs are skipped; returned entries contain only nonzero bids
     function getAllBids(Folio folio, uint256 auctionId) external view returns (SingleBid[] memory bids) {
         (uint256 nonce, , IFolio.TokenRebalanceParams[] memory tokenParams, , , ) = folio.getRebalance();
 
@@ -97,7 +97,7 @@ contract FolioLens is Versioned {
         }
     }
 
-    /// Get all surplus and deficit balances at the given sell and buy limits
+    /// Get all surplus and deficit balances at the given sell and buy limits for the current rebalance
     /// @param sellLimit D18{BU/share} A sell limit of the rebalance
     /// @param buyLimit D18{BU/share} A buy limit of the rebalance
     function surplusesAndDeficits(
@@ -117,6 +117,10 @@ contract FolioLens is Versioned {
         deficits = new uint256[](len);
 
         for (uint256 i = 0; i < len; i++) {
+            if (!tokenParams[i].inRebalance) {
+                continue;
+            }
+
             address token = tokenParams[i].token;
 
             tokens[i] = token;

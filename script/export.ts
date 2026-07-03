@@ -8,13 +8,9 @@ const convertToTypescript = (name: string, object: Object) => {
 const artifactsList = [
   "Folio.sol/Folio.json",
   "FolioLens.sol/FolioLens.json",
-  "GovernanceDeployer.sol/GovernanceDeployer.json",
   "FolioDeployer.sol/FolioDeployer.json",
   "FolioProxy.sol/FolioProxyAdmin.json",
   "FolioProxy.sol/FolioProxy.json",
-  "StakingVault.sol/StakingVault.json",
-  "UnstakingManager.sol/UnstakingManager.json",
-  "FolioGovernor.sol/FolioGovernor.json",
 ];
 
 const artifactDirectory = "artifacts";

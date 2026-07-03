@@ -11,6 +11,9 @@ import { Versioned } from "@utils/Versioned.sol";
  * @title FolioVersionRegistry
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  * @notice FolioVersionRegistry tracks Folio deployments by their version string
+ * @dev Operationally, old Folio versions should be deprecated as new versions are registered.
+ *      Keeping only one non-deprecated version live at a time limits downgrade paths and reduces
+ *      the chance that governance or callers select stale Folio implementations.
  */
 contract FolioVersionRegistry is IFolioVersionRegistry {
     IRoleRegistry public immutable roleRegistry;
@@ -25,6 +28,9 @@ contract FolioVersionRegistry is IFolioVersionRegistry {
         roleRegistry = _roleRegistry;
     }
 
+    /// @dev Registering a new version does not automatically deprecate the previous version.
+    ///      Registry owners should deprecate old versions after registering replacements so
+    ///      getLatestVersion() is generally the only non-deprecated Folio version.
     function registerVersion(IFolioDeployer folioDeployer) external {
         require(roleRegistry.isOwner(msg.sender), VersionRegistry__InvalidCaller());
 

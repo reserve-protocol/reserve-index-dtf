@@ -36,16 +36,15 @@ contract FolioProxyAdmin is Ownable {
 /**
  * @title FolioProxy
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
- * @dev This is an alternate implementation of the TransparentUpgradeableProxy contract, please read through
- *      their considerations and limitations before using this contract.
+ * @dev Alternate implementation of OpenZeppelin's TransparentUpgradeableProxy pattern. The admin can only call
+ *      upgradeToAndCall through the proxy; all other calls from the admin revert.
  */
 contract FolioProxy is ERC1967Proxy {
     error ProxyDeniedAdminAccess();
 
     constructor(address _logic, address _admin) ERC1967Proxy(_logic, "") {
         /**
-         * @dev _admin must be proxyAdmin
-         * @notice Yes, admin can be an immutable variable. Doing this way to honor ERC1967 spec.
+         * @dev _admin must be the FolioProxyAdmin. Store it in the ERC1967 admin slot for compatibility.
          */
         ERC1967Utils.changeAdmin(_admin);
     }
