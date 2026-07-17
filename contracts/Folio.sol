@@ -568,6 +568,11 @@ contract Folio is
         require(range.low != 0, Folio__InvalidAsset());
     }
 
+    /// Get the current rebalance nonce
+    function getRebalanceNonce() external view returns (uint256) {
+        return rebalance.nonce;
+    }
+
     /// @dev stack-too-deep
     struct RebalanceTimestamps {
         uint256 startedAt; // {s} timestamp rebalancing started, inclusive
