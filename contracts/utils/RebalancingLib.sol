@@ -6,6 +6,7 @@ import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
@@ -21,17 +22,40 @@ import { MathLib } from "@utils/MathLib.sol";
  * startRebalance() -> openAuction() -> getBid() -> bid()
  */
 library RebalancingLib {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
+    struct StartRebalanceContext {
+        uint256 auctionLauncherWindow;
+        uint256 ttl;
+        bool bidsEnabled;
+        bool tradeAllowlistEnabled;
+    }
+
     function startRebalance(
         uint256 rebalanceNonce,
         address[] calldata oldTokens,
         IFolio.RebalanceControl storage rebalanceControl,
         IFolio.Rebalance storage rebalance,
+        EnumerableSet.AddressSet storage tradeTokenAllowlist,
         IFolio.TokenRebalanceParams[] calldata tokens,
         IFolio.RebalanceLimits calldata limits,
-        uint256 auctionLauncherWindow,
-        uint256 ttl,
-        bool bidsEnabled
+        StartRebalanceContext calldata context,
+        uint256 deadline
     ) external {
+        require(block.timestamp <= deadline, IFolio.Folio__DeadlineExpired());
+
+        // non-allowlisted tokens can only be traded out (zero weights)
+        if (context.tradeAllowlistEnabled) {
+            for (uint256 i; i < tokens.length; i++) {
+                if (!tradeTokenAllowlist.contains(tokens[i].token)) {
+                    require(
+                        tokens[i].weight.low == 0 && tokens[i].weight.spot == 0 && tokens[i].weight.high == 0,
+                        IFolio.Folio__TokenNotAllowlisted()
+                    );
+                }
+            }
+        }
+
         uint256 nextRebalanceNonce = rebalance.nonce + 1;
         require(rebalanceNonce == nextRebalanceNonce, IFolio.Folio__InvalidRebalanceNonce());
 
@@ -42,7 +66,10 @@ library RebalancingLib {
 
         // ====
 
-        require(ttl != 0 && ttl >= auctionLauncherWindow && ttl <= MAX_TTL, IFolio.Folio__InvalidTTL());
+        require(
+            context.ttl != 0 && context.ttl >= context.auctionLauncherWindow && context.ttl <= MAX_TTL,
+            IFolio.Folio__InvalidTTL()
+        );
 
         // enforce limits are internally consistent
         require(
@@ -102,10 +129,10 @@ library RebalancingLib {
         rebalance.nonce = nextRebalanceNonce;
         rebalance.limits = limits;
         rebalance.startedAt = block.timestamp;
-        rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
-        rebalance.availableUntil = block.timestamp + ttl;
+        rebalance.restrictedUntil = block.timestamp + context.auctionLauncherWindow;
+        rebalance.availableUntil = block.timestamp + context.ttl;
         rebalance.priceControl = rebalanceControl.priceControl;
-        rebalance.bidsEnabled = bidsEnabled;
+        rebalance.bidsEnabled = context.bidsEnabled;
 
         emit IFolio.RebalanceStarted(
             rebalance.nonce,
@@ -113,9 +140,9 @@ library RebalancingLib {
             tokens,
             limits,
             block.timestamp,
-            block.timestamp + auctionLauncherWindow,
-            block.timestamp + ttl,
-            bidsEnabled
+            block.timestamp + context.auctionLauncherWindow,
+            block.timestamp + context.ttl,
+            context.bidsEnabled
         );
     }
 

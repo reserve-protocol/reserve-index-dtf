@@ -314,7 +314,14 @@ contract AllowlistTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert19 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert19, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert19,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
     }
 
     function test_rebalance_allowlistEnabled_nonAllowlistedTokenCanBeTradedOutWithZeroWeights() public {
@@ -363,7 +370,14 @@ contract AllowlistTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert20 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert20, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert20,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         // Also test with only high non-zero
         IFolio.WeightRange memory highOnly = IFolio.WeightRange({ low: 0, spot: 0, high: 1e36 });
@@ -373,7 +387,14 @@ contract AllowlistTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert21 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert21, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert21,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         // Also test with only spot non-zero
         IFolio.WeightRange memory spotOnly = IFolio.WeightRange({ low: 0, spot: 1e36, high: 0 });
@@ -383,7 +404,14 @@ contract AllowlistTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert22 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert22, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert22,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
     }
 
     // ========== Token Removed from Allowlist ==========
@@ -446,7 +474,14 @@ contract AllowlistTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert23 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert23, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert23,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
     }
 
     // ========== Re-adding Token to Allowlist ==========
@@ -470,7 +505,14 @@ contract AllowlistTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert24 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert24, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert24,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         // Now add MEME to allowlist
         address[] memory addMeme = new address[](1);
@@ -508,7 +550,14 @@ contract AllowlistTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert25 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert25, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert25,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         // Disable allowlist
         vm.prank(owner);
@@ -546,7 +595,14 @@ contract AllowlistTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert26 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert26, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert26,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
     }
 
     function test_rebalance_allowlistEnabled_newAllowlistedTokenSucceeds() public {
@@ -610,7 +666,14 @@ contract AllowlistTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert27 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert27, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert27,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
     }
 
     // ========== Empty Allowlist with Enabled ==========
@@ -629,7 +692,14 @@ contract AllowlistTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert28 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert28, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert28,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
     }
 
     function test_rebalance_emptyAllowlistEnabled_allZeroWeightsSucceeds() public {

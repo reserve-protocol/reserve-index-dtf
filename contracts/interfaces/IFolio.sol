@@ -98,6 +98,7 @@ interface IFolio {
     error Folio__TrustedFillerRegistryNotEnabled();
     error Folio__TrustedFillerRegistryAlreadySet();
     error Folio__InvalidTTL();
+    error Folio__DeadlineExpired();
     error Folio__NotRebalancing();
     error Folio__InvalidRebalanceNonce();
     error Folio__MixedAtomicSwaps();

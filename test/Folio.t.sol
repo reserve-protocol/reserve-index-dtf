@@ -2639,7 +2639,14 @@ contract FolioTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert1 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidTTL.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert1, tokens, limits, MAX_AUCTION_LENGTH, 0);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert1,
+            tokens,
+            limits,
+            MAX_AUCTION_LENGTH,
+            0,
+            type(uint256).max
+        );
     }
 
     function test_rebalanceAboveMaxTTL() public {
@@ -2651,7 +2658,43 @@ contract FolioTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert2 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidTTL.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert2, tokens, limits, MAX_AUCTION_LENGTH, MAX_TTL + 1);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert2,
+            tokens,
+            limits,
+            MAX_AUCTION_LENGTH,
+            MAX_TTL + 1,
+            type(uint256).max
+        );
+    }
+
+    function test_startRebalanceAtDeadline() public {
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        uint256 rebalanceNonce = nextRebalanceNonce(folio);
+        vm.prank(dao);
+        folio.startRebalance(rebalanceNonce, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL, block.timestamp);
+
+        (uint256 nonce, , , , , ) = folio.getRebalance();
+        assertEq(nonce, rebalanceNonce);
+    }
+
+    function test_startRebalanceAfterDeadline() public {
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        uint256 deadline = block.timestamp;
+        vm.warp(deadline + 1);
+        uint256 rebalanceNonce = nextRebalanceNonce(folio);
+
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__DeadlineExpired.selector);
+        folio.startRebalance(rebalanceNonce, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL, deadline);
     }
 
     function test_auctionNotOpenableOutsideRebalance() public {
@@ -3697,7 +3740,14 @@ contract FolioTest is BaseTest {
         vm.startPrank(dao);
         uint256 rebalanceNonceForExpectedRevert3 = nextRebalanceNonce(folio);
         vm.expectRevert(IFolio.Folio__DuplicateAsset.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert3, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert3,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
     }
 
     function test_auctionCannotStartRebalanceWithInvalidSellLimit() public {
@@ -3717,7 +3767,14 @@ contract FolioTest is BaseTest {
         });
         uint256 rebalanceNonceForExpectedRevert4 = nextRebalanceNonce(folio);
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert4, tokens, invalidLimits1, MAX_AUCTION_LENGTH, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert4,
+            tokens,
+            invalidLimits1,
+            MAX_AUCTION_LENGTH,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         // --- Case 2: limits.low > limits.spot ---
         IFolio.RebalanceLimits memory invalidLimits2 = IFolio.RebalanceLimits({
@@ -3727,7 +3784,14 @@ contract FolioTest is BaseTest {
         });
         uint256 rebalanceNonceForExpectedRevert5 = nextRebalanceNonce(folio);
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert5, tokens, invalidLimits2, MAX_AUCTION_LENGTH, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert5,
+            tokens,
+            invalidLimits2,
+            MAX_AUCTION_LENGTH,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         // --- Case 3: limits.spot > limits.high ---
         IFolio.RebalanceLimits memory invalidLimits3 = IFolio.RebalanceLimits({
@@ -3737,7 +3801,14 @@ contract FolioTest is BaseTest {
         });
         uint256 rebalanceNonceForExpectedRevert6 = nextRebalanceNonce(folio);
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert6, tokens, invalidLimits3, MAX_AUCTION_LENGTH, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert6,
+            tokens,
+            invalidLimits3,
+            MAX_AUCTION_LENGTH,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         // --- Case 4: limits.high > MAX_LIMIT ---
         IFolio.RebalanceLimits memory invalidLimits4 = IFolio.RebalanceLimits({
@@ -3747,7 +3818,14 @@ contract FolioTest is BaseTest {
         });
         uint256 rebalanceNonceForExpectedRevert7 = nextRebalanceNonce(folio);
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert7, tokens, invalidLimits4, MAX_AUCTION_LENGTH, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert7,
+            tokens,
+            invalidLimits4,
+            MAX_AUCTION_LENGTH,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         vm.stopPrank();
     }
@@ -3770,7 +3848,14 @@ contract FolioTest is BaseTest {
         });
         uint256 rebalanceNonceForExpectedRevert8 = nextRebalanceNonce(folio);
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert8, tokens, invalidLimits1, MAX_AUCTION_LENGTH, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert8,
+            tokens,
+            invalidLimits1,
+            MAX_AUCTION_LENGTH,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         // --- Case 2: limits.high > MAX_LIMIT (Redundant, but kept for clarity) ---
         IFolio.RebalanceLimits memory invalidLimits2 = IFolio.RebalanceLimits({
@@ -3780,7 +3865,14 @@ contract FolioTest is BaseTest {
         });
         uint256 rebalanceNonceForExpectedRevert9 = nextRebalanceNonce(folio);
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert9, tokens, invalidLimits2, MAX_AUCTION_LENGTH, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert9,
+            tokens,
+            invalidLimits2,
+            MAX_AUCTION_LENGTH,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         // --- Case 3: limits.spot < limits.low (Redundant, but kept for clarity) ---
         IFolio.RebalanceLimits memory invalidLimits3 = IFolio.RebalanceLimits({
@@ -3790,7 +3882,14 @@ contract FolioTest is BaseTest {
         });
         uint256 rebalanceNonceForExpectedRevert10 = nextRebalanceNonce(folio);
         vm.expectRevert(IFolio.Folio__InvalidLimits.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert10, tokens, invalidLimits3, MAX_AUCTION_LENGTH, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert10,
+            tokens,
+            invalidLimits3,
+            MAX_AUCTION_LENGTH,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         vm.stopPrank();
     }
@@ -4666,12 +4765,12 @@ contract FolioTest is BaseTest {
         vm.startPrank(dao);
 
         vm.expectRevert(IFolio.Folio__InvalidRebalanceNonce.selector);
-        folio.startRebalance(2, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(2, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL, type(uint256).max);
 
-        folio.startRebalance(1, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(1, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL, type(uint256).max);
 
         vm.expectRevert(IFolio.Folio__InvalidRebalanceNonce.selector);
-        folio.startRebalance(1, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(1, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL, type(uint256).max);
 
         vm.stopPrank();
     }
@@ -4723,7 +4822,14 @@ contract FolioTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert11 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert11, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert11,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
     }
 
     function test_cannotStartRebalanceWithInvalidWeights() public {
@@ -4753,7 +4859,14 @@ contract FolioTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert12 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert12, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert12,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         // Set weightControl = true
         vm.prank(owner);
@@ -4769,7 +4882,14 @@ contract FolioTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert13 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert13, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert13,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
         weights[3].high = origWeightHigh;
 
         // Setup zero weight
@@ -4778,7 +4898,14 @@ contract FolioTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert14 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidWeights.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert14, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert14,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
         weights[3].low = origWeightLow;
     }
 
@@ -4808,7 +4935,14 @@ contract FolioTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert15 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert15, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert15,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         // --- Case 2: Low price greater than high price ---
         invalidPrices[0] = IFolio.PriceRange({ low: 1e16, high: 1e15 }); // Invalid low > high
@@ -4819,7 +4953,14 @@ contract FolioTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert16 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert16, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert16,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         // --- Case 3: High price exceeds MAX_TOKEN_PRICE ---
         invalidPrices[0] = IFolio.PriceRange({ low: 1e16, high: MAX_TOKEN_PRICE + 1 }); // Invalid high > max
@@ -4830,7 +4971,14 @@ contract FolioTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert17 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert17, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert17,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
 
         // --- Case 4: High price exceeds range limit relative to low price ---
         uint256 lowPrice = 1e15;
@@ -4842,7 +4990,14 @@ contract FolioTest is BaseTest {
         uint256 rebalanceNonceForExpectedRevert18 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__InvalidPrices.selector);
-        folio.startRebalance(rebalanceNonceForExpectedRevert18, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert18,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
         vm.stopPrank();
     }
 

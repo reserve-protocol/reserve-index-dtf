@@ -348,6 +348,6 @@ abstract contract BaseTest is Script, Test {
     ) internal {
         uint256 rebalanceNonce = nextRebalanceNonce(_folio);
         vm.prank(dao);
-        _folio.startRebalance(rebalanceNonce, tokens, limits, auctionLauncherWindow, ttl);
+        _folio.startRebalance(rebalanceNonce, tokens, limits, auctionLauncherWindow, ttl, type(uint256).max);
     }
 }
