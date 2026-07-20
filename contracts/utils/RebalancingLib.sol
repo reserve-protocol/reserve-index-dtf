@@ -6,7 +6,6 @@ import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
@@ -22,13 +21,11 @@ import { MathLib } from "@utils/MathLib.sol";
  * startRebalance() -> openAuction() -> getBid() -> bid()
  */
 library RebalancingLib {
-    using EnumerableSet for EnumerableSet.AddressSet;
-
     struct StartRebalanceContext {
         uint256 auctionLauncherWindow;
         uint256 ttl;
+        uint256 deadline;
         bool bidsEnabled;
-        bool tradeAllowlistEnabled;
     }
 
     function startRebalance(
@@ -36,25 +33,11 @@ library RebalancingLib {
         address[] calldata oldTokens,
         IFolio.RebalanceControl storage rebalanceControl,
         IFolio.Rebalance storage rebalance,
-        EnumerableSet.AddressSet storage tradeTokenAllowlist,
         IFolio.TokenRebalanceParams[] calldata tokens,
         IFolio.RebalanceLimits calldata limits,
-        StartRebalanceContext calldata context,
-        uint256 deadline
+        StartRebalanceContext calldata context
     ) external {
-        require(block.timestamp <= deadline, IFolio.Folio__DeadlineExpired());
-
-        // non-allowlisted tokens can only be traded out (zero weights)
-        if (context.tradeAllowlistEnabled) {
-            for (uint256 i; i < tokens.length; i++) {
-                if (!tradeTokenAllowlist.contains(tokens[i].token)) {
-                    require(
-                        tokens[i].weight.low == 0 && tokens[i].weight.spot == 0 && tokens[i].weight.high == 0,
-                        IFolio.Folio__TokenNotAllowlisted()
-                    );
-                }
-            }
-        }
+        require(block.timestamp <= context.deadline, IFolio.Folio__DeadlineExpired());
 
         uint256 nextRebalanceNonce = rebalance.nonce + 1;
         require(rebalanceNonce == nextRebalanceNonce, IFolio.Folio__InvalidRebalanceNonce());

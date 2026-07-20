@@ -655,21 +655,32 @@ contract Folio is
         uint256 ttl,
         uint256 deadline
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
+        // enforce token allowlist: non-allowlisted tokens can only be traded out (zero weights)
+        if (tradeAllowlistEnabled) {
+            for (uint256 i; i < tokens.length; i++) {
+                TokenRebalanceParams calldata params = tokens[i];
+                if (!tradeTokenAllowlist.contains(params.token)) {
+                    require(
+                        params.weight.low == 0 && params.weight.spot == 0 && params.weight.high == 0,
+                        Folio__TokenNotAllowlisted()
+                    );
+                }
+            }
+        }
+
         RebalancingLib.startRebalance(
             rebalanceNonce,
             basket.values(),
             rebalanceControl,
             rebalance,
-            tradeTokenAllowlist,
             tokens,
             limits,
             RebalancingLib.StartRebalanceContext({
                 auctionLauncherWindow: auctionLauncherWindow,
                 ttl: ttl,
-                bidsEnabled: bidsEnabled,
-                tradeAllowlistEnabled: tradeAllowlistEnabled
-            }),
-            deadline
+                deadline: deadline,
+                bidsEnabled: bidsEnabled
+            })
         );
 
         // add new tokens to basket
