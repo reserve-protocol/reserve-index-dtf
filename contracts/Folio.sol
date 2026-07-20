@@ -646,19 +646,22 @@ contract Folio is
     /// @param limits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e27]
     /// @param auctionLauncherWindow {s} Initial amount of time only the AUCTION_LAUNCHER can open auctions
     /// @param ttl {s} The amount of time the rebalance is valid for
+    /// @param deadline {s} The deadline for starting the rebalance, inclusive
     function startRebalance(
         uint256 rebalanceNonce,
         TokenRebalanceParams[] calldata tokens,
         RebalanceLimits calldata limits,
         uint256 auctionLauncherWindow,
-        uint256 ttl
+        uint256 ttl,
+        uint256 deadline
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
         // enforce token allowlist: non-allowlisted tokens can only be traded out (zero weights)
         if (tradeAllowlistEnabled) {
             for (uint256 i; i < tokens.length; i++) {
-                if (!tradeTokenAllowlist.contains(tokens[i].token)) {
+                TokenRebalanceParams calldata params = tokens[i];
+                if (!tradeTokenAllowlist.contains(params.token)) {
                     require(
-                        tokens[i].weight.low == 0 && tokens[i].weight.spot == 0 && tokens[i].weight.high == 0,
+                        params.weight.low == 0 && params.weight.spot == 0 && params.weight.high == 0,
                         Folio__TokenNotAllowlisted()
                     );
                 }
@@ -672,9 +675,12 @@ contract Folio is
             rebalance,
             tokens,
             limits,
-            auctionLauncherWindow,
-            ttl,
-            bidsEnabled
+            RebalancingLib.RebalanceParams({
+                auctionLauncherWindow: auctionLauncherWindow,
+                ttl: ttl,
+                deadline: deadline,
+                bidsEnabled: bidsEnabled
+            })
         );
 
         // add new tokens to basket
