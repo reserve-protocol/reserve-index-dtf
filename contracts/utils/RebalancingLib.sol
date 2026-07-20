@@ -21,7 +21,7 @@ import { MathLib } from "@utils/MathLib.sol";
  * startRebalance() -> openAuction() -> getBid() -> bid()
  */
 library RebalancingLib {
-    struct StartRebalanceContext {
+    struct RebalanceParams {
         uint256 auctionLauncherWindow;
         uint256 ttl;
         uint256 deadline;
@@ -35,9 +35,9 @@ library RebalancingLib {
         IFolio.Rebalance storage rebalance,
         IFolio.TokenRebalanceParams[] calldata tokens,
         IFolio.RebalanceLimits calldata limits,
-        StartRebalanceContext calldata context
+        RebalanceParams calldata rebalanceParams
     ) external {
-        require(block.timestamp <= context.deadline, IFolio.Folio__DeadlineExpired());
+        require(block.timestamp <= rebalanceParams.deadline, IFolio.Folio__DeadlineExpired());
 
         uint256 nextRebalanceNonce = rebalance.nonce + 1;
         require(rebalanceNonce == nextRebalanceNonce, IFolio.Folio__InvalidRebalanceNonce());
@@ -50,7 +50,9 @@ library RebalancingLib {
         // ====
 
         require(
-            context.ttl != 0 && context.ttl >= context.auctionLauncherWindow && context.ttl <= MAX_TTL,
+            rebalanceParams.ttl != 0 &&
+                rebalanceParams.ttl >= rebalanceParams.auctionLauncherWindow &&
+                rebalanceParams.ttl <= MAX_TTL,
             IFolio.Folio__InvalidTTL()
         );
 
@@ -112,10 +114,10 @@ library RebalancingLib {
         rebalance.nonce = nextRebalanceNonce;
         rebalance.limits = limits;
         rebalance.startedAt = block.timestamp;
-        rebalance.restrictedUntil = block.timestamp + context.auctionLauncherWindow;
-        rebalance.availableUntil = block.timestamp + context.ttl;
+        rebalance.restrictedUntil = block.timestamp + rebalanceParams.auctionLauncherWindow;
+        rebalance.availableUntil = block.timestamp + rebalanceParams.ttl;
         rebalance.priceControl = rebalanceControl.priceControl;
-        rebalance.bidsEnabled = context.bidsEnabled;
+        rebalance.bidsEnabled = rebalanceParams.bidsEnabled;
 
         emit IFolio.RebalanceStarted(
             rebalance.nonce,
@@ -123,9 +125,9 @@ library RebalancingLib {
             tokens,
             limits,
             block.timestamp,
-            block.timestamp + context.auctionLauncherWindow,
-            block.timestamp + context.ttl,
-            context.bidsEnabled
+            block.timestamp + rebalanceParams.auctionLauncherWindow,
+            block.timestamp + rebalanceParams.ttl,
+            rebalanceParams.bidsEnabled
         );
     }
 

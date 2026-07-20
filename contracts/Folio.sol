@@ -675,7 +675,7 @@ contract Folio is
             rebalance,
             tokens,
             limits,
-            RebalancingLib.StartRebalanceContext({
+            RebalancingLib.RebalanceParams({
                 auctionLauncherWindow: auctionLauncherWindow,
                 ttl: ttl,
                 deadline: deadline,
