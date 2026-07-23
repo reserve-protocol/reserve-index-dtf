@@ -32,7 +32,7 @@ While not included directly, `FolioVersionRegistry` and `FolioDAOFeeRegistry` al
 #### 2. **Governance**
 
 - Governed Folios use `@reserve-protocol/reserve-governor` optimistic governance.
-- The optimistic veto threshold intentionally uses total staking-vault share supply, including undelegated shares. See [Known Issues](docs/KNOWN_ISSUES.md#optimistic-veto-threshold-includes-undelegated-supply) for the resulting limitation and operational controls.
+- As an intentional design decision, the optimistic veto threshold uses total staking-vault share supply, including undelegated shares, while only optimistically delegated shares can cast veto votes.
 
 #### 3. **Staking**
 
