@@ -552,13 +552,18 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_cannotAddToBasketIfDuplicate() public {
+    function test_addToBasketIfDuplicateDoesNothing() public {
         (address[] memory _assets, ) = folio.totalAssets();
         assertEq(_assets.length, 3, "wrong assets length");
 
         vm.startPrank(owner);
-        vm.expectRevert(IFolio.Folio__BasketModificationFailed.selector);
-        folio.addToBasket(USDC); // cannot add duplicate
+        vm.recordLogs();
+        folio.addToBasket(USDC);
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 0, "should not emit event for duplicate add");
+
+        (_assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
         vm.stopPrank();
     }
 
@@ -618,13 +623,18 @@ contract FolioTest is BaseTest {
         assertEq(_assets[1], address(DAI), "wrong second asset");
     }
 
-    function test_cannotRemoveFromBasketIfNotAvailable() public {
+    function test_removeFromBasketIfNotAvailableDoesNothing() public {
         (address[] memory _assets, ) = folio.totalAssets();
         assertEq(_assets.length, 3, "wrong assets length");
 
         vm.startPrank(owner);
-        vm.expectRevert(IFolio.Folio__BasketModificationFailed.selector);
-        folio.removeFromBasket(USDT); // cannot remove, not in basket
+        vm.recordLogs();
+        folio.removeFromBasket(USDT);
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 0, "should not emit event for unavailable removal");
+
+        (_assets, ) = folio.totalAssets();
+        assertEq(_assets.length, 3, "wrong assets length");
         vm.stopPrank();
     }
 

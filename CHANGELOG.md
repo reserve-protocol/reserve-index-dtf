@@ -7,6 +7,7 @@
 - Add per-auction custom auction lengths (`AUCTION_LAUNCHER`, within admin-configured max length)
 - Add explicit rebalance nonce validation
 - Add trusted-fill cleanup and emergency-close improvements
+- Make basket membership changes idempotent, matching allowlist management
 
 ## Release 5.0.0
 
