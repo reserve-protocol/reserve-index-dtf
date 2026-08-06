@@ -184,6 +184,16 @@ The DAO takes a cut with a minimum floor of 10 bps. The DAO always receives at l
 
 Max: 5%
 
+##### `folioFeeForSelf`
+
+**Fraction of non-DAO fee value directed to Folio holders**
+
+`folioFeeForSelf` applies to the fee-recipient portion of both TVL fees and mint fees. Instead of minting the configured fraction of fee-recipient shares, the Folio omits those shares from its supply. The underlying assets remain in the Folio, increasing the assets represented by each outstanding share.
+
+For mint fees, the receiver still receives `shares - totalFeeShares`, including a deduction for the omitted self-fee shares. However, those newly minted receiver shares immediately participate in the resulting exchange-rate increase. The receiver therefore recovers a portion of the self-fee value equal to its newly minted fraction of the post-mint supply, subject to rounding. The effect is small for mints that are small relative to the existing supply and increases with the relative size of the mint. The DAO fee portion, including the minimum DAO fee floor, is minted separately and is not recovered through this effect.
+
+Breaking a large mint into smaller sequential mints results in a smaller overall rebate, apart from rounding and fee-floor edge effects, because later tranches do not participate in the appreciation caused by earlier mints. Separately, an account that becomes a holder immediately before another account's mint and redeems afterward can capture a portion of that mint's self-fee.
+
 #### Fee Floor
 
 The default 10 bps fee floor is capped by the DAO. Per-Folio fee floors can also be set, but they cannot exceed the default floor.
