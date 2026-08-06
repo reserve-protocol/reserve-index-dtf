@@ -2318,6 +2318,13 @@ contract FolioTest is BaseTest {
         );
         assertEq(address(fill), address(uint160(uint256(vm.load(address(folio), bytes32(uint256(19)))))));
 
+        // should only emergency close the named active fill
+
+        vm.startPrank(owner);
+        vm.expectRevert(IFolio.Folio__InvalidTrustedFill.selector);
+        folio.emergencyCloseTrustedFill(address(1));
+        vm.stopPrank();
+
         // should mint, closing fill
 
         vm.startPrank(user1);
@@ -2349,6 +2356,22 @@ contract FolioTest is BaseTest {
         // should redeem, closing fill
 
         folio.redeem((1e22 * 3) / 20, user1, basket, amounts);
+        vm.stopPrank();
+        assertEq(address(0), address(uint160(uint256(vm.load(address(folio), bytes32(uint256(19)))))));
+
+        // should revert if there is no active fill, even if address(0) is provided
+
+        vm.startPrank(owner);
+        vm.expectRevert(IFolio.Folio__InvalidTrustedFill.selector);
+        folio.emergencyCloseTrustedFill(address(0));
+
+        // should emergency close the named active fill
+
+        fill = folio.createTrustedFill(0, USDC, IERC20(address(USDT)), cowswapFiller, bytes32(block.timestamp + 2));
+        vm.roll(block.number + 1);
+        folio.emergencyCloseTrustedFill(address(fill));
+        vm.stopPrank();
+
         assertEq(address(0), address(uint160(uint256(vm.load(address(folio), bytes32(uint256(19)))))));
     }
 
