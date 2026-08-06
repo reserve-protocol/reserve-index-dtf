@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+
 import { IFolio } from "@interfaces/IFolio.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
 
@@ -139,7 +142,7 @@ library FolioLib {
         uint256 currentDaoPending; // {share}
         uint256 currentFeeRecipientsPending; // {share}
         uint256 tvlFee; // D18{1/s}
-        uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
+        uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient value directed to Folio holders
         uint256 supply; // {share}
         uint256 elapsed; // {s}
     }
@@ -212,9 +215,9 @@ library FolioLib {
     /// Compute mint fee shares for DAO and fee recipients
     /// @param params Mint fee parameters
     /// @param daoFeeRegistry The DAO fee registry to query fee details from
-    /// @return sharesOut {share} Shares to mint for the receiver
-    /// @return daoFeeShares {share} Shares owed to the DAO
-    /// @return feeRecipientFeeShares {share} Shares owed to fee recipients (excludes self-fee shares)
+    /// @return sharesOut {share} Shares to mint for the receiver at the post-self-fee exchange rate
+    /// @return daoFeeShares {share} Shares owed to the DAO at the post-self-fee exchange rate
+    /// @return feeRecipientFeeShares {share} Shares owed to fee recipients at the post-self-fee exchange rate
     function computeMintFees(
         MintFeeParams calldata params,
         IFolioDAOFeeRegistry daoFeeRegistry
@@ -237,13 +240,36 @@ library FolioLib {
         // 100% to DAO, if necessary
         totalFeeShares = totalFeeShares < daoFeeShares ? daoFeeShares : totalFeeShares;
 
-        // apply folioFeeForSelf to recipient portion
+        // direct folioFeeForSelf to holders in the pre-mint supply
         feeRecipientFeeShares = totalFeeShares - daoFeeShares;
         uint256 folioSelfShares = (feeRecipientFeeShares * params.folioFeeForSelf) / D18;
         feeRecipientFeeShares -= folioSelfShares;
 
-        // {share} minter pays the full fee (including self-fee shares that are burned)
+        // {share} = {share} - {share}
         sharesOut = params.shares - totalFeeShares;
+
+        if (folioSelfShares != 0) {
+            // Price every new share allocation at the post-self-fee exchange rate so only pre-mint holders
+            // receive the self-fee. Cap total issuance by rounding down, then round aggregate fee shares up.
+            uint256 supply = IERC20(address(this)).totalSupply();
+            uint256 scaleDenominator = supply + folioSelfShares;
+
+            // {share} = {share} * {share} / {share}
+            uint256 scaledTotalNewShares = Math.mulDiv(params.shares - folioSelfShares, supply, scaleDenominator);
+
+            // {share} = {share} * {share} / {share}
+            uint256 scaledTotalFeeShares = Math.mulDiv(
+                daoFeeShares + feeRecipientFeeShares,
+                supply,
+                scaleDenominator,
+                Math.Rounding.Ceil
+            );
+
+            sharesOut = scaledTotalNewShares > scaledTotalFeeShares ? scaledTotalNewShares - scaledTotalFeeShares : 0;
+            daoFeeShares = Math.mulDiv(daoFeeShares, supply, scaleDenominator, Math.Rounding.Ceil);
+            feeRecipientFeeShares = scaledTotalFeeShares - daoFeeShares;
+        }
+
         require(sharesOut != 0 && sharesOut >= params.minSharesOut, IFolio.Folio__InsufficientSharesOut());
 
         emit IFolio.FolioFeePaid(address(this), folioSelfShares);

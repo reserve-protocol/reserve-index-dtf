@@ -189,7 +189,7 @@ contract Folio is
     // === 6.0.0 ===
     bool public tradeAllowlistEnabled;
     EnumerableSet.AddressSet private tradeTokenAllowlist;
-    uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
+    uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient value directed to Folio holders
 
     FeeRecipient[] public immutableFeeRecipients;
 
@@ -315,9 +315,9 @@ contract Folio is
         _setMintFee(_newFee);
     }
 
-    /// Set the folio fee — fraction of fee-recipient shares that are burned (not minted)
+    /// Set the folio fee — fraction of fee-recipient value directed to Folio holders
     /// @dev Non-reentrant via distributeFees()
-    /// @param _newFee D18{1} Fraction of fee-recipient shares to burn
+    /// @param _newFee D18{1} Fraction of fee-recipient value directed to Folio holders
     function setFolioSelfFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
@@ -435,8 +435,10 @@ contract Folio is
 
     /// @dev Use allowances to set slippage limits for provided assets
     /// @dev Minting has 3 share-portions: (i) receiver shares, (ii) DAO fee shares, (iii) fee recipients shares
+    /// @dev When folioFeeForSelf is nonzero, all 3 portions are priced at the post-self-fee exchange rate so the
+    ///      self-fee benefits only shares that existed before the mint
     /// @param shares {share} Amount of shares to mint
-    /// @param minSharesOut {share} Minimum amount of shares the caller must receive after fees
+    /// @param minSharesOut {share} Minimum amount of post-self-fee shares the caller must receive
     /// @return _assets
     /// @return _amounts {tok}
     function mint(
@@ -1076,7 +1078,7 @@ contract Folio is
         emit MintFeeSet(_newFee);
     }
 
-    /// Set folio fee — fraction of fee-recipient shares to burn
+    /// Set folio fee — fraction of fee-recipient value directed to Folio holders
     /// @param _newFee D18{1}
     function _setFolioSelfFee(uint256 _newFee) internal {
         require(_newFee <= MAX_FOLIO_FEE, Folio__FolioFeeTooHigh());

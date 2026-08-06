@@ -7,6 +7,10 @@
 - Add per-auction custom auction lengths (`AUCTION_LAUNCHER`, within admin-configured max length)
 - Add explicit rebalance nonce validation
 - Add trusted-fill cleanup and emergency-close improvements
+- Price every share allocation created during a mint at the post-self-fee exchange rate when
+  `folioFeeForSelf` is nonzero. This directs the mint self-fee exclusively to pre-mint Folio holders instead of
+  partially refunding the minter. Frontends must account for the pre-mint total supply and self-fee when quoting
+  `sharesOut` and setting `minSharesOut`; `sharesOut` can be lower than `shares - totalFeeShares`.
 
 ## Release 5.0.0
 

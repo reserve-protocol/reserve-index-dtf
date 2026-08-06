@@ -5015,6 +5015,25 @@ contract FolioTest is BaseTest {
     //   folioFeeForSelf tests
     // =========================================================
 
+    function _assertAssetValue(
+        uint256 shares,
+        uint256[] memory assetsBefore,
+        uint256 valueShares,
+        uint256 supplyBefore,
+        string memory err
+    ) internal view {
+        (, uint256[] memory assetsAfter) = folio.toAssets(shares, Math.Rounding.Floor);
+
+        for (uint256 i; i < assetsBefore.length; i++) {
+            uint256 tolerance = 1;
+            if (i == 1) tolerance = 2;
+            if (i == 2) tolerance = 2e9;
+
+            uint256 expectedAssets = Math.mulDiv(assetsBefore[i], valueShares, supplyBefore);
+            assertApproxEqAbs(assetsAfter[i], expectedAssets, tolerance, err);
+        }
+    }
+
     function test_setFolioFee() public {
         vm.startPrank(owner);
 
@@ -5084,7 +5103,7 @@ contract FolioTest is BaseTest {
         assertTrue(folio.balanceOf(dao) > initialDaoShares, "dao should have received fees");
     }
 
-    /// @dev With folioFeeForSelf at 50%, half of the fee-recipient shares on mint should be burned
+    /// @dev With folioFeeForSelf at 50%, half of the fee-recipient value benefits pre-mint holders
     function test_mintWithFolioFeeForSelf() public {
         // set folioFeeForSelf to 50%
         vm.prank(owner);
@@ -5103,6 +5122,7 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
+        uint256 supplyBefore = folio.totalSupply();
         folio.mint(amt, user1, 0);
 
         // totalFeeShares = amt * 5% = amt/20
@@ -5110,19 +5130,31 @@ contract FolioTest is BaseTest {
         uint256 daoFeeShares = (totalFeeShares * MAX_DAO_FEE + 1e18 - 1) / 1e18;
         // recipientRaw = totalFeeShares - daoFeeShares
         uint256 recipientRaw = totalFeeShares - daoFeeShares;
-        // selfShares (burned) = recipientRaw * 50%
+        // selfShares (directed to pre-mint holders) = recipientRaw * 50%
         uint256 selfShares = (recipientRaw * 0.5e18) / 1e18;
-        uint256 expectedFeeRecipientShares = recipientRaw - selfShares;
+        uint256 recipientAfterSelf = recipientRaw - selfShares;
+        uint256 scaleDenominator = supplyBefore + selfShares;
 
-        // user pays full fee (incl self-fee shares that are not minted)
-        uint256 expectedSharesOut = amt - totalFeeShares;
+        // All shares created by the mint are priced at the post-self-fee exchange rate.
+        uint256 expectedTotalNewShares = Math.mulDiv(amt - selfShares, supplyBefore, scaleDenominator);
+        uint256 expectedTotalFeeShares = Math.mulDiv(
+            daoFeeShares + recipientAfterSelf,
+            supplyBefore,
+            scaleDenominator,
+            Math.Rounding.Ceil
+        );
+        uint256 expectedDaoFeeShares = Math.mulDiv(daoFeeShares, supplyBefore, scaleDenominator, Math.Rounding.Ceil);
+        uint256 expectedFeeRecipientShares = expectedTotalFeeShares - expectedDaoFeeShares;
+        uint256 expectedSharesOut = expectedTotalNewShares - expectedTotalFeeShares;
         assertEq(folio.balanceOf(user1), expectedSharesOut, "wrong user shares out");
 
-        // total supply: genesis + sharesOut + daoFee + feeRecipientFee (self-fee NOT minted)
-        uint256 expectedTotalSupply = INITIAL_SUPPLY + expectedSharesOut + daoFeeShares + expectedFeeRecipientShares;
+        uint256 expectedTotalSupply = supplyBefore +
+            expectedSharesOut +
+            expectedDaoFeeShares +
+            expectedFeeRecipientShares;
         assertEq(folio.totalSupply(), expectedTotalSupply, "wrong total supply with folioFeeForSelf");
 
-        assertEq(folio.daoPendingFeeShares(), daoFeeShares, "wrong dao pending fee shares");
+        assertEq(folio.daoPendingFeeShares(), expectedDaoFeeShares, "wrong dao pending fee shares");
         assertEq(
             folio.feeRecipientsPendingFeeShares(),
             expectedFeeRecipientShares,
@@ -5130,7 +5162,60 @@ contract FolioTest is BaseTest {
         );
     }
 
-    /// @dev With folioFeeForSelf at 100%, ALL fee-recipient shares on mint are burned
+    /// @dev Mint self-fees increase the exchange rate for pre-mint shares without rebating the minter
+    function test_mintWithFolioFeeForSelfBenefitsOnlyPreMintShares() public {
+        vm.prank(owner);
+        folio.setFolioSelfFee(0.5e18);
+
+        vm.prank(owner);
+        folio.setMintFee(MAX_MINT_FEE);
+
+        daoFeeRegistry.setDefaultFeeNumerator(MAX_DAO_FEE);
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+
+        uint256 amt = 1e22;
+        uint256 supplyBefore = folio.totalSupply();
+        (, uint256[] memory assetsBefore) = folio.totalAssets();
+
+        uint256 totalFeeShares = Math.mulDiv(amt, MAX_MINT_FEE, 1e18, Math.Rounding.Ceil);
+        uint256 daoFeeShares = Math.mulDiv(totalFeeShares, MAX_DAO_FEE, 1e18, Math.Rounding.Ceil);
+        uint256 selfShares = Math.mulDiv(totalFeeShares - daoFeeShares, 0.5e18, 1e18);
+
+        folio.mint(amt, user1, 0);
+
+        uint256 rawUserShares = amt - totalFeeShares;
+        uint256 rawFeeRecipientShares = totalFeeShares - daoFeeShares - selfShares;
+
+        _assertAssetValue(
+            folio.balanceOf(owner),
+            assetsBefore,
+            supplyBefore + selfShares,
+            supplyBefore,
+            "wrong pre-mint holder assets"
+        );
+        _assertAssetValue(
+            folio.balanceOf(user1),
+            assetsBefore,
+            rawUserShares,
+            supplyBefore,
+            "minter received self-fee refund"
+        );
+        _assertAssetValue(folio.daoPendingFeeShares(), assetsBefore, daoFeeShares, supplyBefore, "wrong dao fee value");
+        _assertAssetValue(
+            folio.feeRecipientsPendingFeeShares(),
+            assetsBefore,
+            rawFeeRecipientShares,
+            supplyBefore,
+            "wrong fee recipient value"
+        );
+        vm.stopPrank();
+    }
+
+    /// @dev With folioFeeForSelf at 100%, ALL fee-recipient value on mint benefits pre-mint holders
     function test_mintWithFolioFeeForSelf_100Percent() public {
         // set folioFeeForSelf to 100%
         vm.prank(owner);
@@ -5148,21 +5233,26 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
+        uint256 supplyBefore = folio.totalSupply();
         folio.mint(amt, user1, 0);
 
         // totalFeeShares = amt * 5%
         uint256 totalFeeShares = (amt * MAX_MINT_FEE + 1e18 - 1) / 1e18;
         uint256 daoFeeShares = (totalFeeShares * MAX_DAO_FEE + 1e18 - 1) / 1e18;
 
-        // ALL fee-recipient shares are burned (folioFeeForSelf = 100%)
-        assertEq(folio.feeRecipientsPendingFeeShares(), 0, "fee recipients should get 0 with 100% folioFee");
-        assertEq(folio.daoPendingFeeShares(), daoFeeShares, "wrong dao pending fee shares");
+        uint256 recipientRaw = totalFeeShares - daoFeeShares;
+        uint256 scaleDenominator = supplyBefore + recipientRaw;
+        uint256 expectedTotalNewShares = Math.mulDiv(amt - recipientRaw, supplyBefore, scaleDenominator);
+        uint256 expectedDaoFeeShares = Math.mulDiv(daoFeeShares, supplyBefore, scaleDenominator, Math.Rounding.Ceil);
+        uint256 expectedSharesOut = expectedTotalNewShares - expectedDaoFeeShares;
 
-        uint256 expectedSharesOut = amt - totalFeeShares;
+        // ALL fee-recipient value goes to pre-mint holders (folioFeeForSelf = 100%)
+        assertEq(folio.feeRecipientsPendingFeeShares(), 0, "fee recipients should get 0 with 100% folioFee");
+        assertEq(folio.daoPendingFeeShares(), expectedDaoFeeShares, "wrong dao pending fee shares");
+
         assertEq(folio.balanceOf(user1), expectedSharesOut, "wrong user shares out");
 
-        // total supply = genesis + sharesOut + daoFee (no fee-recipient shares minted)
-        uint256 expectedTotalSupply = INITIAL_SUPPLY + expectedSharesOut + daoFeeShares;
+        uint256 expectedTotalSupply = supplyBefore + expectedSharesOut + expectedDaoFeeShares;
         assertEq(folio.totalSupply(), expectedTotalSupply, "wrong total supply");
     }
 
@@ -5394,11 +5484,23 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
+        uint256 supplyBefore = folio.totalSupply();
         // totalFeeShares = amt * 5%
         uint256 totalFeeShares = (amt * MAX_MINT_FEE + 1e18 - 1) / 1e18;
-        uint256 expectedSharesOut = amt - totalFeeShares;
+        uint256 daoFeeShares = (totalFeeShares * MAX_DAO_FEE + 1e18 - 1) / 1e18;
+        uint256 recipientRaw = totalFeeShares - daoFeeShares;
+        uint256 selfShares = (recipientRaw * 0.5e18) / 1e18;
+        uint256 scaleDenominator = supplyBefore + selfShares;
+        uint256 expectedTotalNewShares = Math.mulDiv(amt - selfShares, supplyBefore, scaleDenominator);
+        uint256 expectedTotalFeeShares = Math.mulDiv(
+            totalFeeShares - selfShares,
+            supplyBefore,
+            scaleDenominator,
+            Math.Rounding.Ceil
+        );
+        uint256 expectedSharesOut = expectedTotalNewShares - expectedTotalFeeShares;
 
-        // should revert if minSharesOut is too high (user pays full fee including self-fee)
+        // should revert if minSharesOut does not account for the post-self-fee exchange rate
         vm.expectRevert(IFolio.Folio__InsufficientSharesOut.selector);
         folio.mint(amt, user1, expectedSharesOut + 1);
 
