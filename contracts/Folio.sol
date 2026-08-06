@@ -558,6 +558,8 @@ contract Folio is
             emit ProtocolFeePaid(daoRecipient, daoShares);
 
             daoPendingFeeShares = 0;
+        } else {
+            daoPendingFeeShares = daoShares;
         }
     }
 
