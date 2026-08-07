@@ -5255,10 +5255,36 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
+        vm.recordLogs();
         folio.mint(amt, user1, 0);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        bytes32 folioFeePaidSelector = keccak256("FolioFeePaid(address,uint256)");
+        bytes32 folioRecipient = bytes32(uint256(uint160(address(folio))));
+        for (uint256 i; i < logs.length; i++) {
+            assertFalse(
+                logs[i].emitter == address(folio) &&
+                    logs[i].topics[0] == folioFeePaidSelector &&
+                    logs[i].topics[1] == folioRecipient,
+                "zero self fee emitted"
+            );
+        }
 
         // no self-fee burned, so totalSupply = genesis + amt (includes pending fee shares)
         assertEq(folio.totalSupply(), amt * 2, "total supply off at 0% folioFee");
+    }
+
+    /// @dev TVL self-fees do not emit when folioFeeForSelf is 0%
+    function test_tvlFeeWithFolioFeeForSelf_ZeroPercent() public {
+        // folioFeeForSelf is already 0
+        assertEq(folio.folioFeeForSelf(), 0, "fee should start at 0");
+
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        vm.roll(block.number + 1000000);
+
+        vm.recordLogs();
+        folio.poke();
+        assertEq(vm.getRecordedLogs().length, 0, "zero self fee emitted");
     }
 
     /// @dev TVL fee with folioFeeForSelf: self-fee portion reduces fee-recipient pending shares

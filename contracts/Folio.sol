@@ -1042,22 +1042,22 @@ contract Folio is
 
     /// @return _daoPendingFeeShares {share}
     /// @return _feeRecipientsPendingFeeShares {share}
-    /// @return _accountedUntil {s}
     /// @return _folioSelfFeeShares {share}
+    /// @return _accountedUntil {s}
     function _getPendingFeeShares()
         internal
         view
         returns (
             uint256 _daoPendingFeeShares,
             uint256 _feeRecipientsPendingFeeShares,
-            uint256 _accountedUntil,
-            uint256 _folioSelfFeeShares
+            uint256 _folioSelfFeeShares,
+            uint256 _accountedUntil
         )
     {
         // {s} Always in full days
         _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
         if (_accountedUntil <= lastPoke) {
-            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke, 0);
+            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, 0, lastPoke);
         }
 
         uint256 elapsed = _accountedUntil - lastPoke;
@@ -1129,8 +1129,8 @@ contract Folio is
         (
             uint256 _daoPendingFeeShares,
             uint256 _feeRecipientsPendingFeeShares,
-            uint256 _accountedUntil,
-            uint256 _folioSelfFeeShares
+            uint256 _folioSelfFeeShares,
+            uint256 _accountedUntil
         ) = _getPendingFeeShares();
 
         if (_accountedUntil > lastPoke) {
@@ -1138,7 +1138,9 @@ contract Folio is
             feeRecipientsPendingFeeShares = _feeRecipientsPendingFeeShares;
             lastPoke = _accountedUntil;
 
-            emit FolioFeePaid(address(this), _folioSelfFeeShares);
+            if (_folioSelfFeeShares != 0) {
+                emit FolioFeePaid(address(this), _folioSelfFeeShares);
+            }
         }
     }
 

@@ -252,6 +252,8 @@ library FolioLib {
         sharesOut = params.shares - totalFeeShares;
         require(sharesOut != 0 && sharesOut >= params.minSharesOut, IFolio.Folio__InsufficientSharesOut());
 
-        emit IFolio.FolioFeePaid(address(this), folioSelfShares);
+        if (folioSelfShares != 0) {
+            emit IFolio.FolioFeePaid(address(this), folioSelfShares);
+        }
     }
 }
