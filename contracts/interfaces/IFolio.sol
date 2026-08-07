@@ -29,6 +29,8 @@ interface IFolio {
 
     event BasketTokenAdded(address indexed token);
     event BasketTokenRemoved(address indexed token);
+    /// @param newFee D18{1/s}
+    /// @param feeAnnually D18{1/year}
     event TVLFeeSet(uint256 newFee, uint256 feeAnnually);
     event MintFeeSet(uint256 newFee);
     event FolioFeeSet(uint256 newFolioFee);

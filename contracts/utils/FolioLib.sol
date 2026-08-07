@@ -144,13 +144,46 @@ library FolioLib {
         uint256 elapsed; // {s}
     }
 
-    /// Compute TVL fee shares owed to the DAO and fee recipients
+    /// Preview TVL fee shares owed to the DAO, fee recipients, and the Folio itself
+    /// @return _daoPendingFeeShares {share}
+    /// @return _feeRecipientsPendingFeeShares {share}
+    /// @return _folioSelfFeeShares {share}
+    function previewFeeShares(
+        FeeSharesParams calldata params,
+        IFolioDAOFeeRegistry daoFeeRegistry
+    )
+        external
+        view
+        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, uint256 _folioSelfFeeShares)
+    {
+        return _computeFeeShares(params, daoFeeRegistry);
+    }
+
+    /// Compute TVL fee shares owed to the DAO, fee recipients, and the Folio itself
+    /// @dev Semantically view; non-view only because it emits FolioFeePaid
     /// @return _daoPendingFeeShares {share}
     /// @return _feeRecipientsPendingFeeShares {share}
     function computeFeeShares(
         FeeSharesParams calldata params,
         IFolioDAOFeeRegistry daoFeeRegistry
-    ) external view returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) {
+    ) external returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) {
+        uint256 _folioSelfFeeShares;
+        (_daoPendingFeeShares, _feeRecipientsPendingFeeShares, _folioSelfFeeShares) = _computeFeeShares(
+            params,
+            daoFeeRegistry
+        );
+
+        emit IFolio.FolioFeePaid(address(this), _folioSelfFeeShares);
+    }
+
+    function _computeFeeShares(
+        FeeSharesParams calldata params,
+        IFolioDAOFeeRegistry daoFeeRegistry
+    )
+        private
+        view
+        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, uint256 _folioSelfFeeShares)
+    {
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
             address(this)
         );
@@ -164,7 +197,7 @@ library FolioLib {
         uint256 _tvlFee = feeFloor > params.tvlFee ? feeFloor : params.tvlFee;
 
         if (_tvlFee == 0) {
-            return (params.currentDaoPending, params.currentFeeRecipientsPending);
+            return (params.currentDaoPending, params.currentFeeRecipientsPending, 0);
         }
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
@@ -181,12 +214,12 @@ library FolioLib {
         _daoPendingFeeShares = params.currentDaoPending + daoShares;
 
         uint256 rawRecipientShares = feeShares - daoShares;
-        uint256 selfShares = (rawRecipientShares * params.folioFeeForSelf) / D18;
-        _feeRecipientsPendingFeeShares = params.currentFeeRecipientsPending + rawRecipientShares - selfShares;
+        _folioSelfFeeShares = (rawRecipientShares * params.folioFeeForSelf) / D18;
+        _feeRecipientsPendingFeeShares = params.currentFeeRecipientsPending + rawRecipientShares - _folioSelfFeeShares;
     }
 
     /// Set TVL fee by annual percentage. Different from how it is stored!
-    /// @param _newFeeAnnually D18{1}
+    /// @param _newFeeAnnually D18{1/year}
     /// @return _tvlFee D18{1/s} The computed per-second fee
     function setTVLFee(uint256 _newFeeAnnually) external returns (uint256 _tvlFee) {
         require(_newFeeAnnually <= MAX_TVL_FEE, IFolio.Folio__TVLFeeTooHigh());
@@ -210,6 +243,7 @@ library FolioLib {
     }
 
     /// Compute mint fee shares for DAO and fee recipients
+    /// @dev Semantically view; non-view only because it emits FolioFeePaid
     /// @param params Mint fee parameters
     /// @param daoFeeRegistry The DAO fee registry to query fee details from
     /// @return sharesOut {share} Shares to mint for the receiver
