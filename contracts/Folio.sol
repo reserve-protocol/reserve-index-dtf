@@ -30,7 +30,8 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
  *
  * There are 3 main operational roles:
- *   1. DEFAULT_ADMIN_ROLE: can set ERC20 assets, fees, max auction length, close auctions/rebalances, and deprecateFolio
+ *   1. DEFAULT_ADMIN_ROLE: can set ERC20 assets, fees, token trading allowlist, max auction length, close
+ *      auctions/rebalances, and deprecateFolio
  *   2. REBALANCE_MANAGER: can start/end rebalances, and end individual auctions
  *   3. AUCTION_LAUNCHER: can open auctions and end rebalances/auctions
  *
@@ -271,13 +272,13 @@ contract Folio is
 
     // ==== Allowlist ====
 
-    /// @return The list of tokens currently on the allowlist
+    /// @return The list of tokens currently approved for trading in new rebalances
     function getTokenAllowlist() external view returns (address[] memory) {
         return tradeTokenAllowlist.values();
     }
 
     /// @param token The token to check
-    /// @return True if the token is on the allowlist
+    /// @return True if the token is approved for trading in new rebalances
     function isTokenAllowlisted(address token) external view returns (bool) {
         return tradeTokenAllowlist.contains(token);
     }
@@ -370,12 +371,12 @@ contract Folio is
         _setBidsEnabled(_bidsEnabled);
     }
 
-    /// @param _enabled If true, token allowlist is enforced during rebalancing
+    /// @param _enabled If true, only allowlisted tokens can be included in new rebalances
     function setTradeAllowlistEnabled(bool _enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setTradeAllowlistEnabled(_enabled);
     }
 
-    /// Add tokens to the allowlist
+    /// Add tokens that are safe to trade in new rebalances to the allowlist
     /// @param tokens The tokens to add to the allowlist
     function addToAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 len = tokens.length;
@@ -386,7 +387,7 @@ contract Folio is
         }
     }
 
-    /// Remove tokens from the allowlist
+    /// Remove tokens from the set approved for trading in new rebalances
     /// @dev Does not impact ongoing rebalances. Consider calling endRebalance()
     /// @param tokens The tokens to remove from the allowlist
     function removeFromAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -641,7 +642,7 @@ contract Folio is
     /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
     /// @param rebalanceNonce The expected nonce after this rebalance starts
     /// @param tokens The rebalance parameters for each token in the rebalance
-    /// @param tokens.token MUST be unique
+    /// @param tokens.token MUST be unique; MUST be allowlisted when the trade allowlist is enabled
     /// @param tokens.weight D27{tok/BU} Basket weight ranges; low <= spot <= high <= 1e54
     /// @param tokens.price D27{UoA/tok} Initial price ranges for each token; low < high <= 1e45
     /// @param tokens.maxAuctionSize {tok} Max amount to sell in any single auction
@@ -658,16 +659,9 @@ contract Folio is
         uint256 ttl,
         uint256 deadline
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
-        // enforce token allowlist: non-allowlisted tokens can only be traded out (zero weights)
         if (tradeAllowlistEnabled) {
             for (uint256 i; i < tokens.length; i++) {
-                TokenRebalanceParams calldata params = tokens[i];
-                if (!tradeTokenAllowlist.contains(params.token)) {
-                    require(
-                        params.weight.low == 0 && params.weight.spot == 0 && params.weight.high == 0,
-                        Folio__TokenNotAllowlisted()
-                    );
-                }
+                require(tradeTokenAllowlist.contains(tokens[i].token), Folio__TokenNotAllowlisted());
             }
         }
 

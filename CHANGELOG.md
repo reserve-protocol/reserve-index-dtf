@@ -1,7 +1,7 @@
 ## Release 6.0.0
 
 - Add optimistic governance
-- Add token allowlist controls for rebalancing (`DEFAULT_ADMIN_ROLE`)
+- Add token allowlist controls that restrict every token included in a new rebalance (`DEFAULT_ADMIN_ROLE`)
 - Add Folio self-fee (`DEFAULT_ADMIN_ROLE`). On mint, the receiver participates in the resulting exchange-rate
   appreciation and recovers a size-dependent portion of the self-fee; see `folioFeeForSelf` in the README.
 - Add Folio immutable fee recipients (`DEFAULT_ADMIN_ROLE`)

@@ -277,7 +277,7 @@ The chain is assumed to have block times equal to or under 30s.
 - 3.0.0 (skipped; never deployed): Pairwise auctions around a rebalance
 - 4.0.0: Basket auctions around a rebalance
 - [5.0.0](https://github.com/reserve-protocol/reserve-index-dtf/releases/tag/r5.0.0): Max auction sizes, restricted permissionless bids, and brand/name controls
-- 6.0.0: Optimistic governance, token allowlist controls, Folio self-fee, immutable fee recipients, custom auction lengths, and rebalance nonce validation
+- 6.0.0: Optimistic governance, token trading allowlist controls, Folio self-fee, immutable fee recipients, custom auction lengths, and rebalance nonce validation
 
 ### Future Work / Not Implemented Yet
 
