@@ -13,13 +13,9 @@ memory_limit = 1073741824 # 1 GB
 bytecode_hash = "none"
 evm_version = "cancun"
 optimizer = true
-optimizer_runs = 566
+optimizer_runs = 549
 solc_version = "0.8.28"
 via_ir = false
-
-# Keep Folio under the EIP-170 runtime size limit
-additional_compiler_profiles = [{ name = "folio-size", optimizer_runs = 549 }]
-compilation_restrictions = [{ paths = "contracts/Folio.sol", optimizer_runs = 549 }]
 
 # Permissions
 fs_permissions = [{access = "read-write", path = "./"}]
