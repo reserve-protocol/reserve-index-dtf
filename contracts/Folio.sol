@@ -388,7 +388,9 @@ contract Folio is
     }
 
     /// Remove tokens from the set approved for trading in new rebalances
-    /// @dev Does not impact ongoing rebalances. Consider calling endRebalance()
+    /// @dev Does not impact ongoing rebalances or auctions
+    /// @dev SHOULD call endRebalance() after removing a token that SHOULD NOT be traded
+    /// @dev Any ongoing auction remains active and must be closed separately
     /// @param tokens The tokens to remove from the allowlist
     function removeFromAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 len = tokens.length;
@@ -687,6 +689,7 @@ contract Folio is
     }
 
     /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits and weights, for a given set of tokens
+    /// @dev Does not recheck current token allowlist membership; allowlist enforcement occurs only in startRebalance()
     /// @param rebalanceNonce The nonce of the rebalance being targeted
     /// @param tokens The tokens from the rebalance to include in the auction; must be unique
     /// @param newWeights D27{tok/BU} New basket weight ranges for BU definition; must always be provided
@@ -730,6 +733,7 @@ contract Folio is
 
     /// Open an auction without caller restrictions, on all tokens in the rebalance on spot values and initial prices
     /// @dev Callable only after the restricted window passes, after the 120 second start buffer, and when no other auction is ongoing
+    /// @dev Does not recheck current token allowlist membership; allowlist enforcement occurs only in startRebalance()
     /// @return auctionId The newly created auctionId
     function openAuctionUnrestricted(
         uint256 rebalanceNonce
@@ -808,6 +812,7 @@ contract Folio is
     ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
     ///   If withCallback is false, caller must have provided an allowance in advance
     /// @dev Callable by anyone
+    /// @dev Does not recheck current token allowlist membership; allowlist enforcement occurs only in startRebalance()
     /// @param sellAmount {sellTok} Sell token, the token the bidder receives
     /// @param maxBuyAmount {buyTok} Max buy token, the token the bidder provides
     /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
@@ -835,6 +840,7 @@ contract Folio is
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
+    /// @dev Does not recheck current token allowlist membership; allowlist enforcement occurs only in startRebalance()
     function createTrustedFill(
         uint256 auctionId,
         IERC20 sellToken,
