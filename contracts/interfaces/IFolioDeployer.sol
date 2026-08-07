@@ -9,7 +9,7 @@ interface IFolioDeployer {
 
     event FolioDeployed(address indexed folioOwner, address indexed folio, address folioAdmin);
     /// @dev The trading governance fields intentionally duplicate the owner governance fields to preserve
-    ///      the event signature for backwards compatibility. They can be removed in a future breaking release.
+    ///      the event signature for backwards compatibility.
     event GovernedFolioDeployed(
         address indexed stToken,
         address indexed folio,
