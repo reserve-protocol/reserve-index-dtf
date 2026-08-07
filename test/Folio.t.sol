@@ -5274,7 +5274,7 @@ contract FolioTest is BaseTest {
         vm.roll(block.number + 1000000);
 
         uint256 accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
-        (, , uint256 expectedSelfFeeShares) = FolioLib.previewFeeShares(
+        (, , uint256 expectedSelfFeeShares) = FolioLib.computeFeeShares(
             FolioLib.FeeSharesParams({
                 currentDaoPending: folio.daoPendingFeeShares(),
                 currentFeeRecipientsPending: folio.feeRecipientsPendingFeeShares(),

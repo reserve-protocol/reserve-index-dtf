@@ -411,7 +411,7 @@ contract Folio is
 
     /// @dev Contains all pending fee shares
     function totalSupply() public view override returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, ) = _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, , ) = _getPendingFeeShares();
 
         return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
@@ -519,7 +519,7 @@ contract Folio is
 
     /// @return {share} Up-to-date sum of DAO and fee recipients pending fee shares
     function getPendingFeeShares() public view returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, ) = _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, , ) = _getPendingFeeShares();
         return _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
@@ -1042,33 +1042,36 @@ contract Folio is
 
     /// @return _daoPendingFeeShares {share}
     /// @return _feeRecipientsPendingFeeShares {share}
+    /// @return _accountedUntil {s}
+    /// @return _folioSelfFeeShares {share}
     function _getPendingFeeShares()
         internal
         view
-        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, uint256 _accountedUntil)
+        returns (
+            uint256 _daoPendingFeeShares,
+            uint256 _feeRecipientsPendingFeeShares,
+            uint256 _accountedUntil,
+            uint256 _folioSelfFeeShares
+        )
     {
         // {s} Always in full days
         _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
         if (_accountedUntil <= lastPoke) {
-            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke);
+            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke, 0);
         }
 
         uint256 elapsed = _accountedUntil - lastPoke;
-        (_daoPendingFeeShares, _feeRecipientsPendingFeeShares, ) = FolioLib.previewFeeShares(
-            _feeSharesParams(elapsed),
+        (_daoPendingFeeShares, _feeRecipientsPendingFeeShares, _folioSelfFeeShares) = FolioLib.computeFeeShares(
+            FolioLib.FeeSharesParams({
+                currentDaoPending: daoPendingFeeShares,
+                currentFeeRecipientsPending: feeRecipientsPendingFeeShares,
+                tvlFee: tvlFee,
+                folioFeeForSelf: folioFeeForSelf,
+                supply: super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares,
+                elapsed: elapsed
+            }),
             daoFeeRegistry
         );
-    }
-
-    function _feeSharesParams(uint256 elapsed) private view returns (FolioLib.FeeSharesParams memory params) {
-        params = FolioLib.FeeSharesParams({
-            currentDaoPending: daoPendingFeeShares,
-            currentFeeRecipientsPending: feeRecipientsPendingFeeShares,
-            tvlFee: tvlFee,
-            folioFeeForSelf: folioFeeForSelf,
-            supply: super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares,
-            elapsed: elapsed
-        });
     }
 
     /// Set TVL fee by annual percentage. Different from how it is stored!
@@ -1123,15 +1126,20 @@ contract Folio is
     function _poke() internal {
         _closeTrustedFill(false);
 
-        uint256 _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
-        if (_accountedUntil <= lastPoke) return;
+        (
+            uint256 _daoPendingFeeShares,
+            uint256 _feeRecipientsPendingFeeShares,
+            uint256 _accountedUntil,
+            uint256 _folioSelfFeeShares
+        ) = _getPendingFeeShares();
 
-        // @dev Semantically view; non-view only because computeFeeShares() emits FolioFeePaid
-        (daoPendingFeeShares, feeRecipientsPendingFeeShares) = FolioLib.computeFeeShares(
-            _feeSharesParams(_accountedUntil - lastPoke),
-            daoFeeRegistry
-        );
-        lastPoke = _accountedUntil;
+        if (_accountedUntil > lastPoke) {
+            daoPendingFeeShares = _daoPendingFeeShares;
+            feeRecipientsPendingFeeShares = _feeRecipientsPendingFeeShares;
+            lastPoke = _accountedUntil;
+
+            emit FolioFeePaid(address(this), _folioSelfFeeShares);
+        }
     }
 
     function _addToBasket(address token) internal {

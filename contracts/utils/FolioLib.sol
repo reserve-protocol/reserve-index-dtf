@@ -144,43 +144,15 @@ library FolioLib {
         uint256 elapsed; // {s}
     }
 
-    /// Preview TVL fee shares owed to the DAO, fee recipients, and the Folio itself
+    /// Compute TVL fee shares owed to the DAO, fee recipients, and the Folio itself
     /// @return _daoPendingFeeShares {share}
     /// @return _feeRecipientsPendingFeeShares {share}
     /// @return _folioSelfFeeShares {share}
-    function previewFeeShares(
+    function computeFeeShares(
         FeeSharesParams calldata params,
         IFolioDAOFeeRegistry daoFeeRegistry
     )
         external
-        view
-        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, uint256 _folioSelfFeeShares)
-    {
-        return _computeFeeShares(params, daoFeeRegistry);
-    }
-
-    /// Compute TVL fee shares owed to the DAO, fee recipients, and the Folio itself
-    /// @dev Semantically view; non-view only because it emits FolioFeePaid
-    /// @return _daoPendingFeeShares {share}
-    /// @return _feeRecipientsPendingFeeShares {share}
-    function computeFeeShares(
-        FeeSharesParams calldata params,
-        IFolioDAOFeeRegistry daoFeeRegistry
-    ) external returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) {
-        uint256 _folioSelfFeeShares;
-        (_daoPendingFeeShares, _feeRecipientsPendingFeeShares, _folioSelfFeeShares) = _computeFeeShares(
-            params,
-            daoFeeRegistry
-        );
-
-        emit IFolio.FolioFeePaid(address(this), _folioSelfFeeShares);
-    }
-
-    function _computeFeeShares(
-        FeeSharesParams calldata params,
-        IFolioDAOFeeRegistry daoFeeRegistry
-    )
-        private
         view
         returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, uint256 _folioSelfFeeShares)
     {
