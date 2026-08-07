@@ -272,13 +272,13 @@ contract Folio is
 
     // ==== Allowlist ====
 
-    /// @return The list of tokens currently approved for trading in new rebalances
+    /// @return The list of tokens currently on the allowlist
     function getTokenAllowlist() external view returns (address[] memory) {
         return tradeTokenAllowlist.values();
     }
 
     /// @param token The token to check
-    /// @return True if the token is approved for trading in new rebalances
+    /// @return True if the token is on the allowlist
     function isTokenAllowlisted(address token) external view returns (bool) {
         return tradeTokenAllowlist.contains(token);
     }
@@ -387,10 +387,8 @@ contract Folio is
         }
     }
 
-    /// Remove tokens from the set approved for trading in new rebalances
-    /// @dev Does not impact ongoing rebalances or auctions
-    /// @dev SHOULD call endRebalance() after removing a token that SHOULD NOT be traded
-    /// @dev Any ongoing auction remains active and must be closed separately
+    /// Remove tokens from the allowlist
+    /// @dev Does not impact ongoing rebalances. Consider calling endRebalance()
     /// @param tokens The tokens to remove from the allowlist
     function removeFromAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 len = tokens.length;
