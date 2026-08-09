@@ -129,7 +129,7 @@ When an auction is started, the `low` and `high` prices for both assets are used
 
 If `RebalanceControl.priceControl == PriceControl.PARTIAL`, the `AUCTION_LAUNCHER` can select a subset price range of the overall `low-high` range to use for each auction. This grants an additional responsibility to the `AUCTION_LAUNCHER` that allows them to achieve better execution but also grants them the ability to begin auctions at dishonest prices that leak value to MEV searchers once the auction starts and a gas war begins.
 
-If `RebalanceControl.priceControl == PriceControl.ATOMIC_SWAP`, the `AUCTION_LAUNCHER` can go further and perform atomic swaps at fixed prices as long as prices are within the pre-approved `low-high` ranges. This lets an `AUCTION_LAUNCHER` set the clearing price as well as internalize MEV associated with pricing, preventing a public auction from forming. As a best practice the `AUCTION_LAUNCHER` should also end the rebalance after all fills are completed, as the final transaction in their bundle.
+If `RebalanceControl.priceControl == PriceControl.ATOMIC_SWAP`, the `AUCTION_LAUNCHER` can go further and perform atomic swaps at fixed prices as long as prices are within the pre-approved `low-high` ranges. This lets an `AUCTION_LAUNCHER` set the clearing price as well as internalize MEV associated with pricing, preventing a public auction from forming. As a best practice the `AUCTION_LAUNCHER` should close the auction after all fills are completed, then end the rebalance as the final actions in their bundle.
 
 ###### Price Curve
 

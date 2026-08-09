@@ -126,6 +126,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
     /// @param govRoles.auctionLaunchers Accounts to grant AUCTION_LAUNCHER on the deployed Folio
     /// @param govRoles.brandManagers Accounts to grant BRAND_MANAGER for off-chain use
     /// @param govParams.optimisticSelectors Selectors to allow optimistically on the deployed Folio
+    /// @param govParams.additionalGuardians Guardians to add in addition to the default guardian
     /// @return folio The deployed Folio instance
     /// @return proxyAdmin The deployed FolioProxyAdmin instance
     function deployGovernedFolio(
@@ -166,7 +167,7 @@ contract FolioDeployer is IFolioDeployer, Versioned {
                 standardParams: govParams.standardParams,
                 selectorData: _folioSelectorData(address(folio), govParams.optimisticSelectors),
                 optimisticProposers: govParams.optimisticProposers,
-                additionalGuardians: govParams.guardians,
+                additionalGuardians: govParams.additionalGuardians,
                 timelockDelay: govParams.timelockDelay,
                 proposalThrottleCapacity: govParams.proposalThrottleCapacity
             });

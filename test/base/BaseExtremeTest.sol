@@ -22,7 +22,7 @@ abstract contract BaseExtremeTest is BaseTest {
 
     struct FeeTestParams {
         uint256 amount;
-        uint256 tvlFee; // D18{1/s}
+        uint256 tvlFee; // D18{1/year}
         uint256 daoFee; // D18{1}
         uint256 timeLapse; // {s}
         uint256 numFeeRecipients;

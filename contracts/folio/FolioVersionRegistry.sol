@@ -29,8 +29,8 @@ contract FolioVersionRegistry is IFolioVersionRegistry {
     }
 
     /// @dev Registering a new version does not automatically deprecate the previous version.
-    ///      Registry owners should deprecate old versions after registering replacements so
-    ///      getLatestVersion() is generally the only non-deprecated Folio version.
+    ///      Registry owners should deprecate old versions before registering replacements, or do both
+    ///      atomically, so getLatestVersion() is generally the only non-deprecated Folio version.
     function registerVersion(IFolioDeployer folioDeployer) external {
         require(roleRegistry.isOwner(msg.sender), VersionRegistry__InvalidCaller());
 

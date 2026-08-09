@@ -14,8 +14,9 @@ import { IRoleRegistry } from "@interfaces/IRoleRegistry.sol";
  *         the Folio has set its own top-level fees too low.
  *
  *         For example, if the DAO fee is 33.33%, and the fee floor is 0.10%, then any TVL fee
- *         that is less than 0.30% will result in the DAO receiving 0.10% and the Folio beneficiaries receiving
- *         the TVL fee minus 0.10%. At <=0.10% TVL fee, the DAO receives 0.10% and Folio beneficiaries receive 0%
+ *         that is less than 0.30% will result in the DAO receiving 0.10%. The Folio beneficiaries receive
+ *         (TVL fee - 0.10%) * (1 - folioFeeForSelf). At <=0.10% TVL fee, the DAO receives 0.10% and
+ *         Folio beneficiaries receive 0%.
  */
 contract FolioDAOFeeRegistry is IFolioDAOFeeRegistry {
     uint256 public constant FEE_DENOMINATOR = 1e18;
