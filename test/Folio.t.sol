@@ -4017,6 +4017,16 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
         folio.redeem(5e21, user1, basket, amounts);
 
+        (basket, amounts) = folio.toAssets(5e21, Math.Rounding.Floor);
+        amounts[0] += 1;
+        vm.expectRevert(abi.encodeWithSelector(IFolio.Folio__InvalidAssetAmount.selector, basket[0]));
+        folio.redeem(5e21, address(folio), basket, amounts);
+
+        amounts[0] -= 1; // restore amounts
+        basket[2] = address(USDT); // not in basket
+        vm.expectRevert(IFolio.Folio__InvalidAsset.selector);
+        folio.redeem(5e21, address(folio), basket, amounts);
+
         address[] memory smallerBasket = new address[](0);
         vm.expectRevert(IFolio.Folio__InvalidArrayLengths.selector);
         folio.redeem(5e21, user1, smallerBasket, amounts);
