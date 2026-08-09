@@ -5,7 +5,8 @@ import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/
 import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/GPv2OrderLib.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
-import { AUCTION_WARMUP, D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT, ONE_DAY, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
+import { FolioLib } from "@utils/FolioLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxy } from "contracts/folio/FolioProxy.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -5254,10 +5255,36 @@ contract FolioTest is BaseTest {
         MEME.approve(address(folio), type(uint256).max);
 
         uint256 amt = 1e22;
+        vm.recordLogs();
         folio.mint(amt, user1, 0);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        bytes32 folioFeePaidSelector = keccak256("FolioFeePaid(address,uint256)");
+        bytes32 folioRecipient = bytes32(uint256(uint160(address(folio))));
+        for (uint256 i; i < logs.length; i++) {
+            assertFalse(
+                logs[i].emitter == address(folio) &&
+                    logs[i].topics[0] == folioFeePaidSelector &&
+                    logs[i].topics[1] == folioRecipient,
+                "zero self fee emitted"
+            );
+        }
 
         // no self-fee burned, so totalSupply = genesis + amt (includes pending fee shares)
         assertEq(folio.totalSupply(), amt * 2, "total supply off at 0% folioFee");
+    }
+
+    /// @dev TVL self-fees do not emit when folioFeeForSelf is 0%
+    function test_tvlFeeWithFolioFeeForSelf_ZeroPercent() public {
+        // folioFeeForSelf is already 0
+        assertEq(folio.folioFeeForSelf(), 0, "fee should start at 0");
+
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        vm.roll(block.number + 1000000);
+
+        vm.recordLogs();
+        folio.poke();
+        assertEq(vm.getRecordedLogs().length, 0, "zero self fee emitted");
     }
 
     /// @dev TVL fee with folioFeeForSelf: self-fee portion reduces fee-recipient pending shares
@@ -5272,10 +5299,25 @@ contract FolioTest is BaseTest {
         vm.warp(block.timestamp + YEAR_IN_SECONDS);
         vm.roll(block.number + 1000000);
 
+        uint256 accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
+        (, , uint256 expectedSelfFeeShares) = FolioLib.computeFeeShares(
+            FolioLib.FeeSharesParams({
+                currentDaoPending: folio.daoPendingFeeShares(),
+                currentFeeRecipientsPending: folio.feeRecipientsPendingFeeShares(),
+                tvlFee: folio.tvlFee(),
+                folioFeeForSelf: folio.folioFeeForSelf(),
+                supply: supplyBefore,
+                elapsed: accountedUntil - folio.lastPoke()
+            }),
+            daoFeeRegistry
+        );
+
         uint256 pendingFeeShares = folio.getPendingFeeShares();
         assertTrue(pendingFeeShares > 0, "should have pending fees");
 
         // poke to materialize
+        vm.expectEmit(true, false, false, true, address(folio));
+        emit IFolio.FolioFeePaid(address(folio), expectedSelfFeeShares);
         folio.poke();
 
         uint256 daoPending = folio.daoPendingFeeShares();
@@ -5293,6 +5335,10 @@ contract FolioTest is BaseTest {
 
         // total supply = base supply + dao pending + recipient pending (self-fee portion NOT in supply)
         assertEq(totalSupplyNow, supplyBefore + daoPending + recipientsPending, "total supply breakdown");
+
+        vm.recordLogs();
+        folio.poke();
+        assertEq(vm.getRecordedLogs().length, 0, "self fee emitted twice");
     }
 
     /// @dev TVL fee with 100% folioFeeForSelf: NO recipient shares, only DAO shares

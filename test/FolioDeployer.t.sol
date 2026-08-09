@@ -604,7 +604,7 @@ contract FolioDeployerTest is BaseTest {
                 standardParams: govParams.standardParams,
                 selectorData: new IOptimisticSelectorRegistry.SelectorData[](0),
                 optimisticProposers: govParams.optimisticProposers,
-                additionalGuardians: govParams.guardians,
+                additionalGuardians: govParams.additionalGuardians,
                 timelockDelay: govParams.timelockDelay,
                 proposalThrottleCapacity: govParams.proposalThrottleCapacity
             });
@@ -756,7 +756,7 @@ contract FolioDeployerTest is BaseTest {
                 }),
                 optimisticSelectors: optimisticSelectors,
                 optimisticProposers: new address[](0),
-                guardians: guardians,
+                additionalGuardians: guardians,
                 timelockDelay: 2 days,
                 proposalThrottleCapacity: 10
             });

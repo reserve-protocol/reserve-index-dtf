@@ -43,7 +43,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   - SHOULD end the ongoing rebalance when prices have moved outside the initially-provided price ranges
  *   - if weightControl=true: SHOULD progressively narrow weight ranges to maintain the original rebalance intent
  *   - if priceControl=PARTIAL: SHOULD provide narrowed price ranges that still include the current clearing price
- *   - if priceControl=ATOMIC_SWAP: SHOULD fill auction atomically directly after opening AND end rebalance afterwards
+ *   - if priceControl=ATOMIC_SWAP: SHOULD fill and close auction atomically directly after opening, then end rebalance
  *
  * Rebalance lifecycle:
  *   startRebalance() -> openAuction()/openAuctionUnrestricted() -> bid()/createTrustedFill() -> [optional] closeAuction()
@@ -411,7 +411,7 @@ contract Folio is
 
     /// @dev Contains all pending fee shares
     function totalSupply() public view override returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, ) = _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, , ) = _getPendingFeeShares();
 
         return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
@@ -447,6 +447,7 @@ contract Folio is
     ) external nonReentrant notDeprecated sync returns (address[] memory _assets, uint256[] memory _amounts) {
         // === Calculate fee shares ===
 
+        // @dev Semantically view; non-view only because computeMintFees() emits FolioFeePaid
         (uint256 sharesOut, uint256 daoFeeShares, uint256 feeRecipientFeeShares) = FolioLib.computeMintFees(
             FolioLib.MintFeeParams({
                 shares: shares,
@@ -518,7 +519,7 @@ contract Folio is
 
     /// @return {share} Up-to-date sum of DAO and fee recipients pending fee shares
     function getPendingFeeShares() public view returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, ) = _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, , ) = _getPendingFeeShares();
         return _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
@@ -1041,20 +1042,26 @@ contract Folio is
 
     /// @return _daoPendingFeeShares {share}
     /// @return _feeRecipientsPendingFeeShares {share}
+    /// @return _folioSelfFeeShares {share}
+    /// @return _accountedUntil {s}
     function _getPendingFeeShares()
         internal
         view
-        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, uint256 _accountedUntil)
+        returns (
+            uint256 _daoPendingFeeShares,
+            uint256 _feeRecipientsPendingFeeShares,
+            uint256 _folioSelfFeeShares,
+            uint256 _accountedUntil
+        )
     {
         // {s} Always in full days
         _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
-        uint256 elapsed = _accountedUntil > lastPoke ? _accountedUntil - lastPoke : 0;
-
-        if (elapsed == 0) {
-            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke);
+        if (_accountedUntil <= lastPoke) {
+            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, 0, lastPoke);
         }
 
-        (_daoPendingFeeShares, _feeRecipientsPendingFeeShares) = FolioLib.computeFeeShares(
+        uint256 elapsed = _accountedUntil - lastPoke;
+        (_daoPendingFeeShares, _feeRecipientsPendingFeeShares, _folioSelfFeeShares) = FolioLib.computeFeeShares(
             FolioLib.FeeSharesParams({
                 currentDaoPending: daoPendingFeeShares,
                 currentFeeRecipientsPending: feeRecipientsPendingFeeShares,
@@ -1068,7 +1075,7 @@ contract Folio is
     }
 
     /// Set TVL fee by annual percentage. Different from how it is stored!
-    /// @param _newFeeAnnually D18{1}
+    /// @param _newFeeAnnually D18{1/year}
     function _setTVLFee(uint256 _newFeeAnnually) internal {
         tvlFee = FolioLib.setTVLFee(_newFeeAnnually);
     }
@@ -1096,7 +1103,7 @@ contract Folio is
         require(_newLength >= MIN_AUCTION_LENGTH && _newLength <= MAX_AUCTION_LENGTH, Folio__InvalidAuctionLength());
 
         maxAuctionLength = _newLength;
-        emit MaxAuctionLengthSet(maxAuctionLength);
+        emit MaxAuctionLengthSet(_newLength);
     }
 
     function _setMandate(string calldata _newMandate) internal {
@@ -1122,6 +1129,7 @@ contract Folio is
         (
             uint256 _daoPendingFeeShares,
             uint256 _feeRecipientsPendingFeeShares,
+            uint256 _folioSelfFeeShares,
             uint256 _accountedUntil
         ) = _getPendingFeeShares();
 
@@ -1129,6 +1137,10 @@ contract Folio is
             daoPendingFeeShares = _daoPendingFeeShares;
             feeRecipientsPendingFeeShares = _feeRecipientsPendingFeeShares;
             lastPoke = _accountedUntil;
+
+            if (_folioSelfFeeShares != 0) {
+                emit FolioFeePaid(address(this), _folioSelfFeeShares);
+            }
         }
     }
 

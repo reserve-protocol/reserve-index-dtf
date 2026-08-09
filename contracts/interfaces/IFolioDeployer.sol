@@ -8,6 +8,8 @@ interface IFolioDeployer {
     error FolioDeployer__InvalidStToken();
 
     event FolioDeployed(address indexed folioOwner, address indexed folio, address folioAdmin);
+    /// @dev The trading governance fields intentionally duplicate the owner governance fields to preserve
+    ///      the event signature for backwards compatibility.
     event GovernedFolioDeployed(
         address indexed stToken,
         address indexed folio,
@@ -28,7 +30,7 @@ interface IFolioDeployer {
         IReserveOptimisticGovernor.StandardGovernanceParams standardParams;
         bytes4[] optimisticSelectors;
         address[] optimisticProposers;
-        address[] guardians;
+        address[] additionalGuardians;
         uint256 timelockDelay;
         uint256 proposalThrottleCapacity;
     }
