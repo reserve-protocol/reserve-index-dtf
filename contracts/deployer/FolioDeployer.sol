@@ -140,7 +140,13 @@ contract FolioDeployer is IFolioDeployer, Versioned {
         require(stToken != address(0), FolioDeployer__InvalidStToken());
         IOptimisticVotes(stToken).getPastOptimisticVotes(address(0), block.timestamp - 1);
 
-        bytes32 deploymentSalt = keccak256(abi.encode(msg.sender, deploymentNonce));
+        bytes32 deploymentSalt = keccak256(
+            abi.encode(
+                msg.sender,
+                keccak256(abi.encode(stToken, basicDetails, additionalDetails, folioFlags, govParams, govRoles)),
+                deploymentNonce
+            )
+        );
 
         // Deploy Folio
         (folio, proxyAdmin) = deployFolio(
