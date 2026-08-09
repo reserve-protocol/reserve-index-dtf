@@ -902,7 +902,12 @@ contract Folio is
     /// Close fill attempting to claw assets back, but always close fill
     /// @dev Callable by ADMIN
     /// @dev Clawed-back token balances will not be reflected in maxAuctionSize tracking
-    function emergencyCloseTrustedFill() external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+    function emergencyCloseTrustedFill(address trustedFill) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+        require(
+            address(activeTrustedFill) != address(0) && address(activeTrustedFill) == trustedFill,
+            Folio__InvalidTrustedFill()
+        );
+
         _closeTrustedFill(true);
     }
 
