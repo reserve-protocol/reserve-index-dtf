@@ -480,6 +480,7 @@ contract Folio is
     /// @param assets Assets to receive, must match basket exactly
     /// @param minAmountsOut {tok} Minimum amounts of each asset to receive
     /// @return _amounts {tok} Actual amounts transferred of each asset
+    /// @dev There is no maximum amount-out check, so donation amounts can be higher than expected.
     /// @dev Redeeming to Folio directly skips transfers, mainly useful for donating
     ///      shares to the Folio.
     function redeem(
