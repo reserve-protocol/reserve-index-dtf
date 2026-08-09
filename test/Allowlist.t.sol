@@ -294,7 +294,7 @@ contract AllowlistTest is BaseTest {
         assertEq(nonce, 1, "rebalance should have started");
     }
 
-    function test_rebalance_allowlistEnabled_rejectsNonAllowlistedTokenWithNonZeroWeights() public {
+    function test_rebalance_allowlistEnabled_rejectsNonAllowlistedToken() public {
         // Only allowlist USDC and DAI, not MEME
         address[] memory tokensToAdd = new address[](2);
         tokensToAdd[0] = address(USDC);
@@ -305,11 +305,11 @@ contract AllowlistTest is BaseTest {
         folio.setTradeAllowlistEnabled(true);
         vm.stopPrank();
 
-        // Try to rebalance with MEME having non-zero weights -- should revert
+        // Try to rebalance with MEME, which is not approved for trading
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
         tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
         tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
-        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true); // MEME with non-zero weights
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
 
         uint256 rebalanceNonceForExpectedRevert19 = nextRebalanceNonce(folio);
         vm.prank(dao);
@@ -324,7 +324,7 @@ contract AllowlistTest is BaseTest {
         );
     }
 
-    function test_rebalance_allowlistEnabled_nonAllowlistedTokenCanBeTradedOutWithZeroWeights() public {
+    function test_rebalance_allowlistEnabled_rejectsNonAllowlistedTokenWithZeroWeights() public {
         // Only allowlist USDC and DAI, not MEME
         address[] memory tokensToAdd = new address[](2);
         tokensToAdd[0] = address(USDC);
@@ -335,37 +335,11 @@ contract AllowlistTest is BaseTest {
         folio.setTradeAllowlistEnabled(true);
         vm.stopPrank();
 
-        // MEME with SELL (zero) weights -- should succeed (trading out)
+        // Zero target weights do not permit trading a non-allowlisted token out
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
         tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
         tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
-        tokens[2] = IFolio.TokenRebalanceParams(assets[2], SELL, prices[2], type(uint256).max, true); // MEME with zero weights
-
-        vm.prank(dao);
-        startRebalance(folio, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
-
-        (uint256 nonce, , , , , ) = folio.getRebalance();
-        assertEq(nonce, 1, "rebalance should have started");
-    }
-
-    function test_rebalance_allowlistEnabled_rejectsPartiallyZeroWeights() public {
-        // Non-allowlisted token must have ALL three weight components zero
-        address[] memory tokensToAdd = new address[](2);
-        tokensToAdd[0] = address(USDC);
-        tokensToAdd[1] = address(DAI);
-
-        vm.startPrank(owner);
-        folio.addToAllowlist(tokensToAdd);
-        folio.setTradeAllowlistEnabled(true);
-        vm.stopPrank();
-
-        // MEME with only low non-zero
-        IFolio.WeightRange memory lowOnly = IFolio.WeightRange({ low: 1e36, spot: 0, high: 0 });
-
-        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
-        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
-        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
-        tokens[2] = IFolio.TokenRebalanceParams(assets[2], lowOnly, prices[2], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], SELL, prices[2], type(uint256).max, true);
 
         uint256 rebalanceNonceForExpectedRevert20 = nextRebalanceNonce(folio);
         vm.prank(dao);
@@ -378,45 +352,11 @@ contract AllowlistTest is BaseTest {
             MAX_TTL,
             type(uint256).max
         );
-
-        // Also test with only high non-zero
-        IFolio.WeightRange memory highOnly = IFolio.WeightRange({ low: 0, spot: 0, high: 1e36 });
-
-        tokens[2] = IFolio.TokenRebalanceParams(assets[2], highOnly, prices[2], type(uint256).max, true);
-
-        uint256 rebalanceNonceForExpectedRevert21 = nextRebalanceNonce(folio);
-        vm.prank(dao);
-        vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
-        folio.startRebalance(
-            rebalanceNonceForExpectedRevert21,
-            tokens,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL,
-            type(uint256).max
-        );
-
-        // Also test with only spot non-zero
-        IFolio.WeightRange memory spotOnly = IFolio.WeightRange({ low: 0, spot: 1e36, high: 0 });
-
-        tokens[2] = IFolio.TokenRebalanceParams(assets[2], spotOnly, prices[2], type(uint256).max, true);
-
-        uint256 rebalanceNonceForExpectedRevert22 = nextRebalanceNonce(folio);
-        vm.prank(dao);
-        vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
-        folio.startRebalance(
-            rebalanceNonceForExpectedRevert22,
-            tokens,
-            limits,
-            AUCTION_LAUNCHER_WINDOW,
-            MAX_TTL,
-            type(uint256).max
-        );
     }
 
     // ========== Token Removed from Allowlist ==========
 
-    function test_rebalance_tokenRemovedFromAllowlist_canTradeOut() public {
+    function test_rebalance_tokenRemovedFromAllowlist_cannotBeTraded() public {
         // Add all tokens to allowlist initially
         address[] memory tokensToAdd = new address[](3);
         tokensToAdd[0] = address(USDC);
@@ -435,47 +375,17 @@ contract AllowlistTest is BaseTest {
 
         assertFalse(folio.isTokenAllowlisted(address(MEME)), "MEME should not be allowlisted");
 
-        // Rebalance with MEME having zero weights (trade out) -- should succeed
+        // Removing MEME prevents it from being included even with zero target weights
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
         tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
         tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
         tokens[2] = IFolio.TokenRebalanceParams(assets[2], SELL, prices[2], type(uint256).max, true);
 
-        vm.prank(dao);
-        startRebalance(folio, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
-
-        (uint256 nonce, , , , , ) = folio.getRebalance();
-        assertEq(nonce, 1, "rebalance should have started");
-    }
-
-    function test_rebalance_tokenRemovedFromAllowlist_cannotIncreaseHolding() public {
-        // Add all tokens to allowlist initially
-        address[] memory tokensToAdd = new address[](3);
-        tokensToAdd[0] = address(USDC);
-        tokensToAdd[1] = address(DAI);
-        tokensToAdd[2] = address(MEME);
-
-        vm.startPrank(owner);
-        folio.addToAllowlist(tokensToAdd);
-        folio.setTradeAllowlistEnabled(true);
-
-        // Remove MEME from allowlist
-        address[] memory tokensToRemove = new address[](1);
-        tokensToRemove[0] = address(MEME);
-        folio.removeFromAllowlist(tokensToRemove);
-        vm.stopPrank();
-
-        // Rebalance with MEME having non-zero weights (trying to buy) -- should revert
-        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
-        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
-        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
-        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
-
-        uint256 rebalanceNonceForExpectedRevert23 = nextRebalanceNonce(folio);
+        uint256 rebalanceNonceForExpectedRevert21 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
         folio.startRebalance(
-            rebalanceNonceForExpectedRevert23,
+            rebalanceNonceForExpectedRevert21,
             tokens,
             limits,
             AUCTION_LAUNCHER_WINDOW,
@@ -496,7 +406,7 @@ contract AllowlistTest is BaseTest {
         folio.setTradeAllowlistEnabled(true);
         vm.stopPrank();
 
-        // MEME is not allowlisted, rebalance with non-zero weights should fail
+        // MEME is not allowlisted, so it cannot be included in a rebalance
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
         tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
         tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
@@ -541,7 +451,7 @@ contract AllowlistTest is BaseTest {
         folio.setTradeAllowlistEnabled(true);
         vm.stopPrank();
 
-        // MEME not allowlisted with non-zero weights should fail
+        // MEME is not allowlisted, so it cannot be included in a rebalance
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
         tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
         tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
@@ -563,7 +473,7 @@ contract AllowlistTest is BaseTest {
         vm.prank(owner);
         folio.setTradeAllowlistEnabled(false);
 
-        // Should now succeed even with MEME having non-zero weights
+        // Should now succeed with MEME included
         vm.prank(dao);
         startRebalance(folio, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
 
@@ -585,7 +495,7 @@ contract AllowlistTest is BaseTest {
         folio.setTradeAllowlistEnabled(true);
         vm.stopPrank();
 
-        // Try to add USDT (not in allowlist) with non-zero weights
+        // Try to include USDT, which is not on the allowlist
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](4);
         tokens[0] = IFolio.TokenRebalanceParams(assets[0], SELL, prices[0], type(uint256).max, true);
         tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
@@ -657,7 +567,7 @@ contract AllowlistTest is BaseTest {
         folio.setTradeAllowlistEnabled(true);
         vm.stopPrank();
 
-        // MEME not allowlisted, non-zero weights should fail
+        // MEME is not allowlisted, so it cannot be included in a rebalance
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
         tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
         tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
@@ -688,7 +598,7 @@ contract AllowlistTest is BaseTest {
         tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
         tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
 
-        // All tokens have non-zero weights but none are allowlisted
+        // No token can be included while the enabled allowlist is empty
         uint256 rebalanceNonceForExpectedRevert28 = nextRebalanceNonce(folio);
         vm.prank(dao);
         vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
@@ -702,22 +612,28 @@ contract AllowlistTest is BaseTest {
         );
     }
 
-    function test_rebalance_emptyAllowlistEnabled_allZeroWeightsSucceeds() public {
+    function test_rebalance_emptyAllowlistEnabled_zeroWeightsAreRejected() public {
         // Enable allowlist without adding any tokens
         vm.prank(owner);
         folio.setTradeAllowlistEnabled(true);
 
-        // All tokens with zero weights (sell all) -- should succeed
+        // Zero target weights do not bypass an empty allowlist
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
         tokens[0] = IFolio.TokenRebalanceParams(assets[0], SELL, prices[0], type(uint256).max, true);
         tokens[1] = IFolio.TokenRebalanceParams(assets[1], SELL, prices[1], type(uint256).max, true);
         tokens[2] = IFolio.TokenRebalanceParams(assets[2], SELL, prices[2], type(uint256).max, true);
 
+        uint256 rebalanceNonceForExpectedRevert29 = nextRebalanceNonce(folio);
         vm.prank(dao);
-        startRebalance(folio, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
-
-        (uint256 nonce, , , , , ) = folio.getRebalance();
-        assertEq(nonce, 1, "rebalance should have started");
+        vm.expectRevert(IFolio.Folio__TokenNotAllowlisted.selector);
+        folio.startRebalance(
+            rebalanceNonceForExpectedRevert29,
+            tokens,
+            limits,
+            AUCTION_LAUNCHER_WINDOW,
+            MAX_TTL,
+            type(uint256).max
+        );
     }
 
     // ========== Batch Operations ==========
