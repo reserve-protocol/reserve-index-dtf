@@ -97,6 +97,7 @@ interface IFolio {
     error Folio__InvalidRegistry();
     error Folio__TrustedFillerRegistryNotEnabled();
     error Folio__TrustedFillerRegistryAlreadySet();
+    error Folio__InvalidTrustedFill();
     error Folio__InvalidTTL();
     error Folio__DeadlineExpired();
     error Folio__NotRebalancing();
