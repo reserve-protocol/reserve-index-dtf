@@ -557,8 +557,10 @@ contract Folio is
             _mint(daoRecipient, daoShares);
             emit ProtocolFeePaid(daoRecipient, daoShares);
 
-            daoPendingFeeShares = 0;
+            daoShares = 0;
         }
+
+        daoPendingFeeShares = daoShares;
     }
 
     // ==== Auctions ====

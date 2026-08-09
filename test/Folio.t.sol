@@ -709,6 +709,46 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(address(folio)), 0, "folio should not receive fees");
     }
 
+    function test_distributeFees_PreservesUnpaidSharesWhenFeeRecipientsEmptyAndDaoRecipientInvalid() public {
+        vm.prank(owner);
+        folio.setFeeRecipients(new IFolio.FeeRecipient[](0), new IFolio.FeeRecipient[](0));
+
+        uint256 daoFeeNumerator = 0.15e18;
+        daoFeeRegistry.setTokenFeeNumerator(address(folio), daoFeeNumerator);
+
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        vm.roll(block.number + 1000000);
+        folio.poke();
+
+        uint256 pendingFeeShares = folio.getPendingFeeShares();
+        uint256 totalSupplyBefore = folio.totalSupply();
+
+        bytes memory getFeeDetailsCall = abi.encodeWithSelector(
+            bytes4(keccak256("getFeeDetails(address)")),
+            address(folio)
+        );
+        vm.mockCall(
+            address(daoFeeRegistry),
+            getFeeDetailsCall,
+            abi.encode(address(0), daoFeeNumerator, daoFeeRegistry.FEE_DENOMINATOR(), daoFeeRegistry.defaultFeeFloor())
+        );
+
+        folio.distributeFees();
+
+        assertEq(folio.totalSupply(), totalSupplyBefore, "total supply should be preserved");
+        assertEq(folio.daoPendingFeeShares(), pendingFeeShares, "all shares should remain pending for dao");
+        assertEq(folio.feeRecipientsPendingFeeShares(), 0, "fee recipient shares should be reclassified");
+
+        vm.clearMockedCalls();
+        uint256 daoBalanceBefore = folio.balanceOf(dao);
+
+        folio.distributeFees();
+
+        assertEq(folio.balanceOf(dao), daoBalanceBefore + pendingFeeShares, "dao should receive all pending shares");
+        assertEq(folio.getPendingFeeShares(), 0, "no shares should remain pending");
+        assertEq(folio.totalSupply(), totalSupplyBefore, "total supply should remain preserved");
+    }
+
     function test_noTvlFeeWhenDaoFeeAndTvlFeeAreZero() public {
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 0);
         daoFeeRegistry.setTokenFeeFloor(address(folio), 0);
