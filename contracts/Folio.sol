@@ -289,12 +289,12 @@ contract Folio is
     /// @dev Does not require a token balance
     /// @param token The token to add to the basket
     function addToBasket(IERC20 token) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_addToBasket(address(token)), Folio__BasketModificationFailed());
+        _addToBasket(address(token));
     }
 
     /// @dev Manual admin removal of tokens from the basket
     function removeFromBasket(IERC20 token) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
+        _removeFromBasket(address(token));
     }
 
     /// An annual TVL fee below the DAO fee floor will result in the entirety of the fee being sent to the DAO
@@ -1132,19 +1132,20 @@ contract Folio is
         }
     }
 
-    function _addToBasket(address token) internal returns (bool) {
+    function _addToBasket(address token) internal {
         require(token != address(0) && token != address(this), Folio__InvalidAsset());
-        emit BasketTokenAdded(token);
 
-        return basket.add(token);
+        if (basket.add(token)) {
+            emit BasketTokenAdded(token);
+        }
     }
 
-    function _removeFromBasket(address token) internal returns (bool) {
-        emit BasketTokenRemoved(token);
+    function _removeFromBasket(address token) internal {
+        if (basket.remove(token)) {
+            delete rebalance.details[token];
 
-        delete rebalance.details[token];
-
-        return basket.remove(token);
+            emit BasketTokenRemoved(token);
+        }
     }
 
     function _setTrustedFillerRegistry(address _newFillerRegistry, bool _enabled) internal {
