@@ -34,7 +34,14 @@ The admin role revocation must come after all Folio calls that require admin per
 bash script/deprecation/generate-deprecation-proposals.sh
 ```
 
-This generates one Safe Transaction Builder JSON per DTF in `script/deprecation/proposals/`.
+This generates one Safe Transaction Builder JSON per DTF in `script/deprecation/proposals/`. Each file is a
+single `propose()` call carrying every action for that DTF — one proposal per DTF, no follow-up round.
+
+### Folio Version Caveats
+
+The action set above targets Folio `4.0.0`+ (verified against `4.0.0` and `5.0.0` deployments). Folio `1.0.0`
+has no `deprecateFolio()`; it exposes `killFolio()` (`0x60913997`) / `isKilled()` instead, so a generated
+proposal would revert on execution. Check `folio.version()` before generating.
 
 ### Adding a New DTF
 
@@ -140,6 +147,22 @@ Retrieves an actual queued proposal onchain, warps past the timelock ETA, and ex
 FORK_RPC_MAINNET="<archive_rpc>" \
   forge test --match-contract DeprecationProposalFork --evm-version cancun -vv
 ```
+
+### Generated JSON (`test/DeprecationJsonFork.t.sol`)
+
+Reads a generated proposal JSON, decodes the `propose()` calldata out of it, asserts the action set is
+what the DTF actually needs, then executes those exact actions as the owner timelock. Use this before
+submitting a proposal for a DTF that has none onchain yet.
+
+```bash
+FORK_RPC_MAINNET="<archive_rpc>" \
+  forge test --match-contract DeprecationJsonFork --evm-version cancun -vv
+```
+
+Covers `DeprecationJsonFork_BED` and `DeprecationJsonFork_SMEL`. On top of the shared post-checks it verifies,
+against the JSON itself, that: the transaction targets the owner governor on the right chain, every
+`revokeRole` names a role the account currently holds, the `DEFAULT_ADMIN_ROLE` revoke is the last Folio
+action, and the ProxyAdmin `renounceOwnership()` closes the proposal.
 
 ### What the Tests Verify
 
