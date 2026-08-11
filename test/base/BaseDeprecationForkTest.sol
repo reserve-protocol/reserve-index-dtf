@@ -210,7 +210,12 @@ abstract contract BaseDeprecationForkTest is Test {
         address staker
     ) internal pure returns (uint256 lockId) {
         for (uint256 i; i < logs.length; i++) {
-            if (logs[i].emitter != unstakingManager || logs[i].topics[0] != LOCK_CREATED_TOPIC) {
+            // topics can be empty: anonymous events carry none
+            if (logs[i].emitter != unstakingManager || logs[i].topics.length == 0) {
+                continue;
+            }
+
+            if (logs[i].topics[0] != LOCK_CREATED_TOPIC) {
                 continue;
             }
 
