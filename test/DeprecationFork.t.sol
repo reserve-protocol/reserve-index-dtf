@@ -1,43 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "forge-std/Test.sol";
-
 import { IAccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/IAccessControlEnumerable.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "@src/Folio.sol";
 
-bytes32 constant DEFAULT_ADMIN_ROLE = 0x00;
-bytes32 constant REBALANCE_MANAGER = keccak256("REBALANCE_MANAGER");
-bytes32 constant AUCTION_LAUNCHER = keccak256("AUCTION_LAUNCHER");
+import { BaseDeprecationForkTest, DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, AUCTION_LAUNCHER } from "./base/BaseDeprecationForkTest.sol";
 
-interface IStakingVault is IERC4626 {
-    function unstakingDelay() external view returns (uint256);
-    function unstakingManager() external view returns (address);
-}
-
-interface IUnstakingManager {
-    function locks(
-        uint256 lockId
-    ) external view returns (address user, uint256 amount, uint256 unlockTime, uint256 claimedAt);
-    function claimLock(uint256 lockId) external;
-}
-
-abstract contract DeprecationForkTest is Test {
-    struct DTFConfig {
-        string symbol;
-        address folio;
-        address ownerTimelock;
-        address tradingTimelock; // address(0) if none
-        address[] auctionLaunchers;
-        address proxyAdmin;
-        address stakingVault;
-    }
-
+/**
+ * @notice Direct simulation of the deprecation steps, pranking as the owner timelock.
+ * @dev Regression coverage for the DTFs already deprecated onchain, pinned to blocks before their
+ *      proposals executed. New DTFs should be covered by DeprecationJsonFork (before submission) and
+ *      DeprecationProposalFork (once queued) instead, since those run the real proposal payload.
+ */
+abstract contract DeprecationForkTest is BaseDeprecationForkTest {
     DTFConfig[] internal configs;
 
     function _addConfig(
@@ -62,187 +38,62 @@ abstract contract DeprecationForkTest is Test {
         );
     }
 
-    /// @dev Simulate Round 1: deprecate folio + revoke all roles
+    /// @dev Deprecate folio + revoke all roles
     function test_deprecation_fork() public {
         for (uint256 i; i < configs.length; i++) {
-            _testDeprecation(configs[i]);
+            _deprecateAsTimelock(configs[i]);
         }
     }
 
-    /// @dev Simulate Round 2: renounce ProxyAdmin ownership
+    /// @dev Renounce ProxyAdmin ownership
     function test_renounceProxyAdmin_fork() public {
         for (uint256 i; i < configs.length; i++) {
-            _testRenounceProxyAdmin(configs[i]);
+            _renounceProxyAdminAsTimelock(configs[i]);
         }
     }
 
     /// @dev Full flow: deprecate, verify redeem/mint/unstake, renounce ProxyAdmin
     function test_fullDeprecation_fork() public {
         for (uint256 i; i < configs.length; i++) {
-            _testDeprecation(configs[i]);
-            _testRedeemStillWorks(configs[i]);
-            _testMintBlocked(configs[i]);
-            _testUnstakeWithdraw(configs[i]);
-            _testRenounceProxyAdmin(configs[i]);
+            _deprecateAsTimelock(configs[i]);
+            _assertRedemptionOnlyMode(configs[i]);
+            _renounceProxyAdminAsTimelock(configs[i]);
         }
     }
 
-    function _testDeprecation(DTFConfig memory cfg) internal {
-        Folio folio = Folio(cfg.folio);
+    function _deprecateAsTimelock(DTFConfig memory cfg) internal {
+        _assertLiveAndGoverned(cfg);
 
-        // Pre-checks
-        assertFalse(folio.isDeprecated(), string.concat(cfg.symbol, ": already deprecated"));
-        assertTrue(
-            IAccessControlEnumerable(cfg.folio).hasRole(DEFAULT_ADMIN_ROLE, cfg.ownerTimelock),
-            string.concat(cfg.symbol, ": timelock missing admin role")
-        );
-
-        // Execute as owner timelock
         vm.startPrank(cfg.ownerTimelock);
 
         // 1. deprecateFolio()
-        folio.deprecateFolio();
-        assertTrue(folio.isDeprecated(), string.concat(cfg.symbol, ": not deprecated"));
+        Folio(cfg.folio).deprecateFolio();
 
         // 2. Revoke REBALANCE_MANAGER
         if (cfg.tradingTimelock != address(0)) {
             IAccessControlEnumerable(cfg.folio).revokeRole(REBALANCE_MANAGER, cfg.tradingTimelock);
-            assertFalse(
-                IAccessControlEnumerable(cfg.folio).hasRole(REBALANCE_MANAGER, cfg.tradingTimelock),
-                string.concat(cfg.symbol, ": trading timelock still has REBALANCE_MANAGER")
-            );
         }
 
         // 3. Revoke AUCTION_LAUNCHER(s)
-        for (uint256 j; j < cfg.auctionLaunchers.length; j++) {
-            IAccessControlEnumerable(cfg.folio).revokeRole(AUCTION_LAUNCHER, cfg.auctionLaunchers[j]);
-            assertFalse(
-                IAccessControlEnumerable(cfg.folio).hasRole(AUCTION_LAUNCHER, cfg.auctionLaunchers[j]),
-                string.concat(cfg.symbol, ": launcher still has AUCTION_LAUNCHER")
-            );
+        for (uint256 i; i < cfg.auctionLaunchers.length; i++) {
+            IAccessControlEnumerable(cfg.folio).revokeRole(AUCTION_LAUNCHER, cfg.auctionLaunchers[i]);
         }
 
         // 4. Revoke DEFAULT_ADMIN_ROLE (last)
         IAccessControlEnumerable(cfg.folio).revokeRole(DEFAULT_ADMIN_ROLE, cfg.ownerTimelock);
-        assertFalse(
-            IAccessControlEnumerable(cfg.folio).hasRole(DEFAULT_ADMIN_ROLE, cfg.ownerTimelock),
-            string.concat(cfg.symbol, ": timelock still has admin role")
-        );
 
         vm.stopPrank();
 
-        // Post-checks: no roles left
-        assertEq(
-            IAccessControlEnumerable(cfg.folio).getRoleMemberCount(DEFAULT_ADMIN_ROLE),
-            0,
-            string.concat(cfg.symbol, ": admin role count != 0")
-        );
-        assertEq(
-            IAccessControlEnumerable(cfg.folio).getRoleMemberCount(REBALANCE_MANAGER),
-            0,
-            string.concat(cfg.symbol, ": rebalance manager count != 0")
-        );
-        assertEq(
-            IAccessControlEnumerable(cfg.folio).getRoleMemberCount(AUCTION_LAUNCHER),
-            0,
-            string.concat(cfg.symbol, ": auction launcher count != 0")
-        );
+        _assertDeprecated(cfg);
     }
 
-    function _testRedeemStillWorks(DTFConfig memory cfg) internal {
-        Folio folio = Folio(cfg.folio);
-        assertTrue(folio.isDeprecated(), string.concat(cfg.symbol, ": should be deprecated for redeem test"));
-
-        uint256 redeemShares = 1e18;
-
-        try folio.toAssets(redeemShares, Math.Rounding.Floor) returns (address[] memory assets, uint256[] memory) {
-            address redeemer = makeAddr(string.concat("redeemer-", cfg.symbol));
-            deal(cfg.folio, redeemer, redeemShares);
-            assertEq(folio.balanceOf(redeemer), redeemShares, string.concat(cfg.symbol, ": deal failed"));
-
-            uint256[] memory minAmountsOut = new uint256[](assets.length);
-
-            uint256[] memory balancesBefore = new uint256[](assets.length);
-            for (uint256 j; j < assets.length; j++) {
-                balancesBefore[j] = IERC20(assets[j]).balanceOf(redeemer);
-            }
-
-            vm.prank(redeemer);
-            folio.redeem(redeemShares, redeemer, assets, minAmountsOut);
-
-            assertEq(folio.balanceOf(redeemer), 0, string.concat(cfg.symbol, ": shares not burned"));
-
-            uint256 totalReceived;
-            for (uint256 j; j < assets.length; j++) {
-                totalReceived += IERC20(assets[j]).balanceOf(redeemer) - balancesBefore[j];
-            }
-            assertGt(totalReceived, 0, string.concat(cfg.symbol, ": received nothing from redeem"));
-        } catch {
-            emit log_string(string.concat(cfg.symbol, ": SKIPPED redeem test (basket token incompatible with fork)"));
-        }
-    }
-
-    function _testMintBlocked(DTFConfig memory cfg) internal {
-        Folio folio = Folio(cfg.folio);
-        address minter = makeAddr(string.concat("minter-", cfg.symbol));
-
-        vm.prank(minter);
-        vm.expectRevert(IFolio.Folio__FolioDeprecated.selector);
-        folio.mint(1e18, minter, 0);
-    }
-
-    function _testUnstakeWithdraw(DTFConfig memory cfg) internal {
-        _unstakeAndClaim(cfg.symbol, cfg.stakingVault);
-    }
-
-    function _unstakeAndClaim(string memory symbol, address stakingVaultAddr) internal {
-        IStakingVault vault = IStakingVault(stakingVaultAddr);
-        address underlying = vault.asset();
-        address staker = makeAddr(string.concat("staker-", symbol));
-
-        // Deal staking vault shares
-        deal(stakingVaultAddr, staker, 1e18);
-
-        uint256 underlyingBefore = IERC20(underlying).balanceOf(staker);
-
-        // Redeem shares — creates a lock in UnstakingManager
-        vm.prank(staker);
-        vault.redeem(1e18, staker, staker);
-        assertEq(IERC20(stakingVaultAddr).balanceOf(staker), 0, string.concat(symbol, ": vault shares not burned"));
-
-        // Warp past unstaking delay
-        vm.warp(block.timestamp + vault.unstakingDelay() + 1);
-
-        // Find and claim lock
-        IUnstakingManager umgr = IUnstakingManager(vault.unstakingManager());
-        bool found;
-        for (uint256 lockId; lockId < 100; lockId++) {
-            (address lockUser, , , uint256 claimedAt) = umgr.locks(lockId);
-            if (lockUser == staker && claimedAt == 0) {
-                umgr.claimLock(lockId);
-                assertGt(
-                    IERC20(underlying).balanceOf(staker),
-                    underlyingBefore,
-                    string.concat(symbol, ": no underlying after unstake")
-                );
-                found = true;
-                break;
-            }
-        }
-        require(found, string.concat(symbol, ": could not find unstaking lock"));
-    }
-
-    function _testRenounceProxyAdmin(DTFConfig memory cfg) internal {
-        assertEq(
-            Ownable(cfg.proxyAdmin).owner(),
-            cfg.ownerTimelock,
-            string.concat(cfg.symbol, ": proxyAdmin not owned by timelock")
-        );
+    function _renounceProxyAdminAsTimelock(DTFConfig memory cfg) internal {
+        _assertProxyAdminOwned(cfg);
 
         vm.prank(cfg.ownerTimelock);
         Ownable(cfg.proxyAdmin).renounceOwnership();
 
-        assertEq(Ownable(cfg.proxyAdmin).owner(), address(0), string.concat(cfg.symbol, ": proxyAdmin owner not zero"));
+        _assertProxyAdminRenounced(cfg);
     }
 }
 
