@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { BaseDeprecationForkTest, DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, AUCTION_LAUNCHER } from "./base/BaseDeprecationForkTest.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
+
+import { IGovernor, DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, AUCTION_LAUNCHER } from "./base/BaseDeprecationForkTest.sol";
+import { PendingDeprecations } from "./base/PendingDeprecations.sol";
+
+uint8 constant VOTE_FOR = 1;
 
 /**
- * @notice Executes a live onchain deprecation proposal through the Governor.
- * @dev Pin the fork to a block where the proposal is queued but not yet executed. Subclasses supply the
- *      proposal actions, either from the generated JSON (see DeprecationProposalForkFromJson) or inline
- *      for proposals that predate the current generator.
+ * @notice Shared state for the suites that run a live onchain deprecation proposal.
+ * @dev Subclasses supply the proposal actions, either from the generated JSON (DeprecationProposalForkFromJson)
+ *      or inline for proposals that predate the current generator, and mix in one of the two test entrypoints:
+ *      DeprecationQueuedForkTest (proposal already queued) or DeprecationLifecycleForkTest (still Pending).
  */
-abstract contract DeprecationProposalForkTest is BaseDeprecationForkTest {
+abstract contract DeprecationProposalForkTest is PendingDeprecations {
     DTFConfig internal cfg;
 
     address internal governor;
@@ -27,7 +33,11 @@ abstract contract DeprecationProposalForkTest is BaseDeprecationForkTest {
             bytes[] memory calldatas,
             string memory description
         );
+}
 
+/// @notice Executes an already-queued proposal through the Governor.
+/// @dev Pin the fork to a block where the proposal is queued but not yet executed.
+abstract contract DeprecationQueuedForkTest is DeprecationProposalForkTest {
     function test_executeQueuedProposal_fork() public {
         (
             address[] memory targets,
@@ -73,9 +83,132 @@ abstract contract DeprecationProposalForkFromJson is DeprecationProposalForkTest
     }
 }
 
+/**
+ * @notice Drives a submitted proposal through its whole lifecycle: vote, queue, execute.
+ * @dev Lets a proposal be validated end to end while it is still Pending, rather than waiting days for it to
+ *      reach Queued. Voting power is acquired before the snapshot, so the fork MUST be pinned to a block
+ *      before voting opens. The vote is simulated; everything else — proposal id, actions, timelock delay —
+ *      is the real onchain proposal.
+ */
+abstract contract DeprecationLifecycleForkTest is DeprecationProposalForkFromJson {
+    address internal votingToken;
+
+    function test_proposalLifecycle_fork() public {
+        (
+            address[] memory targets,
+            uint256[] memory values,
+            bytes[] memory calldatas,
+            string memory description
+        ) = _proposalActions();
+
+        IGovernor gov = IGovernor(governor);
+        uint256 proposalId = gov.hashProposal(targets, values, calldatas, keccak256(bytes(description)));
+
+        // the proposal exists onchain and voting has not opened yet
+        assertEq(
+            uint256(gov.state(proposalId)),
+            uint256(IGovernor.ProposalState.Pending),
+            string.concat(cfg.symbol, ": proposal not Pending - pin the fork before the voting snapshot")
+        );
+
+        _assertLiveAndGoverned(cfg);
+        _assertProxyAdminOwned(cfg);
+        _assertDeprecationActions(cfg, targets, values, calldatas);
+
+        _voteFor(gov, proposalId);
+        _queue(gov, proposalId, targets, values, calldatas, description);
+
+        _executeViaGovernor(cfg, governor, targets, values, calldatas, description);
+
+        _assertRedemptionOnlyMode(cfg);
+        _assertProxyAdminRenounced(cfg);
+    }
+
+    /// @dev Acquires voting power before the snapshot, then votes once voting opens
+    function _voteFor(IGovernor gov, uint256 proposalId) internal {
+        uint256 snapshot = gov.proposalSnapshot(proposalId);
+        assertLt(block.timestamp, snapshot, string.concat(cfg.symbol, ": fork pinned past the voting snapshot"));
+
+        // dealing shares does not move voting units, delegating afterwards does — and neither raises the
+        // total-supply checkpoint that quorum is measured against
+        address voter = makeAddr(string.concat("voter-", cfg.symbol));
+        uint256 stake = IERC20(votingToken).totalSupply() / 2;
+        deal(votingToken, voter, stake);
+
+        vm.prank(voter);
+        IVotes(votingToken).delegate(voter);
+
+        vm.warp(snapshot + 1);
+        assertEq(
+            uint256(gov.state(proposalId)),
+            uint256(IGovernor.ProposalState.Active),
+            string.concat(cfg.symbol, ": proposal not Active after the snapshot")
+        );
+        assertGe(
+            IVotes(votingToken).getPastVotes(voter, snapshot),
+            gov.quorum(snapshot),
+            string.concat(cfg.symbol, ": test voter below quorum")
+        );
+
+        vm.prank(voter);
+        gov.castVote(proposalId, VOTE_FOR);
+
+        vm.warp(gov.proposalDeadline(proposalId) + 1);
+        assertEq(
+            uint256(gov.state(proposalId)),
+            uint256(IGovernor.ProposalState.Succeeded),
+            string.concat(cfg.symbol, ": proposal did not succeed")
+        );
+    }
+
+    function _queue(
+        IGovernor gov,
+        uint256 proposalId,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        string memory description
+    ) internal {
+        gov.queue(targets, values, calldatas, keccak256(bytes(description)));
+
+        assertEq(
+            uint256(gov.state(proposalId)),
+            uint256(IGovernor.ProposalState.Queued),
+            string.concat(cfg.symbol, ": proposal not queued")
+        );
+        assertGt(gov.proposalEta(proposalId), block.timestamp, string.concat(cfg.symbol, ": timelock delay skipped"));
+    }
+}
+
+contract DeprecationLifecycleFork_BED is DeprecationLifecycleForkTest {
+    function setUp() public {
+        vm.createSelectFork(vm.envOr("FORK_RPC_MAINNET", string("mainnet")), 25739000); // before voting opens
+
+        PendingDTF memory dtf = _bed();
+        cfg = dtf.cfg;
+        governor = dtf.governor;
+        jsonPath = dtf.jsonPath;
+        votingToken = VLRSR_STEAKHOUSE;
+        renouncesProxyAdmin = true;
+    }
+}
+
+contract DeprecationLifecycleFork_SMEL is DeprecationLifecycleForkTest {
+    function setUp() public {
+        vm.createSelectFork(vm.envOr("FORK_RPC_MAINNET", string("mainnet")), 25739000); // before voting opens
+
+        PendingDTF memory dtf = _smel();
+        cfg = dtf.cfg;
+        governor = dtf.governor;
+        jsonPath = dtf.jsonPath;
+        votingToken = VLRSR_STEAKHOUSE;
+        renouncesProxyAdmin = true;
+    }
+}
+
 /// @dev Proposal id 77830145447331487048806002448004034037637077883085812792021902429453348063407.
 ///      Predates the single-proposal flow: the ProxyAdmin renounce was a separate second proposal.
-contract DeprecationProposalFork_mvRWA is DeprecationProposalForkTest {
+contract DeprecationProposalFork_mvRWA is DeprecationQueuedForkTest {
     function setUp() public {
         vm.createSelectFork(vm.envOr("FORK_RPC_MAINNET", string("mainnet")), 24677500); // proposal queued
 

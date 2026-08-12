@@ -37,6 +37,18 @@ interface IGovernor {
 
     function state(uint256 proposalId) external view returns (ProposalState);
     function proposalEta(uint256 proposalId) external view returns (uint256);
+    function proposalSnapshot(uint256 proposalId) external view returns (uint256);
+    function proposalDeadline(uint256 proposalId) external view returns (uint256);
+    function quorum(uint256 timepoint) external view returns (uint256);
+    function castVote(uint256 proposalId, uint8 support) external returns (uint256);
+
+    function queue(
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata calldatas,
+        bytes32 descriptionHash
+    ) external returns (uint256);
+
     function hashProposal(
         address[] calldata targets,
         uint256[] calldata values,
@@ -78,6 +90,13 @@ abstract contract BaseDeprecationForkTest is Test {
         address[] auctionLaunchers;
         address proxyAdmin;
         address stakingVault;
+    }
+
+    /// @dev A DTF awaiting deprecation, with everything the proposal suites need to drive it
+    struct PendingDTF {
+        DTFConfig cfg;
+        address governor; // owner governor, the propose()/execute() target
+        string jsonPath;
     }
 
     // ==== Pre-conditions ====

@@ -148,20 +148,30 @@ governor on the right chain, every `revokeRole` names a role the account current
 `DEFAULT_ADMIN_ROLE` revoke is the last Folio action, and the ProxyAdmin `renounceOwnership()` closes the
 proposal. Pin `createSelectFork` to a recent block, since the DTF is still live.
 
-### 2. Once Queued (`test/DeprecationProposalFork.t.sol`)
+### 2. Once Submitted (`test/DeprecationProposalFork.t.sol`)
 
-Derives the proposal id from the same actions, asserts the proposal is `Queued`, warps past the timelock
-ETA, and executes it through the Governor.
+Both entrypoints derive the proposal id from the actions via `hashProposal`, so nothing is hardcoded — if
+the id resolves to a real proposal, the onchain payload matches the JSON byte for byte.
 
 ```bash
 FORK_RPC_MAINNET="<archive_rpc>" \
-  forge test --match-contract DeprecationProposalFork --evm-version cancun -vv
+  forge test --match-contract "DeprecationProposalFork|DeprecationLifecycleFork" --evm-version cancun -vv
 ```
 
-Extend `DeprecationProposalForkFromJson` and set `jsonPath`, `cfg`, `governor`, and
-`renouncesProxyAdmin = true`, then pin the fork to a block where the proposal is queued but not yet
-executed. `DeprecationProposalFork_mvRWA` instead declares its actions inline: it predates the
-single-proposal flow, so its onchain payload has no ProxyAdmin renounce.
+**While still `Pending`** — `DeprecationLifecycleForkTest` drives the whole lifecycle: acquires voting power,
+votes, waits out the voting period, queues, waits out the timelock, and executes. Extend it with `cfg`,
+`governor`, `jsonPath`, `votingToken`, `renouncesProxyAdmin = true`, and pin the fork to a block **before the
+voting snapshot** — voting power is obtained by dealing vault shares and delegating, which only counts if it
+happens before the snapshot. Covers `DeprecationLifecycleFork_BED` and `_SMEL`. The vote is simulated;
+the proposal, its actions, quorum and the timelock delay are real.
+
+**Once `Queued`** — `DeprecationQueuedForkTest` asserts the state, warps past the ETA and executes. Mix it
+with `DeprecationProposalForkFromJson` to source the actions from the JSON, and pin the fork to a block where
+the proposal is queued but not yet executed. `DeprecationProposalFork_mvRWA` instead declares its actions
+inline: it predates the single-proposal flow, so its onchain payload has no ProxyAdmin renounce.
+
+Per-DTF addresses for pending deprecations live in `test/base/PendingDeprecations.sol`, shared by this suite
+and the JSON one.
 
 ### Regression (`test/DeprecationFork.t.sol`)
 
