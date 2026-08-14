@@ -193,6 +193,7 @@ contract Folio is
     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
 
     FeeRecipient[] public immutableFeeRecipients;
+    uint256 public folioPendingFeeShares; // {share} Folio self-fee shares pending daily settlement
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -411,9 +412,16 @@ contract Folio is
 
     /// @dev Contains all pending fee shares
     function totalSupply() public view override returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, , ) = _getPendingFeeShares();
+        (
+            uint256 _daoPendingFeeShares,
+            uint256 _feeRecipientsPendingFeeShares,
+            ,
+            uint256 _accountedUntil
+        ) = _getPendingFeeShares();
 
-        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
+        uint256 _folioPendingFeeShares = _accountedUntil == lastPoke ? folioPendingFeeShares : 0;
+
+        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares + _folioPendingFeeShares;
     }
 
     /// @dev Result may be unreliable mid-swap during trusted fill execution, check stateChangeActive()
@@ -476,6 +484,7 @@ contract Folio is
         // defer fee handouts until distributeFees()
         daoPendingFeeShares += daoFeeShares;
         feeRecipientsPendingFeeShares += feeRecipientFeeShares;
+        folioPendingFeeShares += shares - sharesOut - daoFeeShares - feeRecipientFeeShares;
     }
 
     /// @param shares {share} Amount of shares to redeem
@@ -1061,17 +1070,43 @@ contract Folio is
         }
 
         uint256 elapsed = _accountedUntil - lastPoke;
+        uint256 firstElapsed = elapsed;
+        if (folioPendingFeeShares != 0) {
+            uint256 nextBoundary = ((lastPoke / ONE_DAY) + 1) * ONE_DAY;
+            firstElapsed = Math.min(elapsed, nextBoundary - lastPoke);
+        }
+
         (_daoPendingFeeShares, _feeRecipientsPendingFeeShares, _folioSelfFeeShares) = FolioLib.computeFeeShares(
             FolioLib.FeeSharesParams({
                 currentDaoPending: daoPendingFeeShares,
                 currentFeeRecipientsPending: feeRecipientsPendingFeeShares,
                 tvlFee: tvlFee,
                 folioFeeForSelf: folioFeeForSelf,
-                supply: super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares,
-                elapsed: elapsed
+                supply: super.totalSupply() +
+                    daoPendingFeeShares +
+                    feeRecipientsPendingFeeShares +
+                    folioPendingFeeShares,
+                elapsed: firstElapsed
             }),
             daoFeeRegistry
         );
+
+        // mint self-fees settle at the first boundary; exclude them from any remaining TVL fee period
+        if (firstElapsed != elapsed) {
+            uint256 firstFolioSelfFeeShares = _folioSelfFeeShares;
+            (_daoPendingFeeShares, _feeRecipientsPendingFeeShares, _folioSelfFeeShares) = FolioLib.computeFeeShares(
+                FolioLib.FeeSharesParams({
+                    currentDaoPending: _daoPendingFeeShares,
+                    currentFeeRecipientsPending: _feeRecipientsPendingFeeShares,
+                    tvlFee: tvlFee,
+                    folioFeeForSelf: folioFeeForSelf,
+                    supply: super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares,
+                    elapsed: elapsed - firstElapsed
+                }),
+                daoFeeRegistry
+            );
+            _folioSelfFeeShares += firstFolioSelfFeeShares;
+        }
     }
 
     /// Set TVL fee by annual percentage. Different from how it is stored!
@@ -1136,6 +1171,7 @@ contract Folio is
         if (_accountedUntil > lastPoke) {
             daoPendingFeeShares = _daoPendingFeeShares;
             feeRecipientsPendingFeeShares = _feeRecipientsPendingFeeShares;
+            folioPendingFeeShares = 0;
             lastPoke = _accountedUntil;
 
             if (_folioSelfFeeShares != 0) {

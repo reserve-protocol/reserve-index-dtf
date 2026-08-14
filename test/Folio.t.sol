@@ -5158,7 +5158,7 @@ contract FolioTest is BaseTest {
         assertTrue(folio.balanceOf(dao) > initialDaoShares, "dao should have received fees");
     }
 
-    /// @dev With folioFeeForSelf at 50%, half of the fee-recipient shares on mint should be burned
+    /// @dev With folioFeeForSelf at 50%, half of the fee-recipient shares on mint should await settlement
     function test_mintWithFolioFeeForSelf() public {
         // set folioFeeForSelf to 50%
         vm.prank(owner);
@@ -5184,7 +5184,7 @@ contract FolioTest is BaseTest {
         uint256 daoFeeShares = (totalFeeShares * MAX_DAO_FEE + 1e18 - 1) / 1e18;
         // recipientRaw = totalFeeShares - daoFeeShares
         uint256 recipientRaw = totalFeeShares - daoFeeShares;
-        // selfShares (burned) = recipientRaw * 50%
+        // selfShares (pending settlement) = recipientRaw * 50%
         uint256 selfShares = (recipientRaw * 0.5e18) / 1e18;
         uint256 expectedFeeRecipientShares = recipientRaw - selfShares;
 
@@ -5192,9 +5192,9 @@ contract FolioTest is BaseTest {
         uint256 expectedSharesOut = amt - totalFeeShares;
         assertEq(folio.balanceOf(user1), expectedSharesOut, "wrong user shares out");
 
-        // total supply: genesis + sharesOut + daoFee + feeRecipientFee (self-fee NOT minted)
-        uint256 expectedTotalSupply = INITIAL_SUPPLY + expectedSharesOut + daoFeeShares + expectedFeeRecipientShares;
-        assertEq(folio.totalSupply(), expectedTotalSupply, "wrong total supply with folioFeeForSelf");
+        // pending self-fees remain in effective supply until daily settlement
+        assertEq(folio.folioPendingFeeShares(), selfShares, "wrong pending folio fee shares");
+        assertEq(folio.totalSupply(), INITIAL_SUPPLY + amt, "wrong total supply with folioFeeForSelf");
 
         assertEq(folio.daoPendingFeeShares(), daoFeeShares, "wrong dao pending fee shares");
         assertEq(
@@ -5204,7 +5204,7 @@ contract FolioTest is BaseTest {
         );
     }
 
-    /// @dev With folioFeeForSelf at 100%, ALL fee-recipient shares on mint are burned
+    /// @dev With folioFeeForSelf at 100%, ALL fee-recipient shares on mint await settlement
     function test_mintWithFolioFeeForSelf_100Percent() public {
         // set folioFeeForSelf to 100%
         vm.prank(owner);
@@ -5228,16 +5228,148 @@ contract FolioTest is BaseTest {
         uint256 totalFeeShares = (amt * MAX_MINT_FEE + 1e18 - 1) / 1e18;
         uint256 daoFeeShares = (totalFeeShares * MAX_DAO_FEE + 1e18 - 1) / 1e18;
 
-        // ALL fee-recipient shares are burned (folioFeeForSelf = 100%)
+        // ALL fee-recipient shares await settlement (folioFeeForSelf = 100%)
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "fee recipients should get 0 with 100% folioFee");
         assertEq(folio.daoPendingFeeShares(), daoFeeShares, "wrong dao pending fee shares");
+        assertEq(folio.folioPendingFeeShares(), totalFeeShares - daoFeeShares, "wrong pending folio fee shares");
 
         uint256 expectedSharesOut = amt - totalFeeShares;
         assertEq(folio.balanceOf(user1), expectedSharesOut, "wrong user shares out");
 
-        // total supply = genesis + sharesOut + daoFee (no fee-recipient shares minted)
-        uint256 expectedTotalSupply = INITIAL_SUPPLY + expectedSharesOut + daoFeeShares;
-        assertEq(folio.totalSupply(), expectedTotalSupply, "wrong total supply");
+        assertEq(folio.totalSupply(), INITIAL_SUPPLY + amt, "wrong total supply");
+    }
+
+    function test_mintWithFolioFeeForSelf_isExchangeRateNeutral() public {
+        vm.startPrank(owner);
+        folio.setFolioSelfFee(0.5e18);
+        folio.setMintFee(MAX_MINT_FEE);
+        vm.stopPrank();
+
+        (, uint256[] memory amountsBefore) = folio.toAssets(1e18, Math.Rounding.Floor);
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+        folio.mint(INITIAL_SUPPLY, user1, 0);
+        vm.stopPrank();
+
+        (, uint256[] memory amountsAfter) = folio.toAssets(1e18, Math.Rounding.Floor);
+        assertEq(amountsAfter, amountsBefore, "mint changed exchange rate");
+        assertEq(folio.totalSupply(), INITIAL_SUPPLY * 2, "mint did not add gross shares to effective supply");
+    }
+
+    function test_mintWithFolioFeeForSelf_accumulatesAcrossMints() public {
+        vm.startPrank(owner);
+        folio.setFolioSelfFee(0.5e18);
+        folio.setMintFee(MAX_MINT_FEE);
+        vm.stopPrank();
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+
+        uint256 amount = INITIAL_SUPPLY / 10;
+        folio.mint(amount, user1, 0);
+        uint256 pendingAfterFirstMint = folio.folioPendingFeeShares();
+        folio.mint(amount, user1, 0);
+        vm.stopPrank();
+
+        assertEq(folio.folioPendingFeeShares(), pendingAfterFirstMint * 2, "self-fees did not accumulate");
+        assertEq(folio.totalSupply(), INITIAL_SUPPLY + amount * 2, "mints changed effective exchange rate");
+    }
+
+    function test_mintWithFolioFeeForSelf_settlesAtDailyBoundary() public {
+        daoFeeRegistry.setDefaultFeeFloor(0);
+
+        vm.startPrank(owner);
+        folio.setTVLFee(0);
+        folio.setFolioSelfFee(0.5e18);
+        folio.setMintFee(MAX_MINT_FEE);
+        vm.stopPrank();
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+        folio.mint(INITIAL_SUPPLY, user1, 0);
+        vm.stopPrank();
+
+        uint256 pendingSelfFees = folio.folioPendingFeeShares();
+        uint256 supplyBeforeSettlement = folio.totalSupply();
+        assertTrue(pendingSelfFees > 0, "missing pending self-fees");
+
+        vm.warp(((block.timestamp / ONE_DAY) + 1) * ONE_DAY);
+
+        // View accounting settles at the boundary even before state is poked.
+        assertEq(folio.totalSupply(), supplyBeforeSettlement - pendingSelfFees, "self-fees not settled in supply");
+        assertEq(folio.folioPendingFeeShares(), pendingSelfFees, "view accounting changed storage");
+
+        folio.poke();
+        assertEq(folio.folioPendingFeeShares(), 0, "poke did not clear settled self-fees");
+        assertEq(folio.totalSupply(), supplyBeforeSettlement - pendingSelfFees, "poke changed settled supply");
+    }
+
+    function test_distributeFees_doesNotSettleMintSelfFeesBeforeDailyBoundary() public {
+        vm.startPrank(owner);
+        folio.setFolioSelfFee(0.5e18);
+        folio.setMintFee(MAX_MINT_FEE);
+        vm.stopPrank();
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+        folio.mint(INITIAL_SUPPLY, user1, 0);
+        vm.stopPrank();
+
+        uint256 pendingSelfFees = folio.folioPendingFeeShares();
+        uint256 supplyBeforeDistribution = folio.totalSupply();
+        folio.distributeFees();
+
+        assertEq(folio.folioPendingFeeShares(), pendingSelfFees, "distribution settled self-fees early");
+        assertEq(folio.totalSupply(), supplyBeforeDistribution, "distribution changed effective supply");
+    }
+
+    function test_mintSelfFees_delayedPokeMatchesFirstBoundaryPoke() public {
+        vm.startPrank(owner);
+        folio.setFolioSelfFee(0.5e18);
+        folio.setMintFee(MAX_MINT_FEE);
+        vm.stopPrank();
+
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+        folio.mint(INITIAL_SUPPLY, user1, 0);
+        vm.stopPrank();
+
+        uint256 firstBoundary = ((block.timestamp / ONE_DAY) + 1) * ONE_DAY;
+        uint256 finalBoundary = firstBoundary + 30 * ONE_DAY;
+        uint256 snapshot = vm.snapshotState();
+
+        vm.warp(firstBoundary);
+        folio.poke();
+        vm.warp(finalBoundary);
+        folio.poke();
+
+        uint256 expectedDaoPending = folio.daoPendingFeeShares();
+        uint256 expectedRecipientsPending = folio.feeRecipientsPendingFeeShares();
+        uint256 expectedSupply = folio.totalSupply();
+
+        vm.revertToState(snapshot);
+        vm.warp(finalBoundary);
+        folio.poke();
+
+        assertEq(folio.daoPendingFeeShares(), expectedDaoPending, "delayed poke changed DAO fees");
+        assertEq(
+            folio.feeRecipientsPendingFeeShares(),
+            expectedRecipientsPending,
+            "delayed poke changed recipient fees"
+        );
+        assertEq(folio.totalSupply(), expectedSupply, "delayed poke changed supply");
+        assertEq(folio.folioPendingFeeShares(), 0, "delayed poke did not settle mint self-fees");
     }
 
     /// @dev With folioFeeForSelf at 0%, behavior is unchanged from before
@@ -5475,15 +5607,35 @@ contract FolioTest is BaseTest {
 
         uint256 daoPendingAfterMint = folio.daoPendingFeeShares();
         uint256 recipientsPendingAfterMint = folio.feeRecipientsPendingFeeShares();
+        uint256 supplyAfterMint = folio.totalSupply();
 
         assertTrue(daoPendingAfterMint > 0, "dao should have pending mint fee shares");
+        assertTrue(folio.folioPendingFeeShares() > 0, "folio should have pending mint fee shares");
 
-        // fast forward 1 year for TVL fee
-        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        // advance to the first boundary for TVL fee settlement
+        vm.warp(((block.timestamp / ONE_DAY) + 1) * ONE_DAY);
         vm.roll(block.number + 1000000);
 
+        uint256 accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
+        (uint256 expectedDaoPending, uint256 expectedRecipientsPending, ) = FolioLib.computeFeeShares(
+            FolioLib.FeeSharesParams({
+                currentDaoPending: daoPendingAfterMint,
+                currentFeeRecipientsPending: recipientsPendingAfterMint,
+                tvlFee: folio.tvlFee(),
+                folioFeeForSelf: folio.folioFeeForSelf(),
+                supply: supplyAfterMint,
+                elapsed: accountedUntil - folio.lastPoke()
+            }),
+            daoFeeRegistry
+        );
+
         uint256 totalPending = folio.getPendingFeeShares();
-        assertTrue(totalPending > daoPendingAfterMint + recipientsPendingAfterMint, "tvl fees should add up");
+        assertEq(totalPending, expectedDaoPending + expectedRecipientsPending, "wrong combined pending fees");
+        assertEq(
+            folio.totalSupply(),
+            INITIAL_SUPPLY + folio.balanceOf(user1) + totalPending,
+            "wrong supply after combined settlement"
+        );
 
         // distribute
         folio.distributeFees();
@@ -5491,6 +5643,7 @@ contract FolioTest is BaseTest {
         // all pending should be distributed
         assertEq(folio.daoPendingFeeShares(), 0, "dao pending should be 0 after distribute");
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "fee recipients pending should be 0 after distribute");
+        assertEq(folio.folioPendingFeeShares(), 0, "folio pending should be 0 after settlement");
 
         // DAO and recipients should have non-zero balances
         assertTrue(folio.balanceOf(dao) > 0, "dao should have shares");
