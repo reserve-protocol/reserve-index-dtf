@@ -24,6 +24,7 @@ contract FolioTest is BaseTest {
     uint256 internal constant AUCTION_LAUNCHER_WINDOW = MAX_TTL / 2;
     uint256 internal constant AUCTION_LENGTH = 1800; // {s} 30 min
     uint256 internal constant FOLIO_PENDING_FEE_SHARES_SLOT = 37;
+    uint256 internal constant LAST_FOLIO_FEE_POKE_SLOT = 38;
 
     IFolio.WeightRange internal SELL = IFolio.WeightRange({ low: 0, spot: 0, high: 0 }); // sell as much as possible
     IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: MAX_WEIGHT, spot: MAX_WEIGHT, high: MAX_WEIGHT }); // buy as much as possible
@@ -5263,7 +5264,7 @@ contract FolioTest is BaseTest {
         assertEq(folio.balanceOf(user1), expectedSharesOut, "wrong user shares out");
 
         // pending self-fees remain in effective supply until handout
-        assertEq(folio.folioPendingFeeShares(), selfShares, "wrong pending folio fee shares");
+        assertEq(folio.folioPendingMintFeeShares(), selfShares, "wrong pending folio fee shares");
         assertEq(folio.totalSupply(), INITIAL_SUPPLY + amt, "wrong total supply with folioFeeForSelf");
 
         assertEq(folio.daoPendingFeeShares(), daoFeeShares, "wrong dao pending fee shares");
@@ -5301,7 +5302,7 @@ contract FolioTest is BaseTest {
         // ALL fee-recipient shares await handout (folioFeeForSelf = 100%)
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "fee recipients should get 0 with 100% folioFee");
         assertEq(folio.daoPendingFeeShares(), daoFeeShares, "wrong dao pending fee shares");
-        assertEq(folio.folioPendingFeeShares(), totalFeeShares - daoFeeShares, "wrong pending folio fee shares");
+        assertEq(folio.folioPendingMintFeeShares(), totalFeeShares - daoFeeShares, "wrong pending folio fee shares");
 
         uint256 expectedSharesOut = amt - totalFeeShares;
         assertEq(folio.balanceOf(user1), expectedSharesOut, "wrong user shares out");
@@ -5318,27 +5319,27 @@ contract FolioTest is BaseTest {
 
         assertEq(amountsAfter, amountsBefore, "mint changed exchange rate");
         assertEq(folio.totalSupply(), INITIAL_SUPPLY * 2, "mint did not add gross shares");
-        assertTrue(folio.folioPendingFeeShares() > 0, "missing pending self-fees");
+        assertTrue(folio.folioPendingMintFeeShares() > 0, "missing pending self-fees");
     }
 
     function test_mintSelfFeeHandout_doesNotStartBeforeDailyBoundary() public {
         _configureMintSelfFeeHandout();
         _mintForUser(INITIAL_SUPPLY);
 
-        uint256 pendingSelfFees = folio.folioPendingFeeShares();
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
         uint256 supplyBefore = folio.totalSupply();
         vm.warp(_nextDay() - 1);
 
         assertEq(folio.totalSupply(), supplyBefore, "self-fees handed out early");
         folio.poke();
-        assertEq(folio.folioPendingFeeShares(), pendingSelfFees, "poke handed out self-fees early");
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees, "poke handed out self-fees early");
     }
 
     function test_mintSelfFeeHandout_usesInitializationWindow() public {
         _enableMintSelfFeeHandout();
         _mintForUser(INITIAL_SUPPLY);
 
-        uint256 pendingSelfFees = folio.folioPendingFeeShares();
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
         uint256 supplyBefore = folio.totalSupply();
         uint256 handoutSupply = supplyBefore - pendingSelfFees;
 
@@ -5369,7 +5370,7 @@ contract FolioTest is BaseTest {
         _mintForUser(INITIAL_SUPPLY);
 
         uint256 boundary = _nextDay();
-        uint256 pendingSelfFees = folio.folioPendingFeeShares();
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
         uint256 supplyBefore = folio.totalSupply();
         uint256 handoutSupply = supplyBefore - pendingSelfFees;
 
@@ -5402,7 +5403,7 @@ contract FolioTest is BaseTest {
         emit IFolio.FolioFeePaid(address(folio), dailyHandout);
         folio.poke();
         assertEq(folio.totalSupply(), supplyAfterPeriod, "poke changed effective supply");
-        assertEq(folio.folioPendingFeeShares(), pendingSelfFees - dailyHandout, "wrong pending self-fees");
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees - dailyHandout, "wrong pending self-fees");
     }
 
     function test_mintSelfFeeHandout_rollsExcessIntoLaterDays() public {
@@ -5410,7 +5411,7 @@ contract FolioTest is BaseTest {
         _mintForUser(INITIAL_SUPPLY);
 
         uint256 boundary = _nextDay();
-        uint256 pendingSelfFees = folio.folioPendingFeeShares();
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
         uint256 supplyBefore = folio.totalSupply();
         uint256 handoutSupply = supplyBefore - pendingSelfFees;
         uint256 dailyHandout = _maxFolioFeeHandout(handoutSupply, FOLIO_FEE_HANDOUT_PERIOD);
@@ -5418,11 +5419,11 @@ contract FolioTest is BaseTest {
 
         vm.warp(boundary + FOLIO_FEE_HANDOUT_PERIOD);
         folio.poke();
-        assertEq(folio.folioPendingFeeShares(), pendingSelfFees - dailyHandout, "wrong first-day rollover");
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees - dailyHandout, "wrong first-day rollover");
 
         vm.warp(boundary + ONE_DAY + FOLIO_FEE_HANDOUT_PERIOD);
         folio.poke();
-        assertEq(folio.folioPendingFeeShares(), pendingSelfFees - dailyHandout * 2, "wrong second-day rollover");
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees - dailyHandout * 2, "wrong second-day rollover");
 
         vm.warp(boundary + 3 * ONE_DAY + FOLIO_FEE_HANDOUT_PERIOD);
         assertEq(folio.totalSupply(), supplyBefore - dailyHandout * 4, "missed daily windows were not handed out");
@@ -5433,7 +5434,7 @@ contract FolioTest is BaseTest {
         _mintForUser(D18);
 
         uint256 boundary = _nextDay();
-        uint256 pendingSelfFees = folio.folioPendingFeeShares();
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
         uint256 supplyBefore = folio.totalSupply();
         assertTrue(
             pendingSelfFees < _maxFolioFeeHandout(supplyBefore - pendingSelfFees, 1),
@@ -5443,7 +5444,7 @@ contract FolioTest is BaseTest {
         vm.warp(boundary + 1);
         assertEq(folio.totalSupply(), supplyBefore - pendingSelfFees, "small self-fee not fully handed out");
         folio.poke();
-        assertEq(folio.folioPendingFeeShares(), 0, "empty handout left pending shares");
+        assertEq(folio.folioPendingMintFeeShares(), 0, "empty handout left pending shares");
     }
 
     function test_mintSelfFeeHandout_repeatedPokesCannotDoubleHandout() public {
@@ -5453,11 +5454,11 @@ contract FolioTest is BaseTest {
         uint256 boundary = _nextDay();
         vm.warp(boundary + FOLIO_FEE_HANDOUT_BLOCK_TIME);
         folio.poke();
-        uint256 pendingAfterPoke = folio.folioPendingFeeShares();
+        uint256 pendingAfterPoke = folio.folioPendingMintFeeShares();
         uint256 supplyAfterPoke = folio.totalSupply();
 
         folio.poke();
-        assertEq(folio.folioPendingFeeShares(), pendingAfterPoke, "same-time poke repeated handout");
+        assertEq(folio.folioPendingMintFeeShares(), pendingAfterPoke, "same-time poke repeated handout");
         assertEq(folio.totalSupply(), supplyAfterPoke, "same-time poke changed supply");
     }
 
@@ -5467,12 +5468,12 @@ contract FolioTest is BaseTest {
 
         uint256 supplyBefore = folio.totalSupply();
         _mintForUser(INITIAL_SUPPLY);
-        uint256 pendingSelfFees = folio.folioPendingFeeShares();
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
 
         assertTrue(pendingSelfFees > 0, "missing pending self-fees");
         assertEq(folio.totalSupply(), supplyBefore + INITIAL_SUPPLY, "past capacity handed out new fees");
         folio.poke();
-        assertEq(folio.folioPendingFeeShares(), pendingSelfFees, "poke used past capacity");
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees, "poke used past capacity");
     }
 
     function test_mintDuringSelfFeeHandout_isExchangeRateNeutral() public {
@@ -5486,9 +5487,9 @@ contract FolioTest is BaseTest {
         (, uint256[] memory amountsAfter) = folio.toAssets(D18, Math.Rounding.Floor);
 
         assertEq(amountsAfter, amountsBefore, "mid-handout mint changed exchange rate");
-        assertEq(folio.lastPoke(), block.timestamp, "mint did not advance handout time");
+        assertEq(folio.lastFolioFeePoke(), block.timestamp, "mint did not advance handout time");
 
-        uint256 pendingSelfFees = folio.folioPendingFeeShares();
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
         uint256 supplyBefore = folio.totalSupply();
         uint256 handoutSupply = supplyBefore - pendingSelfFees;
         vm.warp(block.timestamp + FOLIO_FEE_HANDOUT_BLOCK_TIME);
@@ -5520,7 +5521,7 @@ contract FolioTest is BaseTest {
         _configureMintSelfFeeHandout();
         _mintForUser(INITIAL_SUPPLY);
 
-        uint256 pendingBefore = folio.folioPendingFeeShares();
+        uint256 pendingBefore = folio.folioPendingMintFeeShares();
         uint256 handoutSupplyBefore = folio.totalSupply() - pendingBefore;
         vm.warp(_nextDay() + FOLIO_FEE_HANDOUT_PERIOD / 2);
 
@@ -5531,16 +5532,16 @@ contract FolioTest is BaseTest {
 
         uint256 expectedElapsedHandout = _maxFolioFeeHandout(handoutSupplyBefore, FOLIO_FEE_HANDOUT_PERIOD / 2);
         assertEq(
-            folio.folioPendingFeeShares(),
+            folio.folioPendingMintFeeShares(),
             pendingBefore - expectedElapsedHandout,
             "redeem did not settle elapsed handout"
         );
 
-        uint256 handoutSupplyAfter = folio.totalSupply() - folio.folioPendingFeeShares();
+        uint256 handoutSupplyAfter = folio.totalSupply() - folio.folioPendingMintFeeShares();
         vm.warp(block.timestamp + FOLIO_FEE_HANDOUT_BLOCK_TIME);
         folio.poke();
         assertEq(
-            folio.folioPendingFeeShares(),
+            folio.folioPendingMintFeeShares(),
             pendingBefore -
                 expectedElapsedHandout -
                 _maxFolioFeeHandout(handoutSupplyAfter, FOLIO_FEE_HANDOUT_BLOCK_TIME),
@@ -5564,24 +5565,28 @@ contract FolioTest is BaseTest {
 
         vm.warp(_nextDay() + FOLIO_FEE_HANDOUT_PERIOD);
         folio.poke();
-        assertEq(folio.folioPendingFeeShares(), backlog, "zero base handed out fees");
+        assertEq(folio.folioPendingMintFeeShares(), backlog, "zero base handed out fees");
 
         _mintForUser(INITIAL_SUPPLY);
-        uint256 pendingAfterMint = folio.folioPendingFeeShares();
+        uint256 pendingAfterMint = folio.folioPendingMintFeeShares();
         vm.warp(_nextDay() + FOLIO_FEE_HANDOUT_BLOCK_TIME);
         folio.poke();
-        assertLt(folio.folioPendingFeeShares(), pendingAfterMint, "remint did not restart handout");
+        assertLt(folio.folioPendingMintFeeShares(), pendingAfterMint, "remint did not restart handout");
     }
 
     function test_mintSelfFeeHandout_upgradeInitializesWithoutHistoricalCapacity() public {
         _configureMintSelfFeeHandout();
+        _mintForUser(INITIAL_SUPPLY);
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
+        vm.store(address(folio), bytes32(LAST_FOLIO_FEE_POKE_SLOT), bytes32(0));
         vm.warp(block.timestamp + 3 * ONE_DAY);
 
         uint256 supplyBefore = folio.totalSupply();
-        _mintForUser(INITIAL_SUPPLY);
+        folio.poke();
 
-        assertEq(folio.totalSupply(), supplyBefore + INITIAL_SUPPLY, "upgrade used historical capacity");
-        assertEq(folio.lastPoke(), block.timestamp, "upgrade did not initialize timestamp");
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees, "upgrade used historical capacity");
+        assertEq(folio.totalSupply(), supplyBefore, "upgrade changed effective supply");
+        assertEq(folio.lastFolioFeePoke(), block.timestamp, "upgrade did not initialize timestamp");
     }
 
     function test_pendingMintSelfFeesAreExemptFromTVLFees() public {
@@ -5599,7 +5604,7 @@ contract FolioTest is BaseTest {
 
         uint256 snapshot = vm.snapshotState();
         _mintForUser(INITIAL_SUPPLY);
-        uint256 eligibleMintShares = folio.totalSupply() - folio.folioPendingFeeShares() - INITIAL_SUPPLY;
+        uint256 eligibleMintShares = folio.totalSupply() - folio.folioPendingMintFeeShares() - INITIAL_SUPPLY;
         uint256 pendingBeforeTVL = folio.getPendingFeeShares();
         uint256 boundary = _nextDay();
         vm.warp(boundary);
@@ -5619,15 +5624,15 @@ contract FolioTest is BaseTest {
         _configureMintSelfFeeHandout();
         _mintForUser(INITIAL_SUPPLY);
 
-        uint256 pendingSelfFees = folio.folioPendingFeeShares();
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
         uint256 supplyBefore = folio.totalSupply();
         folio.distributeFees();
-        assertEq(folio.folioPendingFeeShares(), pendingSelfFees, "distribution bypassed handout");
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees, "distribution bypassed handout");
         assertEq(folio.totalSupply(), supplyBefore, "distribution changed effective supply");
 
         vm.prank(owner);
         folio.setFolioSelfFee(0);
-        assertEq(folio.folioPendingFeeShares(), pendingSelfFees, "fee setter bypassed handout");
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees, "fee setter bypassed handout");
         assertEq(folio.totalSupply(), supplyBefore, "fee setter changed effective supply");
     }
 
@@ -5691,7 +5696,7 @@ contract FolioTest is BaseTest {
         vm.roll(block.number + 1000000);
 
         uint256 accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
-        uint256 lastTVLFeePoke = (folio.lastPoke() / ONE_DAY) * ONE_DAY;
+        uint256 lastTVLFeePoke = folio.lastPoke();
         (, , uint256 expectedSelfFeeShares) = FolioLib.computeFeeShares(
             FolioLib.FeeSharesParams({
                 currentDaoPending: folio.daoPendingFeeShares(),

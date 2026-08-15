@@ -129,8 +129,6 @@ contract Folio is
     /**
      * System
      */
-    /// @dev Shared TVL fee and mint self-fee handout checkpoint. Values within the first handout window of a UTC day
-    ///      are treated as day-aligned, so initialization during that window can add up to 4 minutes of TVL fee accrual.
     uint256 public lastPoke; // {s}
     uint256 public daoPendingFeeShares; // {share} shares pending to be distributed ONLY to the DAO
     uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
@@ -197,7 +195,8 @@ contract Folio is
     FeeRecipient[] public immutableFeeRecipients;
 
     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares directed to Folio holders
-    uint256 public folioPendingFeeShares; // {share} mint self-fee shares pending handout
+    uint256 public folioPendingMintFeeShares; // {share} mint self-fee shares pending handout (burning)
+    uint256 public lastFolioFeePoke; // {s} last time mint self-fee handout capacity was accounted
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -257,6 +256,7 @@ contract Folio is
         }
 
         lastPoke = block.timestamp;
+        lastFolioFeePoke = block.timestamp;
 
         _mint(_creator, _basicDetails.initialShares);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -428,7 +428,7 @@ contract Folio is
             super.totalSupply() +
             _daoPendingFeeShares +
             _feeRecipientsPendingFeeShares +
-            folioPendingFeeShares -
+            folioPendingMintFeeShares -
             _mintSelfFeeHandout;
     }
 
@@ -491,7 +491,7 @@ contract Folio is
         // defer DAO and recipient fee handouts until distributeFees()
         daoPendingFeeShares += daoFeeShares;
         feeRecipientsPendingFeeShares += feeRecipientFeeShares;
-        folioPendingFeeShares += shares - sharesOut - daoFeeShares - feeRecipientFeeShares;
+        folioPendingMintFeeShares += shares - sharesOut - daoFeeShares - feeRecipientFeeShares;
     }
 
     /// @param shares {share} Amount of shares to redeem
@@ -1074,8 +1074,6 @@ contract Folio is
             uint256 _accountedUntil
         )
     {
-        uint256 _lastPoke = lastPoke; // {s}
-
         uint256 feeSupply = super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares; // {share}
         _daoPendingFeeShares = daoPendingFeeShares;
         _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
@@ -1083,17 +1081,11 @@ contract Folio is
         // === TVL fees ===
 
         {
-            uint256 lastTVLFeePoke = _lastPoke; // {s}
-            uint256 lastPokeInDay = lastTVLFeePoke % ONE_DAY; // {s}
-            if (lastPokeInDay <= FOLIO_FEE_HANDOUT_PERIOD) {
-                lastTVLFeePoke -= lastPokeInDay;
-            }
-
             // {s} Always in full days
             _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
 
-            if (_accountedUntil > lastTVLFeePoke) {
-                uint256 tvlFeeElapsed = _accountedUntil - lastTVLFeePoke; // {s}
+            if (_accountedUntil > lastPoke) {
+                uint256 tvlFeeElapsed = _accountedUntil - lastPoke; // {s}
                 (_daoPendingFeeShares, _feeRecipientsPendingFeeShares, _tvlSelfFeeShares) = FolioLib.computeFeeShares(
                     FolioLib.FeeSharesParams({
                         currentDaoPending: daoPendingFeeShares,
@@ -1106,23 +1098,25 @@ contract Folio is
                     daoFeeRegistry
                 );
             } else {
-                _accountedUntil = lastTVLFeePoke;
+                _accountedUntil = lastPoke;
             }
         }
 
         // === Mint self-fee handout ===
 
-        if (folioPendingFeeShares != 0 && block.timestamp > _lastPoke) {
+        uint256 _lastFolioFeePoke = lastFolioFeePoke; // {s}
+
+        if (folioPendingMintFeeShares != 0 && _lastFolioFeePoke != 0 && block.timestamp > _lastFolioFeePoke) {
             // {1} = {s} / {s}
             uint256 currentDay = block.timestamp / ONE_DAY;
-            uint256 lastDay = _lastPoke / ONE_DAY;
+            uint256 lastDay = _lastFolioFeePoke / ONE_DAY;
 
             // {s}
-            uint256 lastWindowElapsed = Math.min(_lastPoke % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+            uint256 lastWindowElapsed = Math.min(_lastFolioFeePoke % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
 
             bool hasUnaccountedWindow = currentDay != lastDay || lastWindowElapsed < FOLIO_FEE_HANDOUT_PERIOD;
             if (hasUnaccountedWindow) {
-                // {s} = {1} * {s} + {s} - {s}
+                // {s} = ({1} - {1)} * {s} + {s} - {s}
                 uint256 handoutElapsed = (currentDay - lastDay) *
                     FOLIO_FEE_HANDOUT_PERIOD +
                     Math.min(block.timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD) -
@@ -1136,7 +1130,7 @@ contract Folio is
                 );
 
                 // {share}
-                _mintSelfFeeHandout = Math.min(folioPendingFeeShares, maxHandout);
+                _mintSelfFeeHandout = Math.min(folioPendingMintFeeShares, maxHandout);
             }
         }
     }
@@ -1193,8 +1187,6 @@ contract Folio is
     function _poke() internal {
         _closeTrustedFill(false);
 
-        uint256 _lastPoke = lastPoke; // {s}
-
         (
             uint256 _daoPendingFeeShares,
             uint256 _feeRecipientsPendingFeeShares,
@@ -1203,31 +1195,21 @@ contract Folio is
             uint256 _accountedUntil
         ) = _getFeeShares();
 
-        bool crossedTVLFeeBoundary = _accountedUntil > _lastPoke;
-
-        if (crossedTVLFeeBoundary) {
+        if (_accountedUntil > lastPoke) {
             daoPendingFeeShares = _daoPendingFeeShares;
             feeRecipientsPendingFeeShares = _feeRecipientsPendingFeeShares;
+            lastPoke = _accountedUntil;
         }
 
+        // burn pending mint shares around the 24h handout boundary
         if (_mintSelfFeeHandout != 0) {
-            folioPendingFeeShares -= _mintSelfFeeHandout;
+            folioPendingMintFeeShares -= _mintSelfFeeHandout;
         }
+        lastFolioFeePoke = block.timestamp;
 
         if (_tvlSelfFeeShares + _mintSelfFeeHandout != 0) {
-            // fees paid to self = sum of TVL and mint handout fees
+            // fees paid to self = sum of constant TVL and 24h boundary mint fees
             emit FolioFeePaid(address(this), _tvlSelfFeeShares + _mintSelfFeeHandout);
-        }
-
-        // ===
-
-        // {s} = ({s} / {s}) * {s} + {s}
-        uint256 currentPoke = (block.timestamp / ONE_DAY) *
-            ONE_DAY +
-            Math.min(block.timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD); // {s}
-
-        if (currentPoke > _lastPoke) {
-            lastPoke = currentPoke;
         }
     }
 
