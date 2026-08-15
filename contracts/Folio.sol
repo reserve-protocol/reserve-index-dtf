@@ -1184,7 +1184,8 @@ contract Folio is
             uint256 _accountedUntil
         ) = _getPendingFeeShares();
 
-        if (_accountedUntil > previousPoke) {
+        bool crossedTVLFeeBoundary = _accountedUntil > previousPoke;
+        if (crossedTVLFeeBoundary) {
             daoPendingFeeShares = _daoPendingFeeShares;
             feeRecipientsPendingFeeShares = _feeRecipientsPendingFeeShares;
         }
@@ -1193,10 +1194,12 @@ contract Folio is
             folioPendingFeeShares -= _folioFeeHandout;
         }
 
-        if (previousPoke % ONE_DAY <= FOLIO_FEE_HANDOUT_PERIOD || _accountedUntil > previousPoke) {
-            uint256 currentPoke = (block.timestamp / ONE_DAY) *
-                ONE_DAY +
-                Math.min(block.timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+        bool isSharedFeeCheckpoint = previousPoke % ONE_DAY <= FOLIO_FEE_HANDOUT_PERIOD;
+        if (isSharedFeeCheckpoint || crossedTVLFeeBoundary) {
+            uint256 currentDayStart = (block.timestamp / ONE_DAY) * ONE_DAY;
+            uint256 currentWindowElapsed = Math.min(block.timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+            uint256 currentPoke = currentDayStart + currentWindowElapsed;
+
             if (currentPoke > previousPoke) {
                 lastPoke = currentPoke;
             }
