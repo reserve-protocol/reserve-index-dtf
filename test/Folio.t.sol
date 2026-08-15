@@ -23,8 +23,7 @@ contract FolioTest is BaseTest {
     uint256 internal constant MAX_TVL_FEE_PER_SECOND = 3340960028; // D18{1/s} 10% annually, per second
     uint256 internal constant AUCTION_LAUNCHER_WINDOW = MAX_TTL / 2;
     uint256 internal constant AUCTION_LENGTH = 1800; // {s} 30 min
-    uint256 internal constant FOLIO_FLAGS_SLOT = 32;
-    uint256 internal constant FOLIO_FEE_HANDOUT_BASE_SLOT = 38;
+    uint256 internal constant FOLIO_FEE_HANDOUT_BASE_SLOT = 39;
 
     IFolio.WeightRange internal SELL = IFolio.WeightRange({ low: 0, spot: 0, high: 0 }); // sell as much as possible
     IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: MAX_WEIGHT, spot: MAX_WEIGHT, high: MAX_WEIGHT }); // buy as much as possible
@@ -5604,8 +5603,7 @@ contract FolioTest is BaseTest {
 
     function test_mintSelfFeeHandout_upgradeInitializesWithoutHistoricalCapacity() public {
         _configureMintSelfFeeHandout();
-        bytes32 flags = bytes32(uint256(vm.load(address(folio), bytes32(FOLIO_FLAGS_SLOT))) & type(uint16).max);
-        vm.store(address(folio), bytes32(FOLIO_FLAGS_SLOT), flags);
+        vm.store(address(folio), bytes32(uint256(38)), bytes32(0));
         vm.store(address(folio), bytes32(FOLIO_FEE_HANDOUT_BASE_SLOT), bytes32(0));
         vm.warp(block.timestamp + 3 * ONE_DAY);
 

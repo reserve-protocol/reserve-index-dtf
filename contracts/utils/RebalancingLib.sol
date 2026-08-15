@@ -6,7 +6,6 @@ import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import { IBidderCallee } from "@interfaces/IBidderCallee.sol";
 import { IFolio } from "@interfaces/IFolio.sol";
@@ -22,46 +21,6 @@ import { MathLib } from "@utils/MathLib.sol";
  * startRebalance() -> openAuction() -> getBid() -> bid()
  */
 library RebalancingLib {
-    using EnumerableSet for EnumerableSet.AddressSet;
-
-    function addToAllowlist(EnumerableSet.AddressSet storage allowlist, address[] calldata tokens) external {
-        uint256 len = tokens.length;
-        for (uint256 i; i < len; i++) {
-            if (allowlist.add(tokens[i])) {
-                emit IFolio.TradeAllowlistTokenAdded(tokens[i]);
-            }
-        }
-    }
-
-    function removeFromAllowlist(EnumerableSet.AddressSet storage allowlist, address[] calldata tokens) external {
-        uint256 len = tokens.length;
-        for (uint256 i; i < len; i++) {
-            if (allowlist.remove(tokens[i])) {
-                emit IFolio.TradeAllowlistTokenRemoved(tokens[i]);
-            }
-        }
-    }
-
-    function addToBasket(EnumerableSet.AddressSet storage basket, address token) external {
-        require(token != address(0) && token != address(this), IFolio.Folio__InvalidAsset());
-
-        if (basket.add(token)) {
-            emit IFolio.BasketTokenAdded(token);
-        }
-    }
-
-    function removeFromBasket(
-        EnumerableSet.AddressSet storage basket,
-        IFolio.Rebalance storage rebalance,
-        address token
-    ) external {
-        if (basket.remove(token)) {
-            delete rebalance.details[token];
-
-            emit IFolio.BasketTokenRemoved(token);
-        }
-    }
-
     struct RebalanceParams {
         uint256 auctionLauncherWindow;
         uint256 ttl;
@@ -170,39 +129,6 @@ library RebalancingLib {
             block.timestamp + rebalanceParams.ttl,
             rebalanceParams.bidsEnabled
         );
-    }
-
-    /// Prepare to open a new auction
-    function prepareAuction(
-        IFolio.Rebalance storage rebalance,
-        mapping(uint256 auctionId => IFolio.Auction) storage auctions,
-        uint256 auctionId,
-        uint256 rebalanceNonce,
-        uint256 auctionBuffer
-    ) external {
-        // enforce rebalance ongoing
-        require(
-            rebalance.nonce == rebalanceNonce &&
-                block.timestamp >= rebalance.startedAt + auctionBuffer &&
-                block.timestamp < rebalance.availableUntil,
-            IFolio.Folio__NotRebalancing()
-        );
-
-        // close any previous auction
-        if (auctionId != 0) {
-            IFolio.Auction storage lastAuction = auctions[auctionId - 1];
-
-            // if auction collision
-            if (
-                lastAuction.rebalanceNonce == rebalanceNonce && lastAuction.endTime + auctionBuffer >= block.timestamp
-            ) {
-                require(auctionBuffer == 0, IFolio.Folio__AuctionCannotBeOpenedWithoutRestriction());
-
-                // close ongoing auction
-                lastAuction.endTime = block.timestamp - 1;
-                emit IFolio.AuctionClosed(auctionId - 1);
-            }
-        }
     }
 
     /// Open a new auction

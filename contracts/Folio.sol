@@ -14,7 +14,7 @@ import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/tr
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
 import { FolioLib } from "@utils/FolioLib.sol";
-import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_MINT_FEE, MAX_FOLIO_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, ERC20_STORAGE_LOCATION, FOLIO_FEE_HANDOUT_BLOCK_TIME, FOLIO_FEE_HANDOUT_PERIOD, FOLIO_FEE_HANDOUT_RATE, REBALANCE_MANAGER, MAX_MINT_FEE, MAX_FOLIO_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
@@ -83,8 +83,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * Fees:
  *   - TVL fee: fee per unit time. Max 10% annually. Causes supply inflation over time, discretely once a day.
  *   - Mint fee: fee on mint. Max 5%. Does not cause supply inflation.
- *   - Mint self-fees: remain in effective supply, then are virtually burned during a daily window, appreciating the
- *     Folio at a bounded rate.
+ *   - Mint self-fees: remain in effective supply, then are virtually burned at a bounded rate during a daily window.
  *
  * After fees have been applied, the DAO takes a cut based on the configuration of the FolioDAOFeeRegistry including
  *   a minimum fee floor. The remaining portion above the floor is distributed to the Folio's fee recipients.
@@ -191,12 +190,12 @@ contract Folio is
 
     // === 6.0.0 ===
     bool public tradeAllowlistEnabled;
-    uint64 public lastFolioFeePoke; // {s} packed handout timestamp, sufficient beyond any plausible chain lifetime
     EnumerableSet.AddressSet private tradeTokenAllowlist;
     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares directed to Folio holders
 
     FeeRecipient[] public immutableFeeRecipients;
     uint256 public folioPendingFeeShares; // {share} mint self-fee shares pending handout
+    uint256 public lastFolioFeePoke; // {s} last time mint self-fee handout capacity was accounted
     uint256 private folioFeeHandoutBase; // {share} supply eligible to set the mint self-fee handout rate
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
@@ -257,8 +256,7 @@ contract Folio is
         }
 
         lastPoke = block.timestamp;
-        require(block.timestamp <= type(uint64).max, Folio__TimestampOverflow());
-        lastFolioFeePoke = uint64(block.timestamp);
+        lastFolioFeePoke = block.timestamp;
         folioFeeHandoutBase = _basicDetails.initialShares;
 
         _mint(_creator, _basicDetails.initialShares);
@@ -387,14 +385,24 @@ contract Folio is
     /// Add tokens that are safe to trade in new rebalances to the allowlist
     /// @param tokens The tokens to add to the allowlist
     function addToAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        RebalancingLib.addToAllowlist(tradeTokenAllowlist, tokens);
+        uint256 len = tokens.length;
+        for (uint256 i; i < len; i++) {
+            if (tradeTokenAllowlist.add(tokens[i])) {
+                emit TradeAllowlistTokenAdded(tokens[i]);
+            }
+        }
     }
 
     /// Remove tokens from the allowlist
     /// @dev Does not impact ongoing rebalances. Consider calling endRebalance()
     /// @param tokens The tokens to remove from the allowlist
     function removeFromAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        RebalancingLib.removeFromAllowlist(tradeTokenAllowlist, tokens);
+        uint256 len = tokens.length;
+        for (uint256 i; i < len; i++) {
+            if (tradeTokenAllowlist.remove(tokens[i])) {
+                emit TradeAllowlistTokenRemoved(tokens[i]);
+            }
+        }
     }
 
     /// Deprecate the Folio, callable only by the admin
@@ -992,10 +1000,33 @@ contract Folio is
         uint256 auctionBuffer,
         uint256 auctionLength
     ) internal returns (uint256 auctionId) {
+        // enforce rebalance ongoing
+        require(
+            rebalance.nonce == rebalanceNonce &&
+                block.timestamp >= rebalance.startedAt + auctionBuffer &&
+                block.timestamp < rebalance.availableUntil,
+            Folio__NotRebalancing()
+        );
+
         auctionId = nextAuctionId != 0 ? nextAuctionId : auctions_DEPRECATED.length;
         nextAuctionId = auctionId + 1;
 
-        RebalancingLib.prepareAuction(rebalance, auctions, auctionId, rebalanceNonce, auctionBuffer);
+        // close any previous auction
+        if (auctionId != 0) {
+            Auction storage lastAuction = auctions[auctionId - 1];
+
+            // if auction collision
+            if (
+                lastAuction.rebalanceNonce == rebalanceNonce && lastAuction.endTime + auctionBuffer >= block.timestamp
+            ) {
+                require(auctionBuffer == 0, Folio__AuctionCannotBeOpenedWithoutRestriction());
+
+                // close ongoing auction
+                lastAuction.endTime = block.timestamp - 1;
+                emit AuctionClosed(auctionId - 1);
+            }
+        }
+
         RebalancingLib.openAuction(rebalance, auctions, auctionId, tokens, weights, prices, limits, auctionLength);
     }
 
@@ -1064,13 +1095,22 @@ contract Folio is
 
     /// @return _folioFeeHandout {share} Mint self-fee shares available for handout
     function _getFolioFeeHandout() internal view returns (uint256 _folioFeeHandout) {
-        return
-            FolioLib.computeFolioFeeHandout(
-                folioPendingFeeShares,
-                lastFolioFeePoke,
-                folioFeeHandoutBase,
-                block.timestamp
-            );
+        if (folioPendingFeeShares == 0 || block.timestamp <= lastFolioFeePoke) {
+            return 0;
+        }
+
+        uint256 elapsed = (block.timestamp / ONE_DAY - lastFolioFeePoke / ONE_DAY) *
+            FOLIO_FEE_HANDOUT_PERIOD +
+            Math.min(block.timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD) -
+            Math.min(lastFolioFeePoke % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+
+        // {share} = {share} * D18{1} * {s} / (D18 * {s})
+        uint256 maxHandout = Math.mulDiv(
+            folioFeeHandoutBase,
+            FOLIO_FEE_HANDOUT_RATE * elapsed,
+            D18 * FOLIO_FEE_HANDOUT_BLOCK_TIME
+        );
+        _folioFeeHandout = Math.min(folioPendingFeeShares, maxHandout);
     }
 
     /// @return {share} Supply eligible to set the mint self-fee handout rate
@@ -1161,8 +1201,7 @@ contract Folio is
         }
 
         folioPendingFeeShares -= _folioFeeHandout;
-        require(block.timestamp <= type(uint64).max, Folio__TimestampOverflow());
-        lastFolioFeePoke = uint64(block.timestamp);
+        lastFolioFeePoke = block.timestamp;
 
         if (_folioSelfFeeShares + _folioFeeHandout != 0) {
             emit FolioFeePaid(address(this), _folioSelfFeeShares + _folioFeeHandout);
@@ -1170,11 +1209,19 @@ contract Folio is
     }
 
     function _addToBasket(address token) internal {
-        RebalancingLib.addToBasket(basket, token);
+        require(token != address(0) && token != address(this), Folio__InvalidAsset());
+
+        if (basket.add(token)) {
+            emit BasketTokenAdded(token);
+        }
     }
 
     function _removeFromBasket(address token) internal {
-        RebalancingLib.removeFromBasket(basket, rebalance, token);
+        if (basket.remove(token)) {
+            delete rebalance.details[token];
+
+            emit BasketTokenRemoved(token);
+        }
     }
 
     function _setTrustedFillerRegistry(address _newFillerRegistry, bool _enabled) internal {

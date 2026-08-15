@@ -3,9 +3,8 @@ pragma solidity 0.8.28;
 
 import { IFolio } from "@interfaces/IFolio.sol";
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import { D18, FOLIO_FEE_HANDOUT_BLOCK_TIME, FOLIO_FEE_HANDOUT_PERIOD, FOLIO_FEE_HANDOUT_RATE, MAX_FEE_RECIPIENTS, MAX_TVL_FEE, MIN_MINT_FEE, ONE_DAY, ONE_OVER_YEAR } from "@utils/Constants.sol";
+import { D18, MAX_FEE_RECIPIENTS, MAX_TVL_FEE, MIN_MINT_FEE, ONE_OVER_YEAR } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 
 /**
@@ -143,31 +142,6 @@ library FolioLib {
         uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares directed to Folio holders
         uint256 supply; // {share}
         uint256 elapsed; // {s}
-    }
-
-    /// @return _folioFeeHandout {share} Mint self-fee shares available for handout
-    function computeFolioFeeHandout(
-        uint256 pendingFeeShares,
-        uint256 lastPoke,
-        uint256 handoutBase,
-        uint256 timestamp
-    ) external pure returns (uint256 _folioFeeHandout) {
-        if (pendingFeeShares == 0 || timestamp <= lastPoke) {
-            return 0;
-        }
-
-        uint256 elapsed = (timestamp / ONE_DAY - lastPoke / ONE_DAY) *
-            FOLIO_FEE_HANDOUT_PERIOD +
-            Math.min(timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD) -
-            Math.min(lastPoke % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
-
-        // {share} = {share} * D18{1} * {s} / (D18 * {s})
-        uint256 maxHandout = Math.mulDiv(
-            handoutBase,
-            FOLIO_FEE_HANDOUT_RATE * elapsed,
-            D18 * FOLIO_FEE_HANDOUT_BLOCK_TIME
-        );
-        _folioFeeHandout = Math.min(pendingFeeShares, maxHandout);
     }
 
     /// Compute TVL fee shares owed to the DAO, fee recipients, and the Folio itself

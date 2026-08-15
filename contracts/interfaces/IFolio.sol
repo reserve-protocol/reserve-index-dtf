@@ -94,7 +94,6 @@ interface IFolio {
     error Folio__TooManyFeeRecipients();
     error Folio__InvalidArrayLengths();
     error Folio__InvalidTransferToSelf();
-    error Folio__TimestampOverflow();
 
     error Folio__InvalidRegistry();
     error Folio__TrustedFillerRegistryNotEnabled();
