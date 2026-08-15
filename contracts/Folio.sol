@@ -1077,7 +1077,6 @@ contract Folio is
                 currentFeeRecipientsPending: feeRecipientsPendingFeeShares,
                 tvlFee: tvlFee,
                 folioFeeForSelf: folioFeeForSelf,
-                // pending mint self-fees are exempt from TVL fees while awaiting handout
                 supply: super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares,
                 elapsed: elapsed
             }),
