@@ -129,7 +129,9 @@ contract Folio is
     /**
      * System
      */
-    uint256 public lastPoke; // {s} TVL fee and mint self-fee handout checkpoint
+    /// @dev Shared TVL fee and mint self-fee handout checkpoint. Values within the first handout window of a UTC day
+    ///      are treated as day-aligned, so initialization during that window can add up to 4 minutes of TVL fee accrual.
+    uint256 public lastPoke; // {s}
     uint256 public daoPendingFeeShares; // {share} shares pending to be distributed ONLY to the DAO
     uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
     bool public isDeprecated; // {bool} if true, Folio goes into redemption-only mode
@@ -190,7 +192,6 @@ contract Folio is
 
     // === 6.0.0 ===
     bool public tradeAllowlistEnabled;
-    bool private folioFeePokeInitialized; // {bool} true once the shared fee checkpoint is initialized
     EnumerableSet.AddressSet private tradeTokenAllowlist;
     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares directed to Folio holders
     uint256 public folioPendingFeeShares; // {share} mint self-fee shares pending handout
@@ -1064,8 +1065,9 @@ contract Folio is
         )
     {
         uint256 lastTVLFeePoke = lastPoke;
-        if (folioFeePokeInitialized) {
-            lastTVLFeePoke -= lastTVLFeePoke % ONE_DAY;
+        uint256 lastPokeInDay = lastTVLFeePoke % ONE_DAY;
+        if (lastPokeInDay <= FOLIO_FEE_HANDOUT_PERIOD) {
+            lastTVLFeePoke -= lastPokeInDay;
         }
 
         // {s} Always in full days
@@ -1099,9 +1101,7 @@ contract Folio is
 
         uint256 currentDay = timestamp / ONE_DAY;
         uint256 lastDay = previousPoke / ONE_DAY;
-        uint256 lastWindowElapsed = folioFeePokeInitialized
-            ? Math.min(previousPoke % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD)
-            : FOLIO_FEE_HANDOUT_PERIOD;
+        uint256 lastWindowElapsed = Math.min(previousPoke % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
 
         // return early when today's handout window is already fully accounted
         if (currentDay == lastDay && lastWindowElapsed == FOLIO_FEE_HANDOUT_PERIOD) {
@@ -1175,7 +1175,6 @@ contract Folio is
         _closeTrustedFill(false);
 
         uint256 previousPoke = lastPoke;
-        bool wasFolioFeePokeInitialized = folioFeePokeInitialized;
         uint256 _folioFeeHandout = _getFolioFeeHandout();
 
         (
@@ -1194,11 +1193,7 @@ contract Folio is
             folioPendingFeeShares -= _folioFeeHandout;
         }
 
-        if (wasFolioFeePokeInitialized || _accountedUntil > previousPoke) {
-            if (!wasFolioFeePokeInitialized) {
-                folioFeePokeInitialized = true;
-            }
-
+        if (previousPoke % ONE_DAY <= FOLIO_FEE_HANDOUT_PERIOD || _accountedUntil > previousPoke) {
             uint256 currentPoke = (block.timestamp / ONE_DAY) *
                 ONE_DAY +
                 Math.min(block.timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
