@@ -192,10 +192,10 @@ contract Folio is
     bool public tradeAllowlistEnabled;
     EnumerableSet.AddressSet private tradeTokenAllowlist;
     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares directed to Folio holders
+    uint256 public folioPendingFeeShares; // {share} mint self-fee shares pending handout
+    uint256 public lastFolioFeeHandout; // {s} last time mint self-fee handout capacity was accounted
 
     FeeRecipient[] public immutableFeeRecipients;
-    uint256 public folioPendingFeeShares; // {share} mint self-fee shares pending handout
-    uint256 public lastFolioFeePoke; // {s} last time mint self-fee handout capacity was accounted
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -255,7 +255,7 @@ contract Folio is
         }
 
         lastPoke = block.timestamp;
-        lastFolioFeePoke = block.timestamp;
+        lastFolioFeeHandout = block.timestamp;
 
         _mint(_creator, _basicDetails.initialShares);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -1086,15 +1086,32 @@ contract Folio is
     }
 
     /// @return _folioFeeHandout {share} Mint self-fee shares available for handout
-    function _getFolioFeeHandout() internal view returns (uint256 _folioFeeHandout) {
-        if (folioPendingFeeShares == 0 || block.timestamp <= lastFolioFeePoke) {
+    function _getFolioFeeHandout() internal view returns (uint256) {
+        uint256 timestamp = block.timestamp;
+        uint256 lastHandout = lastFolioFeeHandout;
+
+        if (folioPendingFeeShares == 0 || timestamp <= lastHandout) {
             return 0;
         }
 
-        uint256 elapsed = (block.timestamp / ONE_DAY - lastFolioFeePoke / ONE_DAY) *
-            FOLIO_FEE_HANDOUT_PERIOD +
-            Math.min(block.timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD) -
-            Math.min(lastFolioFeePoke % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+        uint256 currentDay = timestamp / ONE_DAY;
+        uint256 lastDay = lastHandout / ONE_DAY;
+        uint256 lastWindowElapsed = Math.min(lastHandout % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+
+        // return early when today's handout window is already fully accounted
+        if (currentDay == lastDay && lastWindowElapsed == FOLIO_FEE_HANDOUT_PERIOD) {
+            return 0;
+        }
+
+        uint256 elapsed;
+        // timestamp ordering and bounded daily windows make this arithmetic safe
+        unchecked {
+            elapsed =
+                (currentDay - lastDay) *
+                FOLIO_FEE_HANDOUT_PERIOD +
+                Math.min(timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD) -
+                lastWindowElapsed;
+        }
 
         // {share} = {share} * D18{1} * {s} / (D18 * {s})
         uint256 maxHandout = Math.mulDiv(
@@ -1102,7 +1119,7 @@ contract Folio is
             FOLIO_FEE_HANDOUT_RATE * elapsed,
             D18 * FOLIO_FEE_HANDOUT_BLOCK_TIME
         );
-        _folioFeeHandout = Math.min(folioPendingFeeShares, maxHandout);
+        return Math.min(folioPendingFeeShares, maxHandout);
     }
 
     /// Set TVL fee by annual percentage. Different from how it is stored!
@@ -1172,8 +1189,13 @@ contract Folio is
             lastPoke = _accountedUntil;
         }
 
-        folioPendingFeeShares -= _folioFeeHandout;
-        lastFolioFeePoke = block.timestamp;
+        if (_folioFeeHandout != 0) {
+            // handout is capped at pending shares
+            unchecked {
+                folioPendingFeeShares -= _folioFeeHandout;
+            }
+        }
+        lastFolioFeeHandout = block.timestamp;
 
         if (_folioSelfFeeShares + _folioFeeHandout != 0) {
             emit FolioFeePaid(address(this), _folioSelfFeeShares + _folioFeeHandout);
