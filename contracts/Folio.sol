@@ -129,7 +129,7 @@ contract Folio is
     /**
      * System
      */
-    uint256 public lastPoke; // {s}
+    uint256 public lastPoke; // {s} TVL fee and mint self-fee handout checkpoint
     uint256 public daoPendingFeeShares; // {share} shares pending to be distributed ONLY to the DAO
     uint256 public feeRecipientsPendingFeeShares; // {share} shares pending to be distributed ONLY to fee recipients
     bool public isDeprecated; // {bool} if true, Folio goes into redemption-only mode
@@ -190,10 +190,10 @@ contract Folio is
 
     // === 6.0.0 ===
     bool public tradeAllowlistEnabled;
+    bool private folioFeePokeInitialized; // {bool} true once the shared fee checkpoint is initialized
     EnumerableSet.AddressSet private tradeTokenAllowlist;
     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares directed to Folio holders
     uint256 public folioPendingFeeShares; // {share} mint self-fee shares pending handout
-    uint256 public lastFolioFeeHandout; // {s} last time mint self-fee handout capacity was accounted
 
     FeeRecipient[] public immutableFeeRecipients;
 
@@ -255,7 +255,6 @@ contract Folio is
         }
 
         lastPoke = block.timestamp;
-        lastFolioFeeHandout = block.timestamp;
 
         _mint(_creator, _basicDetails.initialShares);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -1064,13 +1063,18 @@ contract Folio is
             uint256 _accountedUntil
         )
     {
-        // {s} Always in full days
-        _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
-        if (_accountedUntil <= lastPoke) {
-            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, 0, lastPoke);
+        uint256 lastTVLFeePoke = lastPoke;
+        if (folioFeePokeInitialized) {
+            lastTVLFeePoke -= lastTVLFeePoke % ONE_DAY;
         }
 
-        uint256 elapsed = _accountedUntil - lastPoke;
+        // {s} Always in full days
+        _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
+        if (_accountedUntil <= lastTVLFeePoke) {
+            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, 0, lastTVLFeePoke);
+        }
+
+        uint256 elapsed = _accountedUntil - lastTVLFeePoke;
         (_daoPendingFeeShares, _feeRecipientsPendingFeeShares, _folioSelfFeeShares) = FolioLib.computeFeeShares(
             FolioLib.FeeSharesParams({
                 currentDaoPending: daoPendingFeeShares,
@@ -1087,30 +1091,27 @@ contract Folio is
     /// @return _folioFeeHandout {share} Mint self-fee shares available for handout
     function _getFolioFeeHandout() internal view returns (uint256) {
         uint256 timestamp = block.timestamp;
-        uint256 lastHandout = lastFolioFeeHandout;
+        uint256 previousPoke = lastPoke;
 
-        if (folioPendingFeeShares == 0 || timestamp <= lastHandout) {
+        if (folioPendingFeeShares == 0 || timestamp <= previousPoke) {
             return 0;
         }
 
         uint256 currentDay = timestamp / ONE_DAY;
-        uint256 lastDay = lastHandout / ONE_DAY;
-        uint256 lastWindowElapsed = Math.min(lastHandout % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+        uint256 lastDay = previousPoke / ONE_DAY;
+        uint256 lastWindowElapsed = folioFeePokeInitialized
+            ? Math.min(previousPoke % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD)
+            : FOLIO_FEE_HANDOUT_PERIOD;
 
         // return early when today's handout window is already fully accounted
         if (currentDay == lastDay && lastWindowElapsed == FOLIO_FEE_HANDOUT_PERIOD) {
             return 0;
         }
 
-        uint256 elapsed;
-        // timestamp ordering and bounded daily windows make this arithmetic safe
-        unchecked {
-            elapsed =
-                (currentDay - lastDay) *
-                FOLIO_FEE_HANDOUT_PERIOD +
-                Math.min(timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD) -
-                lastWindowElapsed;
-        }
+        uint256 elapsed = (currentDay - lastDay) *
+            FOLIO_FEE_HANDOUT_PERIOD +
+            Math.min(timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD) -
+            lastWindowElapsed;
 
         // {share} = {share} * D18{1} * {s} / (D18 * {s})
         uint256 maxHandout = Math.mulDiv(
@@ -1173,6 +1174,8 @@ contract Folio is
     function _poke() internal {
         _closeTrustedFill(false);
 
+        uint256 previousPoke = lastPoke;
+        bool wasFolioFeePokeInitialized = folioFeePokeInitialized;
         uint256 _folioFeeHandout = _getFolioFeeHandout();
 
         (
@@ -1182,19 +1185,27 @@ contract Folio is
             uint256 _accountedUntil
         ) = _getPendingFeeShares();
 
-        if (_accountedUntil > lastPoke) {
+        if (_accountedUntil > previousPoke) {
             daoPendingFeeShares = _daoPendingFeeShares;
             feeRecipientsPendingFeeShares = _feeRecipientsPendingFeeShares;
-            lastPoke = _accountedUntil;
         }
 
         if (_folioFeeHandout != 0) {
-            // handout is capped at pending shares
-            unchecked {
-                folioPendingFeeShares -= _folioFeeHandout;
+            folioPendingFeeShares -= _folioFeeHandout;
+        }
+
+        if (wasFolioFeePokeInitialized || _accountedUntil > previousPoke) {
+            if (!wasFolioFeePokeInitialized) {
+                folioFeePokeInitialized = true;
+            }
+
+            uint256 currentPoke = (block.timestamp / ONE_DAY) *
+                ONE_DAY +
+                Math.min(block.timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+            if (currentPoke > previousPoke) {
+                lastPoke = currentPoke;
             }
         }
-        lastFolioFeeHandout = block.timestamp;
 
         if (_folioSelfFeeShares + _folioFeeHandout != 0) {
             emit FolioFeePaid(address(this), _folioSelfFeeShares + _folioFeeHandout);

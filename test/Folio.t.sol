@@ -24,7 +24,6 @@ contract FolioTest is BaseTest {
     uint256 internal constant AUCTION_LAUNCHER_WINDOW = MAX_TTL / 2;
     uint256 internal constant AUCTION_LENGTH = 1800; // {s} 30 min
     uint256 internal constant FOLIO_PENDING_FEE_SHARES_SLOT = 36;
-    uint256 internal constant LAST_FOLIO_FEE_HANDOUT_SLOT = 37;
 
     IFolio.WeightRange internal SELL = IFolio.WeightRange({ low: 0, spot: 0, high: 0 }); // sell as much as possible
     IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: MAX_WEIGHT, spot: MAX_WEIGHT, high: MAX_WEIGHT }); // buy as much as possible
@@ -5097,6 +5096,10 @@ contract FolioTest is BaseTest {
             vm.warp(handoutEnd);
         }
 
+        _enableMintSelfFeeHandout();
+    }
+
+    function _enableMintSelfFeeHandout() internal {
         daoFeeRegistry.setDefaultFeeFloor(0);
         daoFeeRegistry.setDefaultFeeNumerator(0);
 
@@ -5299,6 +5302,26 @@ contract FolioTest is BaseTest {
         assertEq(folio.folioPendingFeeShares(), pendingSelfFees, "poke handed out self-fees early");
     }
 
+    function test_mintSelfFeeHandout_skipsInitializationWindow() public {
+        _enableMintSelfFeeHandout();
+        _mintForUser(INITIAL_SUPPLY);
+
+        uint256 boundary = (block.timestamp / ONE_DAY) * ONE_DAY;
+        uint256 pendingSelfFees = folio.folioPendingFeeShares();
+        uint256 supplyBefore = folio.totalSupply();
+        uint256 handoutSupply = supplyBefore - pendingSelfFees;
+
+        vm.warp(boundary + FOLIO_FEE_HANDOUT_PERIOD - 1);
+        assertEq(folio.totalSupply(), supplyBefore, "initialization window handed out self-fees");
+
+        vm.warp(boundary + ONE_DAY + FOLIO_FEE_HANDOUT_BLOCK_TIME);
+        assertEq(
+            folio.totalSupply(),
+            supplyBefore - _maxFolioFeeHandout(handoutSupply, FOLIO_FEE_HANDOUT_BLOCK_TIME),
+            "handout did not start at next boundary"
+        );
+    }
+
     function test_mintSelfFeeHandout_doesNotWritePendingOutsideWindow() public {
         _configureMintSelfFeeHandout();
         _mintForUser(INITIAL_SUPPLY);
@@ -5435,7 +5458,7 @@ contract FolioTest is BaseTest {
         (, uint256[] memory amountsAfter) = folio.toAssets(D18, Math.Rounding.Floor);
 
         assertEq(amountsAfter, amountsBefore, "mid-handout mint changed exchange rate");
-        assertEq(folio.lastFolioFeeHandout(), block.timestamp, "mint did not advance handout time");
+        assertEq(folio.lastPoke(), block.timestamp, "mint did not advance handout time");
 
         uint256 pendingSelfFees = folio.folioPendingFeeShares();
         uint256 supplyBefore = folio.totalSupply();
@@ -5524,14 +5547,13 @@ contract FolioTest is BaseTest {
 
     function test_mintSelfFeeHandout_upgradeInitializesWithoutHistoricalCapacity() public {
         _configureMintSelfFeeHandout();
-        vm.store(address(folio), bytes32(LAST_FOLIO_FEE_HANDOUT_SLOT), bytes32(0));
         vm.warp(block.timestamp + 3 * ONE_DAY);
 
         uint256 supplyBefore = folio.totalSupply();
         _mintForUser(INITIAL_SUPPLY);
 
         assertEq(folio.totalSupply(), supplyBefore + INITIAL_SUPPLY, "upgrade used historical capacity");
-        assertEq(folio.lastFolioFeeHandout(), block.timestamp, "upgrade did not initialize timestamp");
+        assertEq(folio.lastPoke(), block.timestamp, "upgrade did not initialize timestamp");
     }
 
     function test_pendingMintSelfFeesAreExemptFromTVLFees() public {
