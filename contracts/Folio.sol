@@ -1105,9 +1105,10 @@ contract Folio is
 
         // === Mint self-fee handout ===
 
-        uint256 _lastFolioFeePoke = lastFolioFeePoke; // {s}
+        // {s}
+        uint256 _lastFolioFeePoke = lastFolioFeePoke;
 
-        if (folioPendingMintFeeShares != 0 && _lastFolioFeePoke != 0 && block.timestamp > _lastFolioFeePoke) {
+        if (folioPendingMintFeeShares != 0 && block.timestamp > _lastFolioFeePoke) {
             // {1}
             uint256 wholeDaysElapsed = (block.timestamp / ONE_DAY) - (_lastFolioFeePoke / ONE_DAY);
 

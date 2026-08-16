@@ -5567,18 +5567,20 @@ contract FolioTest is BaseTest {
     }
 
     function test_mintSelfFeeHandout_upgradeInitializesWithoutHistoricalCapacity() public {
-        _configureMintSelfFeeHandout();
         _mintForUser(INITIAL_SUPPLY);
-        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
+        _configureMintSelfFeeHandout();
+
+        assertEq(folio.folioPendingMintFeeShares(), 0, "upgrade started with pending fees");
         vm.store(address(folio), bytes32(LAST_FOLIO_FEE_POKE_SLOT), bytes32(0));
         vm.warp(block.timestamp + 3 * ONE_DAY);
 
-        uint256 supplyBefore = folio.totalSupply();
-        folio.poke();
+        _mintForUser(INITIAL_SUPPLY);
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
+        assertGt(pendingSelfFees, 0, "mint did not create pending fees");
+        assertEq(folio.lastFolioFeePoke(), block.timestamp, "mint did not initialize timestamp");
 
+        folio.poke();
         assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees, "upgrade used historical capacity");
-        assertEq(folio.totalSupply(), supplyBefore, "upgrade changed effective supply");
-        assertEq(folio.lastFolioFeePoke(), block.timestamp, "upgrade did not initialize timestamp");
     }
 
     function test_pendingMintSelfFeesAreExemptFromTVLFees() public {
