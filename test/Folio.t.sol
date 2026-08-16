@@ -5,7 +5,7 @@ import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/
 import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/GPv2OrderLib.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
-import { AUCTION_WARMUP, D18, D27, FOLIO_FEE_HANDOUT_BLOCK_TIME, FOLIO_FEE_HANDOUT_PERIOD, FOLIO_FEE_HANDOUT_RATE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT, ONE_DAY, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, D18, D27, FOLIO_FEE_HANDOUT_PERIOD, FOLIO_FEE_HANDOUT_RATE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT, ONE_DAY, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { FolioLib } from "@utils/FolioLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxy } from "contracts/folio/FolioProxy.sol";
@@ -5157,7 +5157,13 @@ contract FolioTest is BaseTest {
     }
 
     function _maxFolioFeeHandout(uint256 supply, uint256 elapsed) internal pure returns (uint256) {
-        return Math.mulDiv(supply, FOLIO_FEE_HANDOUT_RATE * elapsed, D18 * FOLIO_FEE_HANDOUT_BLOCK_TIME);
+        return Math.mulDiv(supply, FOLIO_FEE_HANDOUT_RATE * elapsed, D18);
+    }
+
+    function test_mintSelfFeeHandout_parameters() public pure {
+        assertEq(FOLIO_FEE_HANDOUT_RATE, 0.00001e18, "wrong per-second handout rate");
+        assertEq(FOLIO_FEE_HANDOUT_PERIOD, 5 minutes, "wrong handout period");
+        assertEq(FOLIO_FEE_HANDOUT_RATE * FOLIO_FEE_HANDOUT_PERIOD, 0.003e18, "wrong maximum daily handout rate");
     }
 
     function test_setFolioFee() public {
@@ -5343,10 +5349,10 @@ contract FolioTest is BaseTest {
         uint256 supplyBefore = folio.totalSupply();
         uint256 handoutSupply = supplyBefore - pendingSelfFees;
 
-        vm.warp(block.timestamp + FOLIO_FEE_HANDOUT_BLOCK_TIME);
+        vm.warp(block.timestamp + 1);
         assertEq(
             folio.totalSupply(),
-            supplyBefore - _maxFolioFeeHandout(handoutSupply, FOLIO_FEE_HANDOUT_BLOCK_TIME),
+            supplyBefore - _maxFolioFeeHandout(handoutSupply, 1),
             "handout did not use initialization window"
         );
     }
@@ -5377,19 +5383,11 @@ contract FolioTest is BaseTest {
         vm.warp(boundary);
         assertEq(folio.totalSupply(), supplyBefore, "boundary changed supply");
 
-        vm.warp(boundary + FOLIO_FEE_HANDOUT_BLOCK_TIME);
-        assertEq(
-            folio.totalSupply(),
-            supplyBefore - _maxFolioFeeHandout(handoutSupply, FOLIO_FEE_HANDOUT_BLOCK_TIME),
-            "wrong first handout"
-        );
+        vm.warp(boundary + 1);
+        assertEq(folio.totalSupply(), supplyBefore - _maxFolioFeeHandout(handoutSupply, 1), "wrong first handout");
 
-        vm.warp(boundary + 2 * FOLIO_FEE_HANDOUT_BLOCK_TIME);
-        assertEq(
-            folio.totalSupply(),
-            supplyBefore - _maxFolioFeeHandout(handoutSupply, 2 * FOLIO_FEE_HANDOUT_BLOCK_TIME),
-            "handout not linear"
-        );
+        vm.warp(boundary + 2);
+        assertEq(folio.totalSupply(), supplyBefore - _maxFolioFeeHandout(handoutSupply, 2), "handout not linear");
 
         vm.warp(boundary + FOLIO_FEE_HANDOUT_PERIOD);
         uint256 supplyAfterPeriod = supplyBefore - _maxFolioFeeHandout(handoutSupply, FOLIO_FEE_HANDOUT_PERIOD);
@@ -5452,7 +5450,7 @@ contract FolioTest is BaseTest {
         _mintForUser(INITIAL_SUPPLY);
 
         uint256 boundary = _nextDay();
-        vm.warp(boundary + FOLIO_FEE_HANDOUT_BLOCK_TIME);
+        vm.warp(boundary + 1);
         folio.poke();
         uint256 pendingAfterPoke = folio.folioPendingMintFeeShares();
         uint256 supplyAfterPoke = folio.totalSupply();
@@ -5492,12 +5490,8 @@ contract FolioTest is BaseTest {
         uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
         uint256 supplyBefore = folio.totalSupply();
         uint256 handoutSupply = supplyBefore - pendingSelfFees;
-        vm.warp(block.timestamp + FOLIO_FEE_HANDOUT_BLOCK_TIME);
-        assertEq(
-            folio.totalSupply(),
-            supplyBefore - _maxFolioFeeHandout(handoutSupply, FOLIO_FEE_HANDOUT_BLOCK_TIME),
-            "wrong post-mint handout"
-        );
+        vm.warp(block.timestamp + 1);
+        assertEq(folio.totalSupply(), supplyBefore - _maxFolioFeeHandout(handoutSupply, 1), "wrong post-mint handout");
     }
 
     function test_mintSelfFeeHandout_viewAndStateMatchWithTVLFees() public {
@@ -5507,7 +5501,7 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
         _mintForUser(INITIAL_SUPPLY);
 
-        vm.warp(_nextDay() + FOLIO_FEE_HANDOUT_BLOCK_TIME);
+        vm.warp(_nextDay() + 1);
         uint256 supplyBeforePoke = folio.totalSupply();
         uint256 pendingBeforePoke = folio.getPendingFeeShares();
 
@@ -5538,13 +5532,11 @@ contract FolioTest is BaseTest {
         );
 
         uint256 handoutSupplyAfter = folio.totalSupply() - folio.folioPendingMintFeeShares();
-        vm.warp(block.timestamp + FOLIO_FEE_HANDOUT_BLOCK_TIME);
+        vm.warp(block.timestamp + 1);
         folio.poke();
         assertEq(
             folio.folioPendingMintFeeShares(),
-            pendingBefore -
-                expectedElapsedHandout -
-                _maxFolioFeeHandout(handoutSupplyAfter, FOLIO_FEE_HANDOUT_BLOCK_TIME),
+            pendingBefore - expectedElapsedHandout - _maxFolioFeeHandout(handoutSupplyAfter, 1),
             "wrong handout after redeem"
         );
     }
@@ -5569,7 +5561,7 @@ contract FolioTest is BaseTest {
 
         _mintForUser(INITIAL_SUPPLY);
         uint256 pendingAfterMint = folio.folioPendingMintFeeShares();
-        vm.warp(_nextDay() + FOLIO_FEE_HANDOUT_BLOCK_TIME);
+        vm.warp(_nextDay() + 1);
         folio.poke();
         assertLt(folio.folioPendingMintFeeShares(), pendingAfterMint, "remint did not restart handout");
     }

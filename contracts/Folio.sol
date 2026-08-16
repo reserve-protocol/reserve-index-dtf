@@ -14,7 +14,7 @@ import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/tr
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
 import { FolioLib } from "@utils/FolioLib.sol";
-import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, ERC20_STORAGE_LOCATION, FOLIO_FEE_HANDOUT_BLOCK_TIME, FOLIO_FEE_HANDOUT_PERIOD, FOLIO_FEE_HANDOUT_RATE, REBALANCE_MANAGER, MAX_MINT_FEE, MAX_FOLIO_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, ERC20_STORAGE_LOCATION, FOLIO_FEE_HANDOUT_PERIOD, FOLIO_FEE_HANDOUT_RATE, REBALANCE_MANAGER, MAX_MINT_FEE, MAX_FOLIO_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
@@ -1125,12 +1125,8 @@ contract Folio is
                 // {s}
                 uint256 elapsed = wholeElapsed + currentElapsed - lastElapsed;
 
-                // {share} = {share} * (D18{1} * {s}) / (D18 * {s})
-                uint256 maxHandout = Math.mulDiv(
-                    feeSupply,
-                    FOLIO_FEE_HANDOUT_RATE * elapsed,
-                    D18 * FOLIO_FEE_HANDOUT_BLOCK_TIME
-                );
+                // {share} = {share} * D18{1/s} * {s} / D18
+                uint256 maxHandout = Math.mulDiv(feeSupply, FOLIO_FEE_HANDOUT_RATE * elapsed, D18);
 
                 // {share}
                 _mintSelfFeeHandout = Math.min(folioPendingMintFeeShares, maxHandout);
