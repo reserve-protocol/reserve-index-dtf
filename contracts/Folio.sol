@@ -83,7 +83,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * Fees:
  *   - TVL fee: fee per unit time. Max 10% annually. Causes supply inflation over time, discretely once a day.
  *   - Mint fee: fee on mint. Max 5%. Does not cause supply inflation.
- *   - Mint self-fees: remain in effective supply, then are virtually burned at a bounded rate during a daily window.
+ *   - Mint self-fees: remain in effective supply, then are burned at a bounded rate during a brief daily window.
  *
  * After fees have been applied, the DAO takes a cut based on the configuration of the FolioDAOFeeRegistry including
  *   a minimum fee floor. The remaining portion above the floor is distributed to the Folio's fee recipients.
