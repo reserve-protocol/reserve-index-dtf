@@ -1074,7 +1074,8 @@ contract Folio is
             uint256 _accountedUntil
         )
     {
-        uint256 feeSupply = super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares; // {share}
+        // {share}
+        uint256 feeSupply = super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares;
         _daoPendingFeeShares = daoPendingFeeShares;
         _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
 
@@ -1107,25 +1108,27 @@ contract Folio is
         uint256 _lastFolioFeePoke = lastFolioFeePoke; // {s}
 
         if (folioPendingMintFeeShares != 0 && _lastFolioFeePoke != 0 && block.timestamp > _lastFolioFeePoke) {
-            // {1} = {s} / {s}
-            uint256 currentDay = block.timestamp / ONE_DAY;
-            uint256 lastDay = _lastFolioFeePoke / ONE_DAY;
+            // {1}
+            uint256 wholeDaysElapsed = (block.timestamp / ONE_DAY) - (_lastFolioFeePoke / ONE_DAY);
 
             // {s}
-            uint256 lastWindowElapsed = Math.min(_lastFolioFeePoke % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+            uint256 lastElapsed = Math.min(_lastFolioFeePoke % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
 
-            bool hasUnaccountedWindow = currentDay != lastDay || lastWindowElapsed < FOLIO_FEE_HANDOUT_PERIOD;
-            if (hasUnaccountedWindow) {
-                // {s} = ({1} - {1)} * {s} + {s} - {s}
-                uint256 handoutElapsed = (currentDay - lastDay) *
-                    FOLIO_FEE_HANDOUT_PERIOD +
-                    Math.min(block.timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD) -
-                    lastWindowElapsed;
+            // handout if whole days have elapsed OR the last window was not fully handed out
+            if (wholeDaysElapsed != 0 || lastElapsed < FOLIO_FEE_HANDOUT_PERIOD) {
+                // {s}
+                uint256 wholeElapsed = wholeDaysElapsed * FOLIO_FEE_HANDOUT_PERIOD;
+
+                // {s}
+                uint256 currentElapsed = Math.min(block.timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+
+                // {s}
+                uint256 elapsed = wholeElapsed + currentElapsed - lastElapsed;
 
                 // {share} = {share} * (D18{1} * {s}) / (D18 * {s})
                 uint256 maxHandout = Math.mulDiv(
                     feeSupply,
-                    FOLIO_FEE_HANDOUT_RATE * handoutElapsed,
+                    FOLIO_FEE_HANDOUT_RATE * elapsed,
                     D18 * FOLIO_FEE_HANDOUT_BLOCK_TIME
                 );
 
