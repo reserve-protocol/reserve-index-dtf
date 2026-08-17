@@ -5,7 +5,7 @@ import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/
 import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/GPv2OrderLib.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
-import { AUCTION_WARMUP, D18, D27, FOLIO_FEE_HANDOUT_PERIOD, FOLIO_FEE_HANDOUT_RATE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT, ONE_DAY, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, D18, D27, FOLIO_FEE_HANDOUT_PERIOD, FOLIO_FEE_HANDOUT_RATE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MIN_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT, ONE_DAY, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { FolioLib } from "@utils/FolioLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxy } from "contracts/folio/FolioProxy.sol";
@@ -5161,8 +5161,9 @@ contract FolioTest is BaseTest {
     }
 
     function test_mintSelfFeeHandout_parameters() public pure {
-        assertEq(FOLIO_FEE_HANDOUT_RATE, 0.00001e18, "wrong per-second handout rate");
-        assertEq(FOLIO_FEE_HANDOUT_PERIOD, 5 minutes, "wrong handout period");
+        assertEq(FOLIO_FEE_HANDOUT_RATE, 0.000005e18, "wrong per-second handout rate");
+        assertEq(FOLIO_FEE_HANDOUT_PERIOD, 10 minutes, "wrong handout period");
+        assertEq(FOLIO_FEE_HANDOUT_RATE * 60 seconds, MIN_MINT_FEE, "wrong minimum-fee capture time");
         assertEq(FOLIO_FEE_HANDOUT_RATE * FOLIO_FEE_HANDOUT_PERIOD, 0.003e18, "wrong maximum daily handout rate");
     }
 
