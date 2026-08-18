@@ -206,6 +206,30 @@ contract DeprecationLifecycleFork_SMEL is DeprecationLifecycleForkTest {
     }
 }
 
+contract DeprecationProposalFork_BED is DeprecationProposalForkFromJson, DeprecationQueuedForkTest {
+    function setUp() public {
+        vm.createSelectFork(vm.envOr("FORK_RPC_MAINNET", string("mainnet")), 25782402); // proposal queued
+
+        PendingDTF memory dtf = _bed();
+        cfg = dtf.cfg;
+        governor = dtf.governor;
+        jsonPath = dtf.jsonPath;
+        renouncesProxyAdmin = true;
+    }
+}
+
+contract DeprecationProposalFork_SMEL is DeprecationProposalForkFromJson, DeprecationQueuedForkTest {
+    function setUp() public {
+        vm.createSelectFork(vm.envOr("FORK_RPC_MAINNET", string("mainnet")), 25782402); // proposal queued
+
+        PendingDTF memory dtf = _smel();
+        cfg = dtf.cfg;
+        governor = dtf.governor;
+        jsonPath = dtf.jsonPath;
+        renouncesProxyAdmin = true;
+    }
+}
+
 /// @dev Proposal id 77830145447331487048806002448004034037637077883085812792021902429453348063407.
 ///      Predates the single-proposal flow: the ProxyAdmin renounce was a separate second proposal.
 contract DeprecationProposalFork_mvRWA is DeprecationQueuedForkTest {
