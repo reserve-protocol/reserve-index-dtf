@@ -1074,6 +1074,10 @@ contract Folio is
             uint256 _accountedUntil
         )
     {
+        // Pending mint self-fees remain in effective supply but are exempt from TVL fees. If X = feeSupply,
+        // P = pending mint self-fees, and E = net TVL fee shares, immediate dilution omits P * E / X while X != 0;
+        // the difference appears as P is handed out. Accepted because P should normally be small relative to X.
+
         // {share}
         uint256 feeSupply = super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares;
         _daoPendingFeeShares = daoPendingFeeShares;
