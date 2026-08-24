@@ -139,7 +139,7 @@ library FolioLib {
         uint256 currentDaoPending; // {share}
         uint256 currentFeeRecipientsPending; // {share}
         uint256 tvlFee; // D18{1/s}
-        uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
+        uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares directed to Folio holders
         uint256 supply; // {share}
         uint256 elapsed; // {s}
     }
@@ -215,7 +215,6 @@ library FolioLib {
     }
 
     /// Compute mint fee shares for DAO and fee recipients
-    /// @dev Semantically view; non-view only because it emits FolioFeePaid
     /// @param params Mint fee parameters
     /// @param daoFeeRegistry The DAO fee registry to query fee details from
     /// @return sharesOut {share} Shares to mint for the receiver
@@ -224,7 +223,7 @@ library FolioLib {
     function computeMintFees(
         MintFeeParams calldata params,
         IFolioDAOFeeRegistry daoFeeRegistry
-    ) external returns (uint256 sharesOut, uint256 daoFeeShares, uint256 feeRecipientFeeShares) {
+    ) external view returns (uint256 sharesOut, uint256 daoFeeShares, uint256 feeRecipientFeeShares) {
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
             address(this)
         );
@@ -248,12 +247,8 @@ library FolioLib {
         uint256 folioSelfShares = (feeRecipientFeeShares * params.folioFeeForSelf) / D18;
         feeRecipientFeeShares -= folioSelfShares;
 
-        // {share} minter pays the full fee (including self-fee shares that are burned)
+        // {share} minter pays the full fee, including pending self-fee shares
         sharesOut = params.shares - totalFeeShares;
         require(sharesOut != 0 && sharesOut >= params.minSharesOut, IFolio.Folio__InsufficientSharesOut());
-
-        if (folioSelfShares != 0) {
-            emit IFolio.FolioFeePaid(address(this), folioSelfShares);
-        }
     }
 }

@@ -3,8 +3,8 @@
 - Add optimistic governance
 - Add optional token trading allowlist controls (`DEFAULT_ADMIN_ROLE`). Enforcement is disabled by default; when
   enabled, every token included in a new rebalance, including zero-weight tokens, must be allowlisted.
-- Add Folio self-fee (`DEFAULT_ADMIN_ROLE`). On mint, the receiver participates in the resulting exchange-rate
-  appreciation and recovers a size-dependent portion of the self-fee; see `folioFeeForSelf` in the README.
+- Add Folio self-fee (`DEFAULT_ADMIN_ROLE`). Mint self-fees remain in effective supply, keeping mints exchange-rate
+  neutral, then are handed out at a bounded rate after each daily boundary; see `folioFeeForSelf` in the README.
 - Add Folio immutable fee recipients (`DEFAULT_ADMIN_ROLE`)
 - Add per-auction custom auction lengths (`AUCTION_LAUNCHER`, within admin-configured max length)
 - Add explicit rebalance nonce validation
