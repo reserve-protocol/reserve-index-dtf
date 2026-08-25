@@ -14,6 +14,7 @@ import { Versioned } from "@utils/Versioned.sol";
 
 bytes32 constant VERSION_5_0_0 = keccak256("5.0.0");
 bytes32 constant VERSION_6_0_0 = keccak256("6.0.0");
+bytes4 constant START_REBALANCE_5_0_0 = 0x207c8eed;
 bytes4 constant START_REBALANCE_6_0_0 = 0xc1e54b89;
 
 interface IFolio_5_0_0 {
@@ -32,9 +33,9 @@ interface IOptimisticGovernor_6_0_0 is IReserveOptimisticGovernor {
  * @title UpgradeSpell_6_0_0
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  * @notice Upgrades an idle Folio from 5.0.0 to 6.0.0.
- * @dev Transfer ProxyAdmin ownership to this contract and call cast() atomically from the Folio admin timelock.
- *      For optimistic governance, register the new startRebalance selector before cast() and pass the selector registry.
- *      For legacy governance, pass address(0) as the selector registry.
+ * @dev The Folio admin timelock should atomically register the 6.0.0 startRebalance selector, unregister the 5.0.0
+ *      selector, transfer ProxyAdmin ownership to this contract, then call cast(). For legacy governance, pass
+ *      address(0) as the selector registry and atomically transfer ProxyAdmin ownership before calling cast().
  */
 contract UpgradeSpell_6_0_0 is Versioned {
     error UpgradeSpell__Error(uint256 code);
@@ -54,26 +55,27 @@ contract UpgradeSpell_6_0_0 is Versioned {
             require(IAccessControl(msg.sender).hasRole(PROPOSER_ROLE, governor), UpgradeSpell__Error(7));
             require(optimisticGovernor.selectorRegistry() == address(selectorRegistry), UpgradeSpell__Error(8));
             require(selectorRegistry.isAllowed(address(folio), START_REBALANCE_6_0_0), UpgradeSpell__Error(9));
+            require(!selectorRegistry.isAllowed(address(folio), START_REBALANCE_5_0_0), UpgradeSpell__Error(10));
         }
 
-        require(IFolio_5_0_0(address(folio)).auctionLength() >= MIN_AUCTION_LENGTH, UpgradeSpell__Error(10));
+        require(IFolio_5_0_0(address(folio)).auctionLength() >= MIN_AUCTION_LENGTH, UpgradeSpell__Error(11));
 
         (bool syncStateChangeActive, bool asyncStateChangeActive) = folio.stateChangeActive();
-        require(!syncStateChangeActive && !asyncStateChangeActive, UpgradeSpell__Error(11));
+        require(!syncStateChangeActive && !asyncStateChangeActive, UpgradeSpell__Error(12));
 
         (, , , , Folio.RebalanceTimestamps memory timestamps, ) = folio.getRebalance();
-        require(timestamps.availableUntil <= block.timestamp, UpgradeSpell__Error(12));
+        require(timestamps.availableUntil <= block.timestamp, UpgradeSpell__Error(13));
 
         uint256 nextAuctionId = folio.nextAuctionId();
         if (nextAuctionId != 0) {
             (, , uint256 endTime) = folio.auctions(nextAuctionId - 1);
-            require(endTime < block.timestamp, UpgradeSpell__Error(13));
+            require(endTime < block.timestamp, UpgradeSpell__Error(14));
         }
 
         proxyAdmin.upgradeToVersion(address(folio), VERSION_6_0_0, abi.encodeCall(Folio.poke, ()));
-        require(keccak256(bytes(folio.version())) == VERSION_6_0_0, UpgradeSpell__Error(14));
+        require(keccak256(bytes(folio.version())) == VERSION_6_0_0, UpgradeSpell__Error(15));
 
         proxyAdmin.transferOwnership(msg.sender);
-        require(proxyAdmin.owner() == msg.sender, UpgradeSpell__Error(15));
+        require(proxyAdmin.owner() == msg.sender, UpgradeSpell__Error(16));
     }
 }

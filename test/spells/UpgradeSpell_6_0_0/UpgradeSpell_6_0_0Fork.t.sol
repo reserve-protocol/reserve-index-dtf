@@ -10,7 +10,7 @@ import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
 import { DEFAULT_ADMIN_ROLE } from "@utils/Constants.sol";
-import { UpgradeSpell_6_0_0, VERSION_6_0_0, START_REBALANCE_6_0_0, ISelectorRegistry_6_0_0 } from "../../../contracts/spells/upgrades/UpgradeSpell_6_0_0.sol";
+import { UpgradeSpell_6_0_0, VERSION_6_0_0, START_REBALANCE_5_0_0, START_REBALANCE_6_0_0, ISelectorRegistry_6_0_0 } from "../../../contracts/spells/upgrades/UpgradeSpell_6_0_0.sol";
 
 interface ISelectorRegistryAdmin_6_0_0 is ISelectorRegistry_6_0_0 {
     function registerSelectors(IOptimisticSelectorRegistry.SelectorData[] calldata selectorData) external;
@@ -98,6 +98,8 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
         vm.startPrank(TIMELOCK);
         selectors[0] = START_REBALANCE_6_0_0;
         selectorRegistry.registerSelectors(selectorData);
+        selectors[0] = START_REBALANCE_5_0_0;
+        selectorRegistry.unregisterSelectors(selectorData);
         proxyAdmin.transferOwnership(address(spell));
         vm.stopPrank();
     }
@@ -118,7 +120,7 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
         assertEq(folio.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1);
         assertEq(folio.getRoleMember(DEFAULT_ADMIN_ROLE, 0), TIMELOCK);
         assertEq(proxyAdmin.owner(), TIMELOCK);
-        assertTrue(selectorRegistry.isAllowed(address(folio), 0x207c8eed));
+        assertFalse(selectorRegistry.isAllowed(address(folio), START_REBALANCE_5_0_0));
         assertTrue(selectorRegistry.isAllowed(address(folio), START_REBALANCE_6_0_0));
     }
 
@@ -138,6 +140,22 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
         vm.stopPrank();
     }
 
+    function test_castRevertsUntilOldSelectorIsUnregistered() public {
+        IOptimisticSelectorRegistry.SelectorData[] memory selectorData = new IOptimisticSelectorRegistry.SelectorData[](
+            1
+        );
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = START_REBALANCE_5_0_0;
+        selectorData[0] = IOptimisticSelectorRegistry.SelectorData({ target: address(folio), selectors: selectors });
+
+        vm.startPrank(TIMELOCK);
+        selectorRegistry.registerSelectors(selectorData);
+
+        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 10));
+        spell.cast(folio, proxyAdmin, selectorRegistry);
+        vm.stopPrank();
+    }
+
     function test_castRejectsFakeSelectorRegistry() public {
         ISelectorRegistry_6_0_0 fakeSelectorRegistry = ISelectorRegistry_6_0_0(
             address(new FakeSelectorRegistry(TIMELOCK))
@@ -151,7 +169,7 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
     function test_castRevertsForShortAuctionLength() public {
         vm.store(address(folio), bytes32(uint256(15)), bytes32(uint256(119))); // auctionLength
 
-        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 10));
+        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 11));
         vm.prank(TIMELOCK);
         spell.cast(folio, proxyAdmin, selectorRegistry);
     }
@@ -163,7 +181,7 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
             bytes32(uint256(uint160(address(new ActiveTrustedFill()))))
         );
 
-        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 11));
+        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 12));
         vm.prank(TIMELOCK);
         spell.cast(folio, proxyAdmin, selectorRegistry);
     }
@@ -171,7 +189,7 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
     function test_castRevertsForActiveRebalance() public {
         vm.store(address(folio), bytes32(uint256(28)), bytes32(block.timestamp + 1)); // rebalance.availableUntil
 
-        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 12));
+        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 13));
         vm.prank(TIMELOCK);
         spell.cast(folio, proxyAdmin, selectorRegistry);
     }
@@ -182,7 +200,7 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
         bytes32 auctionSlot = keccak256(abi.encode(uint256(0), uint256(30)));
         vm.store(address(folio), bytes32(uint256(auctionSlot) + 3), bytes32(block.timestamp)); // auction.endTime
 
-        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 13));
+        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 14));
         vm.prank(TIMELOCK);
         spell.cast(folio, proxyAdmin, selectorRegistry);
     }
