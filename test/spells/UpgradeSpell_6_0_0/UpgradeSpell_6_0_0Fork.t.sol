@@ -3,12 +3,20 @@ pragma solidity 0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 
+import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
+
 import { Folio } from "@src/Folio.sol";
 import { FolioDeployer } from "@deployer/FolioDeployer.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { FolioVersionRegistry } from "@folio/FolioVersionRegistry.sol";
 import { DEFAULT_ADMIN_ROLE } from "@utils/Constants.sol";
-import { UpgradeSpell_6_0_0, VERSION_6_0_0 } from "../../../contracts/spells/upgrades/UpgradeSpell_6_0_0.sol";
+import { UpgradeSpell_6_0_0, VERSION_6_0_0, START_REBALANCE_5_0_0, START_REBALANCE_6_0_0, ISelectorRegistry_6_0_0 } from "../../../contracts/spells/upgrades/UpgradeSpell_6_0_0.sol";
+
+interface ISelectorRegistryAdmin_6_0_0 is ISelectorRegistry_6_0_0 {
+    function registerSelectors(IOptimisticSelectorRegistry.SelectorData[] calldata selectorData) external;
+
+    function unregisterSelectors(IOptimisticSelectorRegistry.SelectorData[] calldata selectorData) external;
+}
 
 contract ActiveTrustedFill {
     function swapActive() external pure returns (bool) {
@@ -22,6 +30,7 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
     address private constant FOLIO = 0x5039ECE83DC4E0621eBEc391128339Bd859a84d0;
     address private constant PROXY_ADMIN = 0x5f272F35654d72eA7e87C35BdE585a2d2d75BfEC;
     address private constant TIMELOCK = 0x5b7310B7f17048AafdD34767ef447764B0072c8c;
+    address private constant SELECTOR_REGISTRY = 0xA1C763301462411795cB5E320FA48e0622CEAa90;
 
     address private constant DAO_FEE_REGISTRY = 0x0262E3e15cCFD2221b35D05909222f1f5FCdcd80;
     address private constant VERSION_REGISTRY = 0xA665b273997F70b647B66fa7Ed021287544849dB;
@@ -30,6 +39,7 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
 
     Folio private folio;
     FolioProxyAdmin private proxyAdmin;
+    ISelectorRegistryAdmin_6_0_0 private selectorRegistry;
     UpgradeSpell_6_0_0 private spell;
 
     function setUp() public {
@@ -37,6 +47,7 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
 
         folio = Folio(FOLIO);
         proxyAdmin = FolioProxyAdmin(PROXY_ADMIN);
+        selectorRegistry = ISelectorRegistryAdmin_6_0_0(SELECTOR_REGISTRY);
         spell = new UpgradeSpell_6_0_0();
 
         FolioVersionRegistry versionRegistry = FolioVersionRegistry(VERSION_REGISTRY);
@@ -51,8 +62,19 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
             versionRegistry.registerVersion(folioDeployer);
         }
 
-        vm.prank(TIMELOCK);
+        IOptimisticSelectorRegistry.SelectorData[] memory selectorData = new IOptimisticSelectorRegistry.SelectorData[](
+            1
+        );
+        bytes4[] memory selectors = new bytes4[](1);
+        selectorData[0] = IOptimisticSelectorRegistry.SelectorData({ target: address(folio), selectors: selectors });
+
+        vm.startPrank(TIMELOCK);
+        selectors[0] = START_REBALANCE_6_0_0;
+        selectorRegistry.registerSelectors(selectorData);
+        selectors[0] = START_REBALANCE_5_0_0;
+        selectorRegistry.unregisterSelectors(selectorData);
         proxyAdmin.transferOwnership(address(spell));
+        vm.stopPrank();
     }
 
     function test_cast() public {
@@ -61,7 +83,7 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
         string memory symbol = folio.symbol();
 
         vm.prank(TIMELOCK);
-        spell.cast(folio, proxyAdmin);
+        spell.cast(folio, proxyAdmin, selectorRegistry);
 
         assertEq(folio.version(), "6.0.0");
         assertEq(folio.lastFolioFeePoke(), block.timestamp);
@@ -73,6 +95,32 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
         assertEq(proxyAdmin.owner(), TIMELOCK);
     }
 
+    function test_castRevertsUntilSelectorsAreUpdated() public {
+        IOptimisticSelectorRegistry.SelectorData[] memory selectorData = new IOptimisticSelectorRegistry.SelectorData[](
+            1
+        );
+        bytes4[] memory selectors = new bytes4[](1);
+        selectorData[0] = IOptimisticSelectorRegistry.SelectorData({ target: address(folio), selectors: selectors });
+
+        vm.startPrank(TIMELOCK);
+        selectors[0] = START_REBALANCE_5_0_0;
+        selectorRegistry.registerSelectors(selectorData);
+        selectors[0] = START_REBALANCE_6_0_0;
+        selectorRegistry.unregisterSelectors(selectorData);
+
+        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 7));
+        spell.cast(folio, proxyAdmin, selectorRegistry);
+        vm.stopPrank();
+    }
+
+    function test_castRevertsForShortAuctionLength() public {
+        vm.store(address(folio), bytes32(uint256(15)), bytes32(uint256(119))); // auctionLength
+
+        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 9));
+        vm.prank(TIMELOCK);
+        spell.cast(folio, proxyAdmin, selectorRegistry);
+    }
+
     function test_castRevertsForActiveStateChange() public {
         vm.store(
             address(folio),
@@ -80,17 +128,17 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
             bytes32(uint256(uint160(address(new ActiveTrustedFill()))))
         );
 
-        vm.expectRevert(UpgradeSpell_6_0_0.StateChangeActive.selector);
+        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 10));
         vm.prank(TIMELOCK);
-        spell.cast(folio, proxyAdmin);
+        spell.cast(folio, proxyAdmin, selectorRegistry);
     }
 
     function test_castRevertsForActiveRebalance() public {
         vm.store(address(folio), bytes32(uint256(28)), bytes32(block.timestamp + 1)); // rebalance.availableUntil
 
-        vm.expectRevert(UpgradeSpell_6_0_0.ActiveRebalance.selector);
+        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 11));
         vm.prank(TIMELOCK);
-        spell.cast(folio, proxyAdmin);
+        spell.cast(folio, proxyAdmin, selectorRegistry);
     }
 
     function test_castRevertsForActiveAuction() public {
@@ -99,8 +147,8 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
         bytes32 auctionSlot = keccak256(abi.encode(uint256(0), uint256(30)));
         vm.store(address(folio), bytes32(uint256(auctionSlot) + 3), bytes32(block.timestamp)); // auction.endTime
 
-        vm.expectRevert(UpgradeSpell_6_0_0.ActiveAuction.selector);
+        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 12));
         vm.prank(TIMELOCK);
-        spell.cast(folio, proxyAdmin);
+        spell.cast(folio, proxyAdmin, selectorRegistry);
     }
 }
