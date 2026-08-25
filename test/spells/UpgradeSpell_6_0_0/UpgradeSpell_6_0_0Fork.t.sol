@@ -156,6 +156,12 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
         vm.stopPrank();
     }
 
+    function test_castRejectsMissingSelectorRegistryForOptimisticGovernance() public {
+        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 6));
+        vm.prank(TIMELOCK);
+        spell.cast(folio, proxyAdmin, ISelectorRegistry_6_0_0(address(0)));
+    }
+
     function test_castRejectsFakeSelectorRegistry() public {
         ISelectorRegistry_6_0_0 fakeSelectorRegistry = ISelectorRegistry_6_0_0(
             address(new FakeSelectorRegistry(TIMELOCK))
