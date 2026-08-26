@@ -1,0 +1,40 @@
+diff --git a/contracts/Folio.sol b/contracts/Folio.sol
+index cfc0a57..478471b 100644
+--- a/contracts/Folio.sol
++++ b/contracts/Folio.sol
+@@ -115,7 +115,7 @@ contract Folio is
+     /**
+      * Basket
+      */
+-    EnumerableSet.AddressSet private basket;
++    EnumerableSet.AddressSet internal basket;
+ 
+     /**
+      * Fees
+@@ -151,7 +151,7 @@ contract Folio is
+     // === 3.0.0 ===
+     ITrustedFillerRegistry public trustedFillerRegistry;
+     bool public trustedFillerEnabled;
+-    IBaseTrustedFiller private activeTrustedFill;
++    IBaseTrustedFiller internal activeTrustedFill;
+ 
+     // === 4.0.0 ===
+     // 3.0.0 release was skipped so strict 3.0.0 -> 4.0.0 storage compatibility is not a requirement
+@@ -170,7 +170,7 @@ contract Folio is
+      *   - At anytime the rebalance can be stopped or a new one can be started. In the stopping case, any ongoing auction
+      *     is able to continue completion, but in the restart case the ongoing auction is closed.
+      */
+-    Rebalance private rebalance;
++    Rebalance internal rebalance;
+ 
+     /**
+      * Auctions
+@@ -192,7 +192,7 @@ contract Folio is
+ 
+     uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
+ 
+-    uint256 private activeTrustedFillFloorPrice; // D27{buyTok/sellTok}
++    uint256 internal activeTrustedFillFloorPrice; // D27{buyTok/sellTok}
+ 
+     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
+     modifier sync() {
