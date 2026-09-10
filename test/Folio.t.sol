@@ -5,7 +5,7 @@ import { IBaseTrustedFiller } from "@reserve-protocol/trusted-fillers/contracts/
 import { GPv2OrderLib } from "@reserve-protocol/trusted-fillers/contracts/fillers/cowswap/GPv2OrderLib.sol";
 import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { Folio } from "contracts/Folio.sol";
-import { AUCTION_WARMUP, D27, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT, ONE_DAY, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, D18, D27, FOLIO_FEE_HANDOUT_PERIOD, FOLIO_FEE_HANDOUT_RATE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, MAX_MINT_FEE, MIN_MINT_FEE, MAX_TTL, MAX_FEE_RECIPIENTS, MAX_TOKEN_PRICE, MAX_TOKEN_PRICE_RANGE, MAX_TVL_FEE, MAX_LIMIT, MAX_WEIGHT, ONE_DAY, RESTRICTED_AUCTION_BUFFER } from "@utils/Constants.sol";
 import { FolioLib } from "@utils/FolioLib.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FolioProxy } from "contracts/folio/FolioProxy.sol";
@@ -23,6 +23,8 @@ contract FolioTest is BaseTest {
     uint256 internal constant MAX_TVL_FEE_PER_SECOND = 3340960028; // D18{1/s} 10% annually, per second
     uint256 internal constant AUCTION_LAUNCHER_WINDOW = MAX_TTL / 2;
     uint256 internal constant AUCTION_LENGTH = 1800; // {s} 30 min
+    uint256 internal constant FOLIO_PENDING_FEE_SHARES_SLOT = 37;
+    uint256 internal constant LAST_FOLIO_FEE_POKE_SLOT = 38;
 
     IFolio.WeightRange internal SELL = IFolio.WeightRange({ low: 0, spot: 0, high: 0 }); // sell as much as possible
     IFolio.WeightRange internal BUY = IFolio.WeightRange({ low: MAX_WEIGHT, spot: MAX_WEIGHT, high: MAX_WEIGHT }); // buy as much as possible
@@ -639,6 +641,29 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
+    function _expectedDefaultFeeBalances(
+        uint256 pendingFeeShares,
+        uint256 initialDaoShares,
+        uint256 initialOwnerShares,
+        uint256 initialFeeReceiverShares
+    )
+        internal
+        view
+        returns (uint256 expectedDaoShares, uint256 expectedOwnerShares, uint256 expectedFeeReceiverShares)
+    {
+        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
+        uint256 feeRecipientShares = pendingFeeShares -
+            Math.ceilDiv(pendingFeeShares * daoFeeNumerator, daoFeeDenominator);
+        uint256 ownerShares = (feeRecipientShares * 0.9e18) / D18;
+        uint256 feeReceiverShares = (feeRecipientShares * 0.1e18) / D18;
+
+        return (
+            initialDaoShares + pendingFeeShares - ownerShares - feeReceiverShares,
+            initialOwnerShares + ownerShares,
+            initialFeeReceiverShares + feeReceiverShares
+        );
+    }
+
     function test_daoFee() public {
         // set dao fee to 0.15%
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.15e18);
@@ -827,6 +852,18 @@ contract FolioTest is BaseTest {
 
         uint256 initialOwnerShares = folio.balanceOf(owner);
         uint256 initialDaoShares = folio.balanceOf(dao);
+        uint256 initialFeeReceiverShares = folio.balanceOf(feeReceiver);
+
+        (
+            uint256 expectedDaoShares,
+            uint256 expectedOwnerShares,
+            uint256 expectedFeeReceiverShares
+        ) = _expectedDefaultFeeBalances(
+                pendingFeeShares,
+                initialDaoShares,
+                initialOwnerShares,
+                initialFeeReceiverShares
+            );
 
         vm.startPrank(owner);
         IFolio.FeeRecipient[] memory recipients = new IFolio.FeeRecipient[](3);
@@ -840,14 +877,10 @@ contract FolioTest is BaseTest {
         assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
 
-        // check receipient balances
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
-        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
+        // check recipient balances
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
-
-        uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
-        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
+        assertEq(folio.balanceOf(owner), expectedOwnerShares, "wrong owner shares");
+        assertEq(folio.balanceOf(feeReceiver), expectedFeeReceiverShares, "wrong fee receiver shares");
     }
 
     function test_setTvlFee() public {
@@ -1023,6 +1056,18 @@ contract FolioTest is BaseTest {
 
         uint256 initialOwnerShares = folio.balanceOf(owner);
         uint256 initialDaoShares = folio.balanceOf(dao);
+        uint256 initialFeeReceiverShares = folio.balanceOf(feeReceiver);
+
+        (
+            uint256 expectedDaoShares,
+            uint256 expectedOwnerShares,
+            uint256 expectedFeeReceiverShares
+        ) = _expectedDefaultFeeBalances(
+                pendingFeeShares,
+                initialDaoShares,
+                initialOwnerShares,
+                initialFeeReceiverShares
+            );
 
         vm.startPrank(owner);
         uint256 newTVLFee = MAX_TVL_FEE / 1000;
@@ -1031,14 +1076,10 @@ contract FolioTest is BaseTest {
         assertEq(folio.daoPendingFeeShares(), 0, "wrong dao pending fee shares");
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "wrong fee recipients pending fee shares");
 
-        // check receipient balances
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
-        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
+        // check recipient balances
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares");
-
-        uint256 remainingShares = pendingFeeShares - expectedDaoShares;
-        assertEq(folio.balanceOf(owner), initialOwnerShares + (remainingShares * 0.9e18) / 1e18, "wrong owner shares");
-        assertEq(folio.balanceOf(feeReceiver), (remainingShares * 0.1e18) / 1e18, "wrong fee receiver shares");
+        assertEq(folio.balanceOf(owner), expectedOwnerShares, "wrong owner shares");
+        assertEq(folio.balanceOf(feeReceiver), expectedFeeReceiverShares, "wrong fee receiver shares");
     }
 
     function test_pendingFeeSharesAtFeeFloor() public {
@@ -1430,24 +1471,23 @@ contract FolioTest is BaseTest {
         uint256 initialDaoShares = folio.balanceOf(dao);
         uint256 initialFeeReceiverShares = folio.balanceOf(feeReceiver);
 
-        (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
-        uint256 expectedDaoShares = initialDaoShares + (pendingFeeShares * daoFeeNumerator) / daoFeeDenominator + 1;
-        uint256 remainingShares = pendingFeeShares - expectedDaoShares;
+        (
+            uint256 expectedDaoShares,
+            uint256 expectedOwnerShares,
+            uint256 expectedFeeReceiverShares
+        ) = _expectedDefaultFeeBalances(
+                pendingFeeShares,
+                initialDaoShares,
+                initialOwnerShares,
+                initialFeeReceiverShares
+            );
 
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.1e18);
 
-        // check receipient balances
+        // check recipient balances
         assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares, 1st change");
-        assertEq(
-            folio.balanceOf(owner),
-            initialOwnerShares + (remainingShares * 0.9e18) / 1e18,
-            "wrong owner shares, 1st change"
-        );
-        assertEq(
-            folio.balanceOf(feeReceiver),
-            initialFeeReceiverShares + (remainingShares * 0.1e18) / 1e18,
-            "wrong fee receiver shares, 1st change"
-        );
+        assertEq(folio.balanceOf(owner), expectedOwnerShares, "wrong owner shares, 1st change");
+        assertEq(folio.balanceOf(feeReceiver), expectedFeeReceiverShares, "wrong fee receiver shares, 1st change");
 
         // fast forward again, accumulate fees
         vm.warp(block.timestamp + YEAR_IN_SECONDS / 2);
@@ -1457,26 +1497,20 @@ contract FolioTest is BaseTest {
         initialOwnerShares = folio.balanceOf(owner);
         initialDaoShares = folio.balanceOf(dao);
         initialFeeReceiverShares = folio.balanceOf(feeReceiver);
-        (, daoFeeNumerator, daoFeeDenominator, ) = daoFeeRegistry.getFeeDetails(address(folio));
+        (expectedDaoShares, expectedOwnerShares, expectedFeeReceiverShares) = _expectedDefaultFeeBalances(
+            pendingFeeShares,
+            initialDaoShares,
+            initialOwnerShares,
+            initialFeeReceiverShares
+        );
 
         // set new fee numerator, should distribute fees
         daoFeeRegistry.setTokenFeeNumerator(address(folio), 0.05e18);
 
-        // check receipient balances
-        expectedDaoShares = (pendingFeeShares * daoFeeNumerator + daoFeeDenominator - 1) / daoFeeDenominator + 1;
-        assertEq(folio.balanceOf(address(dao)), initialDaoShares + expectedDaoShares, "wrong dao shares, 2nd change");
-        remainingShares = pendingFeeShares - expectedDaoShares;
-        assertApproxEqAbs(
-            folio.balanceOf(owner),
-            initialOwnerShares + (remainingShares * 0.9e18) / 1e18,
-            3,
-            "wrong owner shares, 2nd change"
-        );
-        assertEq(
-            folio.balanceOf(feeReceiver),
-            initialFeeReceiverShares + (remainingShares * 0.1e18) / 1e18,
-            "wrong fee receiver shares, 2nd change"
-        );
+        // check recipient balances
+        assertEq(folio.balanceOf(address(dao)), expectedDaoShares, "wrong dao shares, 2nd change");
+        assertEq(folio.balanceOf(owner), expectedOwnerShares, "wrong owner shares, 2nd change");
+        assertEq(folio.balanceOf(feeReceiver), expectedFeeReceiverShares, "wrong fee receiver shares, 2nd change");
     }
 
     function test_atomicBidWithoutCallback() public {
@@ -5089,6 +5123,50 @@ contract FolioTest is BaseTest {
     //   folioFeeForSelf tests
     // =========================================================
 
+    function _configureMintSelfFeeHandout() internal {
+        uint256 handoutEnd = (block.timestamp / ONE_DAY) * ONE_DAY + FOLIO_FEE_HANDOUT_PERIOD;
+        if (block.timestamp < handoutEnd) {
+            vm.warp(handoutEnd);
+        }
+
+        _enableMintSelfFeeHandout();
+    }
+
+    function _enableMintSelfFeeHandout() internal {
+        daoFeeRegistry.setDefaultFeeFloor(0);
+        daoFeeRegistry.setDefaultFeeNumerator(0);
+
+        vm.startPrank(owner);
+        folio.setTVLFee(0);
+        folio.setFolioSelfFee(1e18);
+        folio.setMintFee(MAX_MINT_FEE);
+        vm.stopPrank();
+    }
+
+    function _mintForUser(uint256 shares) internal {
+        vm.startPrank(user1);
+        USDC.approve(address(folio), type(uint256).max);
+        DAI.approve(address(folio), type(uint256).max);
+        MEME.approve(address(folio), type(uint256).max);
+        folio.mint(shares, user1, 0);
+        vm.stopPrank();
+    }
+
+    function _nextDay() internal view returns (uint256) {
+        return ((block.timestamp / ONE_DAY) + 1) * ONE_DAY;
+    }
+
+    function _maxFolioFeeHandout(uint256 supply, uint256 elapsed) internal pure returns (uint256) {
+        return Math.mulDiv(supply, FOLIO_FEE_HANDOUT_RATE * elapsed, D18);
+    }
+
+    function test_mintSelfFeeHandout_parameters() public pure {
+        assertEq(FOLIO_FEE_HANDOUT_RATE, 0.000005e18, "wrong per-second handout rate");
+        assertEq(FOLIO_FEE_HANDOUT_PERIOD, 10 minutes, "wrong handout period");
+        assertEq(FOLIO_FEE_HANDOUT_RATE * 60 seconds, MIN_MINT_FEE, "wrong minimum-fee capture time");
+        assertEq(FOLIO_FEE_HANDOUT_RATE * FOLIO_FEE_HANDOUT_PERIOD, 0.003e18, "wrong maximum daily handout rate");
+    }
+
     function test_setFolioFee() public {
         vm.startPrank(owner);
 
@@ -5158,7 +5236,7 @@ contract FolioTest is BaseTest {
         assertTrue(folio.balanceOf(dao) > initialDaoShares, "dao should have received fees");
     }
 
-    /// @dev With folioFeeForSelf at 50%, half of the fee-recipient shares on mint should be burned
+    /// @dev With folioFeeForSelf at 50%, half of the fee-recipient shares on mint should await handout
     function test_mintWithFolioFeeForSelf() public {
         // set folioFeeForSelf to 50%
         vm.prank(owner);
@@ -5184,7 +5262,7 @@ contract FolioTest is BaseTest {
         uint256 daoFeeShares = (totalFeeShares * MAX_DAO_FEE + 1e18 - 1) / 1e18;
         // recipientRaw = totalFeeShares - daoFeeShares
         uint256 recipientRaw = totalFeeShares - daoFeeShares;
-        // selfShares (burned) = recipientRaw * 50%
+        // selfShares (pending handout) = recipientRaw * 50%
         uint256 selfShares = (recipientRaw * 0.5e18) / 1e18;
         uint256 expectedFeeRecipientShares = recipientRaw - selfShares;
 
@@ -5192,9 +5270,9 @@ contract FolioTest is BaseTest {
         uint256 expectedSharesOut = amt - totalFeeShares;
         assertEq(folio.balanceOf(user1), expectedSharesOut, "wrong user shares out");
 
-        // total supply: genesis + sharesOut + daoFee + feeRecipientFee (self-fee NOT minted)
-        uint256 expectedTotalSupply = INITIAL_SUPPLY + expectedSharesOut + daoFeeShares + expectedFeeRecipientShares;
-        assertEq(folio.totalSupply(), expectedTotalSupply, "wrong total supply with folioFeeForSelf");
+        // pending self-fees remain in effective supply until handout
+        assertEq(folio.folioPendingMintFeeShares(), selfShares, "wrong pending folio fee shares");
+        assertEq(folio.totalSupply(), INITIAL_SUPPLY + amt, "wrong total supply with folioFeeForSelf");
 
         assertEq(folio.daoPendingFeeShares(), daoFeeShares, "wrong dao pending fee shares");
         assertEq(
@@ -5204,7 +5282,7 @@ contract FolioTest is BaseTest {
         );
     }
 
-    /// @dev With folioFeeForSelf at 100%, ALL fee-recipient shares on mint are burned
+    /// @dev With folioFeeForSelf at 100%, ALL fee-recipient shares on mint await handout
     function test_mintWithFolioFeeForSelf_100Percent() public {
         // set folioFeeForSelf to 100%
         vm.prank(owner);
@@ -5228,16 +5306,329 @@ contract FolioTest is BaseTest {
         uint256 totalFeeShares = (amt * MAX_MINT_FEE + 1e18 - 1) / 1e18;
         uint256 daoFeeShares = (totalFeeShares * MAX_DAO_FEE + 1e18 - 1) / 1e18;
 
-        // ALL fee-recipient shares are burned (folioFeeForSelf = 100%)
+        // ALL fee-recipient shares await handout (folioFeeForSelf = 100%)
         assertEq(folio.feeRecipientsPendingFeeShares(), 0, "fee recipients should get 0 with 100% folioFee");
         assertEq(folio.daoPendingFeeShares(), daoFeeShares, "wrong dao pending fee shares");
+        assertEq(folio.folioPendingMintFeeShares(), totalFeeShares - daoFeeShares, "wrong pending folio fee shares");
 
         uint256 expectedSharesOut = amt - totalFeeShares;
         assertEq(folio.balanceOf(user1), expectedSharesOut, "wrong user shares out");
 
-        // total supply = genesis + sharesOut + daoFee (no fee-recipient shares minted)
-        uint256 expectedTotalSupply = INITIAL_SUPPLY + expectedSharesOut + daoFeeShares;
-        assertEq(folio.totalSupply(), expectedTotalSupply, "wrong total supply");
+        assertEq(folio.totalSupply(), INITIAL_SUPPLY + amt, "wrong total supply");
+    }
+
+    function test_mintWithFolioFeeForSelf_isExchangeRateNeutral() public {
+        _configureMintSelfFeeHandout();
+
+        (, uint256[] memory amountsBefore) = folio.toAssets(D18, Math.Rounding.Floor);
+        _mintForUser(INITIAL_SUPPLY);
+        (, uint256[] memory amountsAfter) = folio.toAssets(D18, Math.Rounding.Floor);
+
+        assertEq(amountsAfter, amountsBefore, "mint changed exchange rate");
+        assertEq(folio.totalSupply(), INITIAL_SUPPLY * 2, "mint did not add gross shares");
+        assertTrue(folio.folioPendingMintFeeShares() > 0, "missing pending self-fees");
+    }
+
+    function test_mintSelfFeeHandout_doesNotStartBeforeDailyBoundary() public {
+        _configureMintSelfFeeHandout();
+        _mintForUser(INITIAL_SUPPLY);
+
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
+        uint256 supplyBefore = folio.totalSupply();
+        vm.warp(_nextDay() - 1);
+
+        assertEq(folio.totalSupply(), supplyBefore, "self-fees handed out early");
+        folio.poke();
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees, "poke handed out self-fees early");
+    }
+
+    function test_mintSelfFeeHandout_usesInitializationWindow() public {
+        _enableMintSelfFeeHandout();
+        _mintForUser(INITIAL_SUPPLY);
+
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
+        uint256 supplyBefore = folio.totalSupply();
+        uint256 handoutSupply = supplyBefore - pendingSelfFees;
+
+        vm.warp(block.timestamp + 1);
+        assertEq(
+            folio.totalSupply(),
+            supplyBefore - _maxFolioFeeHandout(handoutSupply, 1),
+            "handout did not use initialization window"
+        );
+    }
+
+    function test_mintSelfFeeHandout_doesNotWritePendingOutsideWindow() public {
+        _configureMintSelfFeeHandout();
+        _mintForUser(INITIAL_SUPPLY);
+        vm.warp(block.timestamp + 1);
+
+        vm.record();
+        folio.poke();
+        (, bytes32[] memory writeSlots) = vm.accesses(address(folio));
+
+        for (uint256 i; i < writeSlots.length; i++) {
+            assertNotEq(writeSlots[i], bytes32(FOLIO_PENDING_FEE_SHARES_SLOT), "outside window wrote pending shares");
+        }
+    }
+
+    function test_mintSelfFeeHandout_isLinearAndStopsAfterPeriod() public {
+        _configureMintSelfFeeHandout();
+        _mintForUser(INITIAL_SUPPLY);
+
+        uint256 boundary = _nextDay();
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
+        uint256 supplyBefore = folio.totalSupply();
+        uint256 handoutSupply = supplyBefore - pendingSelfFees;
+
+        vm.warp(boundary);
+        assertEq(folio.totalSupply(), supplyBefore, "boundary changed supply");
+
+        vm.warp(boundary + 1);
+        assertEq(folio.totalSupply(), supplyBefore - _maxFolioFeeHandout(handoutSupply, 1), "wrong first handout");
+
+        vm.warp(boundary + 2);
+        assertEq(folio.totalSupply(), supplyBefore - _maxFolioFeeHandout(handoutSupply, 2), "handout not linear");
+
+        vm.warp(boundary + FOLIO_FEE_HANDOUT_PERIOD);
+        uint256 supplyAfterPeriod = supplyBefore - _maxFolioFeeHandout(handoutSupply, FOLIO_FEE_HANDOUT_PERIOD);
+        assertEq(folio.totalSupply(), supplyAfterPeriod, "wrong maximum handout");
+
+        vm.warp(boundary + ONE_DAY - 1);
+        assertEq(folio.totalSupply(), supplyAfterPeriod, "handout continued past period");
+
+        uint256 dailyHandout = _maxFolioFeeHandout(handoutSupply, FOLIO_FEE_HANDOUT_PERIOD);
+        vm.expectEmit(true, false, false, true, address(folio));
+        emit IFolio.FolioFeePaid(address(folio), dailyHandout);
+        folio.poke();
+        assertEq(folio.totalSupply(), supplyAfterPeriod, "poke changed effective supply");
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees - dailyHandout, "wrong pending self-fees");
+    }
+
+    function test_mintSelfFeeHandout_rollsExcessIntoLaterDays() public {
+        _configureMintSelfFeeHandout();
+        _mintForUser(INITIAL_SUPPLY);
+
+        uint256 boundary = _nextDay();
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
+        uint256 supplyBefore = folio.totalSupply();
+        uint256 handoutSupply = supplyBefore - pendingSelfFees;
+        uint256 dailyHandout = _maxFolioFeeHandout(handoutSupply, FOLIO_FEE_HANDOUT_PERIOD);
+        assertTrue(pendingSelfFees > dailyHandout * 3, "insufficient rollover self-fees");
+
+        vm.warp(boundary + FOLIO_FEE_HANDOUT_PERIOD);
+        folio.poke();
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees - dailyHandout, "wrong first-day rollover");
+
+        vm.warp(boundary + ONE_DAY + FOLIO_FEE_HANDOUT_PERIOD);
+        folio.poke();
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees - dailyHandout * 2, "wrong second-day rollover");
+
+        vm.warp(boundary + 3 * ONE_DAY + FOLIO_FEE_HANDOUT_PERIOD);
+        assertEq(folio.totalSupply(), supplyBefore - dailyHandout * 4, "missed daily windows were not handed out");
+    }
+
+    function test_mintSelfFeeHandout_stopsWhenPendingIsEmpty() public {
+        _configureMintSelfFeeHandout();
+        _mintForUser(D18);
+
+        uint256 boundary = _nextDay();
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
+        uint256 supplyBefore = folio.totalSupply();
+        assertTrue(
+            pendingSelfFees < _maxFolioFeeHandout(supplyBefore - pendingSelfFees, 1),
+            "self-fees exceed one-second handout"
+        );
+
+        vm.warp(boundary + 1);
+        assertEq(folio.totalSupply(), supplyBefore - pendingSelfFees, "small self-fee not fully handed out");
+        folio.poke();
+        assertEq(folio.folioPendingMintFeeShares(), 0, "empty handout left pending shares");
+    }
+
+    function test_mintSelfFeeHandout_repeatedPokesCannotDoubleHandout() public {
+        _configureMintSelfFeeHandout();
+        _mintForUser(INITIAL_SUPPLY);
+
+        uint256 boundary = _nextDay();
+        vm.warp(boundary + 1);
+        folio.poke();
+        uint256 pendingAfterPoke = folio.folioPendingMintFeeShares();
+        uint256 supplyAfterPoke = folio.totalSupply();
+
+        folio.poke();
+        assertEq(folio.folioPendingMintFeeShares(), pendingAfterPoke, "same-time poke repeated handout");
+        assertEq(folio.totalSupply(), supplyAfterPoke, "same-time poke changed supply");
+    }
+
+    function test_mintSelfFeeHandout_doesNotUsePastCapacity() public {
+        _configureMintSelfFeeHandout();
+        vm.warp(block.timestamp + 3 * ONE_DAY);
+
+        uint256 supplyBefore = folio.totalSupply();
+        _mintForUser(INITIAL_SUPPLY);
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
+
+        assertTrue(pendingSelfFees > 0, "missing pending self-fees");
+        assertEq(folio.totalSupply(), supplyBefore + INITIAL_SUPPLY, "past capacity handed out new fees");
+        folio.poke();
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees, "poke used past capacity");
+    }
+
+    function test_mintDuringSelfFeeHandout_isExchangeRateNeutral() public {
+        _configureMintSelfFeeHandout();
+        _mintForUser(INITIAL_SUPPLY);
+
+        uint256 boundary = _nextDay();
+        vm.warp(boundary + FOLIO_FEE_HANDOUT_PERIOD / 2);
+        (, uint256[] memory amountsBefore) = folio.toAssets(D18, Math.Rounding.Floor);
+        _mintForUser(INITIAL_SUPPLY);
+        (, uint256[] memory amountsAfter) = folio.toAssets(D18, Math.Rounding.Floor);
+
+        assertEq(amountsAfter, amountsBefore, "mid-handout mint changed exchange rate");
+        assertEq(folio.lastFolioFeePoke(), block.timestamp, "mint did not advance handout time");
+
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
+        uint256 supplyBefore = folio.totalSupply();
+        uint256 handoutSupply = supplyBefore - pendingSelfFees;
+        vm.warp(block.timestamp + 1);
+        assertEq(folio.totalSupply(), supplyBefore - _maxFolioFeeHandout(handoutSupply, 1), "wrong post-mint handout");
+    }
+
+    function test_mintSelfFeeHandout_viewAndStateMatchWithTVLFees() public {
+        vm.startPrank(owner);
+        folio.setFolioSelfFee(1e18);
+        folio.setMintFee(MAX_MINT_FEE);
+        vm.stopPrank();
+        _mintForUser(INITIAL_SUPPLY);
+
+        vm.warp(_nextDay() + 1);
+        uint256 supplyBeforePoke = folio.totalSupply();
+        uint256 pendingBeforePoke = folio.getPendingFeeShares();
+
+        folio.poke();
+
+        assertEq(folio.totalSupply(), supplyBeforePoke, "poke changed effective supply");
+        assertEq(folio.getPendingFeeShares(), pendingBeforePoke, "poke changed pending fee view");
+    }
+
+    function test_redeemDuringSelfFeeHandout_usesNewSupply() public {
+        _configureMintSelfFeeHandout();
+        _mintForUser(INITIAL_SUPPLY);
+
+        uint256 pendingBefore = folio.folioPendingMintFeeShares();
+        uint256 handoutSupplyBefore = folio.totalSupply() - pendingBefore;
+        vm.warp(_nextDay() + FOLIO_FEE_HANDOUT_PERIOD / 2);
+
+        uint256 shares = folio.balanceOf(user1) / 2;
+        (address[] memory basket, ) = folio.toAssets(shares, Math.Rounding.Floor);
+        vm.prank(user1);
+        folio.redeem(shares, user1, basket, new uint256[](basket.length));
+
+        uint256 expectedElapsedHandout = _maxFolioFeeHandout(handoutSupplyBefore, FOLIO_FEE_HANDOUT_PERIOD / 2);
+        assertEq(
+            folio.folioPendingMintFeeShares(),
+            pendingBefore - expectedElapsedHandout,
+            "redeem did not settle elapsed handout"
+        );
+
+        uint256 handoutSupplyAfter = folio.totalSupply() - folio.folioPendingMintFeeShares();
+        vm.warp(block.timestamp + 1);
+        folio.poke();
+        assertEq(
+            folio.folioPendingMintFeeShares(),
+            pendingBefore - expectedElapsedHandout - _maxFolioFeeHandout(handoutSupplyAfter, 1),
+            "wrong handout after redeem"
+        );
+    }
+
+    function test_mintSelfFeeHandout_zeroEligibleSupplyPausesUntilRemint() public {
+        _configureMintSelfFeeHandout();
+        vm.prank(owner);
+        folio.transfer(user1, INITIAL_SUPPLY);
+
+        (address[] memory basket, ) = folio.toAssets(INITIAL_SUPPLY, Math.Rounding.Floor);
+        vm.prank(user1);
+        folio.redeem(INITIAL_SUPPLY, address(folio), basket, new uint256[](basket.length));
+
+        uint256 backlog = INITIAL_SUPPLY / 10;
+        vm.store(address(folio), bytes32(FOLIO_PENDING_FEE_SHARES_SLOT), bytes32(backlog));
+
+        assertEq(folio.totalSupply(), backlog, "eligible supply remains");
+
+        vm.warp(_nextDay() + FOLIO_FEE_HANDOUT_PERIOD);
+        folio.poke();
+        assertEq(folio.folioPendingMintFeeShares(), backlog, "zero base handed out fees");
+
+        _mintForUser(INITIAL_SUPPLY);
+        uint256 pendingAfterMint = folio.folioPendingMintFeeShares();
+        vm.warp(_nextDay() + 1);
+        folio.poke();
+        assertLt(folio.folioPendingMintFeeShares(), pendingAfterMint, "remint did not restart handout");
+    }
+
+    function test_mintSelfFeeHandout_upgradeInitializesWithoutHistoricalCapacity() public {
+        _mintForUser(INITIAL_SUPPLY);
+        _configureMintSelfFeeHandout();
+
+        assertEq(folio.folioPendingMintFeeShares(), 0, "upgrade started with pending fees");
+        vm.store(address(folio), bytes32(LAST_FOLIO_FEE_POKE_SLOT), bytes32(0));
+        vm.warp(block.timestamp + 3 * ONE_DAY);
+
+        _mintForUser(INITIAL_SUPPLY);
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
+        assertGt(pendingSelfFees, 0, "mint did not create pending fees");
+        assertEq(folio.lastFolioFeePoke(), block.timestamp, "mint did not initialize timestamp");
+
+        folio.poke();
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees, "upgrade used historical capacity");
+    }
+
+    function test_pendingMintSelfFeesAreExemptFromTVLFees() public {
+        uint256 handoutEnd = (block.timestamp / ONE_DAY) * ONE_DAY + FOLIO_FEE_HANDOUT_PERIOD;
+        if (block.timestamp < handoutEnd) {
+            vm.warp(handoutEnd);
+        }
+        daoFeeRegistry.setDefaultFeeFloor(0);
+        daoFeeRegistry.setDefaultFeeNumerator(0);
+        vm.startPrank(owner);
+        folio.setFolioSelfFee(0.5e18);
+        folio.setMintFee(MAX_MINT_FEE);
+        folio.setTVLFee(MAX_TVL_FEE);
+        vm.stopPrank();
+
+        uint256 snapshot = vm.snapshotState();
+        _mintForUser(INITIAL_SUPPLY);
+        uint256 eligibleMintShares = folio.totalSupply() - folio.folioPendingMintFeeShares() - INITIAL_SUPPLY;
+        uint256 pendingBeforeTVL = folio.getPendingFeeShares();
+        uint256 boundary = _nextDay();
+        vm.warp(boundary);
+        uint256 pendingWithBacklog = folio.getPendingFeeShares() - pendingBeforeTVL;
+
+        vm.revertToState(snapshot);
+        vm.prank(owner);
+        folio.setMintFee(0);
+        _mintForUser(eligibleMintShares);
+        pendingBeforeTVL = folio.getPendingFeeShares();
+        vm.warp(boundary);
+
+        assertEq(folio.getPendingFeeShares() - pendingBeforeTVL, pendingWithBacklog, "backlog accrued TVL fees");
+    }
+
+    function test_distributeFeesAndFeeSetter_doNotBypassSelfFeeHandout() public {
+        _configureMintSelfFeeHandout();
+        _mintForUser(INITIAL_SUPPLY);
+
+        uint256 pendingSelfFees = folio.folioPendingMintFeeShares();
+        uint256 supplyBefore = folio.totalSupply();
+        folio.distributeFees();
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees, "distribution bypassed handout");
+        assertEq(folio.totalSupply(), supplyBefore, "distribution changed effective supply");
+
+        vm.prank(owner);
+        folio.setFolioSelfFee(0);
+        assertEq(folio.folioPendingMintFeeShares(), pendingSelfFees, "fee setter bypassed handout");
+        assertEq(folio.totalSupply(), supplyBefore, "fee setter changed effective supply");
     }
 
     /// @dev With folioFeeForSelf at 0%, behavior is unchanged from before
@@ -5300,6 +5691,7 @@ contract FolioTest is BaseTest {
         vm.roll(block.number + 1000000);
 
         uint256 accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
+        uint256 lastTVLFeePoke = folio.lastPoke();
         (, , uint256 expectedSelfFeeShares) = FolioLib.computeFeeShares(
             FolioLib.FeeSharesParams({
                 currentDaoPending: folio.daoPendingFeeShares(),
@@ -5307,7 +5699,7 @@ contract FolioTest is BaseTest {
                 tvlFee: folio.tvlFee(),
                 folioFeeForSelf: folio.folioFeeForSelf(),
                 supply: supplyBefore,
-                elapsed: accountedUntil - folio.lastPoke()
+                elapsed: accountedUntil - lastTVLFeePoke
             }),
             daoFeeRegistry
         );

@@ -14,7 +14,7 @@ import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/tr
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
 import { FolioLib } from "@utils/FolioLib.sol";
-import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_MINT_FEE, MAX_FOLIO_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, ERC20_STORAGE_LOCATION, FOLIO_FEE_HANDOUT_PERIOD, FOLIO_FEE_HANDOUT_RATE, REBALANCE_MANAGER, MAX_MINT_FEE, MAX_FOLIO_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
@@ -83,6 +83,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * Fees:
  *   - TVL fee: fee per unit time. Max 10% annually. Causes supply inflation over time, discretely once a day.
  *   - Mint fee: fee on mint. Max 5%. Does not cause supply inflation.
+ *   - Mint self-fees: remain in effective supply, then are burned at a bounded rate during a brief daily window.
  *
  * After fees have been applied, the DAO takes a cut based on the configuration of the FolioDAOFeeRegistry including
  *   a minimum fee floor. The remaining portion above the floor is distributed to the Folio's fee recipients.
@@ -190,9 +191,12 @@ contract Folio is
     // === 6.0.0 ===
     bool public tradeAllowlistEnabled;
     EnumerableSet.AddressSet private tradeTokenAllowlist;
-    uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
 
     FeeRecipient[] public immutableFeeRecipients;
+
+    uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares directed to Folio holders
+    uint256 public folioPendingMintFeeShares; // {share} mint self-fee shares pending handout (burning)
+    uint256 public lastFolioFeePoke; // {s} last time mint self-fee handout capacity was accounted
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -252,6 +256,7 @@ contract Folio is
         }
 
         lastPoke = block.timestamp;
+        lastFolioFeePoke = block.timestamp;
 
         _mint(_creator, _basicDetails.initialShares);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -316,9 +321,9 @@ contract Folio is
         _setMintFee(_newFee);
     }
 
-    /// Set the folio fee — fraction of fee-recipient shares that are burned (not minted)
+    /// Set the folio fee — fraction of fee-recipient shares directed to Folio holders
     /// @dev Non-reentrant via distributeFees()
-    /// @param _newFee D18{1} Fraction of fee-recipient shares to burn
+    /// @param _newFee D18{1} Fraction of fee-recipient shares directed to Folio holders
     function setFolioSelfFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
@@ -411,9 +416,20 @@ contract Folio is
 
     /// @dev Contains all pending fee shares
     function totalSupply() public view override returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, , ) = _getPendingFeeShares();
+        (
+            uint256 _daoPendingFeeShares,
+            uint256 _feeRecipientsPendingFeeShares,
+            ,
+            uint256 _mintSelfFeeHandout,
 
-        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
+        ) = _getFeeShares();
+
+        return
+            super.totalSupply() +
+            _daoPendingFeeShares +
+            _feeRecipientsPendingFeeShares +
+            folioPendingMintFeeShares -
+            _mintSelfFeeHandout;
     }
 
     /// @dev Result may be unreliable mid-swap during trusted fill execution, check stateChangeActive()
@@ -435,7 +451,7 @@ contract Folio is
     }
 
     /// @dev Use allowances to set slippage limits for provided assets
-    /// @dev Minting has 3 share-portions: (i) receiver shares, (ii) DAO fee shares, (iii) fee recipients shares
+    /// @dev Minting has 4 share-portions: receiver, DAO, fee recipients, and pending Folio self-fee shares
     /// @param shares {share} Amount of shares to mint
     /// @param minSharesOut {share} Minimum amount of shares the caller must receive after fees
     /// @return _assets
@@ -447,7 +463,6 @@ contract Folio is
     ) external nonReentrant notDeprecated sync returns (address[] memory _assets, uint256[] memory _amounts) {
         // === Calculate fee shares ===
 
-        // @dev Semantically view; non-view only because computeMintFees() emits FolioFeePaid
         (uint256 sharesOut, uint256 daoFeeShares, uint256 feeRecipientFeeShares) = FolioLib.computeMintFees(
             FolioLib.MintFeeParams({
                 shares: shares,
@@ -473,9 +488,10 @@ contract Folio is
 
         _mint(receiver, sharesOut);
 
-        // defer fee handouts until distributeFees()
+        // defer DAO and recipient fee handouts until distributeFees()
         daoPendingFeeShares += daoFeeShares;
         feeRecipientsPendingFeeShares += feeRecipientFeeShares;
+        folioPendingMintFeeShares += shares - sharesOut - daoFeeShares - feeRecipientFeeShares;
     }
 
     /// @param shares {share} Amount of shares to redeem
@@ -519,13 +535,14 @@ contract Folio is
 
     /// @return {share} Up-to-date sum of DAO and fee recipients pending fee shares
     function getPendingFeeShares() public view returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, , ) = _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, , , ) = _getFeeShares();
         return _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
     /// Distribute all pending fee shares
     /// @dev Recipients: DAO, mutable fee recipients, and immutable fee recipients; if both fee recipient tables are
     /// empty, the DAO gets all non-self fees
+    /// @dev If the DAO recipient is the Folio itself, DAO fees continue to accrue and payout is deferred
     /// @dev Pending fee shares are already reflected in the total supply, this function only concretizes balances
     function distributeFees() public nonReentrant sync {
         // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
@@ -640,7 +657,7 @@ contract Folio is
 
     /// Start a new rebalance, ending the currently running auction
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
-    /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
+    /// @dev Weights become stale from TVL fee inflation on each 24h boundary and during the mint self-fee handout window that follows
     /// @param rebalanceNonce The expected nonce after this rebalance starts
     /// @param tokens The rebalance parameters for each token in the rebalance
     /// @param tokens.token MUST be unique; MUST be allowlisted when the trade allowlist is enabled
@@ -1040,38 +1057,86 @@ contract Folio is
         (sellAmount, bidAmount, price) = RebalancingLib.getBid(rebalance, auction, sellToken, buyToken, params);
     }
 
+    /// Get all pending fee shares and the mint self-fee handout
     /// @return _daoPendingFeeShares {share}
     /// @return _feeRecipientsPendingFeeShares {share}
-    /// @return _folioSelfFeeShares {share}
+    /// @return _tvlSelfFeeShares {share}
+    /// @return _mintSelfFeeHandout {share}
     /// @return _accountedUntil {s}
-    function _getPendingFeeShares()
+    function _getFeeShares()
         internal
         view
         returns (
             uint256 _daoPendingFeeShares,
             uint256 _feeRecipientsPendingFeeShares,
-            uint256 _folioSelfFeeShares,
+            uint256 _tvlSelfFeeShares,
+            uint256 _mintSelfFeeHandout,
             uint256 _accountedUntil
         )
     {
-        // {s} Always in full days
-        _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
-        if (_accountedUntil <= lastPoke) {
-            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, 0, lastPoke);
+        // Pending mint self-fees remain in effective supply but are exempt from TVL fees. If X = feeSupply,
+        // P = pending mint self-fees, and E = net TVL fee shares, immediate dilution omits P * E / X while X != 0;
+        // the difference appears as P is handed out. Accepted because P should normally be small relative to X.
+
+        // {share}
+        uint256 feeSupply = super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares;
+        _daoPendingFeeShares = daoPendingFeeShares;
+        _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
+
+        // === TVL fees ===
+
+        {
+            // {s} Always in full days
+            _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
+
+            if (_accountedUntil > lastPoke) {
+                uint256 tvlFeeElapsed = _accountedUntil - lastPoke; // {s}
+                (_daoPendingFeeShares, _feeRecipientsPendingFeeShares, _tvlSelfFeeShares) = FolioLib.computeFeeShares(
+                    FolioLib.FeeSharesParams({
+                        currentDaoPending: daoPendingFeeShares,
+                        currentFeeRecipientsPending: feeRecipientsPendingFeeShares,
+                        tvlFee: tvlFee,
+                        folioFeeForSelf: folioFeeForSelf,
+                        supply: feeSupply,
+                        elapsed: tvlFeeElapsed
+                    }),
+                    daoFeeRegistry
+                );
+            } else {
+                _accountedUntil = lastPoke;
+            }
         }
 
-        uint256 elapsed = _accountedUntil - lastPoke;
-        (_daoPendingFeeShares, _feeRecipientsPendingFeeShares, _folioSelfFeeShares) = FolioLib.computeFeeShares(
-            FolioLib.FeeSharesParams({
-                currentDaoPending: daoPendingFeeShares,
-                currentFeeRecipientsPending: feeRecipientsPendingFeeShares,
-                tvlFee: tvlFee,
-                folioFeeForSelf: folioFeeForSelf,
-                supply: super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares,
-                elapsed: elapsed
-            }),
-            daoFeeRegistry
-        );
+        // === Mint self-fee handout ===
+
+        // {s}
+        uint256 _lastFolioFeePoke = lastFolioFeePoke;
+
+        if (folioPendingMintFeeShares != 0 && block.timestamp > _lastFolioFeePoke) {
+            // {1}
+            uint256 wholeDaysElapsed = (block.timestamp / ONE_DAY) - (_lastFolioFeePoke / ONE_DAY);
+
+            // {s}
+            uint256 lastElapsed = Math.min(_lastFolioFeePoke % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+
+            // handout if whole days have elapsed OR the last window was not fully handed out
+            if (wholeDaysElapsed != 0 || lastElapsed < FOLIO_FEE_HANDOUT_PERIOD) {
+                // {s}
+                uint256 wholeElapsed = wholeDaysElapsed * FOLIO_FEE_HANDOUT_PERIOD;
+
+                // {s}
+                uint256 currentElapsed = Math.min(block.timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+
+                // {s}
+                uint256 elapsed = wholeElapsed + currentElapsed - lastElapsed;
+
+                // {share} = {share} * D18{1/s} * {s} / D18
+                uint256 maxHandout = Math.mulDiv(feeSupply, FOLIO_FEE_HANDOUT_RATE * elapsed, D18);
+
+                // {share}
+                _mintSelfFeeHandout = Math.min(folioPendingMintFeeShares, maxHandout);
+            }
+        }
     }
 
     /// Set TVL fee by annual percentage. Different from how it is stored!
@@ -1089,7 +1154,7 @@ contract Folio is
         emit MintFeeSet(_newFee);
     }
 
-    /// Set folio fee — fraction of fee-recipient shares to burn
+    /// Set folio fee — fraction of fee-recipient shares directed to Folio holders
     /// @param _newFee D18{1}
     function _setFolioSelfFee(uint256 _newFee) internal {
         require(_newFee <= MAX_FOLIO_FEE, Folio__FolioFeeTooHigh());
@@ -1122,25 +1187,33 @@ contract Folio is
         emit NameSet(_newName);
     }
 
-    /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
+    /// @dev After: all pending fee share accounting is up-to-date
     function _poke() internal {
         _closeTrustedFill(false);
 
         (
             uint256 _daoPendingFeeShares,
             uint256 _feeRecipientsPendingFeeShares,
-            uint256 _folioSelfFeeShares,
+            uint256 _tvlSelfFeeShares,
+            uint256 _mintSelfFeeHandout,
             uint256 _accountedUntil
-        ) = _getPendingFeeShares();
+        ) = _getFeeShares();
 
         if (_accountedUntil > lastPoke) {
             daoPendingFeeShares = _daoPendingFeeShares;
             feeRecipientsPendingFeeShares = _feeRecipientsPendingFeeShares;
             lastPoke = _accountedUntil;
+        }
 
-            if (_folioSelfFeeShares != 0) {
-                emit FolioFeePaid(address(this), _folioSelfFeeShares);
-            }
+        // burn pending mint shares around the 24h handout boundary
+        if (_mintSelfFeeHandout != 0) {
+            folioPendingMintFeeShares -= _mintSelfFeeHandout;
+        }
+        lastFolioFeePoke = block.timestamp;
+
+        if (_tvlSelfFeeShares + _mintSelfFeeHandout != 0) {
+            // fees paid to self = sum of constant TVL and 24h boundary mint fees
+            emit FolioFeePaid(address(this), _tvlSelfFeeShares + _mintSelfFeeHandout);
         }
     }
 
