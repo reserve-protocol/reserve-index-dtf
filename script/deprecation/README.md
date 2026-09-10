@@ -34,7 +34,14 @@ The admin role revocation must come after all Folio calls that require admin per
 bash script/deprecation/generate-deprecation-proposals.sh
 ```
 
-This generates one Safe Transaction Builder JSON per DTF in `script/deprecation/proposals/`.
+This generates one Safe Transaction Builder JSON per DTF in `script/deprecation/proposals/`. Each file is a
+single `propose()` call carrying every action for that DTF — one proposal per DTF, no follow-up round.
+
+### Folio Version Caveats
+
+The action set above targets Folio `4.0.0`+ (verified against `4.0.0` and `5.0.0` deployments). Folio `1.0.0`
+has no `deprecateFolio()`; it exposes `killFolio()` (`0x60913997`) / `isKilled()` instead, so a generated
+proposal would revert on execution. Check `folio.version()` before generating.
 
 ### Adding a New DTF
 
@@ -121,33 +128,71 @@ cast call <governor> "state(uint256)(uint8)" <proposal_id> --rpc-url <rpc>
 
 ## Fork Tests
 
-Two test suites validate the deprecation flow against live onchain state:
+Each DTF is covered twice, once on either side of submission. Both suites run the generated JSON, so the
+file you upload to the Safe is the file under test. Shared setup and post-conditions live in
+`test/base/BaseDeprecationForkTest.sol`; the suites differ only in where the actions come from and who
+executes them.
 
-### Direct Simulation (`test/DeprecationFork.t.sol`)
+### 1. Before Submission (`test/DeprecationJsonFork.t.sol`)
 
-Pranks as the owner timelock to execute all deprecation steps directly on a fork.
+Decodes the `propose()` calldata out of the generated JSON, checks the action set against live onchain
+state, then executes those exact actions as the owner timelock. Run this before uploading to the Safe.
+
+```bash
+FORK_RPC_MAINNET="<archive_rpc>" \
+  forge test --match-contract DeprecationJsonFork --evm-version cancun -vv
+```
+
+Beyond the shared post-conditions it asserts, against the JSON itself: the transaction targets the owner
+governor on the right chain, every `revokeRole` names a role the account currently holds, the
+`DEFAULT_ADMIN_ROLE` revoke is the last Folio action, and the ProxyAdmin `renounceOwnership()` closes the
+proposal. Pin `createSelectFork` to a recent block, since the DTF is still live.
+
+### 2. Once Submitted (`test/DeprecationProposalFork.t.sol`)
+
+Both entrypoints derive the proposal id from the actions via `hashProposal`, so nothing is hardcoded — if
+the id resolves to a real proposal, the onchain payload matches the JSON byte for byte.
+
+```bash
+FORK_RPC_MAINNET="<archive_rpc>" \
+  forge test --match-contract "DeprecationProposalFork|DeprecationLifecycleFork" --evm-version cancun -vv
+```
+
+**While still `Pending`** — `DeprecationLifecycleForkTest` drives the whole lifecycle: acquires voting power,
+votes, waits out the voting period, queues, waits out the timelock, and executes. Extend it with `cfg`,
+`governor`, `jsonPath`, `votingToken`, `renouncesProxyAdmin = true`, and pin the fork to a block **before the
+voting snapshot** — voting power is obtained by dealing vault shares and delegating, which only counts if it
+happens before the snapshot. Covers `DeprecationLifecycleFork_BED` and `_SMEL`. The vote is simulated;
+the proposal, its actions, quorum and the timelock delay are real.
+
+**Once `Queued`** — `DeprecationQueuedForkTest` asserts the state, warps past the ETA and executes. Mix it
+with `DeprecationProposalForkFromJson` to source the actions from the JSON, and pin the fork to a block where
+the proposal is queued but not yet executed. `DeprecationProposalFork_mvRWA` instead declares its actions
+inline: it predates the single-proposal flow, so its onchain payload has no ProxyAdmin renounce.
+
+Per-DTF addresses for pending deprecations live in `test/base/PendingDeprecations.sol`, shared by this suite
+and the JSON one.
+
+### Regression (`test/DeprecationFork.t.sol`)
+
+Assembles the steps inline and pranks the owner timelock. Retained for the DTFs already deprecated onchain,
+pinned to blocks before their proposals executed. New DTFs belong in the two suites above.
 
 ```bash
 FORK_RPC_MAINNET="<archive_rpc>" FORK_RPC_BASE="<archive_rpc>" \
   forge test --match-contract DeprecationForkTest --evm-version cancun -vv
 ```
 
-### Onchain Proposal Execution (`test/DeprecationProposalFork.t.sol`)
-
-Retrieves an actual queued proposal onchain, warps past the timelock ETA, and executes it through the Governor.
-
-```bash
-FORK_RPC_MAINNET="<archive_rpc>" \
-  forge test --match-contract DeprecationProposalFork --evm-version cancun -vv
-```
-
 ### What the Tests Verify
 
 - `isDeprecated` set to `true`
 - All role counts drop to zero (`DEFAULT_ADMIN_ROLE`, `REBALANCE_MANAGER`, `AUCTION_LAUNCHER`)
-- **Redeem works** — 1 share redeemed, assets received > 0
+- **Redeem works** — 1 share redeemed; every token `toAssets` quotes a nonzero amount for must pay out
+  (tokens quoted at zero are dust weights that floor away for a single share)
 - **Mint blocked** — reverts with `Folio__FolioDeprecated`
-- **Unstake/withdraw works** — StakingVault shares redeemed, lock claimed after delay, underlying tokens received
+- **Unstake/withdraw works** — StakingVault shares redeemed, lock claimed after the delay, underlying
+  received. The lock id is read off the `LockCreated` event, since a vault shared by several DTFs holds
+  too many locks to scan by index
 - ProxyAdmin ownership renounced to `address(0)`
 
 ### Requirements
