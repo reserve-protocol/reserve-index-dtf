@@ -711,7 +711,8 @@ contract Folio is
     /// @param newWeights D27{tok/BU} New basket weight ranges for BU definition; must always be provided
     /// @param newPrices D27{UoA/tok} Auction price ranges; must always be provided and obey PriceControl setting
     /// @param newLimits D18{BU/share} New BU limits; must be within range
-    /// @param auctionLength {s} Desired length for this auction, subject to PriceControl and maxAuctionLength
+    /// @param auctionLength {s} Desired length for this auction. With PriceControl.NONE it must equal
+    /// maxAuctionLength; with PARTIAL or ATOMIC_SWAP it must be within [MIN_AUCTION_LENGTH, maxAuctionLength].
     /// @return auctionId The newly created auctionId
     function openAuction(
         uint256 rebalanceNonce,

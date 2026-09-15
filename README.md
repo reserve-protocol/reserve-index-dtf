@@ -131,6 +131,12 @@ If `RebalanceControl.priceControl == PriceControl.PARTIAL`, the `AUCTION_LAUNCHE
 
 If `RebalanceControl.priceControl == PriceControl.ATOMIC_SWAP`, the `AUCTION_LAUNCHER` can go further and perform atomic swaps at fixed prices as long as prices are within the pre-approved `low-high` ranges. This lets an `AUCTION_LAUNCHER` set the clearing price as well as internalize MEV associated with pricing, preventing a public auction from forming. As a best practice the `AUCTION_LAUNCHER` should close the auction after all fills are completed, then end the rebalance as the final actions in their bundle.
 
+###### Auction Duration
+
+The `auctionLength` supplied to `openAuction` is subject to the rebalance's `PriceControl` setting. With `PriceControl.NONE`, the `AUCTION_LAUNCHER` cannot change the approved price curve, so `auctionLength` must equal the Folio's configured `maxAuctionLength`. With `PriceControl.PARTIAL` or `PriceControl.ATOMIC_SWAP`, the launcher may choose any duration from `MIN_AUCTION_LENGTH` through `maxAuctionLength`. A shorter duration changes the rate of the Dutch-auction price decay and is therefore only available when the launcher has price control. Permissionless auctions always use `maxAuctionLength`.
+
+For an `ATOMIC_SWAP` auction, where every token's supplied price range is constant, the auction executes at that fixed price immediately; the supplied `auctionLength` still must satisfy the configured bounds, but no time-based decay occurs.
+
 ###### Price Curve
 
 ![alt text](auction.png "Auction Curve")
