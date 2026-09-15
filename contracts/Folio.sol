@@ -405,8 +405,11 @@ contract Folio is
     }
 
     /// Deprecate the Folio, callable only by the admin
-    /// @dev Folio cannot be minted, rebalanced, opened for auction, or bid on
+    /// @dev Folio cannot be minted, rebalanced, opened for auction, or bid on. The Folio's TVL fee stops accruing,
+    ///      but the DAO fee floor continues to accrue.
     function deprecateFolio() external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+        _poke();
+        _setTVLFee(0);
         isDeprecated = true;
 
         emit FolioDeprecated();

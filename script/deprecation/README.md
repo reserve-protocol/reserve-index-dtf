@@ -6,7 +6,7 @@ Full deprecation of an Index DTF renders it permanently in **redemption-only mod
 
 A single governance proposal should perform all of the following actions:
 
-1. **`deprecateFolio()`** — sets `isDeprecated = true`, blocking minting, auctions, and rebalancing
+1. **`deprecateFolio()`** — sets the Folio TVL fee to zero and `isDeprecated = true`, blocking minting, auctions, and rebalancing; the DAO fee floor continues to accrue
 2. **`revokeRole(REBALANCE_MANAGER, tradingTimelock)`** — removes basket management capability
 3. **`revokeRole(AUCTION_LAUNCHER, ...)`** — removes all auction launcher addresses (one call per launcher)
 4. **`revokeRole(DEFAULT_ADMIN_ROLE, ownerTimelock)`** — removes governance control from the Folio
@@ -17,6 +17,7 @@ The admin role revocation must come after all Folio calls that require admin per
 ### Post-Deprecation State
 
 - `isDeprecated = true` — minting, auctions, and rebalancing all blocked
+- Folio TVL fee set to zero — only the DAO fee floor continues to accrue
 - All roles revoked — no address holds `DEFAULT_ADMIN_ROLE`, `REBALANCE_MANAGER`, or `AUCTION_LAUNCHER`
 - ProxyAdmin owner is `address(0)` — no further upgrades possible
 - **Redeem still works** — holders can always redeem shares for underlying basket tokens
