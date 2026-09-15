@@ -4292,7 +4292,14 @@ contract FolioTest is BaseTest {
         vm.expectRevert(IFolio.Folio__InvalidRebalanceNonce.selector);
         folio.endRebalance(1);
 
+        // Max nonce skips validation and ends the current rebalance
+        vm.prank(dao);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.RebalanceEnded(2);
+        folio.endRebalance(type(uint256).max);
+
         vm.prank(auctionLauncher);
+        vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
         folio.openAuction(2, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
     }
 

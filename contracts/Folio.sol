@@ -909,10 +909,13 @@ contract Folio is
 
     /// End the current rebalance, WITHOUT impacting any ongoing auction
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
-    /// @param rebalanceNonce The nonce of the rebalance to end
+    /// @param rebalanceNonce The nonce of the rebalance to end, or type(uint256).max to skip validation
     function endRebalance(uint256 rebalanceNonce) external nonReentrant {
         _checkPrivileged();
-        require(rebalance.nonce == rebalanceNonce, Folio__InvalidRebalanceNonce());
+        require(
+            rebalanceNonce == type(uint256).max || rebalance.nonce == rebalanceNonce,
+            Folio__InvalidRebalanceNonce()
+        );
 
         emit RebalanceEnded(rebalance.nonce);
 
