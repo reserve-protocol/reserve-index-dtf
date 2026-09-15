@@ -107,6 +107,7 @@ contract FolioLens is Versioned {
         uint256 totalSupply = folio.totalSupply();
 
         (, , IFolio.TokenRebalanceParams[] memory tokenParams, , , ) = folio.getRebalance();
+        (, uint256[] memory balances) = folio.totalAssets();
 
         uint256 len = tokenParams.length;
         tokens = new address[](len);
@@ -123,7 +124,7 @@ contract FolioLens is Versioned {
             tokens[i] = token;
 
             // {tok}
-            uint256 bal = IERC20(token).balanceOf(address(folio));
+            uint256 bal = balances[i];
 
             // surpluses
             {
