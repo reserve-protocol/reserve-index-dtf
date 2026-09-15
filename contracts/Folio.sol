@@ -393,7 +393,7 @@ contract Folio is
     }
 
     /// Remove tokens from the allowlist
-    /// @dev Does not impact ongoing rebalances. Consider calling endRebalance()
+    /// @dev Does not impact ongoing rebalances. Consider calling endRebalance(rebalanceNonce)
     /// @param tokens The tokens to remove from the allowlist
     function removeFromAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 len = tokens.length;
@@ -909,8 +909,10 @@ contract Folio is
 
     /// End the current rebalance, WITHOUT impacting any ongoing auction
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
-    function endRebalance() external nonReentrant {
+    /// @param rebalanceNonce The nonce of the rebalance to end
+    function endRebalance(uint256 rebalanceNonce) external nonReentrant {
         _checkPrivileged();
+        require(rebalance.nonce == rebalanceNonce, Folio__InvalidRebalanceNonce());
 
         emit RebalanceEnded(rebalance.nonce);
 
