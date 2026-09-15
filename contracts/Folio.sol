@@ -439,6 +439,11 @@ contract Folio is
         return _totalAssets();
     }
 
+    /// @notice Returns the known balance of an asset, including any active trusted fill balance
+    function balanceOfAsset(IERC20 token) external view override returns (uint256) {
+        return _balanceOfToken(token);
+    }
+
     /// @dev Result may be unreliable mid-swap during trusted fill execution, check stateChangeActive()
     /// @param shares {share}
     /// @return _assets

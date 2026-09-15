@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 interface IFolio {
     // === Events ===
 
@@ -228,4 +230,7 @@ interface IFolio {
     }
 
     function distributeFees() external;
+
+    /// @notice Returns the known balance of an asset, including any active trusted fill balance
+    function balanceOfAsset(IERC20 token) external view returns (uint256);
 }

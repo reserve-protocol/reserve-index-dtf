@@ -36,7 +36,7 @@ contract FolioLens is Versioned {
             tokens[i] = token;
 
             // D27{tok/share} = D27 * {tok} / {share}
-            weights[i] = (D27 * IERC20(token).balanceOf(address(folio))) / totalSupply;
+            weights[i] = (D27 * folio.balanceOfAsset(IERC20(token))) / totalSupply;
         }
     }
 
