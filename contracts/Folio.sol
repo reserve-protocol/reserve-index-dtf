@@ -913,7 +913,7 @@ contract Folio is
     function endRebalance(uint256 rebalanceNonce) external nonReentrant {
         _checkPrivileged();
         require(
-            rebalanceNonce == type(uint256).max || rebalance.nonce == rebalanceNonce,
+            rebalance.nonce == rebalanceNonce || rebalanceNonce == type(uint256).max,
             Folio__InvalidRebalanceNonce()
         );
 

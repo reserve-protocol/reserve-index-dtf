@@ -41,7 +41,7 @@ library RebalancingLib {
 
         uint256 nextRebalanceNonce = rebalance.nonce + 1;
         require(
-            rebalanceNonce == type(uint256).max || rebalanceNonce == nextRebalanceNonce,
+            rebalanceNonce == nextRebalanceNonce || rebalanceNonce == type(uint256).max,
             IFolio.Folio__InvalidRebalanceNonce()
         );
 
