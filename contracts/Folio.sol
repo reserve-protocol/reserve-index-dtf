@@ -658,7 +658,7 @@ contract Folio is
     /// Start a new rebalance, ending the currently running auction
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
     /// @dev Weights become stale from TVL fee inflation on each 24h boundary and during the mint self-fee handout window that follows
-    /// @param rebalanceNonce The expected nonce after this rebalance starts
+    /// @param rebalanceNonce The expected nonce after this rebalance starts, or type(uint256).max to skip validation
     /// @param tokens The rebalance parameters for each token in the rebalance
     /// @param tokens.token MUST be unique; MUST be allowlisted when the trade allowlist is enabled
     /// @param tokens.weight D27{tok/BU} Basket weight ranges; low <= spot <= high <= 1e54

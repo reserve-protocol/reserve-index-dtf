@@ -40,7 +40,10 @@ library RebalancingLib {
         require(block.timestamp <= rebalanceParams.deadline, IFolio.Folio__DeadlineExpired());
 
         uint256 nextRebalanceNonce = rebalance.nonce + 1;
-        require(rebalanceNonce == nextRebalanceNonce, IFolio.Folio__InvalidRebalanceNonce());
+        require(
+            rebalanceNonce == type(uint256).max || rebalanceNonce == nextRebalanceNonce,
+            IFolio.Folio__InvalidRebalanceNonce()
+        );
 
         // remove old tokens from rebalance while keeping them in the basket
         for (uint256 i; i < oldTokens.length; i++) {

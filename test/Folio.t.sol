@@ -4893,6 +4893,19 @@ contract FolioTest is BaseTest {
         vm.stopPrank();
     }
 
+    function test_startRebalanceWithMaxNonceSkipsValidation() public {
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        vm.prank(dao);
+        folio.startRebalance(type(uint256).max, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL, type(uint256).max);
+
+        (uint256 nonce, , , , , ) = folio.getRebalance();
+        assertEq(nonce, 1, "rebalance nonce should increment normally");
+    }
+
     function test_cannotStartRebalanceInvalidArrays() public {
         // Sell USDC
         weights[0] = SELL;
