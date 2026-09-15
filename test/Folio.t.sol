@@ -2953,7 +2953,7 @@ contract FolioTest is BaseTest {
             }
 
             vm.prank(dao);
-            folio.endRebalance();
+            folio.endRebalance(i + 1);
         }
     }
 
@@ -4257,13 +4257,19 @@ contract FolioTest is BaseTest {
         // Attempt to end rebalance with unauthorized role (user1)
         vm.prank(user1);
         vm.expectRevert(IFolio.Folio__Unauthorized.selector);
-        folio.endRebalance();
+        folio.endRebalance(1);
 
         // End the rebalance with authorized role (dao)
         vm.prank(dao);
         vm.expectEmit(true, false, false, true);
         emit IFolio.RebalanceEnded(1);
-        folio.endRebalance();
+        folio.endRebalance(1);
+
+        // Ending the same rebalance remains idempotent
+        vm.prank(dao);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.RebalanceEnded(1);
+        folio.endRebalance(1);
 
         // Verify we can still bid on the existing auction
         vm.startPrank(user1);
@@ -4277,6 +4283,17 @@ contract FolioTest is BaseTest {
         vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
+
+        // A stale end cannot terminate the next rebalance
+        vm.prank(dao);
+        startRebalance(folio, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidRebalanceNonce.selector);
+        folio.endRebalance(1);
+
+        vm.prank(auctionLauncher);
+        folio.openAuction(2, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
     }
 
     function test_priceControlAuctionBidWithoutCallback() public {
