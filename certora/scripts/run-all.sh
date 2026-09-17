@@ -1,13 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-certora/scripts/apply-patch.sh
+set -euo pipefail
 
-certoraRun certora/confs/folio_prerequisities.conf
+configs=(
+    certora/confs/folio_prerequisities.conf
+    certora/confs/properties/*.conf
+)
 
-for FILE in certora/confs/properties/*.conf
-do
-    echo ${FILE}
-    certoraRun ${FILE}
-done
-
-certora/scripts/remove-patch.sh
+certora/scripts/run-with-patch.sh "${configs[@]}"

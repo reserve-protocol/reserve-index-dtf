@@ -6,7 +6,7 @@ This folder contains the formal verification specifications for the Reserve Foli
 
 ```
 certora/
-├── conf/                         # Configuration files for running the prover
+├── confs/                        # Configuration files for running the prover
 │   ├── properties/*.conf           # Main configuration files
 │   └── folio_prerequisities.conf   # Configuration file for invariants assumed in the main rules
 ├── harnesses/                    # Solidity harness contracts for verification
@@ -17,12 +17,14 @@ certora/
 │   ├── MockTrustedFiller.sol       # Mock for the trustedFiller contract
 ├── patches/                      # Patch files
 │   ├── Folio.patch                 # Patch file changing visibility of private variables to internal
-├── scripts/                      # Scripts to apply patches and run certora prover
-│   ├── apply-patch.sh              # Applies the Folio.patch using git apply
-│   ├── remove-patch.sh             # Removes the application of the Folio.patch
+├── requirements.txt              # Pinned Python dependencies for the local prover frontend
+├── scripts/                      # Scripts to build and run the local Certora Prover
+│   ├── setup-local-prover.sh       # Installs the pinned open-source prover toolchain
+│   ├── run-prover.sh               # Runs one local prover configuration
+│   ├── run-with-patch.sh           # Applies Folio.patch and always restores the source tree
 │   ├── P*.sh                       # Run scripts for various properties
 │   ├── run-all.sh                  # Runs all properties
-└── spec/                         # CVL specification files
+└── specs/                        # CVL specification files
     ├── summaries-Folio.spec        # Math summaries
     ├── folio-prerequisities.spec   # Spec file with invariants used in the main rules
     ├── folio-assumptions.spec      # Spec file introducing assumptions for the rules
@@ -31,29 +33,34 @@ certora/
     └── Summaries/                  # Spec files containing function summaries
 ```
 
-
-
 ## Verified properties
 
-### P-01 Token to share ratio does not decrease 
+### P-01 Token to share ratio does not decrease
+
 Outside of bid/trustedFill flow, the token to share ratio does not decrease for each underlying token unless fees are applied.
 
 ### P-02 Share value does not decrease
+
 If prices are set correctly, share value does not decrease (includes the bid flow).
 
 ### P-03 Auction limit is not exceeded
+
 Bid cannot exceed the auction limit. Trusted fill can exceed this value by obtaining more tokens than would be expected through bid.
 
 ### P-04 Bid flow is equivalent to trustedFill flow
+
 If trusted fill behaves correctly, Folio always gets the same or more via trustedFill flow than via bid. Same restrictions on token limits are used.
 
 ### P-05 Only tokens in surplus or deficit can be traded
+
 Tokens already within desired limits cannot be traded.
 
-### P-06 _price() monotonically decreases throughout the auction
-Assuming exp function is monotonic, the _price function is non-increasing with time.
+### P-06 `_price()` monotonically decreases throughout the auction
+
+Assuming exp function is monotonic, the `_price` function is non-increasing with time.
 
 ### P-07 Splitting bids is equivalent to one bid
+
 Splitting one larger bid into two can change bidAmount by at most 1 wei due to rounding. This rounding is in favour of the Folio.
 
 ### P-08 Only mint, redeem and fees can change share quantities
@@ -62,41 +69,45 @@ Splitting one larger bid into two can change bidAmount by at most 1 wei due to r
 
 ### P-10 Tokens can be removed from the basket by admin or if their balance is 0.
 
-
-
 ## Prerequisites
 
-1. Install the Certora Prover CLI:
-   ```bash
-   pip install certora-cli
-   ```
+The proof uses the GPLv3 [open-source Certora Prover](https://github.com/Certora/CertoraProver) locally. It does not install the hosted `certora-cli` package, submit jobs to Certora's servers, or require a `CERTORAKEY`.
 
-2. Set your Certora API key:
-   ```bash
-   export CERTORAKEY=<your-api-key>
-   ```
+The automated setup supports Linux x86_64 and requires `curl`, `git`, Python 3, `tar`, and `unzip`. It downloads checksum-pinned JDK, Rust, Z3, CVC4, CVC5, Yices, and Solidity toolchains, then builds CertoraProver 8.9.0 from its pinned source commit into the ignored `.certora/` directory.
 
+```bash
+pnpm install --frozen-lockfile
+./certora/scripts/setup-local-prover.sh
+```
 
+The initial source build takes several minutes. Later setup calls return immediately. On other platforms, install the [upstream CertoraProver dependencies](https://github.com/Certora/CertoraProver#dependencies), build release 8.9.0 with `./gradlew copy-assets`, and run the local `certoraRun.py` against these configuration files.
 
 ## Running the Prover
 
-It is possible to run the configurations directly via
+Run one property with its convenience script:
 
 ```bash
-certoraRun certora/confs/properties/<config_file>.conf
+./certora/scripts/P6.sh
 ```
 
-this assumes that the patch file is already applied. For convenience, you can use the run scripts for each property which will apply the patch, run the Certora prover and then remove the patch. Some properties will run multiple conf files and thus create multiple jobs.
-You can also run all properties:
+The property scripts apply `certora/patches/Folio.patch`, run all configurations for that property, and restore `contracts/Folio.sol` even if the prover fails or is interrupted. To run a specific configuration with the same cleanup behavior:
+
+```bash
+./certora/scripts/run-with-patch.sh certora/confs/properties/P6-2.conf
+```
+
+Run the complete suite with:
 
 ```bash
 ./certora/scripts/run-all.sh
 ```
 
-
+Results are written locally to `emv-*-certora-*/Reports/`. No proof data leaves the machine.
 
 ### Documentation
+
 For more information on the Certora Prover and CVL specification language, see:
+
+- [Open-source Certora Prover](https://github.com/Certora/CertoraProver)
 - [Certora Documentation](https://docs.certora.com/)
 - [CVL Language Reference](https://docs.certora.com/en/latest/docs/cvl/index.html)
-- [Certora Prover CLI](https://docs.certora.com/en/latest/docs/prover/cli/index.html)

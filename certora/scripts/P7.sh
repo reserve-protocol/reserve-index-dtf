@@ -1,5 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-certora/scripts/apply-patch.sh
-certoraRun certora/confs/properties/P7.conf
-certora/scripts/remove-patch.sh
+set -euo pipefail
+
+certora/scripts/run-with-patch.sh certora/confs/properties/P7.conf

@@ -1,7 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-certora/scripts/apply-patch.sh
-certoraRun certora/confs/properties/P4-1.conf
-certoraRun certora/confs/properties/P4-2.conf
-certoraRun certora/confs/properties/P4-3.conf
-certora/scripts/remove-patch.sh
+set -euo pipefail
+
+certora/scripts/run-with-patch.sh \
+    certora/confs/properties/P4-1.conf \
+    certora/confs/properties/P4-2.conf \
+    certora/confs/properties/P4-3.conf
