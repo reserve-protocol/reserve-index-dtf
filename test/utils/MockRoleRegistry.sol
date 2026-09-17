@@ -11,8 +11,8 @@ import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensio
 contract MockRoleRegistry is AccessControlEnumerable {
     bytes32 public constant EMERGENCY_COUNCIL = keccak256("EMERGENCY_COUNCIL");
 
-    constructor() {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    constructor(address owner) {
+        _grantRole(DEFAULT_ADMIN_ROLE, owner);
     }
 
     function isOwner(address account) public view returns (bool) {

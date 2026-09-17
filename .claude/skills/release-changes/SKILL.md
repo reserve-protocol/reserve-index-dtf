@@ -20,23 +20,18 @@ Analyze Solidity contract changes between two release tags. Produce a concise re
 
 ## Exported Contracts (Frontend-Facing)
 
-| Contract           | Source File                                 |
-| ------------------ | ------------------------------------------- |
-| Folio              | `contracts/Folio.sol`                       |
-| FolioLens          | `contracts/periphery/FolioLens.sol`         |
-| GovernanceDeployer | `contracts/deployer/GovernanceDeployer.sol` |
-| FolioDeployer      | `contracts/deployer/FolioDeployer.sol`      |
-| FolioProxyAdmin    | `contracts/folio/FolioProxy.sol`            |
-| FolioProxy         | `contracts/folio/FolioProxy.sol`            |
-| StakingVault       | `contracts/staking/StakingVault.sol`        |
-| UnstakingManager   | `contracts/staking/UnstakingManager.sol`    |
-| FolioGovernor      | `contracts/governance/FolioGovernor.sol`    |
+| Contract        | Source File                            |
+| --------------- | -------------------------------------- |
+| Folio           | `contracts/Folio.sol`                  |
+| FolioLens       | `contracts/periphery/FolioLens.sol`    |
+| FolioDeployer   | `contracts/deployer/FolioDeployer.sol` |
+| FolioProxyAdmin | `contracts/folio/FolioProxy.sol`       |
+| FolioProxy      | `contracts/folio/FolioProxy.sol`       |
 
 ## Interface Files
 
 - `contracts/interfaces/IFolio.sol`
 - `contracts/interfaces/IFolioDeployer.sol`
-- `contracts/interfaces/IGovernanceDeployer.sol`
 - `contracts/interfaces/IFolioDAOFeeRegistry.sol`
 - `contracts/interfaces/IFolioVersionRegistry.sol`
 - `contracts/interfaces/IBidderCallee.sol`
@@ -79,7 +74,7 @@ Focus on:
 - New/removed event declarations
 - Changed event parameters (types, names, indexing, order)
 
-**4c. Deployer Changes** (`FolioDeployer.sol`, `GovernanceDeployer.sol`)
+**4c. Deployer Changes** (`FolioDeployer.sol`)
 
 Report changes that affect how the frontend *calls* the deployer:
 - New deployment functions or changed function signatures

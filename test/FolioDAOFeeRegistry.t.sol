@@ -99,7 +99,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
     function test_setDefaultFeeNumerator() public {
         uint256 numerator;
         (, numerator, , ) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(numerator, 0.5e18);
+        assertEq(numerator, MAX_DAO_FEE);
 
         vm.expectEmit(true, true, false, true);
         emit IFolioDAOFeeRegistry.DefaultFeeNumeratorSet(0.1e18);
@@ -124,7 +124,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
     function test_setTokenFeeNumerator() public {
         uint256 numerator;
         (, numerator, , ) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(numerator, 0.5e18);
+        assertEq(numerator, MAX_DAO_FEE);
 
         vm.expectEmit(true, true, false, true);
         emit IFolioDAOFeeRegistry.TokenFeeNumeratorSet(address(folio), 0.1e18, true);
@@ -148,7 +148,7 @@ contract FolioDAOFeeRegistryTest is BaseTest {
     function test_usesDefaultFeeNumeratorOnlyWhenTokenNumeratorIsNotSet() public {
         uint256 numerator;
         (, numerator, , ) = daoFeeRegistry.getFeeDetails(address(folio));
-        assertEq(numerator, 0.5e18); // default
+        assertEq(numerator, MAX_DAO_FEE); // default
 
         // set new value for default fee numerator
         daoFeeRegistry.setDefaultFeeNumerator(0.05e18);

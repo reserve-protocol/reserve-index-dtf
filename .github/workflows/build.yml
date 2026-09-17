@@ -16,11 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
-      - uses: pnpm/action-setup@v4
+      - run: corepack enable pnpm
 
       - name: Install Node
         uses: actions/setup-node@v6
@@ -60,11 +60,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
-      - uses: pnpm/action-setup@v4
+      - run: corepack enable pnpm
 
       - name: Install Node
         uses: actions/setup-node@v6

@@ -13,13 +13,33 @@ import { MathLib } from "@utils/MathLib.sol";
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
  */
 library FolioLib {
-    /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
+    /// @dev Warning: Empty fee recipient tables send all non-self fees to DAO
     function setFeeRecipients(
         IFolio.FeeRecipient[] storage feeRecipients,
-        IFolio.FeeRecipient[] calldata _feeRecipients
+        IFolio.FeeRecipient[] storage immutableFeeRecipients,
+        IFolio.FeeRecipient[] calldata _feeRecipients,
+        IFolio.FeeRecipient[] calldata _immutableFeeRecipients
     ) external {
+        // Validate recipient table ordering and entries before combined checks.
+        _validateFeeRecipientList(_feeRecipients);
+        _validateFeeRecipientList(_immutableFeeRecipients);
+
+        _validateFeeRecipients(_feeRecipients, _immutableFeeRecipients);
+
+        _requireImmutableFeeRecipientsPreserved(immutableFeeRecipients, _immutableFeeRecipients);
+
+        // Replace mutable and immutable recipient storage.
+        _setFeeRecipients(feeRecipients, _feeRecipients);
         emit IFolio.FeeRecipientsSet(_feeRecipients);
 
+        _setFeeRecipients(immutableFeeRecipients, _immutableFeeRecipients);
+        emit IFolio.ImmutableFeeRecipientsSet(_immutableFeeRecipients);
+    }
+
+    function _setFeeRecipients(
+        IFolio.FeeRecipient[] storage feeRecipients,
+        IFolio.FeeRecipient[] calldata _feeRecipients
+    ) private {
         // Clear existing fee table
         uint256 len = feeRecipients.length;
         for (uint256 i; i < len; i++) {
@@ -28,6 +48,31 @@ library FolioLib {
 
         // Add new items to the fee table
         len = _feeRecipients.length;
+        for (uint256 i; i < len; i++) {
+            feeRecipients.push(_feeRecipients[i]);
+        }
+    }
+
+    function _validateFeeRecipientList(IFolio.FeeRecipient[] calldata recipients) private view {
+        uint256 len = recipients.length;
+
+        address previousRecipient;
+        for (uint256 i; i < len; i++) {
+            require(recipients[i].recipient != address(this), IFolio.Folio__FeeRecipientInvalidAddress());
+            require(recipients[i].recipient > previousRecipient, IFolio.Folio__FeeRecipientInvalidAddress());
+            require(recipients[i].portion != 0, IFolio.Folio__FeeRecipientInvalidFeeShare());
+
+            previousRecipient = recipients[i].recipient;
+        }
+    }
+
+    function _validateFeeRecipients(
+        IFolio.FeeRecipient[] calldata feeRecipients,
+        IFolio.FeeRecipient[] calldata immutableFeeRecipients
+    ) private pure {
+        uint256 mutableLen = feeRecipients.length;
+        uint256 immutableLen = immutableFeeRecipients.length;
+        uint256 len = mutableLen + immutableLen;
 
         if (len == 0) {
             return;
@@ -35,21 +80,58 @@ library FolioLib {
 
         require(len <= MAX_FEE_RECIPIENTS, IFolio.Folio__TooManyFeeRecipients());
 
-        address previousRecipient;
         uint256 total;
-
-        for (uint256 i; i < len; i++) {
-            require(_feeRecipients[i].recipient != address(this), IFolio.Folio__FeeRecipientInvalidAddress());
-            require(_feeRecipients[i].recipient > previousRecipient, IFolio.Folio__FeeRecipientInvalidAddress());
-            require(_feeRecipients[i].portion != 0, IFolio.Folio__FeeRecipientInvalidFeeShare());
-
-            total += _feeRecipients[i].portion;
-            previousRecipient = _feeRecipients[i].recipient;
-            feeRecipients.push(_feeRecipients[i]);
+        for (uint256 i; i < mutableLen; i++) {
+            total += feeRecipients[i].portion;
+        }
+        for (uint256 i; i < immutableLen; i++) {
+            total += immutableFeeRecipients[i].portion;
         }
 
-        // ensure table adds up to 100%
+        // ensure tables add up to 100%
         require(total == D18, IFolio.Folio__BadFeeTotal());
+    }
+
+    function _requireImmutableFeeRecipientsPreserved(
+        IFolio.FeeRecipient[] storage immutableFeeRecipients,
+        IFolio.FeeRecipient[] calldata _immutableFeeRecipients
+    ) private view {
+        uint256 oldImmutableLen = immutableFeeRecipients.length;
+        uint256 newImmutableLen = _immutableFeeRecipients.length;
+        uint256 oldIndex;
+
+        for (uint256 newIndex; newIndex < newImmutableLen && oldIndex < oldImmutableLen; newIndex++) {
+            IFolio.FeeRecipient storage oldRecipient = immutableFeeRecipients[oldIndex];
+            IFolio.FeeRecipient calldata newRecipient = _immutableFeeRecipients[newIndex];
+
+            if (newRecipient.recipient < oldRecipient.recipient) {
+                continue;
+            }
+
+            require(newRecipient.recipient == oldRecipient.recipient, IFolio.Folio__ImmutableFeeRecipientRemoved());
+            require(newRecipient.portion >= oldRecipient.portion, IFolio.Folio__ImmutableFeeRecipientRemoved());
+
+            oldIndex++;
+        }
+
+        require(oldIndex == oldImmutableLen, IFolio.Folio__ImmutableFeeRecipientRemoved());
+    }
+
+    function mergeFeeRecipients(
+        IFolio.FeeRecipient[] storage feeRecipients,
+        IFolio.FeeRecipient[] storage immutableFeeRecipients
+    ) internal view returns (IFolio.FeeRecipient[] memory recipients) {
+        uint256 mutableLen = feeRecipients.length;
+        uint256 immutableLen = immutableFeeRecipients.length;
+        recipients = new IFolio.FeeRecipient[](mutableLen + immutableLen);
+
+        for (uint256 i; i < mutableLen; i++) {
+            recipients[i] = feeRecipients[i];
+        }
+
+        for (uint256 i; i < immutableLen; i++) {
+            recipients[mutableLen + i] = immutableFeeRecipients[i];
+        }
     }
 
     /// @dev stack-too-deep
@@ -57,18 +139,23 @@ library FolioLib {
         uint256 currentDaoPending; // {share}
         uint256 currentFeeRecipientsPending; // {share}
         uint256 tvlFee; // D18{1/s}
-        uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
+        uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares directed to Folio holders
         uint256 supply; // {share}
         uint256 elapsed; // {s}
     }
 
-    /// Compute TVL fee shares owed to the DAO and fee recipients
+    /// Compute TVL fee shares owed to the DAO, fee recipients, and the Folio itself
     /// @return _daoPendingFeeShares {share}
     /// @return _feeRecipientsPendingFeeShares {share}
+    /// @return _folioSelfFeeShares {share}
     function computeFeeShares(
         FeeSharesParams calldata params,
         IFolioDAOFeeRegistry daoFeeRegistry
-    ) external view returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares) {
+    )
+        external
+        view
+        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, uint256 _folioSelfFeeShares)
+    {
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
             address(this)
         );
@@ -82,7 +169,7 @@ library FolioLib {
         uint256 _tvlFee = feeFloor > params.tvlFee ? feeFloor : params.tvlFee;
 
         if (_tvlFee == 0) {
-            return (params.currentDaoPending, params.currentFeeRecipientsPending);
+            return (params.currentDaoPending, params.currentFeeRecipientsPending, 0);
         }
 
         // {share} += {share} * D18 / D18{1/s} ^ {s} - {share}
@@ -99,12 +186,12 @@ library FolioLib {
         _daoPendingFeeShares = params.currentDaoPending + daoShares;
 
         uint256 rawRecipientShares = feeShares - daoShares;
-        uint256 selfShares = (rawRecipientShares * params.folioFeeForSelf) / D18;
-        _feeRecipientsPendingFeeShares = params.currentFeeRecipientsPending + rawRecipientShares - selfShares;
+        _folioSelfFeeShares = (rawRecipientShares * params.folioFeeForSelf) / D18;
+        _feeRecipientsPendingFeeShares = params.currentFeeRecipientsPending + rawRecipientShares - _folioSelfFeeShares;
     }
 
     /// Set TVL fee by annual percentage. Different from how it is stored!
-    /// @param _newFeeAnnually D18{1}
+    /// @param _newFeeAnnually D18{1/year}
     /// @return _tvlFee D18{1/s} The computed per-second fee
     function setTVLFee(uint256 _newFeeAnnually) external returns (uint256 _tvlFee) {
         require(_newFeeAnnually <= MAX_TVL_FEE, IFolio.Folio__TVLFeeTooHigh());
@@ -119,15 +206,6 @@ library FolioLib {
         emit IFolio.TVLFeeSet(_tvlFee, _newFeeAnnually);
     }
 
-    /// Compute mint fee shares for DAO and fee recipients
-    /// @param shares {share} Amount of shares being minted
-    /// @param _mintFee D18{1} Fee on mint
-    /// @param _folioFee D18{1} Fraction of fee-recipient shares to burn
-    /// @param minSharesOut {share} Minimum shares the caller must receive
-    /// @param daoFeeRegistry The DAO fee registry to query fee details from
-    /// @return sharesOut {share} Shares to mint for the receiver
-    /// @return daoFeeShares {share} Shares owed to the DAO
-    /// @return feeRecipientFeeShares {share} Shares owed to fee recipients (excludes self-fee shares)
     /// @dev stack-too-deep
     struct MintFeeParams {
         uint256 shares; // {share}
@@ -136,10 +214,16 @@ library FolioLib {
         uint256 minSharesOut; // {share}
     }
 
+    /// Compute mint fee shares for DAO and fee recipients
+    /// @param params Mint fee parameters
+    /// @param daoFeeRegistry The DAO fee registry to query fee details from
+    /// @return sharesOut {share} Shares to mint for the receiver
+    /// @return daoFeeShares {share} Shares owed to the DAO
+    /// @return feeRecipientFeeShares {share} Shares owed to fee recipients (excludes self-fee shares)
     function computeMintFees(
         MintFeeParams calldata params,
         IFolioDAOFeeRegistry daoFeeRegistry
-    ) external returns (uint256 sharesOut, uint256 daoFeeShares, uint256 feeRecipientFeeShares) {
+    ) external view returns (uint256 sharesOut, uint256 daoFeeShares, uint256 feeRecipientFeeShares) {
         (, uint256 daoFeeNumerator, uint256 daoFeeDenominator, uint256 daoFeeFloor) = daoFeeRegistry.getFeeDetails(
             address(this)
         );
@@ -163,10 +247,8 @@ library FolioLib {
         uint256 folioSelfShares = (feeRecipientFeeShares * params.folioFeeForSelf) / D18;
         feeRecipientFeeShares -= folioSelfShares;
 
-        // {share} minter pays the full fee (including self-fee shares that are burned)
+        // {share} minter pays the full fee, including pending self-fee shares
         sharesOut = params.shares - totalFeeShares;
         require(sharesOut != 0 && sharesOut >= params.minSharesOut, IFolio.Folio__InsufficientSharesOut());
-
-        emit IFolio.FolioFeePaid(address(this), folioSelfShares);
     }
 }

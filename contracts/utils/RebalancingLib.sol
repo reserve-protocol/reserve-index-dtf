@@ -21,16 +21,27 @@ import { MathLib } from "@utils/MathLib.sol";
  * startRebalance() -> openAuction() -> getBid() -> bid()
  */
 library RebalancingLib {
+    struct RebalanceParams {
+        uint256 auctionLauncherWindow;
+        uint256 ttl;
+        uint256 deadline;
+        bool bidsEnabled;
+    }
+
     function startRebalance(
+        uint256 rebalanceNonce,
         address[] calldata oldTokens,
         IFolio.RebalanceControl storage rebalanceControl,
         IFolio.Rebalance storage rebalance,
         IFolio.TokenRebalanceParams[] calldata tokens,
         IFolio.RebalanceLimits calldata limits,
-        uint256 auctionLauncherWindow,
-        uint256 ttl,
-        bool bidsEnabled
+        RebalanceParams calldata rebalanceParams
     ) external {
+        require(block.timestamp <= rebalanceParams.deadline, IFolio.Folio__DeadlineExpired());
+
+        uint256 nextRebalanceNonce = rebalance.nonce + 1;
+        require(rebalanceNonce == nextRebalanceNonce, IFolio.Folio__InvalidRebalanceNonce());
+
         // remove old tokens from rebalance while keeping them in the basket
         for (uint256 i; i < oldTokens.length; i++) {
             delete rebalance.details[oldTokens[i]];
@@ -38,7 +49,12 @@ library RebalancingLib {
 
         // ====
 
-        require(ttl != 0 && ttl >= auctionLauncherWindow && ttl <= MAX_TTL, IFolio.Folio__InvalidTTL());
+        require(
+            rebalanceParams.ttl != 0 &&
+                rebalanceParams.ttl >= rebalanceParams.auctionLauncherWindow &&
+                rebalanceParams.ttl <= MAX_TTL,
+            IFolio.Folio__InvalidTTL()
+        );
 
         // enforce limits are internally consistent
         require(
@@ -52,7 +68,7 @@ library RebalancingLib {
         // set new rebalance details and prices
         for (uint256 i; i < len; i++) {
             IFolio.TokenRebalanceParams calldata params = tokens[i];
-            require(params.inRebalance, IFolio.Folo__NotInRebalance());
+            require(params.inRebalance, IFolio.Folio__NotInRebalance());
 
             // enforce valid token
             require(params.token != address(0) && params.token != address(this), IFolio.Folio__InvalidAsset());
@@ -95,13 +111,13 @@ library RebalancingLib {
             });
         }
 
-        rebalance.nonce++;
+        rebalance.nonce = nextRebalanceNonce;
         rebalance.limits = limits;
         rebalance.startedAt = block.timestamp;
-        rebalance.restrictedUntil = block.timestamp + auctionLauncherWindow;
-        rebalance.availableUntil = block.timestamp + ttl;
+        rebalance.restrictedUntil = block.timestamp + rebalanceParams.auctionLauncherWindow;
+        rebalance.availableUntil = block.timestamp + rebalanceParams.ttl;
         rebalance.priceControl = rebalanceControl.priceControl;
-        rebalance.bidsEnabled = bidsEnabled;
+        rebalance.bidsEnabled = rebalanceParams.bidsEnabled;
 
         emit IFolio.RebalanceStarted(
             rebalance.nonce,
@@ -109,9 +125,9 @@ library RebalancingLib {
             tokens,
             limits,
             block.timestamp,
-            block.timestamp + auctionLauncherWindow,
-            block.timestamp + ttl,
-            bidsEnabled
+            block.timestamp + rebalanceParams.auctionLauncherWindow,
+            block.timestamp + rebalanceParams.ttl,
+            rebalanceParams.bidsEnabled
         );
     }
 
@@ -257,7 +273,7 @@ library RebalancingLib {
     /// Get bid parameters for an ongoing auction at the current timestamp
     /// @return sellAmount {sellTok} The actual sell amount in the bid
     /// @return bidAmount {buyTok} The corresponding buy amount
-    /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
+    /// @return price D27{buyTok/sellTok} The price in the current block as a 27-decimal fixed point
     function getBid(
         IFolio.Rebalance storage rebalance,
         IFolio.Auction storage auction,
@@ -388,13 +404,11 @@ library RebalancingLib {
     /// Close a trusted fill
     /// @param auction The current ongoing auction
     /// @param activeTrustedFill The active trusted fill to close
-    /// @return sold {sellTok} The amount of sell tokens sold by the trusted fill
-    /// @return bought {buyTok} The amount of buy tokens bought by the trusted fill
     /// @return shouldRemoveFromBasket If true, the auction's sell token should be removed from the basket after close
     function closeTrustedFill(
         IFolio.Auction storage auction,
         IBaseTrustedFiller activeTrustedFill
-    ) external returns (uint256 sold, uint256 bought, bool shouldRemoveFromBasket) {
+    ) external returns (bool shouldRemoveFromBasket) {
         IERC20 sellToken = activeTrustedFill.sellToken();
         IERC20 buyToken = activeTrustedFill.buyToken();
 
@@ -409,11 +423,11 @@ library RebalancingLib {
 
         // {sellTok}
         uint256 sellAmount = activeTrustedFill.sellAmount();
-        sold = sellAmount > sellReturned ? sellAmount - sellReturned : 0;
+        uint256 sold = sellAmount > sellReturned ? sellAmount - sellReturned : 0;
 
         // {buyTok}
         uint256 buyBalAfter = buyToken.balanceOf(address(this));
-        bought = buyBalAfter > buyBalBefore ? buyBalAfter - buyBalBefore : 0;
+        uint256 bought = buyBalAfter > buyBalBefore ? buyBalAfter - buyBalBefore : 0;
 
         // track traded amts
         auction.traded[address(sellToken)] += sold;
@@ -421,7 +435,7 @@ library RebalancingLib {
 
         // no event, cannot rely on executing in same block as fill occurred
 
-        return (sold, bought, sellBalAfter == 0);
+        return sellBalAfter == 0;
     }
 
     // ==== Internal ====
