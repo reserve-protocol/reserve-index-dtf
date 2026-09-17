@@ -69,6 +69,10 @@ Splitting one larger bid into two can change bidAmount by at most 1 wei due to r
 
 ### P-10 Tokens can be removed from the basket by admin or if their balance is 0.
 
+### Fee-model scope
+
+The shared Folio property model freezes time-based TVL fee accrual and the mint self-fee handout. It still includes stored DAO, recipient, and pending mint self-fee shares in effective supply. The properties therefore cover fee-free transitions at a fixed fee-accounting timestamp; they do not prove the production fee-accrual, handout, or distribution calculations themselves.
+
 ## Prerequisites
 
 The proof uses the GPLv3 [open-source Certora Prover](https://github.com/Certora/CertoraProver) locally. It does not install the hosted `certora-cli` package, submit jobs to Certora's servers, or require a `CERTORAKEY`.

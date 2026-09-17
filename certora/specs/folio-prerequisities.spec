@@ -69,6 +69,8 @@ function burnCVL(address account, uint256 value) {
     balanceByToken[currentContract][account] = require_uint256(balanceByToken[currentContract][account] - value);
 }
 
+// Restrict shared properties to fee-frozen transitions. This models stored pending shares but deliberately excludes
+// time-based TVL fee accrual and mint self-fee handout; it is not a proof of the production fee calculations.
 function getFeeSharesCVL(env e) returns (uint256, uint256, uint256, uint256, uint256) {
     uint256 daoShares;
     uint256 feeRecipientShares;

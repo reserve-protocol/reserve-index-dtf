@@ -1,5 +1,6 @@
 import "folio-prerequisities.spec";
 
+// Keep both TVL fee accrual and the mint self-fee handout outside the shared property model.
 function assumeNoFeeRecalculation(env e) {
     require e.block.timestamp - lastPoke() < 86400;
     require e.block.timestamp == lastFolioFeePoke();
