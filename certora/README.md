@@ -73,7 +73,7 @@ Splitting one larger bid into two can change bidAmount by at most 1 wei due to r
 
 The proof uses the GPLv3 [open-source Certora Prover](https://github.com/Certora/CertoraProver) locally. It does not install the hosted `certora-cli` package, submit jobs to Certora's servers, or require a `CERTORAKEY`.
 
-The automated setup supports Linux x86_64 and requires `curl`, `git`, Python 3, `tar`, and `unzip`. It downloads checksum-pinned JDK, Rust, Z3, CVC4, CVC5, Yices, and Solidity toolchains, then builds CertoraProver 8.9.0 from its pinned source commit into the ignored `.certora/` directory.
+The automated setup supports Debian-based Linux x86_64 and requires `curl`, `dpkg-deb`, `git`, Python 3, `tar`, and `unzip`. It downloads checksum-pinned JDK, Rust, Z3, CVC4, CVC5, Yices, `psmisc`, and Solidity toolchains, then builds CertoraProver 8.9.0 from its pinned source commit into the ignored `.certora/` directory.
 
 ```bash
 pnpm install --frozen-lockfile

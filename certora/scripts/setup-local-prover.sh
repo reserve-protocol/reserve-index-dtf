@@ -14,7 +14,7 @@ CERTORA_VERSION=8.9.0
 CERTORA_COMMIT=b03323ecdc2dd73a9f0904012eac8b5027eaa65f
 JAVA_VERSION=21.0.12.1
 RUST_VERSION=1.98.1
-INSTALL_VERSION="$CERTORA_COMMIT-toolchain-1"
+INSTALL_VERSION="$CERTORA_COMMIT-toolchain-2"
 
 if [[ $(uname -s) != Linux || $(uname -m) != x86_64 ]]; then
     echo "The automated setup currently supports Linux x86_64 only." >&2
@@ -22,7 +22,7 @@ if [[ $(uname -s) != Linux || $(uname -m) != x86_64 ]]; then
     exit 1
 fi
 
-for command in curl git python3 sha256sum tar unzip; do
+for command in curl dpkg-deb git python3 sha256sum tar unzip; do
     if ! command -v "$command" >/dev/null; then
         echo "Missing required command: $command" >&2
         exit 1
@@ -37,6 +37,7 @@ installation_complete() {
         "$BIN_DIR/z3" \
         "$BIN_DIR/cvc4" \
         "$BIN_DIR/cvc5" \
+        "$BIN_DIR/killall" \
         "$BIN_DIR/yices-smt2" \
         "$BIN_DIR/solc8.28" \
         "$INSTALL_DIR/certoraRun.py"; do
@@ -120,6 +121,15 @@ tar --extract --gzip --file "$YICES_ARCHIVE" \
     --to-stdout \
     yices-2.7.0/bin/yices-smt2 > "$BIN_DIR/yices-smt2"
 chmod +x "$BIN_DIR/yices-smt2"
+
+PSMISC_PACKAGE="$DOWNLOADS_DIR/psmisc-23.6-1-amd64.deb"
+download \
+    "https://deb.debian.org/debian/pool/main/p/psmisc/psmisc_23.6-1_amd64.deb" \
+    9d02f654bdf280a6622a9b1371f7a1fa44546702d11991e438558bc259df7b69 \
+    "$PSMISC_PACKAGE"
+dpkg-deb --fsys-tarfile "$PSMISC_PACKAGE" \
+    | tar --extract --file - --to-stdout ./usr/bin/killall > "$BIN_DIR/killall"
+chmod +x "$BIN_DIR/killall"
 
 download \
     "https://github.com/argotorg/solidity/releases/download/v0.8.28/solc-static-linux" \
