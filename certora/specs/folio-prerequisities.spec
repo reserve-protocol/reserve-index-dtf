@@ -23,9 +23,9 @@ methods {
     function ERC20Upgradeable._burn(address account, uint256 value) internal => burnCVL(account, value);
 
     function getTotalFeeShares() external returns (uint256) envfree;
-    function FolioHarness.getPendingFeeSharesZeroFees() external returns (uint256, uint256, uint256);
+    function FolioHarness.getFeeSharesZeroFees() external returns (uint256, uint256, uint256, uint256, uint256);
     function FolioHarness.totalSupplyWithoutFees() external returns (uint256) envfree;
-    function Folio._getPendingFeeShares() internal returns (uint256, uint256, uint256) with (env e)=> getPendingFeeSharesCVL(e);
+    function Folio._getFeeShares() internal returns (uint256, uint256, uint256, uint256, uint256) with (env e) => getFeeSharesCVL(e);
     function Folio.distributeFees() internal => distributeFeesCVL();
 
     function RebalancingLib._price(IFolio.Rebalance storage rebalance, IFolio.Auction storage auction, address sellToken, address buyToken) internal returns (uint256) => RebalancingLibHarness._priceSimplified(rebalance, auction, sellToken, buyToken);
@@ -69,12 +69,14 @@ function burnCVL(address account, uint256 value) {
     balanceByToken[currentContract][account] = require_uint256(balanceByToken[currentContract][account] - value);
 }
 
-function getPendingFeeSharesCVL(env e) returns (uint256, uint256, uint256) {
+function getFeeSharesCVL(env e) returns (uint256, uint256, uint256, uint256, uint256) {
     uint256 daoShares;
     uint256 feeRecipientShares;
+    uint256 tvlSelfFeeShares;
+    uint256 mintSelfFeeHandout;
     uint256 accountedUntil;
-    daoShares, feeRecipientShares, accountedUntil = FolioHarness.getPendingFeeSharesZeroFees(e);
-    return (daoShares, feeRecipientShares, accountedUntil);
+    daoShares, feeRecipientShares, tvlSelfFeeShares, mintSelfFeeHandout, accountedUntil = FolioHarness.getFeeSharesZeroFees(e);
+    return (daoShares, feeRecipientShares, tvlSelfFeeShares, mintSelfFeeHandout, accountedUntil);
 }
 
 function distributeFeesCVL() {

@@ -2,6 +2,7 @@ import "folio-prerequisities.spec";
 
 function assumeNoFeeRecalculation(env e) {
     require e.block.timestamp - lastPoke() < 86400;
+    require e.block.timestamp == lastFolioFeePoke();
 }
 
 function assumeNoTrustedFillers() {

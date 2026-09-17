@@ -84,12 +84,13 @@ contract FolioHarness is Folio {
         return _isTokenInDeficit(currentBalance, totalShares, rebalance.limits.low, details.weights.low);
     }
 
-    function getPendingFeeSharesZeroFees() public view returns (uint256, uint256, uint256) {
-        return (daoPendingFeeShares, feeRecipientsPendingFeeShares, (block.timestamp / ONE_DAY) * ONE_DAY);
+    function getFeeSharesZeroFees() public view returns (uint256, uint256, uint256, uint256, uint256) {
+        return (daoPendingFeeShares, feeRecipientsPendingFeeShares, 0, 0, (block.timestamp / ONE_DAY) * ONE_DAY);
     }
 
     function getTotalFeeShares() public view returns (uint256) {
-        return daoPendingFeeShares + feeRecipientsPendingFeeShares;
+        (uint256 daoShares, uint256 feeRecipientShares, , uint256 mintSelfFeeHandout, ) = _getFeeShares();
+        return daoShares + feeRecipientShares + folioPendingMintFeeShares - mintSelfFeeHandout;
     }
 
     function totalSupplyWithoutFees() external view returns (uint256) {

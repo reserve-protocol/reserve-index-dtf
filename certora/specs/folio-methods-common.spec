@@ -15,6 +15,7 @@ methods {
     function totalAssets() external returns (address[], uint256[]) envfree;
     function nextAuctionId() external returns (uint256) envfree;
     function lastPoke() external returns (uint256) envfree;
+    function lastFolioFeePoke() external returns (uint256) envfree;
     function getBalanceOfToken(address) external returns (uint256) envfree;
     
     // Standard Folio getters
