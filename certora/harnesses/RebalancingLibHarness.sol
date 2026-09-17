@@ -4,7 +4,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { D18, D27 } from "@utils/Constants.sol";
 import { MathLib } from "@utils/MathLib.sol";
 
-
 library RebalancingLibHarness {
     /// Get the price of a token pair within an auction at the current timestamp
     /// If startTime == endTime, startPrice is used.
@@ -54,7 +53,12 @@ library RebalancingLibHarness {
         }
     }
 
-    function _interpolatePrice(uint256 startPrice, uint256 endPrice, uint256 elapsed, uint256 auctionLength) internal pure returns (uint256 p) {
+    function _interpolatePrice(
+        uint256 startPrice,
+        uint256 endPrice,
+        uint256 elapsed,
+        uint256 auctionLength
+    ) internal pure returns (uint256 p) {
         // D18{1}
         // k = ln(P_0 / P_t) / t
         uint256 k = MathLib.ln(Math.mulDiv(startPrice, D18, endPrice)) / auctionLength;

@@ -57,7 +57,7 @@ contract MockTrustedFiller is IBaseTrustedFiller {
         // D27{buyTok/sellTok} = {buyTok} * D27 / {sellTok}
         price = Math.mulDiv(_minBuyAmount, 1e27, _sellAmount, Math.Rounding.Ceil);
 
-        // Pull all approved sellTokens from the creator (Folio)     
+        // Pull all approved sellTokens from the creator (Folio)
         _sellToken.safeTransferFrom(_creator, address(this), _sellAmount);
     }
 
@@ -75,13 +75,16 @@ contract MockTrustedFiller is IBaseTrustedFiller {
         // Calculate required buy tokens using price: sellAmountToExchange * price / D27
         // {buyTok} = {sellTok} * D27{buyTok/sellTok} / D27
         uint256 requiredBuyTokens = Math.mulDiv(sellAmountToExchange, price, 1e27, Math.Rounding.Ceil);
-        
+
         // Check caller has enough buy tokens
-        require(buyToken.balanceOf(msg.sender) >= requiredBuyTokens, "MockTrustedFiller: insufficient caller buy tokens");
+        require(
+            buyToken.balanceOf(msg.sender) >= requiredBuyTokens,
+            "MockTrustedFiller: insufficient caller buy tokens"
+        );
 
         // Transfer buy tokens from caller to this contract
         buyToken.safeTransferFrom(msg.sender, address(this), requiredBuyTokens);
-        
+
         // Transfer sell tokens from this contract to caller
         sellToken.safeTransfer(msg.sender, sellAmountToExchange);
 
@@ -93,7 +96,7 @@ contract MockTrustedFiller is IBaseTrustedFiller {
      */
     function _closeFiller() internal {
         // require(swapActive, "MockTrustedFiller: already closed");
-        
+
         swapActive = false;
 
         // Return all tokens to creator
@@ -125,7 +128,7 @@ contract MockTrustedFiller is IBaseTrustedFiller {
      */
     function rescueToken(IERC20 token) public override {
         require(msg.sender == creator, "MockTrustedFiller: only creator");
-        
+
         uint256 balance = token.balanceOf(address(this));
         if (balance > 0) {
             token.safeTransfer(creator, balance);
@@ -147,12 +150,7 @@ contract MockTrustedFiller is IBaseTrustedFiller {
      * @param signature Signature to check
      * @return magicValue Magic value if signature is valid
      */
-    function isValidSignature(bytes32 hash, bytes memory signature) 
-        external 
-        view 
-        override 
-        returns (bytes4 magicValue) 
-    {
+    function isValidSignature(bytes32 hash, bytes memory signature) external view override returns (bytes4 magicValue) {
         // For mock purposes, always return invalid signature
         // In a real implementation, this would verify signatures
         return 0x00000000;
