@@ -2953,7 +2953,7 @@ contract FolioTest is BaseTest {
             }
 
             vm.prank(dao);
-            folio.endRebalance();
+            folio.endRebalance(i + 1);
         }
     }
 
@@ -4275,13 +4275,19 @@ contract FolioTest is BaseTest {
         // Attempt to end rebalance with unauthorized role (user1)
         vm.prank(user1);
         vm.expectRevert(IFolio.Folio__Unauthorized.selector);
-        folio.endRebalance();
+        folio.endRebalance(1);
 
         // End the rebalance with authorized role (dao)
         vm.prank(dao);
         vm.expectEmit(true, false, false, true);
         emit IFolio.RebalanceEnded(1);
-        folio.endRebalance();
+        folio.endRebalance(1);
+
+        // Ending the same rebalance remains idempotent
+        vm.prank(dao);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.RebalanceEnded(1);
+        folio.endRebalance(1);
 
         // Verify we can still bid on the existing auction
         vm.startPrank(user1);
@@ -4295,6 +4301,24 @@ contract FolioTest is BaseTest {
         vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
+
+        // A stale end cannot terminate the next rebalance
+        vm.prank(dao);
+        startRebalance(folio, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidRebalanceNonce.selector);
+        folio.endRebalance(1);
+
+        // Max nonce skips validation and ends the current rebalance
+        vm.prank(dao);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.RebalanceEnded(2);
+        folio.endRebalance(type(uint256).max);
+
+        vm.prank(auctionLauncher);
+        vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
+        folio.openAuction(2, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
     }
 
     function test_priceControlAuctionBidWithoutCallback() public {
@@ -4909,6 +4933,19 @@ contract FolioTest is BaseTest {
         folio.startRebalance(1, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL, type(uint256).max);
 
         vm.stopPrank();
+    }
+
+    function test_startRebalanceWithMaxNonceSkipsValidation() public {
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        vm.prank(dao);
+        folio.startRebalance(type(uint256).max, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL, type(uint256).max);
+
+        (uint256 nonce, , , , , ) = folio.getRebalance();
+        assertEq(nonce, 1, "rebalance nonce should increment normally");
     }
 
     function test_cannotStartRebalanceInvalidArrays() public {
