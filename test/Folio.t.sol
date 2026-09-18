@@ -2953,7 +2953,7 @@ contract FolioTest is BaseTest {
             }
 
             vm.prank(dao);
-            folio.endRebalance();
+            folio.endRebalance(i + 1);
         }
     }
 
@@ -4143,10 +4143,28 @@ contract FolioTest is BaseTest {
     function test_deprecateFolio() public {
         assertFalse(folio.isDeprecated(), "wrong deprecated status");
 
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        uint256 totalSupplyBefore = folio.totalSupply();
+
         vm.prank(owner);
         folio.deprecateFolio();
 
         assertTrue(folio.isDeprecated(), "wrong deprecated status");
+        assertEq(folio.tvlFee(), 0, "tvl fee should be zero");
+        assertEq(folio.totalSupply(), totalSupplyBefore, "accrued fees should be preserved");
+
+        uint256 daoPendingFeeShares = folio.daoPendingFeeShares();
+        uint256 feeRecipientsPendingFeeShares = folio.feeRecipientsPendingFeeShares();
+
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        folio.poke();
+
+        assertGt(folio.daoPendingFeeShares(), daoPendingFeeShares, "dao fee floor should continue accruing");
+        assertEq(
+            folio.feeRecipientsPendingFeeShares(),
+            feeRecipientsPendingFeeShares,
+            "folio tvl fee should stop accruing"
+        );
     }
 
     function test_cannotDeprecateFolioIfNotOwner() public {
@@ -4257,13 +4275,19 @@ contract FolioTest is BaseTest {
         // Attempt to end rebalance with unauthorized role (user1)
         vm.prank(user1);
         vm.expectRevert(IFolio.Folio__Unauthorized.selector);
-        folio.endRebalance();
+        folio.endRebalance(1);
 
         // End the rebalance with authorized role (dao)
         vm.prank(dao);
         vm.expectEmit(true, false, false, true);
         emit IFolio.RebalanceEnded(1);
-        folio.endRebalance();
+        folio.endRebalance(1);
+
+        // Ending the same rebalance remains idempotent
+        vm.prank(dao);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.RebalanceEnded(1);
+        folio.endRebalance(1);
 
         // Verify we can still bid on the existing auction
         vm.startPrank(user1);
@@ -4277,6 +4301,24 @@ contract FolioTest is BaseTest {
         vm.prank(auctionLauncher);
         vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
         folio.openAuction(1, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
+
+        // A stale end cannot terminate the next rebalance
+        vm.prank(dao);
+        startRebalance(folio, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL);
+
+        vm.prank(dao);
+        vm.expectRevert(IFolio.Folio__InvalidRebalanceNonce.selector);
+        folio.endRebalance(1);
+
+        // Max nonce skips validation and ends the current rebalance
+        vm.prank(dao);
+        vm.expectEmit(true, false, false, true);
+        emit IFolio.RebalanceEnded(2);
+        folio.endRebalance(type(uint256).max);
+
+        vm.prank(auctionLauncher);
+        vm.expectRevert(IFolio.Folio__NotRebalancing.selector);
+        folio.openAuction(2, assets, weights, prices, NATIVE_LIMITS, AUCTION_LENGTH);
     }
 
     function test_priceControlAuctionBidWithoutCallback() public {
@@ -4891,6 +4933,19 @@ contract FolioTest is BaseTest {
         folio.startRebalance(1, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL, type(uint256).max);
 
         vm.stopPrank();
+    }
+
+    function test_startRebalanceWithMaxNonceSkipsValidation() public {
+        IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](3);
+        tokens[0] = IFolio.TokenRebalanceParams(assets[0], weights[0], prices[0], type(uint256).max, true);
+        tokens[1] = IFolio.TokenRebalanceParams(assets[1], weights[1], prices[1], type(uint256).max, true);
+        tokens[2] = IFolio.TokenRebalanceParams(assets[2], weights[2], prices[2], type(uint256).max, true);
+
+        vm.prank(dao);
+        folio.startRebalance(type(uint256).max, tokens, limits, AUCTION_LAUNCHER_WINDOW, MAX_TTL, type(uint256).max);
+
+        (uint256 nonce, , , , , ) = folio.getRebalance();
+        assertEq(nonce, 1, "rebalance nonce should increment normally");
     }
 
     function test_cannotStartRebalanceInvalidArrays() public {
