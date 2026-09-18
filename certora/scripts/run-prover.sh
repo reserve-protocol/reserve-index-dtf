@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-ROOT_DIR=$(git rev-parse --show-toplevel)
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+ROOT_DIR=$(cd "$SCRIPT_DIR/../.." && pwd)
 TOOLS_DIR=${CERTORA_TOOLS_DIR:-"$ROOT_DIR/.certora"}
 
 if [[ ! -x $TOOLS_DIR/prover/certoraRun.py ]]; then

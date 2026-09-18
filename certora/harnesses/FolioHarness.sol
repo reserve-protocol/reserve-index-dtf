@@ -67,7 +67,13 @@ contract FolioHarness is Folio {
         uint256 limitL,
         uint256 weightL
     ) internal pure returns (bool) {
-        return (((limitL * weightL) / 1e18) * totalShares) / 1e27 > currentBalance;
+        return
+            Math.mulDiv(
+                Math.mulDiv(limitL, weightL, 1e18, Math.Rounding.Floor),
+                totalShares,
+                1e27,
+                Math.Rounding.Floor
+            ) > currentBalance;
     }
 
     // Check if token is in deficit (current balance < low limit)
@@ -113,9 +119,7 @@ contract FolioHarness is Folio {
     }
 
     function closeFill() external {
-        if (address(activeTrustedFill) != address(0)) {
-            RebalancingLib.closeTrustedFill(auctions[nextAuctionId - 1], activeTrustedFill);
-        }
+        _closeTrustedFill(false);
     }
 
     function changeLimits(uint256 c) external {

@@ -2,12 +2,14 @@
 
 set -euo pipefail
 
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+ROOT_DIR=$(cd "$SCRIPT_DIR/../.." && pwd)
+
 if (( $# == 0 )); then
     echo "Usage: $0 <config.conf> [<config.conf> ...]" >&2
     exit 1
 fi
 
-ROOT_DIR=$(git rev-parse --show-toplevel)
 PATCH_FILE="$ROOT_DIR/certora/patches/Folio.patch"
 PATCH_APPLIED=false
 

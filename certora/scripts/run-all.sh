@@ -2,9 +2,11 @@
 
 set -euo pipefail
 
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+
 configs=(
-    certora/confs/folio_prerequisities.conf
-    certora/confs/properties/*.conf
+    "$SCRIPT_DIR/../confs/folio_prerequisities.conf"
+    "$SCRIPT_DIR/../confs/properties/"*.conf
 )
 
-certora/scripts/run-with-patch.sh "${configs[@]}"
+"$SCRIPT_DIR/run-with-patch.sh" "${configs[@]}"

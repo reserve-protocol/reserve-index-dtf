@@ -12,7 +12,7 @@ methods {
     function _.approve(address spender, uint256 amount) external with (env e)
         => approveCVL(calledContract, e.msg.sender, spender, amount) expect bool;
     function _.forceApprove(address token, address spender, uint256 value) internal with (env e)
-        => forceApproveCVL(token, e.msg.sender, spender, value) expect void;
+        => forceApproveCVL(token, executingContract, spender, value) expect void;
     function _.transfer(address to, uint256 amount) external with (env e)
         => transferCVL(calledContract, e.msg.sender, to, amount) expect bool;
     function _.transferFrom(address from, address to, uint256 amount) external with (env e) 

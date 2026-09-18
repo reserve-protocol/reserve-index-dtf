@@ -19,10 +19,9 @@ function minSummary(uint256 a, uint256 b) returns uint256 {
 
 function mulDivDirectionalSummary(uint256 x, uint256 y, uint256 denominator, Math.Rounding rounding) returns uint256 {
     // OZ v<5 used `Up`, v>=5 uses `Ceil`.
-    if (rounding == Math.Rounding.Ceil) {
+    if (rounding == Math.Rounding.Ceil || rounding == Math.Rounding.Expand) {
         return mulDivUpSummary(x, y, denominator);
     } else {
         return mulDivDownSummary(x, y, denominator);
     }
 }
-

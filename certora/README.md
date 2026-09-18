@@ -77,7 +77,7 @@ The shared Folio property model freezes time-based TVL fee accrual and the mint 
 
 The proof uses the GPLv3 [open-source Certora Prover](https://github.com/Certora/CertoraProver) locally. It does not install the hosted `certora-cli` package, submit jobs to Certora's servers, or require a `CERTORAKEY`.
 
-The automated setup supports Debian-based Linux x86_64 and requires `curl`, `dpkg-deb`, `git`, Python 3, `tar`, and `unzip`. It downloads checksum-pinned JDK, Rust, Z3, CVC4, CVC5, Yices, `psmisc`, and Solidity toolchains, then builds CertoraProver 8.9.0 from its pinned source commit into the ignored `.certora/` directory.
+The automated setup supports Debian-based Linux x86_64 and requires `curl`, `dpkg-deb`, `git`, Python 3 with virtual-environment support (`python3-venv` on Debian-based systems), `tar`, and `unzip`. It downloads checksum-pinned JDK, Rust, Z3, CVC4, CVC5, Yices, `psmisc`, and Solidity toolchains, then builds CertoraProver 8.9.0 from its pinned source commit into the ignored `.certora/` directory.
 
 ```bash
 pnpm install --frozen-lockfile

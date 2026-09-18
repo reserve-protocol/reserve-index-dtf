@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-ROOT_DIR=$(git rev-parse --show-toplevel)
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+ROOT_DIR=$(cd "$SCRIPT_DIR/../.." && pwd)
 TOOLS_DIR=${CERTORA_TOOLS_DIR:-"$ROOT_DIR/.certora"}
 DOWNLOADS_DIR="$TOOLS_DIR/downloads"
 BIN_DIR="$TOOLS_DIR/bin"
@@ -50,6 +51,16 @@ if [[ -f $VERSION_FILE ]] && [[ $(<"$VERSION_FILE") == "$INSTALL_VERSION" ]] && 
     echo "CertoraProver $CERTORA_VERSION is already installed in $TOOLS_DIR"
     exit 0
 fi
+
+mkdir -p "$TOOLS_DIR"
+VENV_CHECK_DIR="$TOOLS_DIR/.venv-check"
+rm -rf "$VENV_CHECK_DIR"
+if ! python3 -m venv "$VENV_CHECK_DIR"; then
+    rm -rf "$VENV_CHECK_DIR"
+    echo "Missing Python virtual-environment support. Install python3-venv and rerun setup." >&2
+    exit 1
+fi
+rm -rf "$VENV_CHECK_DIR"
 
 mkdir -p "$DOWNLOADS_DIR" "$BIN_DIR"
 

@@ -7,7 +7,7 @@ methods {
 }
 
 function mulDivDirectionalSummary(uint256 x, uint256 y, uint256 denominator, Math.Rounding rounding) returns uint256 {
-    if (rounding == Math.Rounding.Ceil) {
+    if (rounding == Math.Rounding.Ceil || rounding == Math.Rounding.Expand) {
         return mulDivUpSummary(x, y, denominator);
     } else {
         return mulDivDownSummary(x, y, denominator);
