@@ -4143,10 +4143,28 @@ contract FolioTest is BaseTest {
     function test_deprecateFolio() public {
         assertFalse(folio.isDeprecated(), "wrong deprecated status");
 
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        uint256 totalSupplyBefore = folio.totalSupply();
+
         vm.prank(owner);
         folio.deprecateFolio();
 
         assertTrue(folio.isDeprecated(), "wrong deprecated status");
+        assertEq(folio.tvlFee(), 0, "tvl fee should be zero");
+        assertEq(folio.totalSupply(), totalSupplyBefore, "accrued fees should be preserved");
+
+        uint256 daoPendingFeeShares = folio.daoPendingFeeShares();
+        uint256 feeRecipientsPendingFeeShares = folio.feeRecipientsPendingFeeShares();
+
+        vm.warp(block.timestamp + YEAR_IN_SECONDS);
+        folio.poke();
+
+        assertGt(folio.daoPendingFeeShares(), daoPendingFeeShares, "dao fee floor should continue accruing");
+        assertEq(
+            folio.feeRecipientsPendingFeeShares(),
+            feeRecipientsPendingFeeShares,
+            "folio tvl fee should stop accruing"
+        );
     }
 
     function test_cannotDeprecateFolioIfNotOwner() public {
