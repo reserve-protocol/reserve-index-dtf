@@ -51,6 +51,22 @@ contract FolioLensTest is BaseTest {
         assertEq(weights[1], D27);
     }
 
+    function test_getSpotWeights_includesActiveTrustedFillBalances() public {
+        _startSellUsdcRebalance();
+
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, _tokens(), _sellUsdcWeights(), _prices(), _limits(), MAX_AUCTION_LENGTH);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
+
+        folio.createTrustedFill(0, USDC, DAI, cowswapFiller, bytes32(block.timestamp));
+
+        assertLt(USDC.balanceOf(address(folio)), D6_TOKEN_10K);
+
+        (, uint256[] memory weights) = lens.getSpotWeights(folio);
+        assertEq(weights[0], 1e15);
+        assertEq(weights[1], D27);
+    }
+
     function test_surplusesAndDeficits() public {
         _startBalancedRebalance();
 
@@ -67,6 +83,22 @@ contract FolioLensTest is BaseTest {
         assertEq(surpluses[1], 0);
         assertEq(deficits[0], 0);
         assertEq(deficits[1], 0);
+    }
+
+    function test_surplusesAndDeficits_includesActiveTrustedFillBalances() public {
+        _startSellUsdcRebalance();
+
+        vm.prank(auctionLauncher);
+        folio.openAuction(1, _tokens(), _sellUsdcWeights(), _prices(), _limits(), MAX_AUCTION_LENGTH);
+        vm.warp(block.timestamp + AUCTION_WARMUP);
+
+        folio.createTrustedFill(0, USDC, DAI, cowswapFiller, bytes32(block.timestamp));
+
+        assertLt(USDC.balanceOf(address(folio)), D6_TOKEN_10K);
+
+        (address[] memory tokens, uint256[] memory surpluses, ) = lens.surplusesAndDeficits(folio, D18, D18);
+        assertEq(tokens[0], address(USDC));
+        assertEq(surpluses[0], D6_TOKEN_10K);
     }
 
     function test_surplusesAndDeficits_skipsTokensNotInRebalance() public {

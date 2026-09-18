@@ -24,19 +24,16 @@ contract FolioLens is Versioned {
     /// @return tokens The tokens in the basket
     /// @return weights D27{tok/share} The weights of the tokens per share given by the current balances
     function getSpotWeights(Folio folio) external view returns (address[] memory tokens, uint256[] memory weights) {
-        (, , IFolio.TokenRebalanceParams[] memory tokenParams, , , ) = folio.getRebalance();
+        uint256[] memory balances;
+        (tokens, balances) = folio.totalAssets();
 
-        tokens = new address[](tokenParams.length);
-        weights = new uint256[](tokenParams.length);
+        weights = new uint256[](tokens.length);
 
         uint256 totalSupply = folio.totalSupply();
 
         for (uint256 i = 0; i < tokens.length; i++) {
-            address token = tokenParams[i].token;
-            tokens[i] = token;
-
             // D27{tok/share} = D27 * {tok} / {share}
-            weights[i] = (D27 * IERC20(token).balanceOf(address(folio))) / totalSupply;
+            weights[i] = (D27 * balances[i]) / totalSupply;
         }
     }
 
@@ -110,6 +107,7 @@ contract FolioLens is Versioned {
         uint256 totalSupply = folio.totalSupply();
 
         (, , IFolio.TokenRebalanceParams[] memory tokenParams, , , ) = folio.getRebalance();
+        (, uint256[] memory balances) = folio.totalAssets();
 
         uint256 len = tokenParams.length;
         tokens = new address[](len);
@@ -126,7 +124,7 @@ contract FolioLens is Versioned {
             tokens[i] = token;
 
             // {tok}
-            uint256 bal = IERC20(token).balanceOf(address(folio));
+            uint256 bal = balances[i];
 
             // surpluses
             {
