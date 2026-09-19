@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "./GenericGovernanceSpell_04_17_2026.t.sol";
+import "./GenericGovernanceSpell_09_18_2026.t.sol";
 
-contract GovernanceSpellEthereum_04_17_2026_Test is GenericGovernanceSpell_04_17_2026_Test {
+contract GovernanceSpellEthereum_09_18_2026_Test is GenericGovernanceSpell_09_18_2026_Test {
     constructor() {
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,
@@ -166,7 +166,7 @@ contract GovernanceSpellEthereum_04_17_2026_Test is GenericGovernanceSpell_04_17
             0,
             string.concat(firstLabel, " old vault should receive folio fees")
         );
-        GovernanceSpell_04_17_2026.NewDeployment memory firstFolioDep = _upgradeFolio(
+        GovernanceSpell_09_18_2026.NewDeployment memory firstFolioDep = _upgradeFolio(
             firstCfg,
             IStakingVault(stakingVaultDep.newStakingVault),
             makeAddr(string.concat(firstLabel, "-folio-opt")),
@@ -199,7 +199,7 @@ contract GovernanceSpellEthereum_04_17_2026_Test is GenericGovernanceSpell_04_17
             0,
             string.concat(secondLabel, " old vault should receive folio fees")
         );
-        GovernanceSpell_04_17_2026.NewDeployment memory secondFolioDep = _upgradeFolio(
+        GovernanceSpell_09_18_2026.NewDeployment memory secondFolioDep = _upgradeFolio(
             secondCfg,
             IStakingVault(stakingVaultDep.newStakingVault),
             makeAddr(string.concat(secondLabel, "-folio-opt")),

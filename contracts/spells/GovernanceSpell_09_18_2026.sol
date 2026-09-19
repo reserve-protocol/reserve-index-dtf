@@ -17,7 +17,7 @@ import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, BRAND_MANAGER, AUCTION_LAUNCHER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 
-bytes32 constant VERSION_1_0_0 = keccak256("1.0.0");
+bytes32 constant VERSION_1_1_0 = keccak256("1.1.0");
 bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
 bytes32 constant VERSION_5_0_0 = keccak256("5.0.0");
 bytes4 constant START_REBALANCE_4_0_0 = 0x235d7142;
@@ -55,7 +55,7 @@ interface IOwnableStakingVault is IStakingVault {
 }
 
 /**
- * @title GovernanceSpell_04_17_2026
+ * @title GovernanceSpell_09_18_2026
  * @author akshatmittal, julianmrodri, tbrent
  * @notice Optimistic governance upgrade spell for DTFs
  *
@@ -75,7 +75,7 @@ interface IOwnableStakingVault is IStakingVault {
  *        Caller: timelock of old StakingVault
  *
  */
-contract GovernanceSpell_04_17_2026 {
+contract GovernanceSpell_09_18_2026 {
     error UpgradeError(uint256 code);
 
     event NewGovernanceDeployment(NewDeployment newDeployment);
@@ -91,7 +91,7 @@ contract GovernanceSpell_04_17_2026 {
     IReserveOptimisticGovernorDeployer public immutable governorDeployer;
 
     constructor(IReserveOptimisticGovernorDeployer _governorDeployer) {
-        require(keccak256(bytes(IVersioned(address(_governorDeployer)).version())) == VERSION_1_0_0, UpgradeError(0));
+        require(keccak256(bytes(IVersioned(address(_governorDeployer)).version())) == VERSION_1_1_0, UpgradeError(0));
 
         governorDeployer = _governorDeployer;
     }
@@ -190,7 +190,7 @@ contract GovernanceSpell_04_17_2026 {
         require(folioVersion == VERSION_4_0_0 || folioVersion == VERSION_5_0_0, UpgradeError(28));
 
         // newStakingVault must not be the old immmutable kind, must be new and upgradeable
-        require(keccak256(bytes(IVersioned(address(newStakingVault)).version())) == VERSION_1_0_0, UpgradeError(3));
+        require(keccak256(bytes(IVersioned(address(newStakingVault)).version())) == VERSION_1_1_0, UpgradeError(3));
 
         {
             IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = _baseDeploymentParams(

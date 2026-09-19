@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "./GenericGovernanceSpell_04_17_2026.t.sol";
+import "./GenericGovernanceSpell_09_18_2026.t.sol";
 
-contract GovernanceSpellBsc_04_17_2026_Test is GenericGovernanceSpell_04_17_2026_Test {
+contract GovernanceSpellBsc_09_18_2026_Test is GenericGovernanceSpell_09_18_2026_Test {
     constructor() {
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,

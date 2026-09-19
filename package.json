@@ -9,7 +9,7 @@
     "@openzeppelin/contracts-upgradeable": "5.1.0",
     "@prb/math": "4.1.0",
     "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#eabd9dbd60e8aaaec2c50db43742991e4cb55208",
-    "@reserve-protocol/reserve-governor": "github:reserve-protocol/reserve-governor#dc27a68463cec356ff18bbdd3d8edfe9b2534372",
+    "@reserve-protocol/reserve-governor": "github:reserve-protocol/reserve-governor#f9808deccdd121411a8653e543c7461cd4d25981",
     "forge-std": "github:foundry-rs/forge-std#v1.14.0"
   },
   "devDependencies": {

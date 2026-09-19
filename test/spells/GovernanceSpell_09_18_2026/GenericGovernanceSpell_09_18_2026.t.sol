@@ -8,7 +8,7 @@ import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { IAccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/IAccessControlEnumerable.sol";
 import { console2 } from "forge-std/console2.sol";
 
-import { GovernanceSpell_04_17_2026, IFolioGovernor, IOwnableStakingVault, IStakingVault } from "@spells/GovernanceSpell_04_17_2026.sol";
+import { GovernanceSpell_09_18_2026, IFolioGovernor, IOwnableStakingVault, IStakingVault } from "@spells/GovernanceSpell_09_18_2026.sol";
 import { StakingVaultDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/StakingVaultDeployer.sol";
 import { ReserveOptimisticGovernorDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/ReserveOptimisticGovernorDeployer.sol";
 import { TimelockControllerOptimisticDeployer } from "@reserve-protocol/reserve-governor/contracts/artifacts/TimelockControllerOptimisticDeployer.sol";
@@ -20,6 +20,7 @@ import { IRoleRegistry as IRewardRoleRegistry } from "@reserve-protocol/reserve-
 import { RewardTokenRegistry } from "@reserve-protocol/reserve-governor/contracts/staking/RewardTokenRegistry.sol";
 import { REBALANCE_MANAGER, BRAND_MANAGER, AUCTION_LAUNCHER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
+import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
 
 interface IVersionedLike {
     function version() external view returns (string memory);
@@ -51,8 +52,8 @@ contract MockGovernanceVersionRegistry {
     }
 }
 
-contract GovernanceSpell_04_17_2026_Harness is GovernanceSpell_04_17_2026 {
-    constructor(IReserveOptimisticGovernorDeployer governorDeployer) GovernanceSpell_04_17_2026(governorDeployer) {}
+contract GovernanceSpell_09_18_2026_Harness is GovernanceSpell_09_18_2026 {
+    constructor(IReserveOptimisticGovernorDeployer governorDeployer) GovernanceSpell_09_18_2026(governorDeployer) {}
 
     function validateGenericTokenJar(address newFeeRecipient, IStakingVault newStakingVault) external view {
         _validateGenericTokenJar(newFeeRecipient, newStakingVault);
@@ -109,7 +110,7 @@ contract MockGenericTokenJar {
     }
 }
 
-abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
+abstract contract GenericGovernanceSpell_09_18_2026_Test is BaseTest {
     bytes32 internal constant FOLIO_VERSION_4_0_0 = keccak256("4.0.0");
     bytes32 internal constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
     bytes4 internal constant START_REBALANCE_4_0_0 = 0x235d7142;
@@ -131,14 +132,14 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
     }
 
     Config[] public CONFIGS;
-    GovernanceSpell_04_17_2026 public spell;
+    GovernanceSpell_09_18_2026 public spell;
     RewardTokenRegistry public rewardTokenRegistry;
     IReserveOptimisticGovernorDeployer public optimisticGovernanceDeployer;
 
     function _setUp() public virtual override {
         super._setUp();
         _deployOptimisticGovernanceDeployer();
-        spell = new GovernanceSpell_04_17_2026(optimisticGovernanceDeployer);
+        spell = new GovernanceSpell_09_18_2026(optimisticGovernanceDeployer);
     }
 
     function test_upgradeFlow_fork() public {
@@ -150,7 +151,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
     }
 
     function test_standardGovernanceParamsAreHardcoded_fork() public {
-        GovernanceSpell_04_17_2026_Harness harness = new GovernanceSpell_04_17_2026_Harness(
+        GovernanceSpell_09_18_2026_Harness harness = new GovernanceSpell_09_18_2026_Harness(
             optimisticGovernanceDeployer
         );
         address[] memory optimisticProposers = new address[](0);
@@ -171,7 +172,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
     }
 
     function test_validateGenericTokenJar_fork() public {
-        GovernanceSpell_04_17_2026_Harness harness = new GovernanceSpell_04_17_2026_Harness(
+        GovernanceSpell_09_18_2026_Harness harness = new GovernanceSpell_09_18_2026_Harness(
             optimisticGovernanceDeployer
         );
         address asset = makeAddr("generic-token-jar-asset");
@@ -181,11 +182,11 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         harness.validateGenericTokenJar(validJar, newStakingVault);
 
         address wrongTokenJar = address(new MockGenericTokenJar(address(newStakingVault), makeAddr("wrong-token")));
-        vm.expectRevert(abi.encodeWithSelector(GovernanceSpell_04_17_2026.UpgradeError.selector, 41));
+        vm.expectRevert(abi.encodeWithSelector(GovernanceSpell_09_18_2026.UpgradeError.selector, 41));
         harness.validateGenericTokenJar(wrongTokenJar, newStakingVault);
 
         address wrongDestinationJar = address(new MockGenericTokenJar(makeAddr("wrong-destination"), asset));
-        vm.expectRevert(abi.encodeWithSelector(GovernanceSpell_04_17_2026.UpgradeError.selector, 42));
+        vm.expectRevert(abi.encodeWithSelector(GovernanceSpell_09_18_2026.UpgradeError.selector, 42));
         harness.validateGenericTokenJar(wrongDestinationJar, newStakingVault);
     }
 
@@ -205,7 +206,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         address optimisticProposer,
         address newFeeRecipient,
         bytes32 deploymentNonce
-    ) internal returns (GovernanceSpell_04_17_2026.NewDeployment memory dep) {
+    ) internal returns (GovernanceSpell_09_18_2026.NewDeployment memory dep) {
         IFolioGovernor tradingGovernor = IFolioGovernor(makeAddr("trading-governor"));
 
         assertEq(cfg.proxyAdmin.owner(), cfg.oldFolioGovernor.timelock(), "old folio timelock should own proxy admin");
@@ -276,7 +277,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
             uint96 newVaultFeePortionBefore = _feeRecipientPortion(cfg.folio, stakingVaultDep.newStakingVault);
             assertGt(uint256(oldVaultFeePortionBefore), 0, "old vault should receive folio fees");
 
-            GovernanceSpell_04_17_2026.NewDeployment memory folioDep = _upgradeFolio(
+            GovernanceSpell_09_18_2026.NewDeployment memory folioDep = _upgradeFolio(
                 cfg,
                 IStakingVault(stakingVaultDep.newStakingVault),
                 folioOptimisticProposer,
@@ -339,7 +340,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         assertGt(uint256(oldVaultFeePortionBefore), 0, "old vault should receive folio fees");
         assertEq(newFeeRecipientPortionBefore, 0, "new fee recipient should not already receive fees");
 
-        GovernanceSpell_04_17_2026.NewDeployment memory folioDep = _upgradeFolio(
+        GovernanceSpell_09_18_2026.NewDeployment memory folioDep = _upgradeFolio(
             cfg,
             IStakingVault(stakingVaultDep.newStakingVault),
             folioOptimisticProposer,
@@ -374,7 +375,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         _registerRewardTokens(rewardTokens);
 
         address permissionlessCaller = makeAddr("permissionless-step1-caller");
-        GovernanceSpell_04_17_2026.NewDeployment memory newDeployment;
+        GovernanceSpell_09_18_2026.NewDeployment memory newDeployment;
         vm.prank(permissionlessCaller);
         newDeployment = spell.deploySuccessorStakingVault(
             cfg.stakingVaultGovernor,
@@ -402,7 +403,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         assertEq(IStakingVault(dep.newStakingVault).asset(), newUnderlying, "new vault asset mismatch");
         assertEq(
             keccak256(bytes(IStakingVault(dep.newStakingVault).version())),
-            keccak256(bytes("1.0.0")),
+            keccak256(bytes("1.1.0")),
             "new vault version mismatch"
         );
         assertEq(IFolioGovernor(dep.newGovernor).timelock(), dep.newTimelock, "governor timelock mismatch");
@@ -500,7 +501,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
     }
 
     function _assertHardcodedBaseParams(
-        GovernanceSpell_04_17_2026_Harness harness,
+        GovernanceSpell_09_18_2026_Harness harness,
         IFolioGovernor oldGovernor,
         address[] memory optimisticProposers,
         address[] memory guardians
@@ -601,6 +602,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
     function _deployOptimisticGovernanceDeployer() internal {
         MockGovernanceVersionRegistry governanceVersionRegistry = new MockGovernanceVersionRegistry();
         MockRoleRegistry rewardRoleRegistry = new MockRoleRegistry();
+        TrustedFillerRegistry trustedFillerRegistry = new TrustedFillerRegistry(address(rewardRoleRegistry));
         rewardTokenRegistry = new RewardTokenRegistry(IRewardRoleRegistry(address(rewardRoleRegistry)));
 
         address stakingVaultImpl = StakingVaultDeployer.deploy(bytes32(uint256(1)));
@@ -612,6 +614,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
             ReserveOptimisticGovernorDeployerDeployer.deploy(
                 address(governanceVersionRegistry),
                 address(rewardTokenRegistry),
+                address(trustedFillerRegistry),
                 user1,
                 stakingVaultImpl,
                 governorImpl,
