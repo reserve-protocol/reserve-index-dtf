@@ -140,6 +140,26 @@ generate_proposal "mvDEFI" "1" \
   "0x6f1d6b86d4ad705385e751e6e88b0fdfdbadf298" \
   "0x7daaf7bc2ee8bf4c0ac7f37e6b6cfaeb3ed9a868"
 
+generate_proposal "BED" "1" \
+  "0x4e3b170dcbe704b248df5f56d488114ace01b1c5" \
+  "0xfad4823ae478637fd8ffdafb6c912f63c8cd1dd7" \
+  "0x6b45fe3f4464477f657702b8e942b71c3ba83944" \
+  "0x8e530cd0c47d515558229aae193dd119cc791a40" \
+  "0xeaa356f6cd6b3fd15b47838d03cf34fa79f7c712" \
+  "0x280730d9277ef586d58db74c277aa710ca8f87c9" \
+  "0xc6625129c9df3314a4dd604845488f4ba62f9db8" \
+  "0x7daaf7bc2ee8bf4c0ac7f37e6b6cfaeb3ed9a868"
+
+generate_proposal "SMEL" "1" \
+  "0xf91384484f4717314798e8975bcd904a35fc2bf1" \
+  "0x622c0b5ad82a2a47f330d4a2061a0e3562f583b0" \
+  "0x476ae35b6deccda7969f105e983a916bcc12c31a" \
+  "0x395417220ae7447d19752f38327b96faf52e1911" \
+  "0xdd885b0f2f97703b94d2790320b30017a17768bf" \
+  "0x280730d9277ef586d58db74c277aa710ca8f87c9" \
+  "0xc6625129c9df3314a4dd604845488f4ba62f9db8" \
+  "0x7daaf7bc2ee8bf4c0ac7f37e6b6cfaeb3ed9a868"
+
 # ──────────────────────────────────────────────
 # Base (chainId: 8453)
 # ──────────────────────────────────────────────
