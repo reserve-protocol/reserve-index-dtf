@@ -604,7 +604,6 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         rewardTokenRegistry.registerRewardToken(rewardToken);
     }
 
-
     function _singleAddressArray(address value) internal pure returns (address[] memory arr) {
         arr = new address[](1);
         arr[0] = value;

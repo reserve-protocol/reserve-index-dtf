@@ -420,11 +420,7 @@ contract GovernanceSpell_04_17_2026 {
         }
     }
 
-    function _immutableFeeRecipients(Folio folio)
-        internal
-        view
-        returns (IFolio.FeeRecipient[] memory recipients)
-    {
+    function _immutableFeeRecipients(Folio folio) internal view returns (IFolio.FeeRecipient[] memory recipients) {
         uint256 length;
         for (; length < MAX_FEE_RECIPIENTS; length++) {
             try folio.immutableFeeRecipients(length) returns (address, uint96) {
