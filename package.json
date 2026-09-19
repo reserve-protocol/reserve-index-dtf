@@ -9,7 +9,7 @@
     "@openzeppelin/contracts-upgradeable": "5.1.0",
     "@prb/math": "4.1.0",
     "@reserve-protocol/trusted-fillers": "github:reserve-protocol/trusted-fillers#303e0a56948b602365a1ed0024ed473f683aeb0f",
-    "@reserve-protocol/reserve-governor": "github:reserve-protocol/reserve-governor#dc27a68463cec356ff18bbdd3d8edfe9b2534372"
+    "@reserve-protocol/reserve-governor": "github:reserve-protocol/reserve-governor#f9808deccdd121411a8653e543c7461cd4d25981"
   },
   "devDependencies": {
     "forge-std": "github:foundry-rs/forge-std#v1.14.0",
@@ -27,7 +27,7 @@
     "lint:check": "solhint 'contracts/**/*.sol' 'script/**/*.sol'",
     "compile": "forge compile",
     "test": "pnpm run test:core && pnpm run test:fork",
-    "test:core": "forge test --no-match-test extreme --no-match-path 'test/**/*Fork*.t.sol'",
+    "test:core": "forge test --no-match-test extreme --no-match-path 'test/{**/*Fork*.t.sol,spells/**/*.t.sol}'",
     "test:fork": "forge test --no-match-test extreme --match-path 'test/**/*Fork*.t.sol'",
     "test:extreme": "forge test --match-test extreme",
     "test:all": "forge test",

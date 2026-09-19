@@ -13,3 +13,4 @@ utils/=test/utils/
 @folio/=contracts/folio/
 @deployer/=contracts/deployer/
 @periphery/=contracts/periphery/
+@spells/=contracts/spells/

@@ -29,6 +29,7 @@ contract LocalReserveGovernorArtifactsDeployer {
     function deploy(
         address versionRegistry,
         address rewardTokenRegistry,
+        address trustedFillerRegistry,
         address guardian
     ) external returns (address optimisticGovernorDeployer) {
         address stakingVaultImpl = StakingVaultDeployer.deploy(bytes32(uint256(1)));
@@ -39,6 +40,7 @@ contract LocalReserveGovernorArtifactsDeployer {
         optimisticGovernorDeployer = ReserveOptimisticGovernorDeployerDeployer.deploy(
             versionRegistry,
             rewardTokenRegistry,
+            trustedFillerRegistry,
             guardian,
             stakingVaultImpl,
             governorImpl,
@@ -211,6 +213,7 @@ contract DeployScript is Script {
             deployParams.optimisticGovernorDeployer = artifactsDeployer.deploy(
                 address(optimisticGovernanceVersionRegistry),
                 address(rewardTokenRegistry),
+                deployParams.trustedFillerRegistry,
                 walletAddress
             );
 
