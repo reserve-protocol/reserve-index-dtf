@@ -29,10 +29,13 @@ interface IFolio {
 
     event BasketTokenAdded(address indexed token);
     event BasketTokenRemoved(address indexed token);
+    /// @param newFee D18{1/s}
+    /// @param feeAnnually D18{1/year}
     event TVLFeeSet(uint256 newFee, uint256 feeAnnually);
     event MintFeeSet(uint256 newFee);
     event FolioFeeSet(uint256 newFolioFee);
     event FeeRecipientsSet(FeeRecipient[] recipients);
+    event ImmutableFeeRecipientsSet(FeeRecipient[] recipients);
     event MaxAuctionLengthSet(uint256 newMaxAuctionLength);
     event MandateSet(string newMandate);
     event TrustedFillerRegistrySet(address trustedFillerRegistry, bool isEnabled);
@@ -62,11 +65,10 @@ interface IFolio {
     error Folio__Unauthorized();
 
     error Folio__EmptyAssets();
-    error Folio__BasketModificationFailed();
-    error Folio__BalanceNotRemovable();
 
     error Folio__FeeRecipientInvalidAddress();
     error Folio__FeeRecipientInvalidFeeShare();
+    error Folio__ImmutableFeeRecipientRemoved();
     error Folio__BadFeeTotal();
     error Folio__TVLFeeTooHigh();
     error Folio__TVLFeeTooLow();
@@ -96,12 +98,15 @@ interface IFolio {
     error Folio__InvalidRegistry();
     error Folio__TrustedFillerRegistryNotEnabled();
     error Folio__TrustedFillerRegistryAlreadySet();
+    error Folio__InvalidTrustedFill();
     error Folio__InvalidTTL();
+    error Folio__DeadlineExpired();
     error Folio__NotRebalancing();
+    error Folio__InvalidRebalanceNonce();
     error Folio__MixedAtomicSwaps();
     error Folio__PermissionlessBidsDisabled();
     error Folio__EmptyRebalance();
-    error Folo__NotInRebalance();
+    error Folio__NotInRebalance();
     error Folio__TokenNotAllowlisted();
 
     // === Structures ===
@@ -124,9 +129,10 @@ interface IFolio {
     struct FolioAdditionalDetails {
         uint256 maxAuctionLength; // {s}
         FeeRecipient[] feeRecipients;
-        uint256 tvlFee; // D18{1/s}
+        FeeRecipient[] immutableFeeRecipients;
+        uint256 tvlFee; // D18{1/year} annual fee input; stored on Folio as D18{1/s}
         uint256 mintFee; // D18{1}
-        uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
+        uint256 folioFeeForSelf; // D18{1} fraction of fee-recipient shares directed to Folio holders
         string mandate;
     }
 

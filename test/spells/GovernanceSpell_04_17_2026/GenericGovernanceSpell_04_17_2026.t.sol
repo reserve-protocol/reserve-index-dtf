@@ -20,35 +20,10 @@ import { IRoleRegistry as IRewardRoleRegistry } from "@reserve-protocol/reserve-
 import { RewardTokenRegistry } from "@reserve-protocol/reserve-governor/contracts/staking/RewardTokenRegistry.sol";
 import { REBALANCE_MANAGER, BRAND_MANAGER, AUCTION_LAUNCHER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 import { MockRoleRegistry } from "utils/MockRoleRegistry.sol";
+import { TrustedFillerRegistry } from "@reserve-protocol/trusted-fillers/contracts/TrustedFillerRegistry.sol";
 
 interface IVersionedLike {
     function version() external view returns (string memory);
-}
-
-contract MockGovernanceVersionRegistry {
-    IReserveOptimisticGovernorDeployer private _latestDeployer;
-    bytes32 private _latestVersionHash;
-
-    function registerVersion(IReserveOptimisticGovernorDeployer deployer) external {
-        _latestDeployer = deployer;
-        _latestVersionHash = keccak256(bytes(IVersionedLike(address(deployer)).version()));
-    }
-
-    function getLatestVersion()
-        external
-        view
-        returns (
-            bytes32 versionHash,
-            string memory version,
-            IReserveOptimisticGovernorDeployer deployer,
-            bool deprecated
-        )
-    {
-        deployer = _latestDeployer;
-        versionHash = _latestVersionHash;
-        version = IVersionedLike(address(deployer)).version();
-        deprecated = false;
-    }
 }
 
 contract GovernanceSpell_04_17_2026_Harness is GovernanceSpell_04_17_2026 {
@@ -132,8 +107,6 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
 
     Config[] public CONFIGS;
     GovernanceSpell_04_17_2026 public spell;
-    RewardTokenRegistry public rewardTokenRegistry;
-    IReserveOptimisticGovernorDeployer public optimisticGovernanceDeployer;
 
     function _setUp() public virtual override {
         super._setUp();
@@ -600,7 +573,8 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
 
     function _deployOptimisticGovernanceDeployer() internal {
         MockGovernanceVersionRegistry governanceVersionRegistry = new MockGovernanceVersionRegistry();
-        MockRoleRegistry rewardRoleRegistry = new MockRoleRegistry();
+        MockRoleRegistry rewardRoleRegistry = new MockRoleRegistry(address(this));
+        TrustedFillerRegistry trustedFillerRegistry = new TrustedFillerRegistry(address(rewardRoleRegistry));
         rewardTokenRegistry = new RewardTokenRegistry(IRewardRoleRegistry(address(rewardRoleRegistry)));
 
         address stakingVaultImpl = StakingVaultDeployer.deploy(bytes32(uint256(1)));
@@ -612,6 +586,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
             ReserveOptimisticGovernorDeployerDeployer.deploy(
                 address(governanceVersionRegistry),
                 address(rewardTokenRegistry),
+                address(trustedFillerRegistry),
                 user1,
                 stakingVaultImpl,
                 governorImpl,
@@ -629,11 +604,6 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         rewardTokenRegistry.registerRewardToken(rewardToken);
     }
 
-    function _registerRewardTokens(address[] memory rewardTokens) internal {
-        for (uint256 i; i < rewardTokens.length; i++) {
-            _registerRewardToken(rewardTokens[i]);
-        }
-    }
 
     function _singleAddressArray(address value) internal pure returns (address[] memory arr) {
         arr = new address[](1);
@@ -696,7 +666,7 @@ abstract contract GenericGovernanceSpell_04_17_2026_Test is BaseTest {
         }
 
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](0);
-        calldata_ = abi.encodeCall(Folio.startRebalance, (tokens, limits, 0, 1));
+        calldata_ = abi.encodeCall(Folio.startRebalance, (1, tokens, limits, 0, 1, type(uint256).max));
     }
 
     function _optimisticParams() internal pure returns (IReserveOptimisticGovernor.OptimisticGovernanceParams memory) {

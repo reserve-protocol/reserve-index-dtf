@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { IFolio } from "contracts/interfaces/IFolio.sol";
 import { IFolioDeployer } from "@interfaces/IFolioDeployer.sol";
 import { FolioDeployerV2 } from "./utils/upgrades/FolioDeployerV2.sol";
 import { IFolioVersionRegistry } from "contracts/interfaces/IFolioVersionRegistry.sol";
-import { FolioVersionRegistry } from "contracts/folio/FolioVersionRegistry.sol";
 import "./base/BaseTest.sol";
 
 contract FolioVersionRegistryTest is BaseTest {
@@ -48,7 +46,7 @@ contract FolioVersionRegistryTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         vm.expectEmit(true, true, false, true);
         emit IFolioVersionRegistry.VersionRegistered(keccak256("10.0.0"), newFactoryV2);
@@ -77,7 +75,7 @@ contract FolioVersionRegistryTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
         vm.expectRevert(abi.encodeWithSelector(IFolioVersionRegistry.VersionRegistry__InvalidRegistration.selector));
         versionRegistry.registerVersion(newFactory);
@@ -88,7 +86,7 @@ contract FolioVersionRegistryTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
 
         vm.prank(user1);

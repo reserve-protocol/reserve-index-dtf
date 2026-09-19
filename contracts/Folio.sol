@@ -14,7 +14,7 @@ import { ITrustedFillerRegistry, IBaseTrustedFiller } from "@reserve-protocol/tr
 
 import { RebalancingLib } from "@utils/RebalancingLib.sol";
 import { FolioLib } from "@utils/FolioLib.sol";
-import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, D27, ERC20_STORAGE_LOCATION, REBALANCE_MANAGER, MAX_MINT_FEE, MAX_FOLIO_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
+import { AUCTION_WARMUP, AUCTION_LAUNCHER, D18, ERC20_STORAGE_LOCATION, FOLIO_FEE_HANDOUT_PERIOD, FOLIO_FEE_HANDOUT_RATE, REBALANCE_MANAGER, MAX_MINT_FEE, MAX_FOLIO_FEE, MIN_AUCTION_LENGTH, MAX_AUCTION_LENGTH, RESTRICTED_AUCTION_BUFFER, ONE_DAY } from "@utils/Constants.sol";
 import { Versioned } from "@utils/Versioned.sol";
 
 import { IFolioDAOFeeRegistry } from "@interfaces/IFolioDAOFeeRegistry.sol";
@@ -29,8 +29,9 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * A Folio is backed by a flexible number of ERC20 tokens of any denomination/price (within assumed ranges, see README)
  *   All tokens tracked by the Folio are required to mint/redeem. This forms the basket.
  *
- * There are 3 main roles:
- *   1. DEFAULT_ADMIN_ROLE: can set erc20 assets, fees, auction length, close auctions/rebalances, and deprecateFolio
+ * There are 3 main operational roles:
+ *   1. DEFAULT_ADMIN_ROLE: can set ERC20 assets, fees, token trading allowlist, max auction length, close
+ *      auctions/rebalances, and deprecateFolio
  *   2. REBALANCE_MANAGER: can start/end rebalances, and end individual auctions
  *   3. AUCTION_LAUNCHER: can open auctions and end rebalances/auctions
  *
@@ -42,7 +43,7 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   - SHOULD end the ongoing rebalance when prices have moved outside the initially-provided price ranges
  *   - if weightControl=true: SHOULD progressively narrow weight ranges to maintain the original rebalance intent
  *   - if priceControl=PARTIAL: SHOULD provide narrowed price ranges that still include the current clearing price
- *        priceControl=ATOMIC_SWAP: SHOULD fill auction atomically directly after opening AND end rebalance after
+ *   - if priceControl=ATOMIC_SWAP: SHOULD fill and close auction atomically directly after opening, then end rebalance
  *
  * Rebalance lifecycle:
  *   startRebalance() -> openAuction()/openAuctionUnrestricted() -> bid()/createTrustedFill() -> [optional] closeAuction()
@@ -54,18 +55,18 @@ import { IFolio } from "@interfaces/IFolio.sol";
  *   - Individual token price ranges: can be a subset of the initially-provided range, if priceControl!=NONE
  *   - Rebalance limits: can progressively tighten the BU limits, without backtracking
  *
- * The AUCTION_LAUNCHER can run as many auctions as they need to. If they are close to the end of their restricted
- *   period the period will be extended automatically until a period of non-use occurs. However, they cannot extend the
- *   period indefinitely past the rebalance's end time. The final auction may extend past the rebalance's endTime, however.
+ * The AUCTION_LAUNCHER can run as many auctions as they need to. When they open an auction, the restricted period is
+ *   extended to cover the auction, warmup, and restricted-auction buffer. However, new auctions cannot be opened after
+ *   the rebalance's availableUntil timestamp. The final auction may extend past availableUntil.
  *
  * After the AUCTION_LAUNCHER's restricted period is over, anyone can open auctions until the rebalance expires. The
- *   AUCTION_LAUNCHER can always deny the unrestricted period by ending the rebalance when they are done.
+ *   AUCTION_LAUNCHER can end the rebalance when they are done to prevent further unrestricted auctions.
  *
  * The unrestricted period exists primarily to avoid strong reliance on the AUCTION_LAUNCHER. The maxAuctionLength should be
  *   long enough to support the price ranges provided by REBALANCE_MANAGER without excessive loss due to block precision
  *   in the case the AUCTION_LAUNCHER is not active.
  *
- * Auctions have a 30s delay at-start before bidding begins in order to ensure competition from the first block. This delay
+ * Auctions have a 30s delay after opening before bidding begins in order to ensure competition from the first block. This delay
  *   is bypassed in the priceControl=ATOMIC_SWAP case when startPrices are equal to endPrices.
  *
  * An auction for a set of tokens runs in parallel on all possible pairs simultaneously. The current price for each
@@ -82,9 +83,10 @@ import { IFolio } from "@interfaces/IFolio.sol";
  * Fees:
  *   - TVL fee: fee per unit time. Max 10% annually. Causes supply inflation over time, discretely once a day.
  *   - Mint fee: fee on mint. Max 5%. Does not cause supply inflation.
+ *   - Mint self-fees: remain in effective supply, then are burned at a bounded rate during a brief daily window.
  *
  * After fees have been applied, the DAO takes a cut based on the configuration of the FolioDAOFeeRegistry including
- *   a minimum fee floor of 15bps. The remaining portion above 15bps is distributed to the Folio's fee recipients.
+ *   a minimum fee floor. The remaining portion above the floor is distributed to the Folio's fee recipients.
  *   Note that this means it is possible for the fee recipients to receive nothing despite configuring a nonzero fee.
  */
 contract Folio is
@@ -164,10 +166,10 @@ contract Folio is
      *   - There can be any number of auctions within a rebalance, but only one live at a time
      *   - Auctions are restricted to the AUCTION_LAUNCHER until rebalance.restrictedUntil, with possible extensions
      *   - Auctions cannot be launched after availableUntil, though their start/end times may extend past it
-     *   - Each auction the AUCTION_LAUNCHER provides: (i) basket limits; (i) weight ranges; and (iii) prices
-     *   - Depending on the WeightControl, the AUCTION_LAUNCHER may be able to narrow weight ranges within the initial range
-     *   - Depending on the PriceControl, the AUCTION_LAUNCHER may be able to narrow prices within the initial range
-     *   - At anytime the rebalance can be stopped or a new one can be started. In the stopping case, any ongoing auction
+     *   - Each auction the AUCTION_LAUNCHER provides: (i) basket limits; (ii) weight ranges; and (iii) prices
+     *   - Depending on RebalanceControl.weightControl, the AUCTION_LAUNCHER may be able to narrow weight ranges within the initial range
+     *   - Depending on RebalanceControl.priceControl, the AUCTION_LAUNCHER may be able to narrow prices within the initial range
+     *   - At any time the rebalance can be stopped or a new one can be started. In the stopping case, any ongoing auction
      *     is able to continue completion, but in the restart case the ongoing auction is closed.
      */
     Rebalance private rebalance;
@@ -189,7 +191,12 @@ contract Folio is
     // === 6.0.0 ===
     bool public tradeAllowlistEnabled;
     EnumerableSet.AddressSet private tradeTokenAllowlist;
-    uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares to burn
+
+    FeeRecipient[] public immutableFeeRecipients;
+
+    uint256 public folioFeeForSelf; // D18{1} fraction of fee-recipient shares directed to Folio holders
+    uint256 public folioPendingMintFeeShares; // {share} mint self-fee shares pending handout (burning)
+    uint256 public lastFolioFeePoke; // {s} last time mint self-fee handout capacity was accounted
 
     /// Any external call to the Folio that relies on accurate share accounting must pre-hook poke
     modifier sync() {
@@ -216,7 +223,12 @@ contract Folio is
         __AccessControl_init();
         __ReentrancyGuard_init();
 
-        FolioLib.setFeeRecipients(feeRecipients, _additionalDetails.feeRecipients);
+        FolioLib.setFeeRecipients(
+            feeRecipients,
+            immutableFeeRecipients,
+            _additionalDetails.feeRecipients,
+            _additionalDetails.immutableFeeRecipients
+        );
         _setTVLFee(_additionalDetails.tvlFee);
         _setMintFee(_additionalDetails.mintFee);
         _setFolioSelfFee(_additionalDetails.folioFeeForSelf);
@@ -244,6 +256,7 @@ contract Folio is
         }
 
         lastPoke = block.timestamp;
+        lastFolioFeePoke = block.timestamp;
 
         _mint(_creator, _basicDetails.initialShares);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -279,31 +292,20 @@ contract Folio is
 
     /// Escape hatch function to be used when tokens get acquired not through an auction but
     /// through any other means and should become part of the Folio without being sold.
-    /// @dev Does not require a token balance, hence can be backrun with removeFromBasket. Token
-    ///      balance is highly recommended.
+    /// @dev Does not require a token balance
     /// @param token The token to add to the basket
     function addToBasket(IERC20 token) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_addToBasket(address(token)), Folio__BasketModificationFailed());
+        _addToBasket(address(token));
     }
 
-    /// @dev Enables permissionless removal of tokens for 0 balance tokens
-    function removeFromBasket(IERC20 token) external nonReentrant {
-        _closeTrustedFill();
-
-        // always allow admin to remove from basket
-        // allow permissionless removal if 0 weight AND 0 balance
-        // known: can be griefed by token donation
-        require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
-                (rebalance.details[address(token)].weights.spot == 0 && IERC20(token).balanceOf(address(this)) == 0),
-            Folio__BalanceNotRemovable()
-        );
-        require(_removeFromBasket(address(token)), Folio__BasketModificationFailed());
+    /// @dev Manual admin removal of tokens from the basket
+    function removeFromBasket(IERC20 token) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+        _removeFromBasket(address(token));
     }
 
-    /// An annual tvl fee below the DAO fee floor will result in the entirety of the fee being sent to the DAO
+    /// An annual TVL fee below the DAO fee floor will result in the entirety of the fee being sent to the DAO
     /// @dev Non-reentrant via distributeFees()
-    /// @param _newFee D18{1/s} Fee per second on AUM
+    /// @param _newFee D18{1/year} Annual fee on AUM
     function setTVLFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
@@ -319,9 +321,9 @@ contract Folio is
         _setMintFee(_newFee);
     }
 
-    /// Set the folio fee — fraction of fee-recipient shares that are burned (not minted)
+    /// Set the folio fee — fraction of fee-recipient shares directed to Folio holders
     /// @dev Non-reentrant via distributeFees()
-    /// @param _newFee D18{1} Fraction of fee-recipient shares to burn
+    /// @param _newFee D18{1} Fraction of fee-recipient shares directed to Folio holders
     function setFolioSelfFee(uint256 _newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
@@ -329,12 +331,16 @@ contract Folio is
     }
 
     /// @dev Non-reentrant via distributeFees()
-    /// @dev Fee recipients must be unique and sorted by address, and sum to 1e18
-    /// @dev Warning: An empty fee recipients table will result in all fees being sent to DAO
-    function setFeeRecipients(FeeRecipient[] calldata _newRecipients) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    /// @dev Mutable and immutable fee recipient tables must each be unique and sorted, and together sum to 1e18
+    /// @dev Use folioFeeForSelf to direct a portion of Folio fees to the Folio itself
+    /// @dev Warning: Empty fee recipient tables send all non-self fees to DAO
+    function setFeeRecipients(
+        FeeRecipient[] calldata _newRecipients,
+        FeeRecipient[] calldata _immutableRecipients
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         distributeFees();
 
-        FolioLib.setFeeRecipients(feeRecipients, _newRecipients);
+        FolioLib.setFeeRecipients(feeRecipients, immutableFeeRecipients, _newRecipients, _immutableRecipients);
     }
 
     /// @param _newLength {s} Length of an auction
@@ -342,7 +348,7 @@ contract Folio is
         _setMaxAuctionLength(_newLength);
     }
 
-    /// @param _newMandate New mandate, a schelling point to guide governance
+    /// @param _newMandate New mandate, a Schelling point to guide governance
     function setMandate(string calldata _newMandate) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setMandate(_newMandate);
     }
@@ -370,12 +376,12 @@ contract Folio is
         _setBidsEnabled(_bidsEnabled);
     }
 
-    /// @param _enabled If true, token allowlist is enforced during rebalancing
+    /// @param _enabled If true, only allowlisted tokens can be included in new rebalances
     function setTradeAllowlistEnabled(bool _enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _setTradeAllowlistEnabled(_enabled);
     }
 
-    /// Add tokens to the allowlist
+    /// Add tokens that are safe to trade in new rebalances to the allowlist
     /// @param tokens The tokens to add to the allowlist
     function addToAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 len = tokens.length;
@@ -387,6 +393,7 @@ contract Folio is
     }
 
     /// Remove tokens from the allowlist
+    /// @dev Does not impact ongoing rebalances. Consider calling endRebalance()
     /// @param tokens The tokens to remove from the allowlist
     function removeFromAllowlist(address[] calldata tokens) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 len = tokens.length;
@@ -398,8 +405,11 @@ contract Folio is
     }
 
     /// Deprecate the Folio, callable only by the admin
-    /// @dev Folio cannot be minted and auctions cannot be approved, opened, or bid on
+    /// @dev Folio cannot be minted, rebalanced, opened for auction, or bid on. The Folio's TVL fee stops accruing,
+    ///      but the DAO fee floor continues to accrue.
     function deprecateFolio() external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+        _poke();
+        _setTVLFee(0);
         isDeprecated = true;
 
         emit FolioDeprecated();
@@ -409,9 +419,20 @@ contract Folio is
 
     /// @dev Contains all pending fee shares
     function totalSupply() public view override returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, ) = _getPendingFeeShares();
+        (
+            uint256 _daoPendingFeeShares,
+            uint256 _feeRecipientsPendingFeeShares,
+            ,
+            uint256 _mintSelfFeeHandout,
 
-        return super.totalSupply() + _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
+        ) = _getFeeShares();
+
+        return
+            super.totalSupply() +
+            _daoPendingFeeShares +
+            _feeRecipientsPendingFeeShares +
+            folioPendingMintFeeShares -
+            _mintSelfFeeHandout;
     }
 
     /// @dev Result may be unreliable mid-swap during trusted fill execution, check stateChangeActive()
@@ -433,7 +454,7 @@ contract Folio is
     }
 
     /// @dev Use allowances to set slippage limits for provided assets
-    /// @dev Minting has 3 share-portions: (i) receiver shares, (ii) DAO fee shares, (iii) fee recipients shares
+    /// @dev Minting has 4 share-portions: receiver, DAO, fee recipients, and pending Folio self-fee shares
     /// @param shares {share} Amount of shares to mint
     /// @param minSharesOut {share} Minimum amount of shares the caller must receive after fees
     /// @return _assets
@@ -470,17 +491,19 @@ contract Folio is
 
         _mint(receiver, sharesOut);
 
-        // defer fee handouts until distributeFees()
+        // defer DAO and recipient fee handouts until distributeFees()
         daoPendingFeeShares += daoFeeShares;
         feeRecipientsPendingFeeShares += feeRecipientFeeShares;
+        folioPendingMintFeeShares += shares - sharesOut - daoFeeShares - feeRecipientFeeShares;
     }
 
     /// @param shares {share} Amount of shares to redeem
     /// @param assets Assets to receive, must match basket exactly
     /// @param minAmountsOut {tok} Minimum amounts of each asset to receive
     /// @return _amounts {tok} Actual amounts transferred of each asset
-    /// @dev Redeeming to Folio directly skips minAmountOut checks and transfers,
-    ///      mainly useful for donating shares to the Folio.
+    /// @dev There is no maximum amount-out check, so donation amounts can be higher than expected.
+    /// @dev Redeeming to Folio directly skips transfers, mainly useful for donating
+    ///      shares to the Folio.
     function redeem(
         uint256 shares,
         address receiver,
@@ -499,14 +522,14 @@ contract Folio is
         uint256 len = _assets.length;
         require(len == assets.length && len == minAmountsOut.length, Folio__InvalidArrayLengths());
 
-        if (receiver != address(this)) {
-            for (uint256 i; i < len; i++) {
-                require(_assets[i] == assets[i], Folio__InvalidAsset());
-                require(_amounts[i] >= minAmountsOut[i], Folio__InvalidAssetAmount(_assets[i]));
+        bool toSelf = receiver == address(this);
 
-                if (_amounts[i] != 0) {
-                    SafeERC20.safeTransfer(IERC20(_assets[i]), receiver, _amounts[i]);
-                }
+        for (uint256 i; i < len; i++) {
+            require(_assets[i] == assets[i], Folio__InvalidAsset());
+            require(_amounts[i] >= minAmountsOut[i], Folio__InvalidAssetAmount(_assets[i]));
+
+            if (!toSelf && _amounts[i] != 0) {
+                SafeERC20.safeTransfer(IERC20(_assets[i]), receiver, _amounts[i]);
             }
         }
     }
@@ -515,12 +538,14 @@ contract Folio is
 
     /// @return {share} Up-to-date sum of DAO and fee recipients pending fee shares
     function getPendingFeeShares() public view returns (uint256) {
-        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, ) = _getPendingFeeShares();
+        (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, , , ) = _getFeeShares();
         return _daoPendingFeeShares + _feeRecipientsPendingFeeShares;
     }
 
     /// Distribute all pending fee shares
-    /// @dev Recipients: DAO and fee recipients; if feeRecipients are empty, the DAO gets all the fees
+    /// @dev Recipients: DAO, mutable fee recipients, and immutable fee recipients; if both fee recipient tables are
+    /// empty, the DAO gets all non-self fees
+    /// @dev If the DAO recipient is the Folio itself, DAO fees continue to accrue and payout is deferred
     /// @dev Pending fee shares are already reflected in the total supply, this function only concretizes balances
     function distributeFees() public nonReentrant sync {
         // daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
@@ -531,15 +556,16 @@ contract Folio is
         feeRecipientsPendingFeeShares = 0;
         uint256 feeRecipientsTotal;
 
-        uint256 len = feeRecipients.length;
+        FeeRecipient[] memory recipients = FolioLib.mergeFeeRecipients(feeRecipients, immutableFeeRecipients);
+        uint256 len = recipients.length;
         for (uint256 i; i < len; i++) {
             // {share} = {share} * D18{1} / D18
-            uint256 shares = (_feeRecipientsPendingFeeShares * feeRecipients[i].portion) / D18;
+            uint256 shares = (_feeRecipientsPendingFeeShares * recipients[i].portion) / D18;
             feeRecipientsTotal += shares;
 
-            _mint(feeRecipients[i].recipient, shares);
+            _mint(recipients[i].recipient, shares);
 
-            emit FolioFeePaid(feeRecipients[i].recipient, shares);
+            emit FolioFeePaid(recipients[i].recipient, shares);
         }
 
         // === DAO ===
@@ -548,10 +574,15 @@ contract Folio is
         uint256 daoShares = daoPendingFeeShares + _feeRecipientsPendingFeeShares - feeRecipientsTotal;
 
         (address daoRecipient, , , ) = daoFeeRegistry.getFeeDetails(address(this));
-        _mint(daoRecipient, daoShares);
-        emit ProtocolFeePaid(daoRecipient, daoShares);
 
-        daoPendingFeeShares = 0;
+        if (daoRecipient != address(0) && daoRecipient != address(this)) {
+            _mint(daoRecipient, daoShares);
+            emit ProtocolFeePaid(daoRecipient, daoShares);
+
+            daoShares = 0;
+        }
+
+        daoPendingFeeShares = daoShares;
     }
 
     // ==== Auctions ====
@@ -560,6 +591,11 @@ contract Folio is
     function getAuctionPrice(uint256 auctionId, address token) external view returns (PriceRange memory range) {
         range = auctions[auctionId].prices[token];
         require(range.low != 0, Folio__InvalidAsset());
+    }
+
+    /// Get the current rebalance nonce
+    function getRebalanceNonce() external view returns (uint256) {
+        return rebalance.nonce;
     }
 
     /// @dev stack-too-deep
@@ -571,6 +607,7 @@ contract Folio is
 
     /// Get the currently ongoing rebalance
     /// @dev Nonzero return values do not imply a rebalance is ongoing; check `rebalance.availableUntil`
+    /// @dev Tokens for which inRebalance is false will contain zero weights, prices, and maxAuctionSize
     /// @return nonce The current rebalance nonce
     /// @return priceControl How much price control the AUCTION_LAUNCHER has: [NONE, PARTIAL, ATOMIC_SWAP]
     /// @return tokens The rebalance parameters for each token in the basket
@@ -623,43 +660,45 @@ contract Folio is
 
     /// Start a new rebalance, ending the currently running auction
     /// @dev If caller omits old tokens they will be kept in the basket for mint/redeem but skipped in the rebalance
-    /// @dev Note that weights will be _slightly_ stale after the fee supply inflation on a 24h boundary
+    /// @dev Weights become stale from TVL fee inflation on each 24h boundary and during the mint self-fee handout window that follows
+    /// @param rebalanceNonce The expected nonce after this rebalance starts, or type(uint256).max to skip validation
     /// @param tokens The rebalance parameters for each token in the rebalance
-    /// @param tokens.token MUST be unique
-    /// @param tokens.weight D27{tok/BU} Basket weight ranges; cannot be empty [0, 1e54]
-    /// @param tokens.price D27{UoA/tok} Prices for each token; cannot be empty (0, 1e45]
+    /// @param tokens.token MUST be unique; MUST be allowlisted when the trade allowlist is enabled
+    /// @param tokens.weight D27{tok/BU} Basket weight ranges; low <= spot <= high <= 1e54
+    /// @param tokens.price D27{UoA/tok} Initial price ranges for each token; low < high <= 1e45
     /// @param tokens.maxAuctionSize {tok} Max amount to sell in any single auction
     /// @param tokens.inRebalance MUST be true
     /// @param limits D18{BU/share} Target number of baskets should have at end of rebalance (0, 1e27]
-    /// @param auctionLauncherWindow {s} The amount of time the AUCTION_LAUNCHER has to open auctions, can be extended
+    /// @param auctionLauncherWindow {s} Initial amount of time only the AUCTION_LAUNCHER can open auctions
     /// @param ttl {s} The amount of time the rebalance is valid for
+    /// @param deadline {s} The deadline for starting the rebalance, inclusive
     function startRebalance(
+        uint256 rebalanceNonce,
         TokenRebalanceParams[] calldata tokens,
         RebalanceLimits calldata limits,
         uint256 auctionLauncherWindow,
-        uint256 ttl
+        uint256 ttl,
+        uint256 deadline
     ) external onlyRole(REBALANCE_MANAGER) nonReentrant notDeprecated sync {
-        // enforce token allowlist: non-allowlisted tokens can only be traded out (zero weights)
         if (tradeAllowlistEnabled) {
             for (uint256 i; i < tokens.length; i++) {
-                if (!tradeTokenAllowlist.contains(tokens[i].token)) {
-                    require(
-                        tokens[i].weight.low == 0 && tokens[i].weight.spot == 0 && tokens[i].weight.high == 0,
-                        Folio__TokenNotAllowlisted()
-                    );
-                }
+                require(tradeTokenAllowlist.contains(tokens[i].token), Folio__TokenNotAllowlisted());
             }
         }
 
         RebalancingLib.startRebalance(
+            rebalanceNonce,
             basket.values(),
             rebalanceControl,
             rebalance,
             tokens,
             limits,
-            auctionLauncherWindow,
-            ttl,
-            bidsEnabled
+            RebalancingLib.RebalanceParams({
+                auctionLauncherWindow: auctionLauncherWindow,
+                ttl: ttl,
+                deadline: deadline,
+                bidsEnabled: bidsEnabled
+            })
         );
 
         // add new tokens to basket
@@ -669,10 +708,11 @@ contract Folio is
     }
 
     /// Open an auction as the AUCTION_LAUNCHER aimed at specific BU limits and weights, for a given set of tokens
+    /// @dev Does not recheck current token allowlist membership; allowlist enforcement occurs only in startRebalance()
     /// @param rebalanceNonce The nonce of the rebalance being targeted
     /// @param tokens The tokens from the rebalance to include in the auction; must be unique
     /// @param newWeights D27{tok/BU} New basket weight ranges for BU definition; must always be provided
-    /// @param newPrices D27{UoA/tok} New price ranges; must always be provided and obey PriceControl setting
+    /// @param newPrices D27{UoA/tok} Auction price ranges; must always be provided and obey PriceControl setting
     /// @param newLimits D18{BU/share} New BU limits; must be within range
     /// @param auctionLength {s} Desired length for this auction, subject to PriceControl and maxAuctionLength
     /// @return auctionId The newly created auctionId
@@ -711,7 +751,8 @@ contract Folio is
     }
 
     /// Open an auction without caller restrictions, on all tokens in the rebalance on spot values and initial prices
-    /// @dev Callable only after the auction launcher window passes, and when no other auction is ongoing
+    /// @dev Callable only after the restricted window passes, after the 120 second start buffer, and when no other auction is ongoing
+    /// @dev Does not recheck current token allowlist membership; allowlist enforcement occurs only in startRebalance()
     /// @return auctionId The newly created auctionId
     function openAuctionUnrestricted(
         uint256 rebalanceNonce
@@ -774,9 +815,9 @@ contract Folio is
     /// @param sellToken The token to sell
     /// @param buyToken The token to buy
     /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder is willing to buy
-    /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at a given timestamp
+    /// @return sellAmount {sellTok} The amount of sell token on sale in the auction in the current block
     /// @return bidAmount {buyTok} The amount of buy tokens required to bid for the full sell amount
-    /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
+    /// @return price D27{buyTok/sellTok} The price in the current block as a 27-decimal fixed point
     function getBid(
         uint256 auctionId,
         IERC20 sellToken,
@@ -790,6 +831,7 @@ contract Folio is
     ///   If withCallback is true, caller must adhere to IBidderCallee interface and receives a callback
     ///   If withCallback is false, caller must have provided an allowance in advance
     /// @dev Callable by anyone
+    /// @dev Does not recheck current token allowlist membership; allowlist enforcement occurs only in startRebalance()
     /// @param sellAmount {sellTok} Sell token, the token the bidder receives
     /// @param maxBuyAmount {buyTok} Max buy token, the token the bidder provides
     /// @param withCallback If true, caller must adhere to IBidderCallee interface and transfers tokens via callback
@@ -817,6 +859,7 @@ contract Folio is
     }
 
     /// As an alternative to bidding directly, an in-block async swap can be opened without removing Folio's access
+    /// @dev Does not recheck current token allowlist membership; allowlist enforcement occurs only in startRebalance()
     function createTrustedFill(
         uint256 auctionId,
         IERC20 sellToken,
@@ -851,7 +894,7 @@ contract Folio is
     }
 
     /// Close an auction
-    /// A auction can be closed from anywhere in its lifecycle
+    /// An auction can be closed from anywhere in its lifecycle
     /// If you close an auction before startTime, it would break the invariant that endTime > startTime.
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
     function closeAuction(uint256 auctionId) external nonReentrant {
@@ -869,13 +912,30 @@ contract Folio is
 
     /// End the current rebalance, WITHOUT impacting any ongoing auction
     /// @dev Callable by ADMIN or REBALANCE_MANAGER or AUCTION_LAUNCHER
-    function endRebalance() external nonReentrant {
+    /// @param rebalanceNonce The nonce of the rebalance to end, or type(uint256).max to skip validation
+    function endRebalance(uint256 rebalanceNonce) external nonReentrant {
         _checkPrivileged();
+        require(
+            rebalance.nonce == rebalanceNonce || rebalanceNonce == type(uint256).max,
+            Folio__InvalidRebalanceNonce()
+        );
 
         emit RebalanceEnded(rebalance.nonce);
 
         // do not revert, to prevent griefing
         rebalance.availableUntil = block.timestamp; // exclusive
+    }
+
+    /// Close fill attempting to claw assets back, but always close fill
+    /// @dev Callable by ADMIN
+    /// @dev Clawed-back token balances will not be reflected in maxAuctionSize tracking
+    function emergencyCloseTrustedFill(address trustedFill) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+        require(
+            address(activeTrustedFill) != address(0) && address(activeTrustedFill) == trustedFill,
+            Folio__InvalidTrustedFill()
+        );
+
+        _closeTrustedFill(true);
     }
 
     // ==== Internal ====
@@ -981,9 +1041,9 @@ contract Folio is
     /// @param sellToken The token to sell
     /// @param buyToken The token to buy
     /// @param maxSellAmount {sellTok} The max amount of sell tokens the bidder is willing to buy
-    /// @return sellAmount {sellTok} The amount of sell token on sale in the auction at the given timestamp
+    /// @return sellAmount {sellTok} The amount of sell token on sale in the auction in the current block
     /// @return bidAmount {buyTok} The amount of buy tokens required to bid for the full sell amount
-    /// @return price D27{buyTok/sellTok} The price at the given timestamp as an 27-decimal fixed point
+    /// @return price D27{buyTok/sellTok} The price in the current block as a 27-decimal fixed point
     function _getBid(
         Auction storage auction,
         IERC20 sellToken,
@@ -1005,36 +1065,90 @@ contract Folio is
         (sellAmount, bidAmount, price) = RebalancingLib.getBid(rebalance, auction, sellToken, buyToken, params);
     }
 
+    /// Get all pending fee shares and the mint self-fee handout
     /// @return _daoPendingFeeShares {share}
     /// @return _feeRecipientsPendingFeeShares {share}
-    function _getPendingFeeShares()
+    /// @return _tvlSelfFeeShares {share}
+    /// @return _mintSelfFeeHandout {share}
+    /// @return _accountedUntil {s}
+    function _getFeeShares()
         internal
         view
-        returns (uint256 _daoPendingFeeShares, uint256 _feeRecipientsPendingFeeShares, uint256 _accountedUntil)
+        returns (
+            uint256 _daoPendingFeeShares,
+            uint256 _feeRecipientsPendingFeeShares,
+            uint256 _tvlSelfFeeShares,
+            uint256 _mintSelfFeeHandout,
+            uint256 _accountedUntil
+        )
     {
-        // {s} Always in full days
-        _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
-        uint256 elapsed = _accountedUntil > lastPoke ? _accountedUntil - lastPoke : 0;
+        // Pending mint self-fees remain in effective supply but are exempt from TVL fees. If X = feeSupply,
+        // P = pending mint self-fees, and E = net TVL fee shares, immediate dilution omits P * E / X while X != 0;
+        // the difference appears as P is handed out. Accepted because P should normally be small relative to X.
 
-        if (elapsed == 0) {
-            return (daoPendingFeeShares, feeRecipientsPendingFeeShares, lastPoke);
+        // {share}
+        uint256 feeSupply = super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares;
+        _daoPendingFeeShares = daoPendingFeeShares;
+        _feeRecipientsPendingFeeShares = feeRecipientsPendingFeeShares;
+
+        // === TVL fees ===
+
+        {
+            // {s} Always in full days
+            _accountedUntil = (block.timestamp / ONE_DAY) * ONE_DAY;
+
+            if (_accountedUntil > lastPoke) {
+                uint256 tvlFeeElapsed = _accountedUntil - lastPoke; // {s}
+                (_daoPendingFeeShares, _feeRecipientsPendingFeeShares, _tvlSelfFeeShares) = FolioLib.computeFeeShares(
+                    FolioLib.FeeSharesParams({
+                        currentDaoPending: daoPendingFeeShares,
+                        currentFeeRecipientsPending: feeRecipientsPendingFeeShares,
+                        tvlFee: tvlFee,
+                        folioFeeForSelf: folioFeeForSelf,
+                        supply: feeSupply,
+                        elapsed: tvlFeeElapsed
+                    }),
+                    daoFeeRegistry
+                );
+            } else {
+                _accountedUntil = lastPoke;
+            }
         }
 
-        (_daoPendingFeeShares, _feeRecipientsPendingFeeShares) = FolioLib.computeFeeShares(
-            FolioLib.FeeSharesParams({
-                currentDaoPending: daoPendingFeeShares,
-                currentFeeRecipientsPending: feeRecipientsPendingFeeShares,
-                tvlFee: tvlFee,
-                folioFeeForSelf: folioFeeForSelf,
-                supply: super.totalSupply() + daoPendingFeeShares + feeRecipientsPendingFeeShares,
-                elapsed: elapsed
-            }),
-            daoFeeRegistry
-        );
+        // === Mint self-fee handout ===
+
+        // {s}
+        uint256 _lastFolioFeePoke = lastFolioFeePoke;
+
+        if (folioPendingMintFeeShares != 0 && block.timestamp > _lastFolioFeePoke) {
+            // {1}
+            uint256 wholeDaysElapsed = (block.timestamp / ONE_DAY) - (_lastFolioFeePoke / ONE_DAY);
+
+            // {s}
+            uint256 lastElapsed = Math.min(_lastFolioFeePoke % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+
+            // handout if whole days have elapsed OR the last window was not fully handed out
+            if (wholeDaysElapsed != 0 || lastElapsed < FOLIO_FEE_HANDOUT_PERIOD) {
+                // {s}
+                uint256 wholeElapsed = wholeDaysElapsed * FOLIO_FEE_HANDOUT_PERIOD;
+
+                // {s}
+                uint256 currentElapsed = Math.min(block.timestamp % ONE_DAY, FOLIO_FEE_HANDOUT_PERIOD);
+
+                // {s}
+                uint256 elapsed = wholeElapsed + currentElapsed - lastElapsed;
+
+                // {share} = {share} * D18{1/s} * {s} / D18
+                uint256 maxHandout = Math.mulDiv(feeSupply, FOLIO_FEE_HANDOUT_RATE * elapsed, D18);
+
+                // {share}
+                _mintSelfFeeHandout = Math.min(folioPendingMintFeeShares, maxHandout);
+            }
+        }
     }
 
     /// Set TVL fee by annual percentage. Different from how it is stored!
-    /// @param _newFeeAnnually D18{1}
+    /// @param _newFeeAnnually D18{1/year}
     function _setTVLFee(uint256 _newFeeAnnually) internal {
         tvlFee = FolioLib.setTVLFee(_newFeeAnnually);
     }
@@ -1048,7 +1162,7 @@ contract Folio is
         emit MintFeeSet(_newFee);
     }
 
-    /// Set folio fee — fraction of fee-recipient shares to burn
+    /// Set folio fee — fraction of fee-recipient shares directed to Folio holders
     /// @param _newFee D18{1}
     function _setFolioSelfFee(uint256 _newFee) internal {
         require(_newFee <= MAX_FOLIO_FEE, Folio__FolioFeeTooHigh());
@@ -1062,7 +1176,7 @@ contract Folio is
         require(_newLength >= MIN_AUCTION_LENGTH && _newLength <= MAX_AUCTION_LENGTH, Folio__InvalidAuctionLength());
 
         maxAuctionLength = _newLength;
-        emit MaxAuctionLengthSet(maxAuctionLength);
+        emit MaxAuctionLengthSet(_newLength);
     }
 
     function _setMandate(string calldata _newMandate) internal {
@@ -1081,36 +1195,50 @@ contract Folio is
         emit NameSet(_newName);
     }
 
-    /// @dev After: daoPendingFeeShares and feeRecipientsPendingFeeShares are up-to-date
+    /// @dev After: all pending fee share accounting is up-to-date
     function _poke() internal {
-        _closeTrustedFill();
+        _closeTrustedFill(false);
 
         (
             uint256 _daoPendingFeeShares,
             uint256 _feeRecipientsPendingFeeShares,
+            uint256 _tvlSelfFeeShares,
+            uint256 _mintSelfFeeHandout,
             uint256 _accountedUntil
-        ) = _getPendingFeeShares();
+        ) = _getFeeShares();
 
         if (_accountedUntil > lastPoke) {
             daoPendingFeeShares = _daoPendingFeeShares;
             feeRecipientsPendingFeeShares = _feeRecipientsPendingFeeShares;
             lastPoke = _accountedUntil;
         }
+
+        // burn pending mint shares around the 24h handout boundary
+        if (_mintSelfFeeHandout != 0) {
+            folioPendingMintFeeShares -= _mintSelfFeeHandout;
+        }
+        lastFolioFeePoke = block.timestamp;
+
+        if (_tvlSelfFeeShares + _mintSelfFeeHandout != 0) {
+            // fees paid to self = sum of constant TVL and 24h boundary mint fees
+            emit FolioFeePaid(address(this), _tvlSelfFeeShares + _mintSelfFeeHandout);
+        }
     }
 
-    function _addToBasket(address token) internal returns (bool) {
+    function _addToBasket(address token) internal {
         require(token != address(0) && token != address(this), Folio__InvalidAsset());
-        emit BasketTokenAdded(token);
 
-        return basket.add(token);
+        if (basket.add(token)) {
+            emit BasketTokenAdded(token);
+        }
     }
 
-    function _removeFromBasket(address token) internal returns (bool) {
-        emit BasketTokenRemoved(token);
+    function _removeFromBasket(address token) internal {
+        if (basket.remove(token)) {
+            delete rebalance.details[token];
 
-        delete rebalance.details[token];
-
-        return basket.remove(token);
+            emit BasketTokenRemoved(token);
+        }
     }
 
     function _setTrustedFillerRegistry(address _newFillerRegistry, bool _enabled) internal {
@@ -1149,9 +1277,17 @@ contract Folio is
     }
 
     /// Claim all token balances from outstanding trusted fill
-    function _closeTrustedFill() internal {
+    function _closeTrustedFill(bool _emergency) internal {
         if (address(activeTrustedFill) != address(0)) {
-            RebalancingLib.closeTrustedFill(auctions[nextAuctionId - 1], activeTrustedFill);
+            if (!_emergency) {
+                address sellToken = address(activeTrustedFill.sellToken());
+                if (RebalancingLib.closeTrustedFill(auctions[nextAuctionId - 1], activeTrustedFill)) {
+                    _removeFromBasket(sellToken);
+                }
+            } else {
+                activeTrustedFill.emergencyCloseFiller();
+            }
+
             delete activeTrustedFill;
         }
     }

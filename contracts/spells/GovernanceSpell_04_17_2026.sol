@@ -17,7 +17,7 @@ import { IFolio, Folio } from "@src/Folio.sol";
 import { FolioProxyAdmin } from "@folio/FolioProxy.sol";
 import { DEFAULT_ADMIN_ROLE, REBALANCE_MANAGER, BRAND_MANAGER, AUCTION_LAUNCHER, MAX_FEE_RECIPIENTS } from "@utils/Constants.sol";
 
-bytes32 constant VERSION_1_0_0 = keccak256("1.0.0");
+bytes32 constant VERSION_1_1_0 = keccak256("1.1.0");
 bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
 bytes32 constant VERSION_5_0_0 = keccak256("5.0.0");
 bytes4 constant START_REBALANCE_4_0_0 = 0x235d7142;
@@ -91,7 +91,7 @@ contract GovernanceSpell_04_17_2026 {
     IReserveOptimisticGovernorDeployer public immutable governorDeployer;
 
     constructor(IReserveOptimisticGovernorDeployer _governorDeployer) {
-        require(keccak256(bytes(IVersioned(address(_governorDeployer)).version())) == VERSION_1_0_0, UpgradeError(0));
+        require(keccak256(bytes(IVersioned(address(_governorDeployer)).version())) == VERSION_1_1_0, UpgradeError(0));
 
         governorDeployer = _governorDeployer;
     }
@@ -190,7 +190,7 @@ contract GovernanceSpell_04_17_2026 {
         require(folioVersion == VERSION_4_0_0 || folioVersion == VERSION_5_0_0, UpgradeError(28));
 
         // newStakingVault must not be the old immmutable kind, must be new and upgradeable
-        require(keccak256(bytes(IVersioned(address(newStakingVault)).version())) == VERSION_1_0_0, UpgradeError(3));
+        require(keccak256(bytes(IVersioned(address(newStakingVault)).version())) == VERSION_1_1_0, UpgradeError(3));
 
         {
             IReserveOptimisticGovernorDeployer.BaseDeploymentParams memory baseParams = _baseDeploymentParams(
@@ -399,7 +399,7 @@ contract GovernanceSpell_04_17_2026 {
 
         recipients[oldFeeRecipientIndex].recipient = newFeeRecipient;
         _sortFeeRecipients(recipients);
-        folio.setFeeRecipients(recipients);
+        folio.setFeeRecipients(recipients, _immutableFeeRecipients(folio));
     }
 
     function _feeRecipients(Folio folio) internal view returns (IFolio.FeeRecipient[] memory recipients) {
@@ -416,6 +416,27 @@ contract GovernanceSpell_04_17_2026 {
         recipients = new IFolio.FeeRecipient[](length);
         for (uint256 i; i < length; i++) {
             (address recipient, uint96 portion) = folio.feeRecipients(i);
+            recipients[i] = IFolio.FeeRecipient({ recipient: recipient, portion: portion });
+        }
+    }
+
+    function _immutableFeeRecipients(Folio folio)
+        internal
+        view
+        returns (IFolio.FeeRecipient[] memory recipients)
+    {
+        uint256 length;
+        for (; length < MAX_FEE_RECIPIENTS; length++) {
+            try folio.immutableFeeRecipients(length) returns (address, uint96) {
+                // no-op
+            } catch {
+                break;
+            }
+        }
+
+        recipients = new IFolio.FeeRecipient[](length);
+        for (uint256 i; i < length; i++) {
+            (address recipient, uint96 portion) = folio.immutableFeeRecipients(i);
             recipients[i] = IFolio.FeeRecipient({ recipient: recipient, portion: portion });
         }
     }

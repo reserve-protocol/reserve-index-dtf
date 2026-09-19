@@ -22,7 +22,7 @@ abstract contract BaseExtremeTest is BaseTest {
 
     struct FeeTestParams {
         uint256 amount;
-        uint256 tvlFee; // D18{1/s}
+        uint256 tvlFee; // D18{1/year}
         uint256 daoFee; // D18{1}
         uint256 timeLapse; // {s}
         uint256 numFeeRecipients;
@@ -56,7 +56,7 @@ abstract contract BaseExtremeTest is BaseTest {
     StakingRewardsTestParams[] internal stkRewardsTestParams;
 
     function _testSetupBefore() public override {
-        roleRegistry = new MockRoleRegistry();
+        roleRegistry = new MockRoleRegistry(address(this));
         daoFeeRegistry = new FolioDAOFeeRegistry(IRoleRegistry(address(roleRegistry)), dao);
         versionRegistry = new FolioVersionRegistry(IRoleRegistry(address(roleRegistry)));
         trustedFillerRegistry = new TrustedFillerRegistry(address(roleRegistry));
@@ -65,10 +65,10 @@ abstract contract BaseExtremeTest is BaseTest {
             address(daoFeeRegistry),
             address(versionRegistry),
             address(trustedFillerRegistry),
-            governanceDeployer
+            address(optimisticGovernanceDeployer)
         );
 
-        CowSwapFiller cowswapFiller = new CowSwapFiller();
+        CowSwapFiller cowswapFiller = new CowSwapFiller(GPV2_SETTLEMENT, GPV2_VAULT_RELAYER);
 
         // register version
         versionRegistry.registerVersion(folioDeployer);

@@ -4,19 +4,20 @@ Full deprecation of an Index DTF renders it permanently in **redemption-only mod
 
 ## Deprecation Actions
 
-A single governance proposal performs all of the following atomically:
+A single governance proposal should perform all of the following actions:
 
-1. **`deprecateFolio()`** — sets `isDeprecated = true`, blocking minting, auctions, and rebalancing
+1. **`deprecateFolio()`** — sets the Folio TVL fee to zero and `isDeprecated = true`, blocking minting, auctions, and rebalancing; the DAO fee floor continues to accrue
 2. **`revokeRole(REBALANCE_MANAGER, tradingTimelock)`** — removes basket management capability
 3. **`revokeRole(AUCTION_LAUNCHER, ...)`** — removes all auction launcher addresses (one call per launcher)
 4. **`revokeRole(DEFAULT_ADMIN_ROLE, ownerTimelock)`** — removes governance control from the Folio
 5. **`renounceOwnership()`** on `FolioProxyAdmin` — permanently prevents contract upgrades
 
-The admin role revocation must come before the ProxyAdmin renounce, so the timelock still has permission to execute all prior calls.
+The admin role revocation must come after all Folio calls that require admin permissions. The ProxyAdmin renounce is separate from Folio role checks, but it should still be the final action because it permanently removes the upgrade path.
 
 ### Post-Deprecation State
 
-- `isDeprecated = true` — minting, auctions, rebalancing all blocked
+- `isDeprecated = true` — minting, auctions, and rebalancing all blocked
+- Folio TVL fee set to zero — only the DAO fee floor continues to accrue
 - All roles revoked — no address holds `DEFAULT_ADMIN_ROLE`, `REBALANCE_MANAGER`, or `AUCTION_LAUNCHER`
 - ProxyAdmin owner is `address(0)` — no further upgrades possible
 - **Redeem still works** — holders can always redeem shares for underlying basket tokens
@@ -55,7 +56,7 @@ generate_proposal "<SYMBOL>" "<CHAIN_ID>" \
 **Finding the addresses:**
 
 - **Folio** — the DTF token contract
-- **Owner Governor** — the FolioGovernor that controls the Folio's admin role
+- **Owner Governor** — the governor that controls the Folio's admin role
 - **Owner Timelock** — `governor.timelock()`
 - **Trading Timelock** — the address holding `REBALANCE_MANAGER` (or `"none"` if not applicable)
 - **ProxyAdmin** — read from the ERC1967 admin storage slot:
@@ -84,7 +85,7 @@ Each JSON follows the [Safe Transaction Builder](https://help.safe.global/en/art
 }
 ```
 
-The `data` field is an ABI-encoded `propose(address[],uint256[],bytes[],string)` call containing all deprecation actions.
+The `data` field is an ABI-encoded `propose(address[],uint256[],bytes[],string)` call containing the deprecation actions.
 
 ## Submitting Proposals
 
@@ -99,7 +100,7 @@ The `data` field is an ABI-encoded `propose(address[],uint256[],bytes[],string)`
 
 If a proposal expires (missed the voting deadline), append a suffix to the description (e.g., `"(2)"`) to generate a different proposal ID hash. The Governor rejects duplicate proposal IDs.
 
-## Verifying On-Chain
+## Verifying Onchain
 
 After execution, verify the deprecation state:
 
@@ -121,7 +122,7 @@ cast call <governor> "state(uint256)(uint8)" <proposal_id> --rpc-url <rpc>
 
 ## Fork Tests
 
-Two test suites validate the deprecation flow against live on-chain state:
+Two test suites validate the deprecation flow against live onchain state:
 
 ### Direct Simulation (`test/DeprecationFork.t.sol`)
 
@@ -132,9 +133,9 @@ FORK_RPC_MAINNET="<archive_rpc>" FORK_RPC_BASE="<archive_rpc>" \
   forge test --match-contract DeprecationForkTest --evm-version cancun -vv
 ```
 
-### On-Chain Proposal Execution (`test/DeprecationProposalFork.t.sol`)
+### Onchain Proposal Execution (`test/DeprecationProposalFork.t.sol`)
 
-Retrieves an actual queued proposal on-chain, warps past the timelock ETA, and executes it through the Governor.
+Retrieves an actual queued proposal onchain, warps past the timelock ETA, and executes it through the Governor.
 
 ```bash
 FORK_RPC_MAINNET="<archive_rpc>" \
