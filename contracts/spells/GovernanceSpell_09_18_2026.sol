@@ -21,6 +21,7 @@ bytes32 constant VERSION_1_1_0 = keccak256("1.1.0");
 bytes32 constant VERSION_4_0_0 = keccak256("4.0.0");
 bytes32 constant VERSION_5_0_0 = keccak256("5.0.0");
 bytes4 constant START_REBALANCE_4_0_0 = 0x235d7142;
+bytes4 constant START_REBALANCE_5_0_0 = 0x207c8eed;
 bytes32 constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
 bytes32 constant CANCELLER_ROLE = keccak256("CANCELLER_ROLE");
 
@@ -327,7 +328,7 @@ contract GovernanceSpell_09_18_2026 {
     ) internal pure returns (IOptimisticSelectorRegistry.SelectorData[] memory selectorData) {
         selectorData = new IOptimisticSelectorRegistry.SelectorData[](1);
         bytes4[] memory selectors = new bytes4[](folioVersion == VERSION_4_0_0 ? 2 : 1);
-        selectors[0] = Folio.startRebalance.selector;
+        selectors[0] = START_REBALANCE_5_0_0;
         if (folioVersion == VERSION_4_0_0) selectors[1] = START_REBALANCE_4_0_0;
         selectorData[0] = IOptimisticSelectorRegistry.SelectorData({ target: address(folio), selectors: selectors });
     }

@@ -114,6 +114,7 @@ abstract contract GenericGovernanceSpell_09_18_2026_Test is BaseTest {
     bytes32 internal constant FOLIO_VERSION_4_0_0 = keccak256("4.0.0");
     bytes32 internal constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
     bytes4 internal constant START_REBALANCE_4_0_0 = 0x235d7142;
+    bytes4 internal constant START_REBALANCE_5_0_0 = 0x207c8eed;
 
     struct Config {
         Folio folio;
@@ -699,7 +700,7 @@ abstract contract GenericGovernanceSpell_09_18_2026_Test is BaseTest {
         }
 
         IFolio.TokenRebalanceParams[] memory tokens = new IFolio.TokenRebalanceParams[](0);
-        calldata_ = abi.encodeCall(Folio.startRebalance, (tokens, limits, 0, 1));
+        calldata_ = abi.encodeWithSelector(START_REBALANCE_5_0_0, tokens, limits, 0, 1);
     }
 
     function _optimisticParams() internal pure returns (IReserveOptimisticGovernor.OptimisticGovernanceParams memory) {
