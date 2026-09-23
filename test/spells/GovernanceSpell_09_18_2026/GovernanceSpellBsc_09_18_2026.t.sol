@@ -8,7 +8,7 @@ contract GovernanceSpellBsc_09_18_2026_Test is GenericGovernanceSpell_09_18_2026
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,
             forkTarget: ForkNetwork.BSC,
-            forkBlock: 98532091
+            forkBlock: 123582873
         });
 
         // CMC20

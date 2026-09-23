@@ -8,7 +8,7 @@ contract GovernanceSpellBase_09_18_2026_Test is GenericGovernanceSpell_09_18_202
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,
             forkTarget: ForkNetwork.BASE,
-            forkBlock: 46051387
+            forkBlock: 51692586
         });
 
         // LCAP

@@ -8,7 +8,7 @@ contract GovernanceSpellEthereum_09_18_2026_Test is GenericGovernanceSpell_09_18
         deploymentData = DeploymentData({
             deploymentType: Deployment.FORK,
             forkTarget: ForkNetwork.ETHEREUM,
-            forkBlock: 25104004
+            forkBlock: 26040842
         });
 
         // OPEN
@@ -28,8 +28,8 @@ contract GovernanceSpellEthereum_09_18_2026_Test is GenericGovernanceSpell_09_18
             );
         }
 
-        // BED
-        {
+        // DEPRECATED: BED
+        /* {
             address[] memory guardians = new address[](2);
             guardians[0] = 0x280730d9277EF586d58dB74c277Aa710ca8F87C9;
             guardians[1] = 0xd5fE2780Eb882D1Da78f2136b81c2A4395488C98;
@@ -44,10 +44,10 @@ contract GovernanceSpellEthereum_09_18_2026_Test is GenericGovernanceSpell_09_18
                     guardians: guardians
                 })
             );
-        }
+        } */
 
-        // SMEL
-        {
+        // DEPRECATED: SMEL
+        /* {
             address[] memory guardians = new address[](2);
             guardians[0] = 0x280730d9277EF586d58dB74c277Aa710ca8F87C9;
             guardians[1] = 0xd5fE2780Eb882D1Da78f2136b81c2A4395488C98;
@@ -62,7 +62,7 @@ contract GovernanceSpellEthereum_09_18_2026_Test is GenericGovernanceSpell_09_18
                     guardians: guardians
                 })
             );
-        }
+        } */
 
         // DFX
         {
@@ -118,14 +118,15 @@ contract GovernanceSpellEthereum_09_18_2026_Test is GenericGovernanceSpell_09_18
         }
     }
 
-    function test_upgradeFlow_sharedNewStakingVault_fork() public {
+    // DEPRECATED: BED and SMEL are deprecated and are no longer tested.
+    /* function test_upgradeFlow_sharedNewStakingVault_fork() public {
         _runSharedNewStakingVaultFlow(
             _configByFolio(0x4E3B170DcBe704b248df5f56D488114acE01B1C5),
             _configByFolio(0xF91384484F4717314798E8975BCd904A35fc2BF1),
             "BED",
             "SMEL"
         );
-    }
+    } */
 
     function _runSharedNewStakingVaultFlow(
         Config memory firstCfg,
