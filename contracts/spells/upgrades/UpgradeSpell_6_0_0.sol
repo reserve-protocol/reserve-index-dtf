@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { TimelockControllerUpgradeable } from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 
 import { IOptimisticSelectorRegistry } from "@reserve-protocol/reserve-governor/contracts/interfaces/IOptimisticSelectorRegistry.sol";
 import { IReserveOptimisticGovernor } from "@reserve-protocol/reserve-governor/contracts/interfaces/IReserveOptimisticGovernor.sol";
@@ -29,12 +30,6 @@ interface IOptimisticGovernor_6_0_0 is IReserveOptimisticGovernor {
     function selectorRegistry() external view returns (address);
 }
 
-interface IAccessControlEnumerable_6_0_0 {
-    function getRoleMemberCount(bytes32 role) external view returns (uint256);
-
-    function getRoleMember(bytes32 role, uint256 index) external view returns (address);
-}
-
 /**
  * @title UpgradeSpell_6_0_0
  * @author akshatmittal, julianmrodri, pmckelvy1, tbrent
@@ -54,7 +49,10 @@ contract UpgradeSpell_6_0_0 is Versioned {
         require(proxyAdmin.owner() == address(this), UpgradeSpell__Error(5));
 
         if (address(selectorRegistry) == address(0)) {
-            _requireLegacyTimelock(msg.sender);
+            // Reserve optimistic timelocks inherit Versioned; the legacy OZ timelock does not.
+            (bool versionCallSucceeded, ) = msg.sender.staticcall(abi.encodeWithSelector(Versioned.version.selector));
+            require(!versionCallSucceeded, UpgradeSpell__Error(6));
+            require(TimelockControllerUpgradeable(payable(msg.sender)).getMinDelay() != 0, UpgradeSpell__Error(6));
         } else {
             address governor = selectorRegistry.governor();
             IOptimisticGovernor_6_0_0 optimisticGovernor = IOptimisticGovernor_6_0_0(governor);
@@ -85,17 +83,5 @@ contract UpgradeSpell_6_0_0 is Versioned {
 
         proxyAdmin.transferOwnership(msg.sender);
         require(proxyAdmin.owner() == msg.sender, UpgradeSpell__Error(16));
-    }
-
-    function _requireLegacyTimelock(address timelock) private view {
-        try IAccessControlEnumerable_6_0_0(timelock).getRoleMemberCount(PROPOSER_ROLE) returns (uint256 count) {
-            for (uint256 i; i < count; i++) {
-                address proposer = IAccessControlEnumerable_6_0_0(timelock).getRoleMember(PROPOSER_ROLE, i);
-
-                try IOptimisticGovernor_6_0_0(proposer).selectorRegistry() returns (address selectorRegistry) {
-                    require(selectorRegistry == address(0), UpgradeSpell__Error(6));
-                } catch {}
-            }
-        } catch {}
     }
 }
