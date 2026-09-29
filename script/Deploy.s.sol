@@ -105,7 +105,7 @@ contract DeployScript is Script {
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
                 trustedFillerRegistry: 0x72DB5f49D0599C314E2f2FEDf6Fe33E1bA6C7A18,
-                optimisticGovernorDeployer: address(0x604D70D128B11019c10b45a789148Ec362fDA040)
+                optimisticGovernorDeployer: address(0xaC429cc5EA7f34a407f65B769c9AEA0242b075c6)
             });
 
             // Ethereum Mainnet - Canonical Parameters
@@ -115,7 +115,7 @@ contract DeployScript is Script {
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0xA665b273997F70b647B66fa7Ed021287544849dB,
                 trustedFillerRegistry: 0x279ccF56441fC74f1aAC39E7faC165Dec5A88B3A,
-                optimisticGovernorDeployer: address(0x2ACC45e12776579f40Ae3419764EEf7022763735)
+                optimisticGovernorDeployer: address(0x4292433c772958ae93bebf32602ffDe0f9C5Fcd6)
             });
 
             // BNB Smart Chain Mainnet - Canonical Parameters
@@ -125,7 +125,7 @@ contract DeployScript is Script {
                 feeRecipient: 0xcBCa96091f43C024730a020E57515A18b5dC633B,
                 folioVersionRegistry: 0x79A4E963378AE34fC6c796a24c764322fC6c9390,
                 trustedFillerRegistry: 0x08424d7C52bf9edd4070701591Ea3FE6dca6449B,
-                optimisticGovernorDeployer: address(0x1C10E68B0fbFd0da41969120bF499e8d39D66495)
+                optimisticGovernorDeployer: address(0xb4eB87250Ecd8f32BeA775dA6D164D92A398d05b)
             });
         } else {
             // Base Mainnet - Testing Parameters
