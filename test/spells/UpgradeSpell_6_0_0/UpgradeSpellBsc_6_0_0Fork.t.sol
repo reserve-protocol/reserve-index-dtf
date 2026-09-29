@@ -5,13 +5,13 @@ import { Folio } from "@src/Folio.sol";
 import { ISelectorRegistryAdminFork_6_0_0, GenericUpgradeSpell_6_0_0ForkTest } from "./GenericUpgradeSpell_6_0_0.t.sol";
 
 contract UpgradeSpellBsc_6_0_0ForkTest is GenericUpgradeSpell_6_0_0ForkTest {
+    uint256 private constant FORK_BLOCK = 118_000_000;
     address private constant VERSION_REGISTRY = 0x79A4E963378AE34fC6c796a24c764322fC6c9390;
 
     Config[] private configs;
 
     function setUp() public {
-        // The configured public BSC endpoint is not archival, so use latest state.
-        vm.createSelectFork(vm.envOr("FORK_RPC_BSC", string("bsc")));
+        vm.createSelectFork(vm.envOr("FORK_RPC_BSC", string("bsc")), FORK_BLOCK);
         _setUpSpell(VERSION_REGISTRY);
 
         // Active Index DTF snapshot: api.reserve.org/discover/dtfs, 2026-08-25
