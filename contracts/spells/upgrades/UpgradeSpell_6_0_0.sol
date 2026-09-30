@@ -78,6 +78,9 @@ contract UpgradeSpell_6_0_0 is Versioned {
             require(endTime < block.timestamp, UpgradeSpell__Error(14));
         }
 
+        // Account for all legacy fee state before changing the implementation.
+        folio.poke();
+
         proxyAdmin.upgradeToVersion(address(folio), VERSION_6_0_0, abi.encodeCall(Folio.poke, ()));
         require(keccak256(bytes(folio.version())) == VERSION_6_0_0, UpgradeSpell__Error(15));
 
