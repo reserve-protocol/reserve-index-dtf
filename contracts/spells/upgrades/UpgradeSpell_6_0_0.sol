@@ -43,6 +43,7 @@ contract UpgradeSpell_6_0_0 is Versioned {
 
     function cast(Folio folio, FolioProxyAdmin proxyAdmin, ISelectorRegistry_6_0_0 selectorRegistry) external {
         require(keccak256(bytes(folio.version())) == VERSION_5_0_0, UpgradeSpell__Error(1));
+        require(!folio.isDeprecated(), UpgradeSpell__Error(17));
         require(folio.hasRole(DEFAULT_ADMIN_ROLE, msg.sender), UpgradeSpell__Error(2));
         require(folio.getRoleMemberCount(DEFAULT_ADMIN_ROLE) == 1, UpgradeSpell__Error(3));
         require(folio.getRoleMember(DEFAULT_ADMIN_ROLE, 0) == msg.sender, UpgradeSpell__Error(4));

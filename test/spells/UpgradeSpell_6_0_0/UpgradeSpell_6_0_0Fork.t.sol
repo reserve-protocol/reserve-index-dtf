@@ -124,6 +124,14 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
         assertTrue(selectorRegistry.isAllowed(address(folio), START_REBALANCE_6_0_0));
     }
 
+    function test_castRejectsDeprecatedFolio() public {
+        vm.store(address(folio), bytes32(uint256(10)), bytes32(uint256(1))); // isDeprecated
+
+        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 17));
+        vm.prank(TIMELOCK);
+        spell.cast(folio, proxyAdmin, selectorRegistry);
+    }
+
     function test_castRevertsUntilNewSelectorIsRegistered() public {
         IOptimisticSelectorRegistry.SelectorData[] memory selectorData = new IOptimisticSelectorRegistry.SelectorData[](
             1
