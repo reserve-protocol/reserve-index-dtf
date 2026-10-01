@@ -21,3 +21,4 @@ install-state.gz
 
 # Playground
 Playground.*
+.fork/

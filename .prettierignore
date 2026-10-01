@@ -1,3 +1,4 @@
 snapshots/
 pnpm-lock.yaml
 .claude/
+script/sandbox/UpgradeSpell_6_0_0.sol
