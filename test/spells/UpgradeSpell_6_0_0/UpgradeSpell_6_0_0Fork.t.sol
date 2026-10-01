@@ -49,6 +49,24 @@ contract ActiveTrustedFill {
     function swapActive() external pure returns (bool) {
         return true;
     }
+
+    function sellToken() external view returns (address) {
+        return address(this);
+    }
+
+    function buyToken() external view returns (address) {
+        return address(this);
+    }
+
+    function closeFiller() external {}
+
+    function sellAmount() external pure returns (uint256) {
+        return 0;
+    }
+
+    function balanceOf(address) external pure returns (uint256) {
+        return 0;
+    }
 }
 
 contract UpgradeSpell_6_0_0ForkTest is Test {
@@ -194,10 +212,15 @@ contract UpgradeSpell_6_0_0ForkTest is Test {
             bytes32(uint256(19)), // activeTrustedFill
             bytes32(uint256(uint160(address(new ActiveTrustedFill()))))
         );
+        vm.store(address(folio), bytes32(uint256(31)), bytes32(uint256(1))); // nextAuctionId
 
-        vm.expectRevert(abi.encodeWithSelector(UpgradeSpell_6_0_0.UpgradeSpell__Error.selector, 15));
         vm.prank(TIMELOCK);
         spell.cast(folio, proxyAdmin, selectorRegistry);
+
+        assertEq(folio.version(), "6.0.0");
+        (bool syncStateChangeActive, bool asyncStateChangeActive) = folio.stateChangeActive();
+        assertFalse(syncStateChangeActive);
+        assertFalse(asyncStateChangeActive);
     }
 
     function test_castRevertsForActiveRebalance() public {
