@@ -12,6 +12,11 @@ broadcast/
 lcov.info
 snapshots/
 
+# Certora
+.certora/
+.certora_internal/
+emv-*-certora-*/
+
 # JS
 node_modules/
 package-lock.json

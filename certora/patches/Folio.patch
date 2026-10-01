@@ -1,0 +1,31 @@
+diff --git a/contracts/Folio.sol b/contracts/Folio.sol
+index 5b64017..ed90345 100644
+--- a/contracts/Folio.sol
++++ b/contracts/Folio.sol
+@@ -117,7 +117,7 @@ contract Folio is
+     /**
+      * Basket
+      */
+-    EnumerableSet.AddressSet private basket;
++    EnumerableSet.AddressSet internal basket;
+ 
+     /**
+      * Fees
+@@ -153,7 +153,7 @@ contract Folio is
+     // === 3.0.0 ===
+     ITrustedFillerRegistry public trustedFillerRegistry;
+     bool public trustedFillerEnabled;
+-    IBaseTrustedFiller private activeTrustedFill;
++    IBaseTrustedFiller internal activeTrustedFill;
+ 
+     // === 4.0.0 ===
+     // 3.0.0 release was skipped so strict 3.0.0 -> 4.0.0 storage compatibility is not a requirement
+@@ -172,7 +172,7 @@ contract Folio is
+      *   - At any time the rebalance can be stopped or a new one can be started. In the stopping case, any ongoing auction
+      *     is able to continue completion, but in the restart case the ongoing auction is closed.
+      */
+-    Rebalance private rebalance;
++    Rebalance internal rebalance;
+ 
+     /**
+      * Auctions
