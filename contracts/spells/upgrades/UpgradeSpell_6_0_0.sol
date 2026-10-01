@@ -42,6 +42,9 @@ contract UpgradeSpell_6_0_0 is Versioned {
     error UpgradeSpell__Error(uint256 code);
 
     function cast(Folio folio, FolioProxyAdmin proxyAdmin, ISelectorRegistry_6_0_0 selectorRegistry) external {
+        // Account for all legacy fee state before checking upgrade preconditions.
+        folio.poke();
+
         require(keccak256(bytes(folio.version())) == VERSION_5_0_0, UpgradeSpell__Error(1));
         require(!folio.isDeprecated(), UpgradeSpell__Error(2));
         require(folio.hasRole(DEFAULT_ADMIN_ROLE, msg.sender), UpgradeSpell__Error(3));
@@ -78,9 +81,6 @@ contract UpgradeSpell_6_0_0 is Versioned {
             (, , uint256 endTime) = folio.auctions(nextAuctionId - 1);
             require(endTime < block.timestamp, UpgradeSpell__Error(17));
         }
-
-        // Account for all legacy fee state before changing the implementation.
-        folio.poke();
 
         proxyAdmin.upgradeToVersion(address(folio), VERSION_6_0_0, abi.encodeCall(Folio.poke, ()));
         require(keccak256(bytes(folio.version())) == VERSION_6_0_0, UpgradeSpell__Error(18));
