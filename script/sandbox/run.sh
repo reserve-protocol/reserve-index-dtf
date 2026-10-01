@@ -27,8 +27,8 @@ SOLIDITY_STATE_DIR="${SANDBOX_STAGE_DIR:-$REPO_ROOT/.fork/sandbox-stage}"
 # The spell is upstream reserve-index-dtf branch upgrade-spell-6.0.0 at this commit; the sandbox copy adds only a
 # comment header. `git show $SPELL_SOURCE_COMMIT:contracts/spells/upgrades/UpgradeSpell_6_0_0.sol | shasum -a 256`
 # reproduces the hash.
-SPELL_SOURCE_COMMIT="50f29f4a4dd2c8877d9879130f16eb23636cccfb"
-SPELL_SOURCE_SHA256="6fd0b3d6fc77b0c0946db53d3b2c2afffde93d050fe268d5dc394eef45fd835c"
+SPELL_SOURCE_COMMIT="e69f6eaaf9678aa575bd502d8f235f8bdd11eb78"
+SPELL_SOURCE_SHA256="0c3a42f34fc178d83ffa9f8842d3a220fbd18fd564b94290f7354ea22d16c531"
 SPELL_FILE="$REPO_ROOT/script/sandbox/UpgradeSpell_6_0_0.sol"
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 WETH=0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2

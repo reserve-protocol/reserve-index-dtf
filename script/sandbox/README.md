@@ -36,10 +36,10 @@ ProxyAdmin, cast the spell; the spell's fail-closed legacy check (no `version()`
 accepts the production v5 legacy timelock.
 
 `UpgradeSpell_6_0_0.sol` is upstream `contracts/spells/upgrades/UpgradeSpell_6_0_0.sol` at commit
-`50f29f4a4dd2c8877d9879130f16eb23636cccfb` (branch `upgrade-spell-6.0.0`) plus a comment header. Everything from the
+`e69f6eaaf9678aa575bd502d8f235f8bdd11eb78` (branch `upgrade-spell-6.0.0`) plus a comment header. Everything from the
 SPDX line down must hash to the pinned sha256; the runner checks that before compiling or broadcasting and
 `MainnetAnvilSandboxTest` checks it in CI. Reproduce with
-`git show 50f29f4:contracts/spells/upgrades/UpgradeSpell_6_0_0.sol | shasum -a 256`. `bootstrap.json` and the fixture
+`git show e69f6ea:contracts/spells/upgrades/UpgradeSpell_6_0_0.sol | shasum -a 256`. `bootstrap.json` and the fixture
 record `spellSourceCommit`/`upgradeSpellSourceCommit` and the sha256; reuse refuses a bootstrap deployed from another
 spell source.
 

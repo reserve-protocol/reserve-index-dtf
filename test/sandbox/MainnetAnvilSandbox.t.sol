@@ -132,11 +132,11 @@ contract MainnetAnvilSandboxTest is Test {
     string internal constant SPDX_LINE = "// SPDX-License-Identifier: MIT\n";
     string internal constant SPELL_HEADER =
         "// Sandbox copy of reserve-protocol/reserve-index-dtf contracts/spells/upgrades/UpgradeSpell_6_0_0.sol\n"
-        "// at commit 50f29f4a4dd2c8877d9879130f16eb23636cccfb (branch upgrade-spell-6.0.0).\n"
+        "// at commit e69f6eaaf9678aa575bd502d8f235f8bdd11eb78 (branch upgrade-spell-6.0.0).\n"
         "// Everything from the SPDX line down is byte-for-byte upstream; run.sh and MainnetAnvilSandboxTest pin its sha256.\n";
-    // sha256 of `git show 50f29f4:contracts/spells/upgrades/UpgradeSpell_6_0_0.sol`; run.sh pins the same value.
+    // sha256 of `git show e69f6ea:contracts/spells/upgrades/UpgradeSpell_6_0_0.sol`; run.sh pins the same value.
     bytes32 internal constant UPSTREAM_SPELL_SHA256 =
-        0x6fd0b3d6fc77b0c0946db53d3b2c2afffde93d050fe268d5dc394eef45fd835c;
+        0x0c3a42f34fc178d83ffa9f8842d3a220fbd18fd564b94290f7354ea22d16c531;
 
     function test_upgradeSpellSourceIsExactUpstreamCommit() public view {
         string[] memory parts = vm.split(vm.readFile("script/sandbox/UpgradeSpell_6_0_0.sol"), SPDX_LINE);
@@ -147,11 +147,11 @@ contract MainnetAnvilSandboxTest is Test {
 
     function test_runnerPinsTheSameSpellSource() public view {
         string memory runner = vm.readFile("script/sandbox/run.sh");
-        assertTrue(vm.contains(runner, 'SPELL_SOURCE_COMMIT="50f29f4a4dd2c8877d9879130f16eb23636cccfb"'));
+        assertTrue(vm.contains(runner, 'SPELL_SOURCE_COMMIT="e69f6eaaf9678aa575bd502d8f235f8bdd11eb78"'));
         assertTrue(
             vm.contains(
                 runner,
-                'SPELL_SOURCE_SHA256="6fd0b3d6fc77b0c0946db53d3b2c2afffde93d050fe268d5dc394eef45fd835c"'
+                'SPELL_SOURCE_SHA256="0c3a42f34fc178d83ffa9f8842d3a220fbd18fd564b94290f7354ea22d16c531"'
             )
         );
     }
