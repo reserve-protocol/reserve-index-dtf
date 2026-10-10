@@ -22,7 +22,7 @@ fs_permissions = [{access = "read-write", path = "./"}]
 
 [rpc_endpoints]
 base = "https://base.gateway.tenderly.co"
-bsc = "https://bsc-dataseed.bnbchain.org"
+bsc = "https://bsc-mainnet.public.blastapi.io"
 mainnet = "https://mainnet.gateway.tenderly.co"
 
 [etherscan]
