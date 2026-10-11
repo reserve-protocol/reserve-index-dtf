@@ -1,0 +1,22 @@
+# Python dependencies for CertoraProver 8.9.0.
+bracex==3.0.1
+certifi==2026.7.22
+charset-normalizer==3.5.1
+click==8.5.0
+idna==3.19
+Jinja2==3.1.6
+json5==0.15.0
+markdown-it-py==4.2.0
+MarkupSafe==3.0.3
+mdurl==0.1.2
+pycryptodome==3.23.0
+Pygments==2.21.0
+requests==2.34.2
+rich==15.0.0
+sly==0.5
+StrEnum==0.4.15
+tabulate==0.10.0
+tqdm==4.70.1
+typing_extensions==4.16.0
+urllib3==2.8.0
+wcmatch==11.0.1
