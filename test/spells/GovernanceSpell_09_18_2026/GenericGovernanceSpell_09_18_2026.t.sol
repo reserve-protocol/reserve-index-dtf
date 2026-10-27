@@ -514,7 +514,7 @@ abstract contract GenericGovernanceSpell_09_18_2026_Test is BaseTest {
             guardians
         );
 
-        assertEq(baseParams.standardParams.proposalThreshold, 0.001e18, "proposal threshold param mismatch");
+        assertEq(baseParams.standardParams.proposalThreshold, 0.02e18, "proposal threshold param mismatch");
         assertEq(baseParams.standardParams.quorumNumerator, 0.1e18, "quorum numerator param mismatch");
     }
 

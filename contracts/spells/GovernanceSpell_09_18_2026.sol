@@ -303,7 +303,7 @@ contract GovernanceSpell_09_18_2026 {
         baseParams.standardParams.votingDelay = 2 days;
         baseParams.standardParams.votingPeriod = 3 days;
         baseParams.standardParams.voteExtension = 2 days;
-        baseParams.standardParams.proposalThreshold = 0.001e18; // 0.1%
+        baseParams.standardParams.proposalThreshold = 0.02e18; // 2%
         baseParams.standardParams.quorumNumerator = 0.1e18; // 10%
         // hard-coded long standard governance params to unify across DTFs
 
